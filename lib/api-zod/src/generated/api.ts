@@ -14,3 +14,26 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * @summary Create a new room
+ */
+export const CreateRoomBody = zod.object({
+  creatorName: zod.string(),
+  durationMinutes: zod.number(),
+});
+
+/**
+ * @summary Get room info
+ */
+export const GetRoomParams = zod.object({
+  code: zod.coerce.string(),
+});
+
+export const GetRoomResponse = zod.object({
+  code: zod.string(),
+  creatorName: zod.string(),
+  durationMinutes: zod.number(),
+  status: zod.enum(["waiting", "running", "finished"]),
+  participantCount: zod.number(),
+});

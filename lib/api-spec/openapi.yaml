@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: rooms
+    description: Room operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /rooms:
+    post:
+      operationId: createRoom
+      tags: [rooms]
+      summary: Create a new room
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoomBody"
+      responses:
+        "201":
+          description: Room created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoomInfo"
+  /rooms/{code}:
+    get:
+      operationId: getRoom
+      tags: [rooms]
+      summary: Get room info
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Room found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoomInfo"
+        "404":
+          description: Room not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +77,40 @@ components:
           type: string
       required:
         - status
-
+    CreateRoomBody:
+      type: object
+      properties:
+        creatorName:
+          type: string
+        durationMinutes:
+          type: integer
+      required:
+        - creatorName
+        - durationMinutes
+    RoomInfo:
+      type: object
+      properties:
+        code:
+          type: string
+        creatorName:
+          type: string
+        durationMinutes:
+          type: integer
+        status:
+          type: string
+          enum: [waiting, running, finished]
+        participantCount:
+          type: integer
+      required:
+        - code
+        - creatorName
+        - durationMinutes
+        - status
+        - participantCount
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

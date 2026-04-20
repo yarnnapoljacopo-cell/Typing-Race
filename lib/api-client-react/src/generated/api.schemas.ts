@@ -8,3 +8,29 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface CreateRoomBody {
+  creatorName: string;
+  durationMinutes: number;
+}
+
+export type RoomInfoStatus =
+  (typeof RoomInfoStatus)[keyof typeof RoomInfoStatus];
+
+export const RoomInfoStatus = {
+  waiting: "waiting",
+  running: "running",
+  finished: "finished",
+} as const;
+
+export interface RoomInfo {
+  code: string;
+  creatorName: string;
+  durationMinutes: number;
+  status: RoomInfoStatus;
+  participantCount: number;
+}
+
+export interface ErrorResponse {
+  error: string;
+}

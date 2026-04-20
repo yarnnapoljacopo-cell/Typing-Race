@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Writing Sprint"
+version = "1.0.0"
+id = "artifacts/writing-sprint"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21897
+
+[services.development]
+run = "pnpm --filter @workspace/writing-sprint run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/writing-sprint", "run", "build" ]
+publicDir = "artifacts/writing-sprint/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21897"
+BASE_PATH = "/"
