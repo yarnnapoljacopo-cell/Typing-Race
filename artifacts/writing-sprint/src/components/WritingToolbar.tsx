@@ -1,148 +1,162 @@
 import { memo } from "react";
-import { Type } from "lucide-react";
+import { Type, AlignLeft } from "lucide-react";
 
 export interface WritingStyle {
   fontFamily: string;
   fontSize: number;
   lineHeight: number;
+  paragraphMode: "none" | "indent" | "double";
 }
 
-interface FontOption {
-  label: string;
-  sublabel: string;
-  value: string;
-  preview: string;
-}
-
-interface SizeOption {
-  label: string;
-  value: number;
-}
-
-const FONTS: FontOption[] = [
-  { label: "Georgia",     sublabel: "Classic",     value: "Georgia, serif",                        preview: "Ag" },
-  { label: "Times",       sublabel: "Traditional", value: "'Times New Roman', Times, serif",        preview: "Ag" },
-  { label: "Palatino",    sublabel: "Elegant",     value: "'Palatino Linotype', Palatino, serif",  preview: "Ag" },
-  { label: "Courier",     sublabel: "Typewriter",  value: "'Courier New', Courier, monospace",     preview: "Ag" },
-  { label: "System",      sublabel: "Clean",       value: "system-ui, -apple-system, sans-serif", preview: "Ag" },
+const FONTS = [
+  { label: "Georgia",  sublabel: "Classic",     value: "Georgia, serif" },
+  { label: "Times",    sublabel: "Traditional", value: "'Times New Roman', Times, serif" },
+  { label: "Palatino", sublabel: "Elegant",     value: "'Palatino Linotype', Palatino, serif" },
+  { label: "Courier",  sublabel: "Typewriter",  value: "'Courier New', Courier, monospace" },
+  { label: "System",   sublabel: "Clean",       value: "system-ui, -apple-system, sans-serif" },
 ];
 
-const SIZES: SizeOption[] = [
+const SIZES = [
   { label: "S",  value: 15 },
   { label: "M",  value: 18 },
   { label: "L",  value: 21 },
   { label: "XL", value: 26 },
 ];
 
-const LINE_HEIGHTS: { label: string; value: number }[] = [
+const LINE_HEIGHTS = [
   { label: "Tight",   value: 1.4 },
   { label: "Normal",  value: 1.75 },
   { label: "Relaxed", value: 2.1 },
 ];
 
+const PARAGRAPH_MODES: { label: string; sublabel: string; value: WritingStyle["paragraphMode"] }[] = [
+  { label: "None",   sublabel: "Plain Enter",           value: "none" },
+  { label: "Indent", sublabel: "Indent next paragraph", value: "indent" },
+  { label: "Double", sublabel: "Blank line between paragraphs", value: "double" },
+];
+
 interface WritingToolbarProps {
   style: WritingStyle;
   onChange: (style: Partial<WritingStyle>) => void;
-  disabled?: boolean;
 }
+
+function ToolBtn({
+  active,
+  onClick,
+  children,
+  title,
+  className = "",
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  title?: string;
+  className?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`h-7 rounded text-xs font-semibold transition-all ${
+        active
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "bg-muted/60 text-foreground hover:bg-muted"
+      } ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+const Divider = () => <div className="h-6 w-px bg-border hidden sm:block" />;
 
 export const WritingToolbar = memo(function WritingToolbar({
   style,
   onChange,
-  disabled,
 }: WritingToolbarProps) {
   return (
-    <div
-      className="flex flex-wrap items-center gap-3 px-3 py-2 bg-card border border-b-0 rounded-t-lg"
-      style={{ opacity: disabled ? 0.5 : 1, pointerEvents: disabled ? "none" : "auto" }}
-    >
-      {/* Font icon label */}
-      <div className="flex items-center gap-1.5 text-muted-foreground mr-1">
-        <Type size={13} />
-        <span className="text-xs font-medium uppercase tracking-wider hidden sm:inline">Font</span>
+    <div className="flex flex-wrap items-center gap-2.5 px-3 py-2 bg-card border border-b-0 rounded-t-lg">
+
+      {/* Font family */}
+      <div className="flex items-center gap-1 text-muted-foreground">
+        <Type size={12} />
+        <span className="text-[10px] font-semibold uppercase tracking-wider hidden sm:inline">Font</span>
+      </div>
+      <div className="flex items-center gap-1">
+        {FONTS.map((f) => (
+          <button
+            key={f.value}
+            onClick={() => onChange({ fontFamily: f.value })}
+            title={`${f.label} — ${f.sublabel}`}
+            className={`flex flex-col items-center justify-center px-2 py-1 rounded transition-all ${
+              style.fontFamily === f.value
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-muted/60 text-foreground hover:bg-muted"
+            }`}
+            style={{ minWidth: "44px" }}
+          >
+            <span style={{ fontFamily: f.value, fontSize: "14px", lineHeight: 1, fontWeight: style.fontFamily === f.value ? 700 : 500 }}>
+              Ag
+            </span>
+            <span className="text-[9px] mt-0.5 font-medium leading-none opacity-80">{f.label}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Font family options */}
-      <div className="flex items-center gap-1.5">
-        {FONTS.map((f) => {
-          const active = style.fontFamily === f.value;
-          return (
-            <button
-              key={f.value}
-              onClick={() => onChange({ fontFamily: f.value })}
-              title={`${f.label} — ${f.sublabel}`}
-              className={`
-                flex flex-col items-center justify-center px-2 py-1 rounded text-center transition-all
-                ${active
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-muted/60 text-foreground hover:bg-muted"
-                }
-              `}
-              style={{ minWidth: "48px" }}
-            >
-              <span
-                style={{ fontFamily: f.value, fontSize: "15px", lineHeight: 1, fontWeight: active ? 700 : 500 }}
-              >
-                {f.preview}
-              </span>
-              <span className="text-[9px] mt-0.5 font-medium tracking-wide leading-none opacity-80">
-                {f.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Divider */}
-      <div className="h-6 w-px bg-border hidden sm:block" />
+      <Divider />
 
       {/* Font size */}
       <div className="flex items-center gap-1">
-        {SIZES.map((s) => {
-          const active = style.fontSize === s.value;
-          return (
-            <button
-              key={s.value}
-              onClick={() => onChange({ fontSize: s.value })}
-              className={`
-                w-8 h-7 rounded text-center text-xs font-bold transition-all
-                ${active
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-muted/60 text-foreground hover:bg-muted"
-                }
-              `}
-            >
-              {s.label}
-            </button>
-          );
-        })}
+        {SIZES.map((s) => (
+          <ToolBtn
+            key={s.value}
+            active={style.fontSize === s.value}
+            onClick={() => onChange({ fontSize: s.value })}
+            className="w-8"
+          >
+            {s.label}
+          </ToolBtn>
+        ))}
       </div>
 
-      {/* Divider */}
-      <div className="h-6 w-px bg-border hidden sm:block" />
+      <Divider />
 
       {/* Line height */}
       <div className="flex items-center gap-1">
-        {LINE_HEIGHTS.map((lh) => {
-          const active = style.lineHeight === lh.value;
-          return (
-            <button
-              key={lh.value}
-              onClick={() => onChange({ lineHeight: lh.value })}
-              title={`Line height: ${lh.label}`}
-              className={`
-                px-2 h-7 rounded text-[10px] font-semibold tracking-wide uppercase transition-all
-                ${active
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-muted/60 text-foreground hover:bg-muted"
-                }
-              `}
-            >
-              {lh.label}
-            </button>
-          );
-        })}
+        {LINE_HEIGHTS.map((lh) => (
+          <ToolBtn
+            key={lh.value}
+            active={style.lineHeight === lh.value}
+            onClick={() => onChange({ lineHeight: lh.value })}
+            title={`Line height: ${lh.label}`}
+            className="px-2 uppercase tracking-wide text-[10px]"
+          >
+            {lh.label}
+          </ToolBtn>
+        ))}
       </div>
+
+      <Divider />
+
+      {/* Paragraph mode */}
+      <div className="flex items-center gap-1 text-muted-foreground">
+        <AlignLeft size={12} />
+        <span className="text-[10px] font-semibold uppercase tracking-wider hidden sm:inline">¶</span>
+      </div>
+      <div className="flex items-center gap-1">
+        {PARAGRAPH_MODES.map((m) => (
+          <ToolBtn
+            key={m.value}
+            active={style.paragraphMode === m.value}
+            onClick={() => onChange({ paragraphMode: m.value })}
+            title={m.sublabel}
+            className="px-2 uppercase tracking-wide text-[10px]"
+          >
+            {m.label}
+          </ToolBtn>
+        ))}
+      </div>
+
     </div>
   );
 });

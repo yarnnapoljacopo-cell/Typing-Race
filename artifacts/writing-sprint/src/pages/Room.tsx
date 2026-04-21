@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useSprintRoom } from "@/hooks/useSprintRoom";
 import { RaceTrack } from "@/components/RaceTrack";
@@ -10,6 +10,8 @@ import { Copy, AlertCircle, Loader2, Play, WifiOff } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
 function useSearchParams() {
   return useMemo(() => new URLSearchParams(window.location.search), [window.location.search]);
 }
@@ -18,6 +20,12 @@ function countWords(str: string): number {
   const matches = str.match(/\b\w+\b/g);
   return matches ? matches.length : 0;
 }
+
+function autoSaveKey(code: string) {
+  return `sprint-autosave-${code}`;
+}
+
+// ── Component ──────────────────────────────────────────────────────────────
 
 export default function Room() {
   const [, setLocation] = useLocation();
@@ -28,15 +36,34 @@ export default function Room() {
   const name = searchParams.get("name") || "";
   const isCreatorParams = searchParams.get("isCreator") === "true";
 
-  const [text, setText] = useState("");
-  const [wordCount, setWordCount] = useState(0);
+  const [text, setText] = useState(() => {
+    // Restore any autosaved draft for this room on first render
+    if (code) {
+      try {
+        return localStorage.getItem(autoSaveKey(code)) ?? "";
+      } catch {
+        return "";
+      }
+    }
+    return "";
+  });
+  const [wordCount, setWordCount] = useState(() => countWords(
+    (() => { try { return localStorage.getItem(autoSaveKey(code)) ?? ""; } catch { return ""; } })()
+  ));
+  const [savedFlash, setSavedFlash] = useState(false);
   const [writingStyle, setWritingStyle] = useState<WritingStyle>({
     fontFamily: "Georgia, serif",
     fontSize: 18,
     lineHeight: 1.75,
+    paragraphMode: "none",
   });
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
+  const autoSaveTimeoutRef = useRef<number | null>(null);
+  const savedFlashTimeoutRef = useRef<number | null>(null);
+  // Pending cursor position after an Enter-key paragraph insert
+  const pendingCursorRef = useRef<number | null>(null);
 
   const {
     room,
@@ -55,26 +82,83 @@ export default function Room() {
     if (!code || !name) setLocation("/");
   }, [code, name, setLocation]);
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newText = e.target.value;
-    setText(newText);
+  // Restore cursor after a programmatic paragraph insert
+  useEffect(() => {
+    if (pendingCursorRef.current !== null && textareaRef.current) {
+      const pos = pendingCursorRef.current;
+      textareaRef.current.selectionStart = pos;
+      textareaRef.current.selectionEnd = pos;
+      pendingCursorRef.current = null;
+    }
+  });
 
+  // Clear autosave when the sprint ends so stale drafts don't persist
+  useEffect(() => {
+    if (room?.status === "finished" && code) {
+      try { localStorage.removeItem(autoSaveKey(code)); } catch { /* ignore */ }
+    }
+  }, [room?.status, code]);
+
+  // ── Core text update ───────────────────────────────────────────────────
+
+  const applyText = useCallback((newText: string) => {
     const wc = countWords(newText);
+    setText(newText);
     setWordCount(wc);
-
-    // Keep hook's ref current for reconnect resync
     setLatestText(newText);
 
-    // Optimistically move car immediately
-    if (participantId) {
-      updateLocalWordCount(participantId, wc);
+    // Optimistic car movement
+    if (participantId) updateLocalWordCount(participantId, wc);
+
+    // Debounced server sync
+    if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+    debounceTimeoutRef.current = window.setTimeout(() => sendTextUpdate(newText), 100);
+
+    // Debounced autosave to localStorage
+    if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+    autoSaveTimeoutRef.current = window.setTimeout(() => {
+      try {
+        if (newText) {
+          localStorage.setItem(autoSaveKey(code), newText);
+        } else {
+          localStorage.removeItem(autoSaveKey(code));
+        }
+      } catch { /* storage full / private mode */ }
+
+      // Flash "Saved" badge
+      setSavedFlash(true);
+      if (savedFlashTimeoutRef.current) clearTimeout(savedFlashTimeoutRef.current);
+      savedFlashTimeoutRef.current = window.setTimeout(() => setSavedFlash(false), 1800);
+    }, 1500);
+  }, [code, participantId, setLatestText, sendTextUpdate, updateLocalWordCount]);
+
+  // ── Handlers ───────────────────────────────────────────────────────────
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    applyText(e.target.value);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter") return;
+    if (writingStyle.paragraphMode === "none") return;
+
+    e.preventDefault();
+    const ta = e.currentTarget;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+
+    let insertion: string;
+    if (writingStyle.paragraphMode === "indent") {
+      // Newline + 4-space indent on the next line
+      insertion = "\n    ";
+    } else {
+      // Double: blank line between paragraphs
+      insertion = "\n\n";
     }
 
-    // Debounced send to server
-    if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
-    debounceTimeoutRef.current = window.setTimeout(() => {
-      sendTextUpdate(newText);
-    }, 100);
+    const newText = text.substring(0, start) + insertion + text.substring(end);
+    pendingCursorRef.current = start + insertion.length;
+    applyText(newText);
   };
 
   const handleStyleChange = (partial: Partial<WritingStyle>) => {
@@ -86,7 +170,8 @@ export default function Room() {
     toast({ title: "Copied!", description: "Room code copied to clipboard." });
   };
 
-  // ── Fatal error ──────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────
+
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -104,8 +189,6 @@ export default function Room() {
     );
   }
 
-  // ── First-time loading (no room yet) ─────────────────────────────────────
-  // If we already have a room but lost connection, keep showing the UI instead
   if (!room) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-muted-foreground space-y-4">
@@ -125,7 +208,7 @@ export default function Room() {
   return (
     <div className="min-h-screen w-full max-w-5xl mx-auto flex flex-col p-4 md:p-6 gap-4">
 
-      {/* Reconnecting banner — shown when WS drops but we have room state */}
+      {/* Reconnecting banner */}
       {!isConnected && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2 text-sm font-medium">
           <WifiOff className="w-4 h-4 shrink-0" />
@@ -194,8 +277,10 @@ export default function Room() {
               <WritingToolbar style={writingStyle} onChange={handleStyleChange} />
               <div className="relative flex-1 min-h-[380px]">
                 <textarea
+                  ref={textareaRef}
                   value={text}
                   onChange={handleTextChange}
+                  onKeyDown={handleKeyDown}
                   disabled={!isRunning || !isConnected}
                   placeholder={
                     !isConnected
@@ -215,10 +300,21 @@ export default function Room() {
                   }}
                 />
 
-                {/* Word count badge */}
-                <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur border px-3 py-1.5 rounded-md shadow-sm pointer-events-none flex items-baseline gap-1.5">
-                  <span className="font-mono font-bold text-lg">{wordCount}</span>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">words</span>
+                {/* Bottom-right badge row */}
+                <div className="absolute bottom-4 right-4 flex items-center gap-2 pointer-events-none">
+                  {/* Auto-save flash */}
+                  <div
+                    className="bg-background/90 backdrop-blur border px-2 py-1 rounded text-[10px] font-medium text-muted-foreground transition-opacity duration-500"
+                    style={{ opacity: savedFlash ? 1 : 0 }}
+                  >
+                    Saved
+                  </div>
+
+                  {/* Word count */}
+                  <div className="bg-background/90 backdrop-blur border px-3 py-1.5 rounded-md shadow-sm flex items-baseline gap-1.5">
+                    <span className="font-mono font-bold text-lg">{wordCount}</span>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">words</span>
+                  </div>
                 </div>
               </div>
             </div>
