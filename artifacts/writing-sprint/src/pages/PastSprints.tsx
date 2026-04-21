@@ -9,6 +9,8 @@ interface Sprint {
   roomCode: string;
   participantName: string;
   wordCount: number;
+  rank: number;
+  totalParticipants: number;
   updatedAt: string;
   excerpt: string;
 }
@@ -46,6 +48,37 @@ async function fetchFullText(id: number): Promise<string> {
   if (!res.ok) throw new Error("Failed to load text");
   const data = await res.json();
   return data.text ?? "";
+}
+
+function RankBadge({ rank, total }: { rank: number; total: number }) {
+  if (total <= 1) return null;
+
+  if (rank === 1) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700">
+        🥇 1st of {total}
+      </span>
+    );
+  }
+  if (rank === 2) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+        🥈 2nd of {total}
+      </span>
+    );
+  }
+  if (rank === 3) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border border-orange-200 dark:border-orange-700">
+        🥉 3rd of {total}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+      #{rank} of {total}
+    </span>
+  );
 }
 
 function SprintCard({ sprint }: { sprint: Sprint }) {
@@ -93,15 +126,18 @@ function SprintCard({ sprint }: { sprint: Sprint }) {
     <Card className="border-border hover:border-primary/30 transition-colors">
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-sm font-semibold text-primary">{sprint.roomCode}</span>
               <span className="text-xs text-muted-foreground">·</span>
               <span className="text-xs text-muted-foreground">{formatDate(sprint.updatedAt)}</span>
               <span className="text-xs text-muted-foreground">{formatTime(sprint.updatedAt)}</span>
             </div>
-            <div className="text-sm font-medium text-foreground">
-              {sprint.wordCount.toLocaleString()} {sprint.wordCount === 1 ? "word" : "words"}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-foreground">
+                {sprint.wordCount.toLocaleString()} {sprint.wordCount === 1 ? "word" : "words"}
+              </span>
+              <RankBadge rank={sprint.rank} total={sprint.totalParticipants} />
             </div>
           </div>
           <Button
@@ -122,7 +158,6 @@ function SprintCard({ sprint }: { sprint: Sprint }) {
             }`}
           >
             {displayText}
-            {expanded && fullText && !fullText.endsWith("…") ? "" : ""}
           </div>
         )}
 
@@ -179,12 +214,18 @@ export default function PastSprints() {
   }
 
   const totalWords = sprints.reduce((sum, s) => sum + s.wordCount, 0);
+  const wins = sprints.filter((s) => s.rank === 1 && s.totalParticipants > 1).length;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between px-1">
         <p className="text-sm text-muted-foreground">
           {sprints.length} {sprints.length === 1 ? "sprint" : "sprints"}
+          {wins > 0 && (
+            <span className="ml-2 text-yellow-600 dark:text-yellow-400 font-medium">
+              · 🥇 {wins} {wins === 1 ? "win" : "wins"}
+            </span>
+          )}
         </p>
         <p className="text-sm font-medium text-foreground">
           {totalWords.toLocaleString()} words total

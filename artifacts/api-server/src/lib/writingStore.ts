@@ -1,5 +1,5 @@
 import { db, sprintWritingTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { logger } from "./logger";
 
 export async function saveWriting(
@@ -56,6 +56,8 @@ export async function getUserSprints(clerkUserId: string): Promise<Array<{
   roomCode: string;
   participantName: string;
   wordCount: number;
+  rank: number;
+  totalParticipants: number;
   updatedAt: Date;
   excerpt: string;
 }>> {
@@ -66,14 +68,34 @@ export async function getUserSprints(clerkUserId: string): Promise<Array<{
       .where(eq(sprintWritingTable.clerkUserId, clerkUserId))
       .orderBy(desc(sprintWritingTable.updatedAt));
 
-    return rows.map((r) => ({
-      id: r.id,
-      roomCode: r.roomCode,
-      participantName: r.participantName,
-      wordCount: r.wordCount,
-      updatedAt: r.updatedAt,
-      excerpt: r.text.slice(0, 200),
-    }));
+    if (rows.length === 0) return [];
+
+    const roomCodes = [...new Set(rows.map((r) => r.roomCode))];
+    const allRoomRows = await db
+      .select({ roomCode: sprintWritingTable.roomCode, wordCount: sprintWritingTable.wordCount })
+      .from(sprintWritingTable)
+      .where(inArray(sprintWritingTable.roomCode, roomCodes));
+
+    const roomMap = new Map<string, number[]>();
+    for (const r of allRoomRows) {
+      if (!roomMap.has(r.roomCode)) roomMap.set(r.roomCode, []);
+      roomMap.get(r.roomCode)!.push(r.wordCount);
+    }
+
+    return rows.map((r) => {
+      const counts = (roomMap.get(r.roomCode) ?? []).slice().sort((a, b) => b - a);
+      const rank = counts.findIndex((wc) => wc <= r.wordCount) + 1 || counts.length;
+      return {
+        id: r.id,
+        roomCode: r.roomCode,
+        participantName: r.participantName,
+        wordCount: r.wordCount,
+        rank,
+        totalParticipants: counts.length,
+        updatedAt: r.updatedAt,
+        excerpt: r.text.slice(0, 200),
+      };
+    });
   } catch (err) {
     logger.error({ err, clerkUserId }, "Failed to fetch user sprints");
     return [];
