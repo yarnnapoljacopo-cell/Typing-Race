@@ -2,16 +2,25 @@ import { Participant } from "@/hooks/useSprintRoom";
 import { Button } from "@/components/ui/button";
 import { Trophy, Medal, Award, RotateCcw } from "lucide-react";
 import { motion } from "framer-motion";
+import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 
 interface ResultsScreenProps {
   participants: Participant[];
   currentParticipantId: string | null;
   isCreator: boolean;
   onRestart: (duration: number) => void;
+  myText: string;
+  capsules: Capsule[];
 }
 
-export function ResultsScreen({ participants, currentParticipantId, isCreator, onRestart }: ResultsScreenProps) {
-  // Sort by word count descending
+export function ResultsScreen({
+  participants,
+  currentParticipantId,
+  isCreator,
+  onRestart,
+  myText,
+  capsules,
+}: ResultsScreenProps) {
   const sorted = [...participants].sort((a, b) => b.wordCount - a.wordCount);
 
   const getRankIcon = (index: number) => {
@@ -24,7 +33,7 @@ export function ResultsScreen({ participants, currentParticipantId, isCreator, o
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="w-full max-w-2xl mx-auto space-y-6"
@@ -46,23 +55,19 @@ export function ResultsScreen({ participants, currentParticipantId, isCreator, o
           {sorted.map((p, i) => {
             const isMe = p.id === currentParticipantId;
             return (
-              <motion.div 
+              <motion.div
                 key={p.id}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.1 }}
-                className={`grid grid-cols-12 gap-4 p-4 items-center ${isMe ? 'bg-primary/5' : ''}`}
+                className={`grid grid-cols-12 gap-4 p-4 items-center ${isMe ? "bg-primary/5" : ""}`}
               >
-                <div className="col-span-2 flex justify-center items-center">
-                  {getRankIcon(i)}
-                </div>
+                <div className="col-span-2 flex justify-center items-center">{getRankIcon(i)}</div>
                 <div className="col-span-4 font-medium text-foreground flex items-center gap-2">
                   {p.name}
                   {isMe && <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded">You</span>}
                 </div>
-                <div className="col-span-3 text-right font-mono text-lg font-bold">
-                  {p.wordCount}
-                </div>
+                <div className="col-span-3 text-right font-mono text-lg font-bold">{p.wordCount}</div>
                 <div className="col-span-3 text-right text-muted-foreground">
                   <span className="font-mono font-medium text-foreground">{p.wpm}</span> wpm
                 </div>
@@ -72,18 +77,29 @@ export function ResultsScreen({ participants, currentParticipantId, isCreator, o
         </div>
       </div>
 
+      {/* Access to my writing */}
+      <div className="flex items-center justify-center gap-3 pt-2">
+        <WritingArchive
+          text={myText}
+          capsules={capsules}
+          triggerLabel="View My Writing"
+          triggerVariant="default"
+          triggerSize="lg"
+        />
+      </div>
+
       {isCreator ? (
         <div className="flex flex-col items-center gap-4 pt-6 border-t">
           <p className="text-sm font-medium text-foreground">Start another sprint?</p>
           <div className="flex gap-3">
-            <Button onClick={() => onRestart(5)} variant="outline" className="gap-2">
-              <RotateCcw className="w-4 h-4" /> 5 Min
+            <Button onClick={() => onRestart(30)} variant="outline" className="gap-2">
+              <RotateCcw className="w-4 h-4" /> 30 Min
             </Button>
-            <Button onClick={() => onRestart(15)} variant="default" className="gap-2">
-              <RotateCcw className="w-4 h-4" /> 15 Min
+            <Button onClick={() => onRestart(45)} variant="default" className="gap-2">
+              <RotateCcw className="w-4 h-4" /> 45 Min
             </Button>
-            <Button onClick={() => onRestart(25)} variant="outline" className="gap-2">
-              <RotateCcw className="w-4 h-4" /> 25 Min
+            <Button onClick={() => onRestart(60)} variant="outline" className="gap-2">
+              <RotateCcw className="w-4 h-4" /> 60 Min
             </Button>
           </div>
         </div>

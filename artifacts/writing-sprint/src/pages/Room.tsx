@@ -5,10 +5,13 @@ import { RaceTrack } from "@/components/RaceTrack";
 import { Timer } from "@/components/Timer";
 import { ResultsScreen } from "@/components/ResultsScreen";
 import { WritingToolbar, type WritingStyle } from "@/components/WritingToolbar";
+import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 import { Button } from "@/components/ui/button";
 import { Copy, AlertCircle, Loader2, Play, WifiOff } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+
+const CAPSULE_INTERVAL = 200;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -23,6 +26,29 @@ function countWords(str: string): number {
 
 function autoSaveKey(code: string) {
   return `sprint-autosave-${code}`;
+}
+
+function capsulesKey(code: string) {
+  return `sprint-capsules-${code}`;
+}
+
+function loadCapsules(code: string): Capsule[] {
+  if (!code) return [];
+  try {
+    const raw = localStorage.getItem(capsulesKey(code));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCapsules(code: string, capsules: Capsule[]) {
+  if (!code) return;
+  try {
+    localStorage.setItem(capsulesKey(code), JSON.stringify(capsules));
+  } catch { /* ignore */ }
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -51,6 +77,8 @@ export default function Room() {
     (() => { try { return localStorage.getItem(autoSaveKey(code)) ?? ""; } catch { return ""; } })()
   ));
   const [savedFlash, setSavedFlash] = useState(false);
+  const [capsuleFlash, setCapsuleFlash] = useState(false);
+  const [capsules, setCapsules] = useState<Capsule[]>(() => loadCapsules(code));
   const [writingStyle, setWritingStyle] = useState<WritingStyle>({
     fontFamily: "Georgia, serif",
     fontSize: 18,
@@ -62,8 +90,13 @@ export default function Room() {
   const debounceTimeoutRef = useRef<number | null>(null);
   const autoSaveTimeoutRef = useRef<number | null>(null);
   const savedFlashTimeoutRef = useRef<number | null>(null);
+  const capsuleFlashTimeoutRef = useRef<number | null>(null);
   // Pending cursor position after an Enter-key paragraph insert
   const pendingCursorRef = useRef<number | null>(null);
+  // Highest capsule threshold already saved (e.g. 200, 400, 600...)
+  const lastCapsuleThresholdRef = useRef<number>(
+    capsules.reduce((max, c) => Math.max(max, c.wordCount), 0)
+  );
 
   const {
     room,
@@ -109,6 +142,31 @@ export default function Room() {
 
     // Optimistic car movement
     if (participantId) updateLocalWordCount(participantId, wc);
+
+    // ── Time Capsule: snapshot every CAPSULE_INTERVAL words ──────────────
+    const nextThreshold = lastCapsuleThresholdRef.current + CAPSULE_INTERVAL;
+    if (wc >= nextThreshold) {
+      // Catch up to the highest threshold crossed (in case of paste)
+      const crossedThreshold = Math.floor(wc / CAPSULE_INTERVAL) * CAPSULE_INTERVAL;
+      lastCapsuleThresholdRef.current = crossedThreshold;
+      const newCapsule: Capsule = {
+        wordCount: crossedThreshold,
+        savedAt: Date.now(),
+        text: newText,
+      };
+      setCapsules((prev) => {
+        // Replace any existing capsule for the same threshold
+        const filtered = prev.filter((c) => c.wordCount !== crossedThreshold);
+        const updated = [...filtered, newCapsule];
+        saveCapsules(code, updated);
+        return updated;
+      });
+
+      // Flash the "Capsule saved" indicator
+      setCapsuleFlash(true);
+      if (capsuleFlashTimeoutRef.current) clearTimeout(capsuleFlashTimeoutRef.current);
+      capsuleFlashTimeoutRef.current = window.setTimeout(() => setCapsuleFlash(false), 2200);
+    }
 
     // Debounced server sync
     if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
@@ -264,6 +322,8 @@ export default function Room() {
             currentParticipantId={participantId}
             isCreator={isCreator}
             onRestart={restartSprint}
+            myText={text}
+            capsules={capsules}
           />
         </div>
       ) : (
@@ -306,6 +366,14 @@ export default function Room() {
 
                 {/* Bottom-right badge row */}
                 <div className="absolute bottom-4 right-4 flex items-center gap-2 pointer-events-none">
+                  {/* Capsule saved flash */}
+                  <div
+                    className="bg-primary/10 backdrop-blur border border-primary/30 px-2 py-1 rounded text-[10px] font-semibold text-primary transition-opacity duration-500"
+                    style={{ opacity: capsuleFlash ? 1 : 0 }}
+                  >
+                    Capsule saved
+                  </div>
+
                   {/* Auto-save flash */}
                   <div
                     className="bg-background/90 backdrop-blur border px-2 py-1 rounded text-[10px] font-medium text-muted-foreground transition-opacity duration-500"
@@ -326,6 +394,14 @@ export default function Room() {
             {/* Sidebar */}
             <div className="md:col-span-1 flex flex-col gap-4">
               <Timer timeLeft={room.timeLeft} status={room.status} />
+
+              <WritingArchive
+                text={text}
+                capsules={capsules}
+                triggerLabel="My Writing"
+                triggerVariant="outline"
+                triggerClassName="w-full"
+              />
 
               {isWaiting && isCreator && (
                 <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-3">
