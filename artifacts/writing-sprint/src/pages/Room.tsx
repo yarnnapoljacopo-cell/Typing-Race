@@ -102,7 +102,9 @@ export default function Room() {
   const [wordCount, setWordCount] = useState(() =>
     countWords((() => { try { return localStorage.getItem(autoSaveKey(code)) ?? ""; } catch { return ""; } })())
   );
-  const [savedFlash, setSavedFlash] = useState(false);
+  // Persistent save-status pill: never disappears, only upgrades.
+  // "unsaved" → "local" (400 ms debounce) → "cloud" (5 s debounce).
+  const [saveStatus, setSaveStatus] = useState<"unsaved" | "local" | "cloud">("unsaved");
   const [capsuleFlash, setCapsuleFlash] = useState(false);
   const [slowBitchVisible, setSlowBitchVisible] = useState(false);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
@@ -123,7 +125,6 @@ export default function Room() {
   const raceThrottleRef = useRef<number | null>(null);
   const pendingNetWcRef = useRef<number>(0);
   const serverSaveTimeoutRef = useRef<number | null>(null);
-  const savedFlashTimeoutRef = useRef<number | null>(null);
   const capsuleFlashTimeoutRef = useRef<number | null>(null);
   const pendingCursorRef = useRef<number | null>(null);
   const lastCapsuleThresholdRef = useRef<number>(
@@ -160,6 +161,8 @@ export default function Room() {
       try {
         if (t) localStorage.setItem(autoSaveKey(code), t);
         else localStorage.removeItem(autoSaveKey(code));
+        // Upgrade status to at least "local" — never downgrade from "cloud"
+        setSaveStatus((prev) => prev === "cloud" ? "cloud" : "local");
       } catch { /* storage unavailable */ }
     };
     // During normal typing pauses: defer so it never blocks the main thread.
@@ -175,12 +178,15 @@ export default function Room() {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ participantName: name, text: textToSave, wordCount: wc }),
-    }).catch(() => { /* silent — localStorage is the local fallback */ });
+    })
+      .then((r) => { if (r.ok) setSaveStatus("cloud"); })
+      .catch(() => { /* silent — localStorage is the local fallback */ });
   }, [code, name]);
 
   const scheduleServerSave = useCallback((textToSave: string, wc: number) => {
     if (serverSaveTimeoutRef.current) clearTimeout(serverSaveTimeoutRef.current);
-    serverSaveTimeoutRef.current = window.setTimeout(() => serverSaveNow(textToSave, wc), 10_000);
+    // Reduced from 10 s to 5 s so the cloud copy is always close behind typing
+    serverSaveTimeoutRef.current = window.setTimeout(() => serverSaveNow(textToSave, wc), 5_000);
   }, [serverSaveNow]);
 
   const chapterCountRef = useRef<number>(1);
@@ -451,14 +457,9 @@ export default function Room() {
     if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
     debounceTimeoutRef.current = window.setTimeout(() => sendTextUpdate(html, netWc), 100);
 
-    // 400ms debounced autosave to localStorage
+    // 400ms debounced autosave to localStorage (status updated inside flushAutoSave)
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
-    autoSaveTimeoutRef.current = window.setTimeout(() => {
-      flushAutoSave();
-      setSavedFlash(true);
-      if (savedFlashTimeoutRef.current) clearTimeout(savedFlashTimeoutRef.current);
-      savedFlashTimeoutRef.current = window.setTimeout(() => setSavedFlash(false), 1500);
-    }, 400);
+    autoSaveTimeoutRef.current = window.setTimeout(() => flushAutoSave(), 400);
 
     // 10s debounced server backup
     scheduleServerSave(html, netWc);
@@ -814,12 +815,27 @@ export default function Room() {
                   >
                     Capsule saved
                   </div>
-                  <div
-                    className="bg-muted border px-2 py-1 rounded text-[10px] font-medium text-muted-foreground transition-opacity duration-500"
-                    style={{ opacity: savedFlash ? 1 : 0 }}
-                  >
-                    Saved
-                  </div>
+                  {/* Persistent save-status pill — always visible, never flashes away */}
+                  {saveStatus !== "unsaved" && (
+                    <div
+                      className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border transition-all duration-500 ${
+                        saveStatus === "cloud"
+                          ? "bg-green-50 border-green-200 text-green-700 dark:bg-green-950/30 dark:border-green-800 dark:text-green-400"
+                          : "bg-muted border text-muted-foreground"
+                      }`}
+                      title={
+                        saveStatus === "cloud"
+                          ? "Saved on this device and backed up to the server"
+                          : "Saved on this device — server backup in progress"
+                      }
+                    >
+                      {saveStatus === "cloud" ? (
+                        <><span>✓</span><span>Device + Cloud</span></>
+                      ) : (
+                        <><span>✓</span><span>Device</span></>
+                      )}
+                    </div>
+                  )}
                   <div className="bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
                     <span className="font-mono font-semibold text-sm text-foreground">{netWordCount}</span>
                     <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
