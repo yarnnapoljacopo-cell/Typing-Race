@@ -130,6 +130,9 @@ export default function Room() {
   const finalSnapshotTakenRef = useRef<boolean>(false);
   const serverRestoreDoneRef = useRef<boolean>(false);
   const hasAutoDownloadedRef = useRef<boolean>(false);
+  // Stores the net word count restored by the server on reconnect so the
+  // baseline effect can set the correct offset instead of resetting to 0.
+  const restoredNetWordsRef = useRef(0);
 
   // ── Baseline: words written BEFORE sprint started don't count ──────────
   // Set to the wordCount at the moment the sprint transitions to "running".
@@ -263,10 +266,22 @@ export default function Room() {
   useEffect(() => {
     if (!room) return;
     if (prevStatusRef.current !== "running" && room.status === "running") {
-      // Snapshot current word count as baseline (pre-written words don't count)
-      baselineWordCountRef.current = countWords(currentTextRef.current);
-      // Immediately send net 0 to server (existing text is pre-sprint)
-      sendTextUpdate(currentTextRef.current, 0);
+      const restored = restoredNetWordsRef.current;
+      if (prevStatusRef.current === null && restored > 0) {
+        // Page-refresh reconnect to an already-running sprint.
+        // The server gave us back the participant's net word count; set the
+        // baseline so their displayed count resumes correctly from that value.
+        // e.g. totalWords=500, restored=500 → baseline=0 → net=500 ✓
+        //      totalWords=600, restored=500 → baseline=100 → net=500 ✓ (had 100 pre-sprint words)
+        const totalWords = countWords(currentTextRef.current);
+        baselineWordCountRef.current = Math.max(0, totalWords - restored);
+        // Do NOT send net-0 to the server — it already has the correct count.
+      } else {
+        // Genuine sprint start (or late join with no prior progress).
+        // Snapshot current word count so pre-sprint text doesn't count.
+        baselineWordCountRef.current = countWords(currentTextRef.current);
+        sendTextUpdate(currentTextRef.current, 0);
+      }
     }
     prevStatusRef.current = room.status;
   }, [room?.status, sendTextUpdate]);
@@ -637,6 +652,7 @@ export default function Room() {
   netWordCountRef.current = netWordCount;
   wordGoalRef.current = room.wordGoal ?? null;
   roomRef.current = room;
+  if (restoredWordCount != null) restoredNetWordsRef.current = restoredWordCount;
 
   // Format countdown seconds as mm:ss
   const formatCountdown = (secs: number) => {
