@@ -54,11 +54,6 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           return;
         }
 
-        if (room.status === "finished") {
-          ws.send(JSON.stringify({ type: "error", message: "Sprint already finished" }));
-          return;
-        }
-
         // ── Inherit state from a previous connection with the same name ──────
         // If someone disconnects and quickly reconnects, they may still appear
         // in the room. Transfer their word count and text to the new connection.
@@ -244,11 +239,16 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
       const room = getRoom(roomCode);
       if (!room) return;
 
-      const isActive = room.status === "running" || room.status === "countdown";
-      if (isActive) {
-        // Grace period: keep the participant in the room for 30 s so a network
-        // blip or phone lock-screen doesn't flash their car out of the race track.
-        // If they reconnect within the window, the join_room handler cancels this timer.
+      // Apply a 30-second grace period during active sprints AND the post-sprint
+      // results window, so a network blip or quick refresh doesn't evict the
+      // participant. "finished" gets the same grace so reconnecting back to the
+      // results screen works seamlessly.
+      const hasGracePeriod =
+        room.status === "running" ||
+        room.status === "countdown" ||
+        room.status === "finished";
+
+      if (hasGracePeriod) {
         const p = room.participants.get(participantId);
         if (p) {
           if (p.disconnectTimer) clearTimeout(p.disconnectTimer);

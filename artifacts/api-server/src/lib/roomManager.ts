@@ -32,6 +32,8 @@ export interface Room {
   endTime: number | null;
   countdownEndsAt: number | null;
   timerInterval: ReturnType<typeof setInterval> | null;
+  /** Auto-close timer set when the sprint ends; cancelled on restart. */
+  closeTimer?: ReturnType<typeof setTimeout>;
 }
 
 const rooms = new Map<string, Room>();
@@ -189,6 +191,8 @@ function _startRunning(room: Room): void {
   logger.info({ code: room.code, durationMinutes: room.durationMinutes }, "Sprint started");
 }
 
+const POST_SPRINT_CLOSE_MS = 10 * 60 * 1000; // 10 minutes
+
 export function endSprint(room: Room): void {
   if (room.status === "finished") return;
 
@@ -213,6 +217,22 @@ export function endSprint(room: Room): void {
     type: "sprint_ended",
     results: participants,
   });
+
+  // Auto-close the room 10 minutes after the sprint ends.
+  // This guarantees everyone has a window to view results, download writing,
+  // and start a new sprint — regardless of whether anyone disconnects.
+  if (room.closeTimer) clearTimeout(room.closeTimer);
+  room.closeTimer = setTimeout(() => {
+    const current = rooms.get(room.code);
+    if (!current || current.status !== "finished") return;
+    if (current.timerInterval) clearInterval(current.timerInterval);
+    // Delete first so ws.on("close") handlers see the room as gone and exit early
+    rooms.delete(current.code);
+    current.participants.forEach((p) => {
+      if (p.ws.readyState === WebSocket.OPEN) p.ws.close(1000, "Room closed after sprint");
+    });
+    logger.info({ code: current.code }, "Room auto-closed 10 min after sprint ended");
+  }, POST_SPRINT_CLOSE_MS);
 
   logger.info({ code: room.code }, "Sprint ended");
 }
@@ -293,6 +313,12 @@ export function updateParticipantStats(
 
 export function restartSprint(room: Room, durationMinutes: number): void {
   if (room.status !== "finished") return;
+
+  // Cancel the post-sprint auto-close so the room stays open for the new sprint
+  if (room.closeTimer) {
+    clearTimeout(room.closeTimer);
+    room.closeTimer = undefined;
+  }
 
   room.status = "waiting";
   room.startTime = null;
