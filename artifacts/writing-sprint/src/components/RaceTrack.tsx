@@ -170,6 +170,7 @@ export const RaceTrack = memo(function RaceTrack({
                       className="absolute top-0 bottom-0 flex flex-col items-center justify-center"
                       animate={{ left: `${fraction * 100}%` }}
                       transition={{ type: "tween", ease: "easeOut", duration: 0.6 }}
+                      style={{ willChange: "left" }}
                     >
                       {/* Name + word count badge */}
                       <div

@@ -118,6 +118,10 @@ export default function Room() {
   const textareaRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
   const autoSaveTimeoutRef = useRef<number | null>(null);
+  // Throttle race-track state updates so mobile doesn't re-render Framer Motion
+  // on every keystroke.  The car's 0.6 s easeOut transition hides the 200 ms gap.
+  const raceThrottleRef = useRef<number | null>(null);
+  const pendingNetWcRef = useRef<number>(0);
   const serverSaveTimeoutRef = useRef<number | null>(null);
   const savedFlashTimeoutRef = useRef<number | null>(null);
   const capsuleFlashTimeoutRef = useRef<number | null>(null);
@@ -396,7 +400,9 @@ export default function Room() {
 
     // Read from the live DOM (handles both user-typed and programmatic content)
     const html = div.innerHTML;
-    const plainText = div.innerText ?? "";
+    // textContent avoids a forced layout reflow (innerText triggers style/layout
+    // recalc on every read, which is expensive on mobile CPUs).
+    const plainText = div.textContent ?? "";
     const wc = countWords(plainText);
     currentTextRef.current = html;
     setText(html);
@@ -406,8 +412,16 @@ export default function Room() {
     const netWc = Math.max(0, wc - baselineWordCountRef.current);
     setLatestText(html, netWc);
 
-    // Optimistic car movement uses net count
-    if (participantId) updateLocalWordCount(participantId, netWc);
+    // Optimistic car movement — throttled to 200 ms so mobile doesn't
+    // re-render Framer Motion on every keystroke.  The car's 0.6 s transition
+    // makes the gap invisible.  PC users see no difference.
+    pendingNetWcRef.current = netWc;
+    if (!raceThrottleRef.current) {
+      raceThrottleRef.current = window.setTimeout(() => {
+        raceThrottleRef.current = null;
+        if (participantId) updateLocalWordCount(participantId, pendingNetWcRef.current);
+      }, 200);
+    }
 
     // ── Goal mode: prompt when target first reached during a sprint ───────
     if (wordGoalRef.current !== null && netWc >= wordGoalRef.current && !goalHitShownRef.current) {
