@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useCreateRoom, useGetRoom } from "@workspace/api-client-react";
+import { useCreateRoom } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PenTool, ArrowRight, Loader2, Feather } from "lucide-react";
+import { PenTool, ArrowRight, Loader2, Feather, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+type JoinMode = "regular" | "spectator";
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -14,6 +16,7 @@ export default function Home() {
   const [name, setName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [duration, setDuration] = useState<number>(30);
+  const [joinMode, setJoinMode] = useState<JoinMode>("regular");
 
   const createRoomMutation = useCreateRoom({
     mutation: {
@@ -24,10 +27,10 @@ export default function Home() {
         toast({
           title: "Failed to create room",
           description: err.message || "An unexpected error occurred",
-          variant: "destructive"
+          variant: "destructive",
         });
-      }
-    }
+      },
+    },
   });
 
   const handleCreate = () => {
@@ -47,20 +50,19 @@ export default function Home() {
       toast({ title: "Room code required", description: "Please enter a valid room code.", variant: "destructive" });
       return;
     }
-    // We navigate straight to the room page, which will attempt WS connection
-    setLocation(`/room?code=${encodeURIComponent(joinCode.trim().toUpperCase())}&name=${encodeURIComponent(name)}`);
+    const url = `/room?code=${encodeURIComponent(joinCode.trim().toUpperCase())}&name=${encodeURIComponent(name)}${joinMode === "spectator" ? "&isSpectator=true" : ""}`;
+    setLocation(url);
   };
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 selection:bg-primary/20">
-      
-      {/* Decorative background element */}
+
       <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center opacity-[0.03]">
         <Feather className="w-full h-full max-w-4xl text-primary" strokeWidth={0.5} />
       </div>
 
       <div className="w-full max-w-md space-y-8 relative z-10">
-        
+
         <div className="text-center space-y-3">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-4 shadow-inner">
             <PenTool size={32} />
@@ -75,16 +77,17 @@ export default function Home() {
             <CardDescription>Enter your preferred pen name to get started.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            
+
             <div className="space-y-2">
               <label htmlFor="name" className="text-sm font-medium text-foreground">Your Name</label>
-              <Input 
-                id="name" 
-                placeholder="e.g. Virginia Woolf" 
+              <Input
+                id="name"
+                placeholder="e.g. Virginia Woolf"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="text-lg py-6 focus-visible:ring-primary"
                 autoComplete="off"
+                onKeyDown={(e) => e.key === "Enter" && handleJoin()}
               />
             </div>
 
@@ -93,29 +96,68 @@ export default function Home() {
                 <TabsTrigger value="join">Join Room</TabsTrigger>
                 <TabsTrigger value="create">Create Room</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="join" className="space-y-4">
                 <div className="space-y-2">
                   <label htmlFor="code" className="text-sm font-medium text-foreground">Room Code</label>
-                  <Input 
-                    id="code" 
-                    placeholder="SPRINT-XXXX" 
+                  <Input
+                    id="code"
+                    placeholder="SPRINT-XXXX"
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                     className="font-mono text-center tracking-widest text-lg py-6 focus-visible:ring-primary"
                     autoComplete="off"
+                    onKeyDown={(e) => e.key === "Enter" && handleJoin()}
                   />
                 </div>
-                <Button 
-                  onClick={handleJoin} 
-                  className="w-full py-6 text-lg hover-elevate group" 
+
+                {/* Mode selector */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Join As</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setJoinMode("regular")}
+                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border-2 px-4 py-3 transition-all ${
+                        joinMode === "regular"
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <PenTool className="w-5 h-5" />
+                      <span className="text-sm font-semibold">Writer</span>
+                      <span className="text-[10px] text-center leading-tight opacity-70">
+                        Join the race &amp; write
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setJoinMode("spectator")}
+                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border-2 px-4 py-3 transition-all ${
+                        joinMode === "spectator"
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <Eye className="w-5 h-5" />
+                      <span className="text-sm font-semibold">Spectator</span>
+                      <span className="text-[10px] text-center leading-tight opacity-70">
+                        Watch &amp; read live
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handleJoin}
+                  className="w-full py-6 text-lg hover-elevate group"
                   disabled={!name.trim() || !joinCode.trim()}
                 >
-                  Enter Room
+                  {joinMode === "spectator" ? "Watch Room" : "Enter Room"}
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </TabsContent>
-              
+
               <TabsContent value="create" className="space-y-4">
                 <div className="space-y-3">
                   <label className="text-sm font-medium text-foreground">Sprint Duration</label>
@@ -133,13 +175,13 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-                <Button 
-                  onClick={handleCreate} 
-                  className="w-full py-6 text-lg hover-elevate group" 
+                <Button
+                  onClick={handleCreate}
+                  className="w-full py-6 text-lg hover-elevate group"
                   disabled={!name.trim() || createRoomMutation.isPending}
                 >
                   {createRoomMutation.isPending ? (
-                    <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Creating...</>
+                    <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Creating…</>
                   ) : (
                     <>
                       Start New Session

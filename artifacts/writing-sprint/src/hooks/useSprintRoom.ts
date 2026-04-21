@@ -16,22 +16,33 @@ export interface RoomState {
   participants: Participant[];
 }
 
+export interface ParticipantText {
+  participantId: string;
+  name: string;
+  text: string;
+  wordCount: number;
+}
+
 interface UseSprintRoomProps {
   code: string;
   name: string;
   isCreator?: boolean;
+  isSpectator?: boolean;
 }
 
-export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomProps) {
+export function useSprintRoom({ code, name, isCreator = false, isSpectator = false }: UseSprintRoomProps) {
   const [room, setRoom] = useState<RoomState | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  // Live map of writer texts received by spectators
+  const [participantTexts, setParticipantTexts] = useState<Record<string, ParticipantText>>({});
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   // Track the latest text so we can resend it after reconnect
   const latestTextRef = useRef<string>("");
+  const latestNetWordCountRef = useRef<number>(0);
   // Whether we've joined at least once (i.e., future opens are reconnects)
   const hasJoinedRef = useRef(false);
 
@@ -47,7 +58,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     ws.onopen = () => {
       setIsConnected(true);
       setError(null);
-      ws.send(JSON.stringify({ type: "join_room", code, name }));
+      ws.send(JSON.stringify({ type: "join_room", code, name, isSpectator }));
     };
 
     ws.onmessage = (event) => {
@@ -59,8 +70,12 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
             setParticipantId(data.participantId);
             setRoom({ ...data.room, participants: data.room.participants ?? [] });
             // On reconnect, resend the latest text so the server has current count
-            if (hasJoinedRef.current && latestTextRef.current) {
-              ws.send(JSON.stringify({ type: "text_update", text: latestTextRef.current }));
+            if (hasJoinedRef.current && latestTextRef.current && !isSpectator) {
+              ws.send(JSON.stringify({
+                type: "text_update",
+                text: latestTextRef.current,
+                netWordCount: latestNetWordCountRef.current,
+              }));
             }
             hasJoinedRef.current = true;
             break;
@@ -72,11 +87,27 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
           case "participant_update":
             setRoom((prev) => {
               if (!prev) return prev;
-              const participants = prev.participants.map((p) =>
-                p.id === data.participant.id ? data.participant : p
-              );
+              const exists = prev.participants.some((p) => p.id === data.participant.id);
+              const participants = exists
+                ? prev.participants.map((p) =>
+                    p.id === data.participant.id ? data.participant : p
+                  )
+                : [...prev.participants, data.participant];
               return { ...prev, participants };
             });
+            break;
+
+          case "participant_text":
+            // Spectators receive live text from writers
+            setParticipantTexts((prev) => ({
+              ...prev,
+              [data.participantId]: {
+                participantId: data.participantId,
+                name: data.name,
+                text: data.text,
+                wordCount: data.wordCount,
+              },
+            }));
             break;
 
           case "sprint_ended":
@@ -111,7 +142,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     ws.onerror = () => {
       setIsConnected(false);
     };
-  }, [code, name]);
+  }, [code, name, isSpectator]);
 
   useEffect(() => {
     connect();
@@ -130,8 +161,9 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
   }, [connect]);
 
   // Called by Room.tsx on every text change to keep the ref current
-  const setLatestText = useCallback((text: string) => {
+  const setLatestText = useCallback((text: string, netWordCount?: number) => {
     latestTextRef.current = text;
+    if (netWordCount !== undefined) latestNetWordCountRef.current = netWordCount;
   }, []);
 
   const updateLocalWordCount = useCallback((participantId: string, wordCount: number) => {
@@ -146,9 +178,9 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     });
   }, []);
 
-  const sendTextUpdate = useCallback((text: string) => {
+  const sendTextUpdate = useCallback((text: string, netWordCount: number) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "text_update", text }));
+      wsRef.current.send(JSON.stringify({ type: "text_update", text, netWordCount }));
     }
   }, []);
 
@@ -175,6 +207,8 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     participantId,
     isConnected,
     error,
+    isSpectator,
+    participantTexts,
     setLatestText,
     sendTextUpdate,
     updateLocalWordCount,

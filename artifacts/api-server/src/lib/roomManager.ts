@@ -12,6 +12,8 @@ export interface Participant {
   lastWordCount: number;
   ws: WebSocket;
   isCreator: boolean;
+  isSpectator: boolean;
+  latestText: string;
 }
 
 export interface Room {
@@ -76,13 +78,16 @@ export function broadcastToRoom(room: Room, message: object, excludeId?: string)
 }
 
 export function broadcastRoomState(room: Room): void {
-  const participants = Array.from(room.participants.values()).map((p) => ({
-    id: p.id,
-    name: p.name,
-    wordCount: p.wordCount,
-    wpm: p.wpm,
-    isCreator: p.isCreator,
-  }));
+  // Spectators are observers — exclude them from the racer list broadcast
+  const participants = Array.from(room.participants.values())
+    .filter((p) => !p.isSpectator)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      wordCount: p.wordCount,
+      wpm: p.wpm,
+      isCreator: p.isCreator,
+    }));
 
   const now = Date.now();
   let timeLeft: number | null = null;
@@ -137,6 +142,7 @@ export function endSprint(room: Room): void {
   }
 
   const participants = Array.from(room.participants.values())
+    .filter((p) => !p.isSpectator)
     .map((p) => ({
       id: p.id,
       name: p.name,

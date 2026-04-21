@@ -10,6 +10,7 @@ import {
   startSprint,
   endSprint,
   broadcastRoomState,
+  broadcastToRoom,
   restartSprint,
   Participant,
 } from "./roomManager";
@@ -41,6 +42,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
       if (type === "join_room") {
         const code = (message.code as string)?.toUpperCase();
         const name = message.name as string;
+        const isSpectator = message.isSpectator === true;
 
         if (!code || !name) {
           ws.send(JSON.stringify({ type: "error", message: "code and name required" }));
@@ -61,7 +63,11 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         participantId = uuidv4();
         roomCode = code;
 
-        const isCreator = room.participants.size === 0 && name === room.creatorName;
+        // Creator is the first non-spectator who matches the creator name
+        const isCreator =
+          !isSpectator &&
+          room.participants.size === 0 &&
+          name === room.creatorName;
 
         const participant: Participant = {
           id: participantId,
@@ -72,23 +78,29 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           lastWordCount: 0,
           ws,
           isCreator,
+          isSpectator,
+          latestText: "",
         };
 
         addParticipant(room, participant);
 
-        const currentParticipants = Array.from(room.participants.values()).map((p) => ({
-          id: p.id,
-          name: p.name,
-          wordCount: p.wordCount,
-          wpm: p.wpm,
-          isCreator: p.isCreator,
-        }));
+        // Collect current writers (non-spectators) for the join response
+        const currentParticipants = Array.from(room.participants.values())
+          .filter((p) => !p.isSpectator)
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            wordCount: p.wordCount,
+            wpm: p.wpm,
+            isCreator: p.isCreator,
+          }));
 
         ws.send(
           JSON.stringify({
             type: "joined",
             participantId,
             isCreator,
+            isSpectator,
             room: {
               code: room.code,
               status: room.status,
@@ -102,7 +114,24 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           })
         );
 
-        logger.info({ code, name, participantId }, "Participant joined room");
+        // If joining as spectator, immediately send them the current text of all writers
+        if (isSpectator) {
+          room.participants.forEach((p) => {
+            if (!p.isSpectator && p.latestText) {
+              ws.send(
+                JSON.stringify({
+                  type: "participant_text",
+                  participantId: p.id,
+                  name: p.name,
+                  text: p.latestText,
+                  wordCount: p.wordCount,
+                })
+              );
+            }
+          });
+        }
+
+        logger.info({ code, name, participantId, isSpectator }, "Participant joined room");
         return;
       }
 
@@ -122,9 +151,34 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
 
       if (type === "text_update") {
         if (room.status !== "running") return;
+        if (participant.isSpectator) return;
+
         const text = (message.text as string) ?? "";
-        const wordCount = countWords(text);
-        updateParticipantStats(room, participantId, wordCount);
+        // Client can send a pre-computed net word count to respect the
+        // pre-sprint baseline; fall back to counting from the raw text.
+        const netWordCount =
+          typeof message.netWordCount === "number"
+            ? Math.max(0, message.netWordCount)
+            : countWords(text);
+
+        // Store latest text so spectators (and late-joining spectators) can read it
+        participant.latestText = text;
+
+        updateParticipantStats(room, participantId, netWordCount);
+
+        // Push live text to all current spectators
+        const spectatorPayload = JSON.stringify({
+          type: "participant_text",
+          participantId,
+          name: participant.name,
+          text,
+          wordCount: netWordCount,
+        });
+        room.participants.forEach((p) => {
+          if (p.isSpectator && p.ws.readyState === WebSocket.OPEN) {
+            p.ws.send(spectatorPayload);
+          }
+        });
         return;
       }
 
