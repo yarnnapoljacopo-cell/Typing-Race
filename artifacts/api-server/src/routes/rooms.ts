@@ -3,6 +3,8 @@ import { getAuth } from "@clerk/express";
 import { createRoom, getRoom } from "../lib/roomManager";
 import { saveWriting, getWriting, getUserSprints } from "../lib/writingStore";
 import { CreateRoomBody, GetRoomParams } from "@workspace/api-zod";
+import { db, userProfilesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -122,6 +124,44 @@ router.get("/user/sprints/:id/text", async (req, res): Promise<void> => {
   }
 
   res.json({ text: rows[0].text });
+});
+
+router.get("/user/profile", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rows = await db
+    .select()
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.clerkUserId, clerkUserId))
+    .limit(1);
+
+  res.json({ writerName: rows[0]?.writerName ?? null });
+});
+
+router.put("/user/profile", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { writerName } = req.body ?? {};
+  if (typeof writerName !== "string" || writerName.trim().length < 2 || writerName.trim().length > 40) {
+    res.status(400).json({ error: "Writer name must be 2–40 characters." });
+    return;
+  }
+
+  const name = writerName.trim();
+
+  await db
+    .insert(userProfilesTable)
+    .values({ clerkUserId, writerName: name })
+    .onConflictDoUpdate({
+      target: [userProfilesTable.clerkUserId],
+      set: { writerName: name, updatedAt: new Date() },
+    });
+
+  res.json({ writerName: name });
 });
 
 export default router;

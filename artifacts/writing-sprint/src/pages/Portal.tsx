@@ -1,25 +1,56 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCreateRoom } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
-  Clock, BookOpen, LogOut, User,
+  Clock, BookOpen, LogOut, Pencil,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
 
 type RoomMode = "regular" | "open" | "goal";
 
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+async function fetchProfile(): Promise<{ writerName: string | null }> {
+  const res = await fetch(`${basePath}/api/user/profile`, { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to load profile");
+  return res.json();
+}
+
+async function saveProfile(writerName: string): Promise<{ writerName: string }> {
+  const res = await fetch(`${basePath}/api/user/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ writerName }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to save");
+  }
+  return res.json();
+}
+
 export default function Portal() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const queryClient = useQueryClient();
 
   const [joinCode, setJoinCode] = useState("");
   const [duration, setDuration] = useState<number>(30);
@@ -27,7 +58,54 @@ export default function Portal() {
   const [countdownDelay, setCountdownDelay] = useState<number>(0);
   const [goalWords, setGoalWords] = useState<string>("1000");
 
-  const displayName = user?.firstName || user?.username || user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] || "Writer";
+  const [nameDialogOpen, setNameDialogOpen] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    queryKey: ["user-profile"],
+    queryFn: fetchProfile,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: saveProfile,
+    onSuccess: (data) => {
+      queryClient.setQueryData(["user-profile"], data);
+      setNameDialogOpen(false);
+      toast({ title: "Writer name saved", description: `You'll appear as "${data.writerName}" in sprints.` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Couldn't save name", description: err.message, variant: "destructive" });
+    },
+  });
+
+  useEffect(() => {
+    if (!profileLoading && profile?.writerName === null) {
+      const fallback = user?.firstName || user?.username || user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] || "";
+      setNameInput(fallback);
+      setNameDialogOpen(true);
+    }
+  }, [profileLoading, profile?.writerName, user]);
+
+  const displayName =
+    profile?.writerName ||
+    user?.firstName ||
+    user?.username ||
+    user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] ||
+    "Writer";
+
+  const openEditDialog = () => {
+    setNameInput(profile?.writerName || displayName);
+    setNameDialogOpen(true);
+  };
+
+  const handleSaveName = () => {
+    const trimmed = nameInput.trim();
+    if (trimmed.length < 2) {
+      toast({ title: "Name too short", description: "Must be at least 2 characters.", variant: "destructive" });
+      return;
+    }
+    saveMutation.mutate(trimmed);
+  };
 
   const createRoomMutation = useCreateRoom({
     mutation: {
@@ -83,11 +161,17 @@ export default function Portal() {
         </div>
 
         <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
-              <User size={14} className="text-primary" />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 text-sm">
+              <span className="font-medium text-foreground">{profileLoading ? "…" : displayName}</span>
+              <button
+                onClick={openEditDialog}
+                className="text-muted-foreground hover:text-primary transition-colors"
+                title="Edit writer name"
+              >
+                <Pencil size={13} />
+              </button>
             </div>
-            <span className="font-medium text-foreground">{displayName}</span>
           </div>
           <button
             onClick={() => signOut()}
@@ -287,6 +371,54 @@ export default function Portal() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={nameDialogOpen} onOpenChange={setNameDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">
+              {profile?.writerName ? "Change writer name" : "Choose your writer name"}
+            </DialogTitle>
+            <DialogDescription>
+              This is how you'll appear to others in writing rooms.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <Input
+              placeholder="e.g. Virginia Woolf"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
+              className="text-lg py-5 focus-visible:ring-primary"
+              autoFocus
+              maxLength={40}
+            />
+            <div className="flex gap-2">
+              {profile?.writerName && (
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setNameDialogOpen(false)}
+                  disabled={saveMutation.isPending}
+                >
+                  Cancel
+                </Button>
+              )}
+              <Button
+                className="flex-1"
+                onClick={handleSaveName}
+                disabled={saveMutation.isPending || nameInput.trim().length < 2}
+              >
+                {saveMutation.isPending ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
+                ) : (
+                  profile?.writerName ? "Save" : "Set name"
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">2–40 characters</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
