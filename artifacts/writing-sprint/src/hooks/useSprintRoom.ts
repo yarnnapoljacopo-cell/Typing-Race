@@ -27,16 +27,20 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  
+
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  // Track the latest text so we can resend it after reconnect
+  const latestTextRef = useRef<string>("");
+  // Whether we've joined at least once (i.e., future opens are reconnects)
+  const hasJoinedRef = useRef(false);
 
   const connect = useCallback(() => {
     if (!code || !name) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws`;
-    
+
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -49,38 +53,43 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        
+
         switch (data.type) {
           case "joined":
             setParticipantId(data.participantId);
             setRoom({ ...data.room, participants: data.room.participants ?? [] });
+            // On reconnect, resend the latest text so the server has current count
+            if (hasJoinedRef.current && latestTextRef.current) {
+              ws.send(JSON.stringify({ type: "text_update", text: latestTextRef.current }));
+            }
+            hasJoinedRef.current = true;
             break;
-            
+
           case "room_state":
             setRoom({ ...data.room, participants: data.room.participants ?? [] });
             break;
-            
+
           case "participant_update":
             setRoom((prev) => {
               if (!prev) return prev;
-              const participants = prev.participants.map((p) => 
+              const participants = prev.participants.map((p) =>
                 p.id === data.participant.id ? data.participant : p
               );
               return { ...prev, participants };
             });
             break;
-            
+
           case "sprint_ended":
             setRoom((prev) => {
               if (!prev) return prev;
               return { ...prev, status: "finished", participants: data.results };
             });
             break;
-            
+
           case "error":
             setError(data.message);
             break;
-            
+
           case "pong":
             break;
         }
@@ -91,9 +100,12 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
 
     ws.onclose = () => {
       setIsConnected(false);
-      reconnectTimeoutRef.current = window.setTimeout(() => {
-        connect();
-      }, 3000);
+      // Only retry if we previously joined (not on a fatal error)
+      if (hasJoinedRef.current) {
+        reconnectTimeoutRef.current = window.setTimeout(() => {
+          connect();
+        }, 2000);
+      }
     };
 
     ws.onerror = () => {
@@ -103,7 +115,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
 
   useEffect(() => {
     connect();
-    
+
     const pingInterval = setInterval(() => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: "ping" }));
@@ -112,14 +124,15 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
 
     return () => {
       clearInterval(pingInterval);
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (wsRef.current) wsRef.current.close();
     };
   }, [connect]);
+
+  // Called by Room.tsx on every text change to keep the ref current
+  const setLatestText = useCallback((text: string) => {
+    latestTextRef.current = text;
+  }, []);
 
   const updateLocalWordCount = useCallback((participantId: string, wordCount: number) => {
     setRoom((prev) => {
@@ -162,6 +175,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     participantId,
     isConnected,
     error,
+    setLatestText,
     sendTextUpdate,
     updateLocalWordCount,
     startSprint,

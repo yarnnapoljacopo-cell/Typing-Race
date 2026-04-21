@@ -6,7 +6,7 @@ import { Timer } from "@/components/Timer";
 import { ResultsScreen } from "@/components/ResultsScreen";
 import { WritingToolbar, type WritingStyle } from "@/components/WritingToolbar";
 import { Button } from "@/components/ui/button";
-import { Copy, AlertCircle, Loader2, Play } from "lucide-react";
+import { Copy, AlertCircle, Loader2, Play, WifiOff } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 
@@ -43,6 +43,7 @@ export default function Room() {
     participantId,
     isConnected,
     error,
+    setLatestText,
     sendTextUpdate,
     updateLocalWordCount,
     startSprint,
@@ -61,12 +62,15 @@ export default function Room() {
     const wc = countWords(newText);
     setWordCount(wc);
 
-    // Optimistically update the car position immediately
+    // Keep hook's ref current for reconnect resync
+    setLatestText(newText);
+
+    // Optimistically move car immediately
     if (participantId) {
       updateLocalWordCount(participantId, wc);
     }
 
-    // Send to server (debounced at 100ms for fast syncing)
+    // Debounced send to server
     if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
     debounceTimeoutRef.current = window.setTimeout(() => {
       sendTextUpdate(newText);
@@ -82,6 +86,7 @@ export default function Room() {
     toast({ title: "Copied!", description: "Room code copied to clipboard." });
   };
 
+  // ── Fatal error ──────────────────────────────────────────────────────────
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -99,7 +104,9 @@ export default function Room() {
     );
   }
 
-  if (!room || !isConnected) {
+  // ── First-time loading (no room yet) ─────────────────────────────────────
+  // If we already have a room but lost connection, keep showing the UI instead
+  if (!room) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-muted-foreground space-y-4">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -117,6 +124,15 @@ export default function Room() {
 
   return (
     <div className="min-h-screen w-full max-w-5xl mx-auto flex flex-col p-4 md:p-6 gap-4">
+
+      {/* Reconnecting banner — shown when WS drops but we have room state */}
+      {!isConnected && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2 text-sm font-medium">
+          <WifiOff className="w-4 h-4 shrink-0" />
+          <span>Connection lost — reconnecting… your writing is safe.</span>
+          <Loader2 className="w-3.5 h-3.5 animate-spin ml-auto shrink-0" />
+        </div>
+      )}
 
       {/* Header */}
       <header className="flex items-center justify-between bg-card border rounded-lg px-4 py-3 shadow-sm">
@@ -175,18 +191,16 @@ export default function Room() {
 
             {/* Writing area */}
             <div className="md:col-span-3 flex flex-col">
-              <WritingToolbar
-                style={writingStyle}
-                onChange={handleStyleChange}
-                disabled={false}
-              />
+              <WritingToolbar style={writingStyle} onChange={handleStyleChange} />
               <div className="relative flex-1 min-h-[380px]">
                 <textarea
                   value={text}
                   onChange={handleTextChange}
-                  disabled={!isRunning}
+                  disabled={!isRunning || !isConnected}
                   placeholder={
-                    isRunning
+                    !isConnected
+                      ? "Reconnecting..."
+                      : isRunning
                       ? "Start writing here..."
                       : "Waiting for the sprint to start..."
                   }
@@ -204,9 +218,7 @@ export default function Room() {
                 {/* Word count badge */}
                 <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur border px-3 py-1.5 rounded-md shadow-sm pointer-events-none flex items-baseline gap-1.5">
                   <span className="font-mono font-bold text-lg">{wordCount}</span>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    words
-                  </span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">words</span>
                 </div>
               </div>
             </div>
@@ -218,7 +230,7 @@ export default function Room() {
               {isWaiting && isCreator && (
                 <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-3">
                   <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
-                  <Button onClick={startSprint} size="lg" className="w-full">
+                  <Button onClick={startSprint} size="lg" className="w-full" disabled={!isConnected}>
                     <Play className="w-4 h-4 mr-2" />
                     Start Sprint
                   </Button>
@@ -236,7 +248,7 @@ export default function Room() {
               {isRunning && isCreator && (
                 <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-3">
                   <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
-                  <Button onClick={endSprint} variant="destructive" className="w-full">
+                  <Button onClick={endSprint} variant="destructive" className="w-full" disabled={!isConnected}>
                     End Early
                   </Button>
                 </div>
