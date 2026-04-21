@@ -83,6 +83,25 @@ function autoSaveKey(code: string) {
   return `sprint-autosave-${code}`;
 }
 
+const SETTINGS_KEY = "sprint-writing-style";
+
+function loadWritingStyle(): WritingStyle {
+  const defaults: WritingStyle = {
+    fontFamily: "Georgia, serif",
+    fontSize: 18,
+    lineHeight: 1.75,
+    paragraphMode: "none",
+    typewriterMode: false,
+  };
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return defaults;
+    return { ...defaults, ...JSON.parse(raw) };
+  } catch {
+    return defaults;
+  }
+}
+
 function capsulesKey(code: string) {
   return `sprint-capsules-${code}`;
 }
@@ -136,13 +155,7 @@ export default function Room() {
   const [slowBitchVisible, setSlowBitchVisible] = useState(false);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [capsules, setCapsules] = useState<Capsule[]>(() => loadCapsules(code));
-  const [writingStyle, setWritingStyle] = useState<WritingStyle>({
-    fontFamily: "Georgia, serif",
-    fontSize: 18,
-    lineHeight: 1.75,
-    paragraphMode: "none",
-    typewriterMode: false,
-  });
+  const [writingStyle, setWritingStyle] = useState<WritingStyle>(loadWritingStyle);
 
   const textareaRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
@@ -628,7 +641,11 @@ export default function Room() {
   }, [applyText]);
 
   const handleStyleChange = (partial: Partial<WritingStyle>) => {
-    setWritingStyle((prev) => ({ ...prev, ...partial }));
+    setWritingStyle((prev) => {
+      const next = { ...prev, ...partial };
+      try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
   };
 
   const handleFormat = useCallback((type: FormatType) => {
