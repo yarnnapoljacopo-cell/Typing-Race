@@ -53,11 +53,11 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
         switch (data.type) {
           case "joined":
             setParticipantId(data.participantId);
-            setRoom(data.room);
+            setRoom({ ...data.room, participants: data.room.participants ?? [] });
             break;
             
           case "room_state":
-            setRoom(data.room);
+            setRoom({ ...data.room, participants: data.room.participants ?? [] });
             break;
             
           case "participant_update":

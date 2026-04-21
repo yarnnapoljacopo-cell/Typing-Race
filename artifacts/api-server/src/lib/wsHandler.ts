@@ -76,6 +76,14 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
 
         addParticipant(room, participant);
 
+        const currentParticipants = Array.from(room.participants.values()).map((p) => ({
+          id: p.id,
+          name: p.name,
+          wordCount: p.wordCount,
+          wpm: p.wpm,
+          isCreator: p.isCreator,
+        }));
+
         ws.send(
           JSON.stringify({
             type: "joined",
@@ -89,6 +97,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
                 room.status === "running" && room.endTime
                   ? Math.max(0, Math.floor((room.endTime - Date.now()) / 1000))
                   : null,
+              participants: currentParticipants,
             },
           })
         );
