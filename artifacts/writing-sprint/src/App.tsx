@@ -9,6 +9,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import Portal from "@/pages/Portal";
 import Room from "@/pages/Room";
+import MyFiles from "@/pages/MyFiles";
 
 const queryClient = new QueryClient();
 
@@ -135,6 +136,19 @@ function RoomGuard() {
   );
 }
 
+function MyFilesGuard() {
+  return (
+    <>
+      <Show when="signed-in">
+        <MyFiles />
+      </Show>
+      <Show when="signed-out">
+        <Redirect to="/" />
+      </Show>
+    </>
+  );
+}
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const qc = useQueryClient();
@@ -186,6 +200,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/" component={HomeRedirect} />
             <Route path="/portal" component={PortalGuard} />
             <Route path="/room" component={RoomGuard} />
+            <Route path="/my-files" component={MyFilesGuard} />
             <Route path="/sign-in/*?" component={SignInPage} />
             <Route path="/sign-up/*?" component={SignUpPage} />
             <Route component={NotFound} />

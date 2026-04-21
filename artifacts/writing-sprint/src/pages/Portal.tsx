@@ -172,6 +172,13 @@ export default function Portal() {
               >
                 <Pencil size={13} />
               </button>
+              <button
+                onClick={() => setLocation("/my-files")}
+                className="text-muted-foreground hover:text-primary transition-colors"
+                title="My Files"
+              >
+                <BookOpen size={15} />
+              </button>
             </div>
           </div>
           <button

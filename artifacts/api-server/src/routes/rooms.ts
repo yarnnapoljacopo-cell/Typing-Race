@@ -3,8 +3,8 @@ import { getAuth } from "@clerk/express";
 import { createRoom, getRoom, getActiveRooms } from "../lib/roomManager";
 import { saveWriting, getWriting, getUserSprints } from "../lib/writingStore";
 import { CreateRoomBody, GetRoomParams } from "@workspace/api-zod";
-import { db, userProfilesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, userProfilesTable, sprintWritingTable } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -128,6 +128,65 @@ router.get("/user/sprints/:id/text", async (req, res): Promise<void> => {
   }
 
   res.json({ text: rows[0].text });
+});
+
+router.get("/user/files", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rows = await db
+    .select()
+    .from(sprintWritingTable)
+    .where(and(eq(sprintWritingTable.clerkUserId, clerkUserId), eq(sprintWritingTable.savedToFiles, true)))
+    .orderBy(desc(sprintWritingTable.updatedAt));
+
+  res.json(rows.map((r) => ({
+    id: r.id,
+    roomCode: r.roomCode,
+    participantName: r.participantName,
+    wordCount: r.wordCount,
+    updatedAt: r.updatedAt,
+    excerpt: r.text.slice(0, 200),
+  })));
+});
+
+router.post("/user/files", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { roomCode, participantName, text, wordCount } = req.body ?? {};
+  if (!roomCode || !participantName || typeof text !== "string") {
+    res.status(400).json({ error: "roomCode, participantName, and text are required" }); return;
+  }
+  const wc = typeof wordCount === "number" ? Math.max(0, Math.floor(wordCount)) : 0;
+
+  await db
+    .insert(sprintWritingTable)
+    .values({ roomCode, participantName, clerkUserId, text, wordCount: wc, savedToFiles: true })
+    .onConflictDoUpdate({
+      target: [sprintWritingTable.roomCode, sprintWritingTable.participantName],
+      set: { savedToFiles: true, clerkUserId, text, wordCount: wc, updatedAt: new Date() },
+    });
+
+  res.json({ ok: true });
+});
+
+router.delete("/user/files/:id", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  await db
+    .update(sprintWritingTable)
+    .set({ savedToFiles: false })
+    .where(and(eq(sprintWritingTable.id, id), eq(sprintWritingTable.clerkUserId, clerkUserId)));
+
+  res.json({ ok: true });
 });
 
 router.get("/user/profile", async (req, res): Promise<void> => {

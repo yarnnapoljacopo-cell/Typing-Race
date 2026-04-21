@@ -8,7 +8,7 @@ import { WritingToolbar, type WritingStyle, type FormatType } from "@/components
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 import { SpectatorView } from "@/components/SpectatorView";
 import { Button } from "@/components/ui/button";
-import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck } from "lucide-react";
+import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck, BookOpen } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -156,6 +156,7 @@ export default function Room() {
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [capsules, setCapsules] = useState<Capsule[]>(() => loadCapsules(code));
   const [writingStyle, setWritingStyle] = useState<WritingStyle>(loadWritingStyle);
+  const [savedToMyFiles, setSavedToMyFiles] = useState(false);
 
   const textareaRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
@@ -231,6 +232,29 @@ export default function Room() {
   }, [serverSaveNow]);
 
   const chapterCountRef = useRef<number>(1);
+
+  const saveToMyFiles = useCallback(async () => {
+    const plainText = textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
+    const wc = netWordCount;
+    try {
+      const res = await fetch(`/api/user/files`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ roomCode: code, participantName: name, text: plainText, wordCount: wc }),
+      });
+      if (res.ok) {
+        setSavedToMyFiles(true);
+        toast({ title: "Saved to My Files" });
+      } else if (res.status === 401) {
+        toast({ title: "Sign in to save to My Files", variant: "destructive" });
+      } else {
+        toast({ title: "Couldn't save", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Couldn't save", variant: "destructive" });
+    }
+  }, [code, name, netWordCount, toast]);
 
   const downloadWriting = useCallback(() => {
     const plainText = textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
@@ -895,6 +919,18 @@ export default function Room() {
                       )}
                     </div>
                   )}
+                  <button
+                    onClick={saveToMyFiles}
+                    title={savedToMyFiles ? "Saved to My Files" : "Save to My Files"}
+                    className={`flex items-center gap-1 px-2 py-1 rounded border text-[10px] font-medium transition-all duration-200 ${
+                      savedToMyFiles
+                        ? "bg-primary/10 border-primary/40 text-primary"
+                        : "bg-muted/40 border-border text-muted-foreground hover:text-primary hover:border-primary/40"
+                    }`}
+                  >
+                    {savedToMyFiles ? <BookCheck size={12} /> : <BookOpen size={12} />}
+                    {savedToMyFiles ? "Saved" : "My Files"}
+                  </button>
                   <div className="bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
                     <span className="font-mono font-semibold text-sm text-foreground">{netWordCount}</span>
                     <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
