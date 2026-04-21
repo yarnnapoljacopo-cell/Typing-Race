@@ -13,7 +13,7 @@ export default function Home() {
   const { toast } = useToast();
   const [name, setName] = useState("");
   const [joinCode, setJoinCode] = useState("");
-  const [duration, setDuration] = useState<number>(15);
+  const [duration, setDuration] = useState<number>(30);
 
   const createRoomMutation = useCreateRoom({
     mutation: {
@@ -120,7 +120,7 @@ export default function Home() {
                 <div className="space-y-3">
                   <label className="text-sm font-medium text-foreground">Sprint Duration</label>
                   <div className="grid grid-cols-3 gap-3">
-                    {[5, 15, 25].map((d) => (
+                    {[30, 45, 60].map((d) => (
                       <Button
                         key={d}
                         type="button"
