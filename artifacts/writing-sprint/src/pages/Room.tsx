@@ -368,6 +368,26 @@ export default function Room() {
       .catch(() => { /* silent */ });
   }, [code, name, applyText, toast]);
 
+  // ── "Slow Bitch." every 10 min when behind the leader ──────────────────
+  // Must live BEFORE the early returns (if !room / if error) so hook order
+  // stays constant across every render.
+  useEffect(() => {
+    if (room?.status !== "running") return;
+    const intervalId = window.setInterval(() => {
+      const participants = room.participants;
+      if (participants.length < 2) return;
+      const leaderWc = Math.max(...participants.map((p) => p.wordCount));
+      if (netWordCountRef.current >= leaderWc) return;
+      setSlowBitchVisible(true);
+      if (slowBitchHideTimerRef.current) clearTimeout(slowBitchHideTimerRef.current);
+      slowBitchHideTimerRef.current = window.setTimeout(() => setSlowBitchVisible(false), 1500);
+    }, 10 * 60 * 1000);
+    return () => {
+      clearInterval(intervalId);
+      if (slowBitchHideTimerRef.current) clearTimeout(slowBitchHideTimerRef.current);
+    };
+  }, [room?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Handlers ─────────────────────────────────────────────────────────
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -459,27 +479,6 @@ export default function Room() {
   const netWordCount = isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : wordCount;
   // Keep ref in sync so the 10-min interval can read it without a stale closure
   netWordCountRef.current = netWordCount;
-
-  // ── "Slow Bitch." every 10 min when behind the leader ──────────────────
-  useEffect(() => {
-    if (room?.status !== "running") return;
-
-    const intervalId = window.setInterval(() => {
-      const participants = room.participants;
-      if (participants.length < 2) return; // no race if alone
-      const leaderWc = Math.max(...participants.map((p) => p.wordCount));
-      if (netWordCountRef.current >= leaderWc) return; // you ARE the leader
-      // Show for 1.5 s then fade out
-      setSlowBitchVisible(true);
-      if (slowBitchHideTimerRef.current) clearTimeout(slowBitchHideTimerRef.current);
-      slowBitchHideTimerRef.current = window.setTimeout(() => setSlowBitchVisible(false), 1500);
-    }, 10 * 60 * 1000);
-
-    return () => {
-      clearInterval(intervalId);
-      if (slowBitchHideTimerRef.current) clearTimeout(slowBitchHideTimerRef.current);
-    };
-  }, [room?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Format countdown seconds as mm:ss
   const formatCountdown = (secs: number) => {
