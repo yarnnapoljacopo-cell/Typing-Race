@@ -66,7 +66,12 @@ export function ResultsScreen({
               >
                 <div className="col-span-2 flex justify-center items-center">{getRankIcon(i)}</div>
                 <div className="col-span-4 font-medium text-foreground flex items-center gap-2">
-                  {p.name}
+                  <button
+                    onClick={() => setLocation(`/profile/${encodeURIComponent(p.name)}`)}
+                    className="hover:text-primary hover:underline underline-offset-2 transition-colors text-left"
+                  >
+                    {p.name}
+                  </button>
                   {isMe && <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded">You</span>}
                 </div>
                 <div className="col-span-3 text-right font-mono text-lg font-bold">{p.wordCount}</div>

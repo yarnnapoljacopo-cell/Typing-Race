@@ -10,6 +10,7 @@ import Home from "@/pages/Home";
 import Portal from "@/pages/Portal";
 import Room from "@/pages/Room";
 import MyFiles from "@/pages/MyFiles";
+import Profile from "@/pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -201,6 +202,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/portal" component={PortalGuard} />
             <Route path="/room" component={RoomGuard} />
             <Route path="/my-files" component={MyFilesGuard} />
+            <Route path="/profile/:name" component={Profile} />
             <Route path="/sign-in/*?" component={SignInPage} />
             <Route path="/sign-up/*?" component={SignUpPage} />
             <Route component={NotFound} />

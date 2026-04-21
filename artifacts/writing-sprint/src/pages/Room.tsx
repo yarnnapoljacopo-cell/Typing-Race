@@ -8,7 +8,7 @@ import { WritingToolbar, type WritingStyle, type FormatType } from "@/components
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 import { SpectatorView } from "@/components/SpectatorView";
 import { Button } from "@/components/ui/button";
-import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck, BookOpen } from "lucide-react";
+import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck, BookOpen, Maximize2, Minimize2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -157,6 +157,7 @@ export default function Room() {
   const [capsules, setCapsules] = useState<Capsule[]>(() => loadCapsules(code));
   const [writingStyle, setWritingStyle] = useState<WritingStyle>(loadWritingStyle);
   const [savedToMyFiles, setSavedToMyFiles] = useState(false);
+  const [distractionFree, setDistractionFree] = useState(false);
 
   const textareaRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
@@ -605,6 +606,11 @@ export default function Room() {
     if (room?.status === "running") goalHitShownRef.current = false;
   }, [room?.status]);
 
+  // ── Exit distraction-free mode when sprint ends ───────────────────────
+  useEffect(() => {
+    if (room?.status === "finished") setDistractionFree(false);
+  }, [room?.status]);
+
   // ── "Slow Bitch." every 5 min when behind the leader ───────────────────
   // Must live BEFORE the early returns (if !room / if error) so hook order
   // stays constant across every render.
@@ -750,6 +756,18 @@ export default function Room() {
 
   // Net word count: what shows on the badge and car during a sprint
   const netWordCount = isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : wordCount;
+
+  // Death Mode: compute how many words the reaper has "consumed" based on elapsed time
+  const elapsedSeconds = room.deathModeWpm != null && room.timeLeft != null
+    ? Math.max(0, room.durationMinutes * 60 - room.timeLeft)
+    : 0;
+  const reaperWordCount = (isRunning || isFinished) && room.deathModeWpm != null
+    ? Math.floor(room.deathModeWpm * elapsedSeconds / 60)
+    : null;
+  const myParticipant = room.participants.find((p) => p.id === participantId);
+  const isEliminated = reaperWordCount != null && myParticipant != null
+    && myParticipant.wordCount < reaperWordCount
+    && myParticipant.wordCount < (room.wordGoal ?? room.durationMinutes * 200);
   // Keep refs in sync so intervals/callbacks can read them without stale closures
   netWordCountRef.current = netWordCount;
   wordGoalRef.current = room.wordGoal ?? null;
@@ -769,7 +787,10 @@ export default function Room() {
   const otherParticipants = room.participants.filter((p) => p.id !== participantId);
 
   return (
-    <div className="min-h-screen w-full max-w-5xl mx-auto flex flex-col p-4 md:p-6 gap-4">
+    <div className={distractionFree
+      ? "fixed inset-0 z-50 bg-background flex flex-col overflow-auto"
+      : "min-h-screen w-full max-w-5xl mx-auto flex flex-col p-4 md:p-6 gap-4"
+    }>
 
       {/* Reconnecting banner */}
       {!isConnected && (
@@ -780,8 +801,8 @@ export default function Room() {
         </div>
       )}
 
-      {/* Header */}
-      <header className="flex items-center justify-between bg-card border rounded-lg px-4 py-3 shadow-sm">
+      {/* Header — hidden in distraction-free mode */}
+      {!distractionFree && <header className="flex items-center justify-between bg-card border rounded-lg px-4 py-3 shadow-sm">
         <div className="flex items-center gap-3">
           <h1 className="font-serif font-bold text-lg text-foreground">Writing Sprint</h1>
           {isOpenMode && (
@@ -820,7 +841,7 @@ export default function Room() {
             {room.participants.length} {room.participants.length === 1 ? "writer" : "writers"}
           </span>
         </div>
-      </header>
+      </header>}
 
       {/* Main */}
       {isFinished ? (
@@ -835,18 +856,56 @@ export default function Room() {
           />
         </div>
       ) : (
-        <div className="flex-1 flex flex-col gap-4">
-          <RaceTrack
-            participants={room.participants}
-            currentParticipantId={participantId}
-            durationMinutes={room.durationMinutes}
-            wordGoal={room.wordGoal}
-          />
+        <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col gap-4"}>
+          {/* Race track — hidden in distraction-free mode */}
+          {!distractionFree && (
+            <>
+              <RaceTrack
+                participants={room.participants}
+                currentParticipantId={participantId}
+                durationMinutes={room.durationMinutes}
+                wordGoal={room.wordGoal}
+                reaperWordCount={reaperWordCount}
+              />
+              {/* Death Mode elimination banner */}
+              {isEliminated && isRunning && (
+                <div className="flex items-center justify-center gap-3 rounded-xl border border-red-500/40 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 text-sm font-semibold text-red-700 dark:text-red-300 animate-in fade-in slide-in-from-top-1 duration-300">
+                  <span className="text-base">💀</span>
+                  The reaper caught you — keep writing to fight back!
+                  <span className="text-base">💀</span>
+                </div>
+              )}
+            </>
+          )}
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
+          <div className={distractionFree
+            ? "flex-1 flex flex-col px-6 md:px-24 py-4"
+            : "grid grid-cols-1 md:grid-cols-4 gap-4 flex-1"
+          }>
 
             {/* Writing area */}
-            <div className="md:col-span-3 flex flex-col">
+            <div className={distractionFree ? "flex-1 flex flex-col max-w-3xl mx-auto w-full" : "md:col-span-3 flex flex-col"}>
+              {/* Distraction-free minimal top bar */}
+              {distractionFree && (
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-sm font-semibold text-foreground tabular-nums">
+                      {room.timeLeft != null
+                        ? `${Math.floor(room.timeLeft / 60)}:${String(room.timeLeft % 60).padStart(2, "0")}`
+                        : "--:--"}
+                    </span>
+                    <span className="text-muted-foreground text-xs">|</span>
+                    <span className="font-mono text-sm text-foreground">{netWordCount} <span className="text-muted-foreground font-normal text-xs">words</span></span>
+                  </div>
+                  <button
+                    onClick={() => setDistractionFree(false)}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted/60"
+                  >
+                    <Minimize2 className="w-3.5 h-3.5" />
+                    Exit focus
+                  </button>
+                </div>
+              )}
               <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} />
               <div className="flex flex-col flex-1 min-h-[380px]">
                 {/* Pre-sprint / countdown hint bar */}
@@ -954,8 +1013,8 @@ export default function Room() {
               </div>
             </div>
 
-            {/* Sidebar */}
-            <div className="md:col-span-1 flex flex-col gap-4">
+            {/* Sidebar — hidden in distraction-free mode */}
+            {!distractionFree && <div className="md:col-span-1 flex flex-col gap-4">
               <Timer timeLeft={room.timeLeft} countdownTimeLeft={room.countdownTimeLeft} status={room.status} />
 
               <WritingArchive
@@ -1047,7 +1106,19 @@ export default function Room() {
                   </Button>
                 </div>
               )}
-            </div>
+
+              {/* Focus mode button — available once sprint is running */}
+              {isRunning && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setDistractionFree(true)}
+                >
+                  <Maximize2 className="w-4 h-4 mr-2" />
+                  Focus Mode
+                </Button>
+              )}
+            </div>}
 
           </div>
         </div>

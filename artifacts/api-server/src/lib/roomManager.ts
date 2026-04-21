@@ -26,6 +26,7 @@ export interface Room {
   countdownDelayMinutes: number;
   mode: RoomMode;
   wordGoal: number | null;
+  deathModeWpm: number | null;
   status: RoomStatus;
   participants: Map<string, Participant>;
   startTime: number | null;
@@ -43,12 +44,15 @@ function generateRoomCode(): string {
   return `SPRINT-${num}`;
 }
 
+const VALID_DEATH_WPMS = [10, 20, 30, 40, 50];
+
 export function createRoom(
   creatorName: string,
   durationMinutes: number,
   mode: RoomMode = "regular",
   countdownDelayMinutes = 0,
-  wordGoal: number | null = null
+  wordGoal: number | null = null,
+  deathModeWpm: number | null = null
 ): Room {
   let code = generateRoomCode();
   while (rooms.has(code)) {
@@ -62,6 +66,7 @@ export function createRoom(
     countdownDelayMinutes: Math.min(30, Math.max(0, countdownDelayMinutes)),
     mode,
     wordGoal: wordGoal && wordGoal > 0 ? Math.floor(wordGoal) : null,
+    deathModeWpm: deathModeWpm && VALID_DEATH_WPMS.includes(deathModeWpm) ? deathModeWpm : null,
     status: "waiting",
     participants: new Map(),
     startTime: null,
@@ -164,6 +169,7 @@ export function broadcastRoomState(room: Room): void {
       countdownDelayMinutes: room.countdownDelayMinutes,
       mode: room.mode,
       wordGoal: room.wordGoal,
+      deathModeWpm: room.deathModeWpm,
       timeLeft,
       countdownTimeLeft,
       participants,

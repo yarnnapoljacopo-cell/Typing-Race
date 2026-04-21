@@ -7,6 +7,7 @@ interface RaceTrackProps {
   currentParticipantId: string | null;
   durationMinutes: number;
   wordGoal?: number | null;
+  reaperWordCount?: number | null;
 }
 
 const LANE_COLORS: { car: string; text: string }[] = [
@@ -48,6 +49,7 @@ export const RaceTrack = memo(function RaceTrack({
   currentParticipantId,
   durationMinutes,
   wordGoal,
+  reaperWordCount,
 }: RaceTrackProps) {
   // ── Stable lane assignments ───────────────────────────────────────────
   // We lock each participant to a lane index the first time we see them.
@@ -65,12 +67,20 @@ export const RaceTrack = memo(function RaceTrack({
   );
 
   const target = wordGoal ?? targetWords(durationMinutes);
+  const reaperFraction = reaperWordCount != null && reaperWordCount > 0
+    ? Math.min(reaperWordCount / target, 1)
+    : null;
 
   return (
     <div className="w-full rounded-xl overflow-hidden shadow-sm border" style={{ background: "#2d4a1e" }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
-        <span className="text-white/70 text-xs font-semibold uppercase tracking-widest">Race Track</span>
+        <span className="text-white/70 text-xs font-semibold uppercase tracking-widest flex items-center gap-1.5">
+          Race Track
+          {reaperFraction !== null && (
+            <span className="text-red-400 text-[10px] font-bold uppercase tracking-wider animate-pulse">💀 Death</span>
+          )}
+        </span>
         <span className="text-white/50 text-xs font-mono">
           goal: {target} words &nbsp;·&nbsp; {participants.length} {participants.length === 1 ? "writer" : "writers"}
         </span>
@@ -104,6 +114,27 @@ export const RaceTrack = memo(function RaceTrack({
           </div>
         </div>
 
+        {/* Reaper line — spans the full height of all lanes */}
+        {reaperFraction !== null && (
+          <div
+            className="absolute top-0 bottom-0 pointer-events-none"
+            style={{
+              zIndex: 25,
+              left: `calc(${59}px + ${(reaperFraction * 100).toFixed(3)}% - ${(reaperFraction * (16 + 48 + 59)).toFixed(3)}px)`,
+              width: "3px",
+              background: "repeating-linear-gradient(to bottom, #ef4444 0px, #ef4444 8px, #7f1d1d 8px, #7f1d1d 16px)",
+              boxShadow: "0 0 8px 2px rgba(239,68,68,0.5)",
+            }}
+          >
+            <div
+              className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold whitespace-nowrap"
+              style={{ color: "#ef4444", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}
+            >
+              💀
+            </div>
+          </div>
+        )}
+
         {/* Lanes */}
         <div className="flex flex-col gap-0">
           {sortedParticipants.length === 0 ? (
@@ -123,6 +154,7 @@ export const RaceTrack = memo(function RaceTrack({
               // Absolute fraction: progress toward the fixed word-count target.
               const fraction = Math.min(p.wordCount / target, 1);
               const finished = p.wordCount >= target;
+              const eliminated = reaperWordCount != null && p.wordCount < reaperWordCount && !finished;
 
               return (
                 <div
@@ -130,13 +162,18 @@ export const RaceTrack = memo(function RaceTrack({
                   className="relative"
                   style={{
                     height: "64px",
-                    background: finished
+                    background: eliminated
+                      ? "rgba(239,68,68,0.08)"
+                      : finished
                       ? "rgba(255,255,255,0.08)"
                       : laneIndex % 2 === 0
                       ? "rgba(255,255,255,0.04)"
                       : "rgba(0,0,0,0.10)",
-                    borderBottom: "1px solid rgba(255,255,255,0.06)",
-                    transition: "background 0.4s",
+                    borderBottom: eliminated
+                      ? "1px solid rgba(239,68,68,0.18)"
+                      : "1px solid rgba(255,255,255,0.06)",
+                    opacity: eliminated ? 0.55 : 1,
+                    transition: "background 0.4s, opacity 0.4s",
                   }}
                 >
                   {/* Dashed centre line */}
@@ -176,10 +213,12 @@ export const RaceTrack = memo(function RaceTrack({
                       <div
                         className="flex items-center gap-1 mb-0.5 whitespace-nowrap"
                         style={{
-                          background: isMe ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.75)",
+                          background: eliminated ? "rgba(60,60,60,0.85)" : isMe ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.75)",
                           borderRadius: "4px",
                           padding: "1px 6px",
-                          boxShadow: finished
+                          boxShadow: eliminated
+                            ? "0 0 0 2px #ef4444"
+                            : finished
                             ? `0 0 0 2px #fbbf24`
                             : isMe
                             ? `0 0 0 2px ${colors.car}`
@@ -188,21 +227,22 @@ export const RaceTrack = memo(function RaceTrack({
                       >
                         <span
                           className="text-[10px] font-bold truncate max-w-[60px]"
-                          style={{ color: finished ? "#92400e" : colors.text }}
+                          style={{ color: eliminated ? "#fca5a5" : finished ? "#92400e" : colors.text }}
                         >
-                          {finished ? "🏁" : ""}{isMe ? "You" : p.name}
+                          {eliminated ? "💀" : finished ? "🏁" : ""}{isMe ? "You" : p.name}
                         </span>
-                        <span className="text-[10px] font-mono font-bold" style={{ color: "#374151" }}>
+                        <span className="text-[10px] font-mono font-bold" style={{ color: eliminated ? "#f87171" : "#374151" }}>
                           {p.wordCount}w
                         </span>
                       </div>
 
-                      {/* Car — pulses when finished */}
+                      {/* Car — pulses when finished, fades when eliminated */}
                       <motion.div
                         animate={finished ? { scale: [1, 1.08, 1] } : { scale: 1 }}
                         transition={finished ? { repeat: Infinity, duration: 1.4, ease: "easeInOut" } : {}}
+                        style={{ opacity: eliminated ? 0.4 : 1 }}
                       >
-                        <CarIcon color={finished ? "#fbbf24" : colors.car} />
+                        <CarIcon color={eliminated ? "#6b7280" : finished ? "#fbbf24" : colors.car} />
                       </motion.div>
                     </motion.div>
                   </div>

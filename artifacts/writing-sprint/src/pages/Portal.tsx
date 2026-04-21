@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
-  Clock, BookOpen, LogOut, Pencil, Radio,
+  Clock, BookOpen, LogOut, Pencil, Radio, Skull,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
@@ -58,6 +58,7 @@ export default function Portal() {
   const [roomMode, setRoomMode] = useState<RoomMode>("regular");
   const [countdownDelay, setCountdownDelay] = useState<number>(0);
   const [goalWords, setGoalWords] = useState<string>("1000");
+  const [deathModeWpm, setDeathModeWpm] = useState<number | null>(null);
 
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -132,6 +133,7 @@ export default function Portal() {
         mode: roomMode,
         ...(countdownDelay > 0 ? { countdownDelayMinutes: countdownDelay } : {}),
         ...(wordGoal ? { wordGoal } : {}),
+        ...(deathModeWpm ? { deathModeWpm } : {}),
       } as Parameters<typeof createRoomMutation.mutate>[0]["data"],
     });
   };
@@ -354,6 +356,46 @@ export default function Portal() {
                             className="h-8 w-24 text-center font-mono focus-visible:ring-primary"
                           />
                           <span className="text-sm text-muted-foreground">words</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Death Mode */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                          <Skull className="w-3.5 h-3.5 text-muted-foreground" />
+                          Death Mode
+                          <span className="text-xs text-muted-foreground font-normal ml-1">(reaper line)</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setDeathModeWpm(deathModeWpm ? null : 20)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${deathModeWpm ? "bg-red-500" : "bg-input"}`}
+                        >
+                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${deathModeWpm ? "translate-x-4" : "translate-x-0"}`} />
+                        </button>
+                      </div>
+                      {deathModeWpm && (
+                        <div className="space-y-1.5">
+                          <p className="text-[11px] text-muted-foreground">Reaper speed — fall behind this pace and you're out:</p>
+                          <div className="grid grid-cols-5 gap-1.5">
+                            {[10, 20, 30, 40, 50].map((wpm) => (
+                              <button
+                                key={wpm}
+                                type="button"
+                                onClick={() => setDeathModeWpm(wpm)}
+                                className={`flex flex-col items-center rounded-lg border-2 py-2 text-xs font-semibold transition-all ${
+                                  deathModeWpm === wpm
+                                    ? "border-red-500 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400"
+                                    : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                                }`}
+                              >
+                                <span>{wpm}</span>
+                                <span className="text-[9px] font-normal opacity-70">wpm</span>
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>

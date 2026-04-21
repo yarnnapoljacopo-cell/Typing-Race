@@ -4,7 +4,7 @@ import { createRoom, getRoom, getActiveRooms } from "../lib/roomManager";
 import { saveWriting, getWriting, getUserSprints } from "../lib/writingStore";
 import { CreateRoomBody, GetRoomParams } from "@workspace/api-zod";
 import { db, userProfilesTable, sprintWritingTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql, max, sum, count } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -27,7 +27,9 @@ router.post("/rooms", async (req, res): Promise<void> => {
     : 0;
   const rawGoal = rawBody.wordGoal;
   const wordGoal = typeof rawGoal === "number" && rawGoal > 0 ? Math.floor(rawGoal) : null;
-  const room = createRoom(creatorName, durationMinutes, mode ?? "regular", countdownDelayMinutes, wordGoal);
+  const rawDeathWpm = rawBody.deathModeWpm;
+  const deathModeWpm = typeof rawDeathWpm === "number" ? rawDeathWpm : null;
+  const room = createRoom(creatorName, durationMinutes, mode ?? "regular", countdownDelayMinutes, wordGoal, deathModeWpm);
 
   res.status(201).json({
     code: room.code,
@@ -258,6 +260,34 @@ router.put("/user/profile", async (req, res): Promise<void> => {
     });
 
   res.json({ writerName: name });
+});
+
+router.get("/users/by-name/:name/profile", async (req, res): Promise<void> => {
+  const name = decodeURIComponent(req.params.name ?? "").trim();
+  if (!name) { res.status(400).json({ error: "Missing name" }); return; }
+
+  const [statsRow] = await db
+    .select({
+      totalWords: sum(sprintWritingTable.wordCount),
+      highestWordCount: max(sprintWritingTable.wordCount),
+      sprintCount: count(),
+    })
+    .from(sprintWritingTable)
+    .where(eq(sprintWritingTable.participantName, name));
+
+  const profileRows = await db
+    .select()
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.writerName, name))
+    .limit(1);
+
+  res.json({
+    name,
+    writerName: profileRows[0]?.writerName ?? name,
+    totalWords: Number(statsRow?.totalWords ?? 0),
+    highestWordCount: Number(statsRow?.highestWordCount ?? 0),
+    sprintCount: Number(statsRow?.sprintCount ?? 0),
+  });
 });
 
 export default router;

@@ -15,6 +15,7 @@ export interface RoomState {
   countdownDelayMinutes: number;
   mode: "regular" | "open" | "goal";
   wordGoal: number | null;
+  deathModeWpm: number | null;
   timeLeft: number | null;
   countdownTimeLeft: number | null;
   participants: Participant[];
@@ -73,7 +74,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
           case "joined": {
             const isReconnect = hasJoinedRef.current;
             setParticipantId(data.participantId);
-            setRoom({ mode: "regular", countdownDelayMinutes: 0, countdownTimeLeft: null, wordGoal: null, ...data.room, participants: data.room.participants ?? [] });
+            setRoom({ mode: "regular", countdownDelayMinutes: 0, countdownTimeLeft: null, wordGoal: null, deathModeWpm: null, ...data.room, participants: data.room.participants ?? [] });
             // On reconnect, resend the latest text so the server has current count
             if (isReconnect && latestTextRef.current) {
               ws.send(JSON.stringify({
@@ -92,7 +93,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
           }
 
           case "room_state":
-            setRoom({ mode: "regular", countdownDelayMinutes: 0, countdownTimeLeft: null, wordGoal: null, ...data.room, participants: data.room.participants ?? [] });
+            setRoom({ mode: "regular", countdownDelayMinutes: 0, countdownTimeLeft: null, wordGoal: null, deathModeWpm: null, ...data.room, participants: data.room.participants ?? [] });
             break;
 
           case "participant_update":
