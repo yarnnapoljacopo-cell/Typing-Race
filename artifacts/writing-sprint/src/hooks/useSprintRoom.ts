@@ -12,6 +12,7 @@ export interface RoomState {
   code: string;
   status: "waiting" | "running" | "finished";
   durationMinutes: number;
+  mode: "regular" | "open";
   timeLeft: number | null;
   participants: Participant[];
 }
@@ -27,10 +28,9 @@ interface UseSprintRoomProps {
   code: string;
   name: string;
   isCreator?: boolean;
-  isSpectator?: boolean;
 }
 
-export function useSprintRoom({ code, name, isCreator = false, isSpectator = false }: UseSprintRoomProps) {
+export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomProps) {
   const [room, setRoom] = useState<RoomState | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +58,7 @@ export function useSprintRoom({ code, name, isCreator = false, isSpectator = fal
     ws.onopen = () => {
       setIsConnected(true);
       setError(null);
-      ws.send(JSON.stringify({ type: "join_room", code, name, isSpectator }));
+      ws.send(JSON.stringify({ type: "join_room", code, name }));
     };
 
     ws.onmessage = (event) => {
@@ -68,9 +68,9 @@ export function useSprintRoom({ code, name, isCreator = false, isSpectator = fal
         switch (data.type) {
           case "joined":
             setParticipantId(data.participantId);
-            setRoom({ ...data.room, participants: data.room.participants ?? [] });
+            setRoom({ mode: "regular", ...data.room, participants: data.room.participants ?? [] });
             // On reconnect, resend the latest text so the server has current count
-            if (hasJoinedRef.current && latestTextRef.current && !isSpectator) {
+            if (hasJoinedRef.current && latestTextRef.current) {
               ws.send(JSON.stringify({
                 type: "text_update",
                 text: latestTextRef.current,
@@ -81,7 +81,7 @@ export function useSprintRoom({ code, name, isCreator = false, isSpectator = fal
             break;
 
           case "room_state":
-            setRoom({ ...data.room, participants: data.room.participants ?? [] });
+            setRoom({ mode: "regular", ...data.room, participants: data.room.participants ?? [] });
             break;
 
           case "participant_update":
@@ -142,7 +142,7 @@ export function useSprintRoom({ code, name, isCreator = false, isSpectator = fal
     ws.onerror = () => {
       setIsConnected(false);
     };
-  }, [code, name, isSpectator]);
+  }, [code, name]);
 
   useEffect(() => {
     connect();
@@ -207,7 +207,6 @@ export function useSprintRoom({ code, name, isCreator = false, isSpectator = fal
     participantId,
     isConnected,
     error,
-    isSpectator,
     participantTexts,
     setLatestText,
     sendTextUpdate,

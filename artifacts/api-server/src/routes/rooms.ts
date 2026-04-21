@@ -11,8 +11,8 @@ router.post("/rooms", async (req, res): Promise<void> => {
     return;
   }
 
-  const { creatorName, durationMinutes } = parsed.data;
-  const room = createRoom(creatorName, durationMinutes);
+  const { creatorName, durationMinutes, mode } = parsed.data;
+  const room = createRoom(creatorName, durationMinutes, mode ?? "regular");
 
   res.status(201).json({
     code: room.code,

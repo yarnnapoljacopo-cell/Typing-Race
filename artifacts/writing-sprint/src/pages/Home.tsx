@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PenTool, ArrowRight, Loader2, Feather, Eye } from "lucide-react";
+import { PenTool, ArrowRight, Loader2, Feather, Eye, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-type JoinMode = "regular" | "spectator";
+type RoomMode = "regular" | "open";
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -16,7 +16,7 @@ export default function Home() {
   const [name, setName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [duration, setDuration] = useState<number>(30);
-  const [joinMode, setJoinMode] = useState<JoinMode>("regular");
+  const [roomMode, setRoomMode] = useState<RoomMode>("regular");
 
   const createRoomMutation = useCreateRoom({
     mutation: {
@@ -38,7 +38,7 @@ export default function Home() {
       toast({ title: "Name required", description: "Please enter your name first.", variant: "destructive" });
       return;
     }
-    createRoomMutation.mutate({ data: { creatorName: name, durationMinutes: duration } });
+    createRoomMutation.mutate({ data: { creatorName: name, durationMinutes: duration, mode: roomMode } });
   };
 
   const handleJoin = () => {
@@ -50,8 +50,7 @@ export default function Home() {
       toast({ title: "Room code required", description: "Please enter a valid room code.", variant: "destructive" });
       return;
     }
-    const url = `/room?code=${encodeURIComponent(joinCode.trim().toUpperCase())}&name=${encodeURIComponent(name)}${joinMode === "spectator" ? "&isSpectator=true" : ""}`;
-    setLocation(url);
+    setLocation(`/room?code=${encodeURIComponent(joinCode.trim().toUpperCase())}&name=${encodeURIComponent(name)}`);
   };
 
   return (
@@ -110,55 +109,18 @@ export default function Home() {
                     onKeyDown={(e) => e.key === "Enter" && handleJoin()}
                   />
                 </div>
-
-                {/* Mode selector */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Join As</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setJoinMode("regular")}
-                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border-2 px-4 py-3 transition-all ${
-                        joinMode === "regular"
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                      }`}
-                    >
-                      <PenTool className="w-5 h-5" />
-                      <span className="text-sm font-semibold">Writer</span>
-                      <span className="text-[10px] text-center leading-tight opacity-70">
-                        Join the race &amp; write
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setJoinMode("spectator")}
-                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border-2 px-4 py-3 transition-all ${
-                        joinMode === "spectator"
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                      }`}
-                    >
-                      <Eye className="w-5 h-5" />
-                      <span className="text-sm font-semibold">Spectator</span>
-                      <span className="text-[10px] text-center leading-tight opacity-70">
-                        Watch &amp; read live
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
                 <Button
                   onClick={handleJoin}
                   className="w-full py-6 text-lg hover-elevate group"
                   disabled={!name.trim() || !joinCode.trim()}
                 >
-                  {joinMode === "spectator" ? "Watch Room" : "Enter Room"}
+                  Enter Room
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </TabsContent>
 
               <TabsContent value="create" className="space-y-4">
+                {/* Duration */}
                 <div className="space-y-3">
                   <label className="text-sm font-medium text-foreground">Sprint Duration</label>
                   <div className="grid grid-cols-3 gap-3">
@@ -175,6 +137,44 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
+
+                {/* Sprint mode */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Sprint Mode</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setRoomMode("regular")}
+                      className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-4 py-3 transition-all ${
+                        roomMode === "regular"
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <Lock className="w-5 h-5" />
+                      <span className="text-sm font-semibold">Regular</span>
+                      <span className="text-[10px] text-center leading-tight opacity-70">
+                        Private writing
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRoomMode("open")}
+                      className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-4 py-3 transition-all ${
+                        roomMode === "open"
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <Eye className="w-5 h-5" />
+                      <span className="text-sm font-semibold">Spectator</span>
+                      <span className="text-[10px] text-center leading-tight opacity-70">
+                        See each other's writing live
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
                 <Button
                   onClick={handleCreate}
                   className="w-full py-6 text-lg hover-elevate group"

@@ -62,7 +62,6 @@ export default function Room() {
   const code = searchParams.get("code") || "";
   const name = searchParams.get("name") || "";
   const isCreatorParams = searchParams.get("isCreator") === "true";
-  const isSpectatorParam = searchParams.get("isSpectator") === "true";
 
   const [text, setText] = useState(() => {
     if (code) {
@@ -122,7 +121,7 @@ export default function Room() {
     startSprint,
     restartSprint,
     endSprint,
-  } = useSprintRoom({ code, name, isCreator: isCreatorParams, isSpectator: isSpectatorParam });
+  } = useSprintRoom({ code, name, isCreator: isCreatorParams });
 
   useEffect(() => {
     if (!code || !name) setLocation("/");
@@ -298,10 +297,13 @@ export default function Room() {
   const isRunning = room.status === "running";
   const isWaiting = room.status === "waiting";
   const isFinished = room.status === "finished";
-  const isSpectator = isSpectatorParam;
+  const isOpenMode = room.mode === "open";
 
   // Net word count: what shows on the badge and car during a sprint
   const netWordCount = isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : wordCount;
+
+  // In open mode, show everyone's live text except our own car
+  const otherParticipants = room.participants.filter((p) => p.id !== participantId);
 
   return (
     <div className="min-h-screen w-full max-w-5xl mx-auto flex flex-col p-4 md:p-6 gap-4">
@@ -319,9 +321,9 @@ export default function Room() {
       <header className="flex items-center justify-between bg-card border rounded-lg px-4 py-3 shadow-sm">
         <div className="flex items-center gap-3">
           <h1 className="font-serif font-bold text-lg text-foreground">Writing Sprint</h1>
-          {isSpectator && (
+          {isOpenMode && (
             <span className="flex items-center gap-1 text-xs font-semibold bg-primary/10 text-primary px-2 py-1 rounded">
-              <Eye className="w-3 h-3" /> Spectator
+              <Eye className="w-3 h-3" /> Open
             </span>
           )}
           <div className="h-4 w-px bg-border hidden sm:block" />
@@ -379,92 +381,85 @@ export default function Room() {
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
 
-            {/* Writing area OR spectator panel */}
+            {/* Writing area */}
             <div className="md:col-span-3 flex flex-col">
-              {isSpectator ? (
-                <div className="flex-1 min-h-[380px] bg-card border rounded-lg shadow-sm p-4 overflow-auto">
-                  <SpectatorView
-                    participants={room.participants}
-                    participantTexts={participantTexts}
-                    currentParticipantId={participantId}
-                  />
-                </div>
-              ) : (
-                <>
-                  <WritingToolbar style={writingStyle} onChange={handleStyleChange} />
-                  <div className="relative flex-1 min-h-[380px]">
-                    {/* Pre-sprint hint bar */}
-                    {isWaiting && (
-                      <div className="absolute top-0 inset-x-0 z-10 flex items-center justify-center bg-primary/8 border border-primary/20 rounded-t-none text-primary text-xs font-medium py-1.5 px-3 gap-1.5">
-                        <span>✍️ Write ahead while you wait — words written now <strong>won't count</strong> toward your score.</span>
-                      </div>
-                    )}
-                    <textarea
-                      ref={textareaRef}
-                      value={text}
-                      onChange={handleTextChange}
-                      onKeyDown={handleKeyDown}
-                      disabled={!isConnected || (!isRunning && !isWaiting)}
-                      placeholder={
-                        !isConnected
-                          ? "Reconnecting…"
-                          : isRunning
-                          ? "Write here — the clock is ticking!"
-                          : "Warm up here while you wait for the sprint to start…"
-                      }
-                      spellCheck={false}
-                      autoComplete="off"
-                      className="w-full h-full resize-none bg-card border rounded-b-lg shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground disabled:opacity-60 disabled:cursor-not-allowed"
-                      style={{
-                        paddingTop: isWaiting ? "2.75rem" : undefined,
-                        fontFamily: writingStyle.fontFamily,
-                        fontSize: `${writingStyle.fontSize}px`,
-                        lineHeight: writingStyle.lineHeight,
-                        borderTop: "none",
-                      }}
-                    />
-
-                    {/* Bottom-right badge row */}
-                    <div className="absolute bottom-4 right-4 flex items-center gap-2 pointer-events-none">
-                      {/* Capsule saved flash */}
-                      <div
-                        className="bg-primary/10 backdrop-blur border border-primary/30 px-2 py-1 rounded text-[10px] font-semibold text-primary transition-opacity duration-500"
-                        style={{ opacity: capsuleFlash ? 1 : 0 }}
-                      >
-                        Capsule saved
-                      </div>
-                      {/* Autosave flash */}
-                      <div
-                        className="bg-background/90 backdrop-blur border px-2 py-1 rounded text-[10px] font-medium text-muted-foreground transition-opacity duration-500"
-                        style={{ opacity: savedFlash ? 1 : 0 }}
-                      >
-                        Saved
-                      </div>
-                      {/* Word count badge */}
-                      <div className="bg-background/90 backdrop-blur border px-3 py-1.5 rounded-md shadow-sm flex items-baseline gap-1.5">
-                        <span className="font-mono font-bold text-lg">{netWordCount}</span>
-                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          {isRunning ? "words" : "warm-up"}
-                        </span>
-                      </div>
-                    </div>
+              <WritingToolbar style={writingStyle} onChange={handleStyleChange} />
+              <div className="relative flex-1 min-h-[380px]">
+                {/* Pre-sprint hint bar */}
+                {isWaiting && (
+                  <div className="absolute top-0 inset-x-0 z-10 flex items-center justify-center bg-primary/8 border border-primary/20 text-primary text-xs font-medium py-1.5 px-3 gap-1.5">
+                    <span>✍️ Write ahead while you wait — words written now <strong>won't count</strong> toward your score.</span>
                   </div>
-                </>
-              )}
+                )}
+                <textarea
+                  ref={textareaRef}
+                  value={text}
+                  onChange={handleTextChange}
+                  onKeyDown={handleKeyDown}
+                  disabled={!isConnected || (!isRunning && !isWaiting)}
+                  placeholder={
+                    !isConnected
+                      ? "Reconnecting…"
+                      : isRunning
+                      ? "Write here — the clock is ticking!"
+                      : "Warm up here while you wait for the sprint to start…"
+                  }
+                  spellCheck={false}
+                  autoComplete="off"
+                  className="w-full h-full resize-none bg-card border rounded-b-lg shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground disabled:opacity-60 disabled:cursor-not-allowed"
+                  style={{
+                    paddingTop: isWaiting ? "2.75rem" : undefined,
+                    fontFamily: writingStyle.fontFamily,
+                    fontSize: `${writingStyle.fontSize}px`,
+                    lineHeight: writingStyle.lineHeight,
+                    borderTop: "none",
+                  }}
+                />
+                {/* Bottom-right badge row */}
+                <div className="absolute bottom-4 right-4 flex items-center gap-2 pointer-events-none">
+                  <div
+                    className="bg-primary/10 backdrop-blur border border-primary/30 px-2 py-1 rounded text-[10px] font-semibold text-primary transition-opacity duration-500"
+                    style={{ opacity: capsuleFlash ? 1 : 0 }}
+                  >
+                    Capsule saved
+                  </div>
+                  <div
+                    className="bg-background/90 backdrop-blur border px-2 py-1 rounded text-[10px] font-medium text-muted-foreground transition-opacity duration-500"
+                    style={{ opacity: savedFlash ? 1 : 0 }}
+                  >
+                    Saved
+                  </div>
+                  <div className="bg-background/90 backdrop-blur border px-3 py-1.5 rounded-md shadow-sm flex items-baseline gap-1.5">
+                    <span className="font-mono font-bold text-lg">{netWordCount}</span>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      {isRunning ? "words" : "warm-up"}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Sidebar */}
             <div className="md:col-span-1 flex flex-col gap-4">
               <Timer timeLeft={room.timeLeft} status={room.status} />
 
-              {!isSpectator && (
-                <WritingArchive
-                  text={text}
-                  capsules={capsules}
-                  triggerLabel="My Writing"
-                  triggerVariant="outline"
-                  triggerClassName="w-full"
-                />
+              <WritingArchive
+                text={text}
+                capsules={capsules}
+                triggerLabel="My Writing"
+                triggerVariant="outline"
+                triggerClassName="w-full"
+              />
+
+              {/* Live writers panel — only in open mode */}
+              {isOpenMode && otherParticipants.length > 0 && (
+                <div className="bg-card border rounded-lg p-3 shadow-sm">
+                  <SpectatorView
+                    participants={otherParticipants}
+                    participantTexts={participantTexts}
+                    currentParticipantId={participantId}
+                  />
+                </div>
               )}
 
               {isWaiting && isCreator && (
@@ -480,9 +475,7 @@ export default function Room() {
               {isWaiting && !isCreator && (
                 <div className="bg-card border rounded-lg p-4 shadow-sm text-center">
                   <p className="text-sm text-muted-foreground">
-                    {isSpectator
-                      ? "Waiting for the host to start the sprint…"
-                      : "Waiting for the host to start the sprint…"}
+                    Waiting for the host to start the sprint…
                   </p>
                 </div>
               )}

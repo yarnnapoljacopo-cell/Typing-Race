@@ -16,10 +16,13 @@ export interface Participant {
   latestText: string;
 }
 
+export type RoomMode = "regular" | "open";
+
 export interface Room {
   code: string;
   creatorName: string;
   durationMinutes: number;
+  mode: RoomMode;
   status: RoomStatus;
   participants: Map<string, Participant>;
   startTime: number | null;
@@ -34,7 +37,7 @@ function generateRoomCode(): string {
   return `SPRINT-${num}`;
 }
 
-export function createRoom(creatorName: string, durationMinutes: number): Room {
+export function createRoom(creatorName: string, durationMinutes: number, mode: RoomMode = "regular"): Room {
   let code = generateRoomCode();
   while (rooms.has(code)) {
     code = generateRoomCode();
@@ -44,6 +47,7 @@ export function createRoom(creatorName: string, durationMinutes: number): Room {
     code,
     creatorName,
     durationMinutes,
+    mode,
     status: "waiting",
     participants: new Map(),
     startTime: null,
@@ -103,6 +107,7 @@ export function broadcastRoomState(room: Room): void {
       code: room.code,
       status: room.status,
       durationMinutes: room.durationMinutes,
+      mode: room.mode,
       timeLeft,
       participants,
     },

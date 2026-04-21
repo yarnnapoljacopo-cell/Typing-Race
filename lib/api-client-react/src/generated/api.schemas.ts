@@ -9,9 +9,12 @@ export interface HealthStatus {
   status: string;
 }
 
+export type RoomMode = "regular" | "open";
+
 export interface CreateRoomBody {
   creatorName: string;
   durationMinutes: number;
+  mode?: RoomMode;
 }
 
 export type RoomInfoStatus =
