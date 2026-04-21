@@ -421,11 +421,12 @@ export default function Room() {
     });
   }, [room?.status, code, flushAutoSave, serverSaveNow]);
 
-  // ── Auto-download writing when sprint ends ────────────────────────────
+  // ── Auto-download + auto-save to My Files when sprint ends ──────────
   useEffect(() => {
     if (room?.status === "waiting") {
       // New sprint starting — allow auto-download to fire again
       hasAutoDownloadedRef.current = false;
+      setSavedToMyFiles(false);
       return;
     }
     if (room?.status !== "finished") return;
@@ -434,7 +435,8 @@ export default function Room() {
     if (!plainText) return;
     hasAutoDownloadedRef.current = true;
     downloadWriting();
-  }, [room?.status, downloadWriting]);
+    saveToMyFiles();
+  }, [room?.status, downloadWriting, saveToMyFiles]);
 
   // ── Typewriter mode: lock editor height + add internal padding ───────
   // The editor is flex-1 in an unconstrained column, so padding applied to it
