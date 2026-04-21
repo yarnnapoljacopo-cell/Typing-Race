@@ -277,19 +277,25 @@ export default function Room() {
     if (!room) return;
     if (prevStatusRef.current !== "running" && room.status === "running") {
       const restored = restoredNetWordsRef.current;
+      const currentTotalWords = countWords(currentTextRef.current);
       if (prevStatusRef.current === null && restored > 0) {
-        // Page-refresh reconnect to an already-running sprint.
-        // The server gave us back the participant's net word count; set the
-        // baseline so their displayed count resumes correctly from that value.
+        // Page-refresh reconnect: server knows our net word count.
+        // Set baseline so the display resumes from the correct value.
         // e.g. totalWords=500, restored=500 → baseline=0 → net=500 ✓
-        //      totalWords=600, restored=500 → baseline=100 → net=500 ✓ (had 100 pre-sprint words)
-        const totalWords = countWords(currentTextRef.current);
-        baselineWordCountRef.current = Math.max(0, totalWords - restored);
-        // Do NOT send net-0 to the server — it already has the correct count.
+        //      totalWords=600, restored=500 → baseline=100 → net=500 ✓
+        baselineWordCountRef.current = Math.max(0, currentTotalWords - restored);
+        // Do NOT send net-0 — server already has the correct count.
+      } else if (prevStatusRef.current === null && currentTotalWords > 0) {
+        // Page-refresh reconnect: server lost our count (e.g. 5 s server-save
+        // hadn't fired yet, or a prior refresh zeroed it via the else branch).
+        // Keep baseline=0 so net = totalWords, and re-announce our count to
+        // the server so the DB is corrected for future refreshes.
+        baselineWordCountRef.current = 0;
+        sendTextUpdate(currentTextRef.current, currentTotalWords);
       } else {
-        // Genuine sprint start (or late join with no prior progress).
-        // Snapshot current word count so pre-sprint text doesn't count.
-        baselineWordCountRef.current = countWords(currentTextRef.current);
+        // Genuine sprint start (or late join with no prior text).
+        // Snapshot current words so any pre-sprint text doesn't count.
+        baselineWordCountRef.current = currentTotalWords;
         sendTextUpdate(currentTextRef.current, 0);
       }
     }
@@ -461,7 +467,7 @@ export default function Room() {
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     autoSaveTimeoutRef.current = window.setTimeout(() => flushAutoSave(), 400);
 
-    // 10s debounced server backup
+    // 5s debounced server backup
     scheduleServerSave(html, netWc);
   }, [code, participantId, setLatestText, sendTextUpdate, updateLocalWordCount, flushAutoSave, scheduleServerSave]);
 
