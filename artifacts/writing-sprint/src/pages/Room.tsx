@@ -112,6 +112,7 @@ export default function Room() {
     fontSize: 18,
     lineHeight: 1.75,
     paragraphMode: "none",
+    typewriterMode: false,
   });
 
   const textareaRef = useRef<HTMLDivElement>(null);
@@ -128,6 +129,7 @@ export default function Room() {
   const currentCapsulesRef = useRef<Capsule[]>(capsules);
   const finalSnapshotTakenRef = useRef<boolean>(false);
   const serverRestoreDoneRef = useRef<boolean>(false);
+  const hasAutoDownloadedRef = useRef<boolean>(false);
 
   // ── Baseline: words written BEFORE sprint started don't count ──────────
   // Set to the wordCount at the moment the sprint transitions to "running".
@@ -184,6 +186,29 @@ export default function Room() {
     a.click();
     URL.revokeObjectURL(url);
   }, [code]);
+
+  // ── Typewriter mode: scroll the editor so the cursor stays centred ───────
+  const scrollToCursor = useCallback(() => {
+    const div = textareaRef.current;
+    if (!div) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0).cloneRange();
+    range.collapse(true);
+    const rects = range.getClientRects();
+    let caretTop: number;
+    let caretHeight: number;
+    if (rects.length > 0) {
+      caretTop = rects[0].top;
+      caretHeight = rects[0].height || writingStyle.fontSize;
+    } else {
+      caretTop = div.getBoundingClientRect().top;
+      caretHeight = writingStyle.fontSize;
+    }
+    const divRect = div.getBoundingClientRect();
+    const caretOffsetTop = caretTop - divRect.top + div.scrollTop;
+    div.scrollTop = Math.max(0, caretOffsetTop - div.clientHeight / 2 + caretHeight / 2);
+  }, [writingStyle.fontSize]);
 
   const {
     room,
@@ -289,6 +314,42 @@ export default function Room() {
     });
   }, [room?.status, code, flushAutoSave, serverSaveNow]);
 
+  // ── Auto-download writing when sprint ends ────────────────────────────
+  useEffect(() => {
+    if (room?.status === "waiting") {
+      // New sprint starting — allow auto-download to fire again
+      hasAutoDownloadedRef.current = false;
+      return;
+    }
+    if (room?.status !== "finished") return;
+    if (hasAutoDownloadedRef.current) return;
+    const plainText = textareaRef.current?.innerText?.trim() ?? "";
+    if (!plainText) return;
+    hasAutoDownloadedRef.current = true;
+    downloadWriting();
+  }, [room?.status, downloadWriting]);
+
+  // ── Typewriter mode: update editor padding when mode or size changes ──
+  useEffect(() => {
+    const div = textareaRef.current;
+    if (!div) return;
+    if (!writingStyle.typewriterMode) {
+      div.style.paddingTop = "";
+      div.style.paddingBottom = "";
+      return;
+    }
+    const updatePad = () => {
+      const pad = Math.max(160, Math.floor(div.clientHeight * 0.45));
+      div.style.paddingTop = `${pad}px`;
+      div.style.paddingBottom = `${pad}px`;
+    };
+    updatePad();
+    // Scroll so the cursor is already centred when mode first turns on
+    setTimeout(scrollToCursor, 50);
+    const ro = new ResizeObserver(updatePad);
+    ro.observe(div);
+    return () => ro.disconnect();
+  }, [writingStyle.typewriterMode, scrollToCursor]);
 
   // ── Core text update ──────────────────────────────────────────────────
   // When called with an html string, sets the editor content first (for
@@ -451,7 +512,8 @@ export default function Room() {
   // User typing in the contenteditable editor — just sync from current DOM state
   const handleInput = useCallback(() => {
     applyText();
-  }, [applyText]);
+    if (writingStyle.typewriterMode) scrollToCursor();
+  }, [applyText, writingStyle.typewriterMode, scrollToCursor]);
 
   // Normalise Enter across browsers and apply paragraph mode
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -468,7 +530,9 @@ export default function Room() {
       document.execCommand("insertHTML", false, "<br>");
     }
     applyText();
-  }, [writingStyle.paragraphMode, applyText]);
+    // rAF so the new line is in the DOM before we compute the caret rect
+    if (writingStyle.typewriterMode) requestAnimationFrame(scrollToCursor);
+  }, [writingStyle.paragraphMode, writingStyle.typewriterMode, applyText, scrollToCursor]);
 
   // Strip pasted HTML — keep only the plain text
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {

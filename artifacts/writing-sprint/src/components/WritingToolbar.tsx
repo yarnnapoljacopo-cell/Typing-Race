@@ -6,6 +6,7 @@ export interface WritingStyle {
   fontSize: number;
   lineHeight: number;
   paragraphMode: "none" | "indent" | "double";
+  typewriterMode: boolean;
 }
 
 const FONTS = [
@@ -167,26 +168,38 @@ export const WritingToolbar = memo(function WritingToolbar({
       <div className="flex items-center gap-1">
         <button
           onClick={() => onFormat("bold")}
-          title="Bold — wraps selection with **...**"
+          title="Bold"
           className="h-7 w-7 rounded flex items-center justify-center bg-muted/60 text-foreground hover:bg-muted transition-all"
         >
           <Bold size={13} strokeWidth={2.5} />
         </button>
         <button
           onClick={() => onFormat("italic")}
-          title="Italic — wraps selection with *...*"
+          title="Italic"
           className="h-7 w-7 rounded flex items-center justify-center bg-muted/60 text-foreground hover:bg-muted transition-all"
         >
           <Italic size={13} strokeWidth={2} />
         </button>
         <button
           onClick={() => onFormat("underline")}
-          title="Underline — wraps selection with <u>...</u>"
+          title="Underline"
           className="h-7 w-7 rounded flex items-center justify-center bg-muted/60 text-foreground hover:bg-muted transition-all"
         >
           <Underline size={13} strokeWidth={2} />
         </button>
       </div>
+
+      <Divider />
+
+      {/* Typewriter mode */}
+      <ToolBtn
+        active={style.typewriterMode}
+        onClick={() => onChange({ typewriterMode: !style.typewriterMode })}
+        title="Typewriter mode — cursor stays vertically centered while you write"
+        className="px-2 text-[10px] uppercase tracking-wide"
+      >
+        TW
+      </ToolBtn>
 
     </div>
   );
