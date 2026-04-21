@@ -38,7 +38,11 @@ function WritingPreview({
 
   const handleCopy = () => {
     if (!fullText) return;
-    navigator.clipboard.writeText(fullText).then(() => {
+    // Strip HTML tags so clipboard contains plain text
+    const tmp = document.createElement("div");
+    tmp.innerHTML = fullText;
+    const plain = tmp.innerText ?? tmp.textContent ?? fullText;
+    navigator.clipboard.writeText(plain).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -69,9 +73,10 @@ function WritingPreview({
       </div>
       {text ? (
         <div className="max-h-64 overflow-auto rounded border bg-muted/30 p-3">
-          <pre className="font-serif text-xs whitespace-pre-wrap break-words leading-relaxed text-foreground">
-            {text}
-          </pre>
+          <div
+            className="font-serif text-xs break-words leading-relaxed text-foreground"
+            dangerouslySetInnerHTML={{ __html: text }}
+          />
         </div>
       ) : (
         <p className="text-xs text-muted-foreground italic">Nothing written yet…</p>

@@ -262,3 +262,31 @@
     inset: -1px;
   }
 }
+
+/* ── Writing editor (contenteditable) ───────────────────────────────────── */
+.writing-editor:empty::before,
+.writing-editor:not(:focus):has(br:only-child)::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.writing-editor:focus {
+  outline: none;
+}
+
+/* Ensure bold/italic/underline applied via execCommand render naturally */
+.writing-editor b,
+.writing-editor strong {
+  font-weight: bold;
+}
+
+.writing-editor i,
+.writing-editor em {
+  font-style: italic;
+}
+
+.writing-editor u {
+  text-decoration: underline;
+}

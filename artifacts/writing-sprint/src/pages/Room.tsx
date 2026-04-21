@@ -114,7 +114,7 @@ export default function Room() {
     paragraphMode: "none",
   });
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
   const autoSaveTimeoutRef = useRef<number | null>(null);
   const serverSaveTimeoutRef = useRef<number | null>(null);
@@ -175,7 +175,8 @@ export default function Room() {
   const chapterCountRef = useRef<number>(1);
 
   const downloadWriting = useCallback(() => {
-    const blob = new Blob([currentTextRef.current], { type: "text/plain" });
+    const plainText = textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
+    const blob = new Blob([plainText], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -212,15 +213,22 @@ export default function Room() {
     });
   }, [restoredWordCount, toast]);
 
-  // Restore cursor after a programmatic paragraph insert
+  // ── Seed contenteditable with localStorage content on first mount ────────
   useEffect(() => {
-    if (pendingCursorRef.current !== null && textareaRef.current) {
-      const pos = pendingCursorRef.current;
-      textareaRef.current.selectionStart = pos;
-      textareaRef.current.selectionEnd = pos;
-      pendingCursorRef.current = null;
+    const div = textareaRef.current;
+    if (!div || !text) return;
+    div.innerHTML = text;
+    // Cursor to end
+    const sel = window.getSelection();
+    if (sel && div.lastChild) {
+      const range = document.createRange();
+      range.selectNodeContents(div);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
     }
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // only once on mount
 
   useEffect(() => { currentTextRef.current = text; }, [text]);
   useEffect(() => { currentCapsulesRef.current = capsules; }, [capsules]);
@@ -267,14 +275,15 @@ export default function Room() {
     if (finalSnapshotTakenRef.current) return;
     finalSnapshotTakenRef.current = true;
     flushAutoSave();
-    const finalText = currentTextRef.current;
-    const finalWords = countWords(finalText);
+    const finalHtml = currentTextRef.current;
+    const finalPlain = textareaRef.current ? (textareaRef.current.innerText ?? "") : finalHtml;
+    const finalWords = countWords(finalPlain);
     // Flush to server immediately on sprint end
-    serverSaveNow(finalText, finalWords);
-    if (!finalText) return;
+    serverSaveNow(finalHtml, finalWords);
+    if (!finalHtml) return;
     setCapsules((prev) => {
       const filtered = prev.filter((c) => !c.isFinal);
-      const next: Capsule[] = [...filtered, { wordCount: finalWords, savedAt: Date.now(), text: finalText, isFinal: true }];
+      const next: Capsule[] = [...filtered, { wordCount: finalWords, savedAt: Date.now(), text: finalHtml, isFinal: true }];
       scheduleIdle(() => saveCapsules(code, next));
       return next;
     });
@@ -282,16 +291,39 @@ export default function Room() {
 
 
   // ── Core text update ──────────────────────────────────────────────────
+  // When called with an html string, sets the editor content first (for
+  // programmatic restores / clears). When called with no args, just reads
+  // the current editor content and syncs all state (used from handleInput,
+  // handleFormat, handleKeyDown after execCommand).
 
-  const applyText = useCallback((newText: string) => {
-    const wc = countWords(newText);
-    currentTextRef.current = newText;
-    setText(newText);
+  const applyText = useCallback((newHtml?: string) => {
+    const div = textareaRef.current;
+    if (!div) return;
+
+    if (newHtml !== undefined) {
+      // Programmatic update — set innerHTML and move cursor to end
+      div.innerHTML = newHtml;
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.selectNodeContents(div);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+
+    // Read from the live DOM (handles both user-typed and programmatic content)
+    const html = div.innerHTML;
+    const plainText = div.innerText ?? "";
+    const wc = countWords(plainText);
+    currentTextRef.current = html;
+    setText(html);
     setWordCount(wc);
 
     // Net words = words typed SINCE sprint started (baseline subtracted)
     const netWc = Math.max(0, wc - baselineWordCountRef.current);
-    setLatestText(newText, netWc);
+    setLatestText(html, netWc);
 
     // Optimistic car movement uses net count
     if (participantId) updateLocalWordCount(participantId, netWc);
@@ -307,7 +339,7 @@ export default function Room() {
     if (wc >= nextThreshold) {
       const crossedThreshold = Math.floor(wc / CAPSULE_INTERVAL) * CAPSULE_INTERVAL;
       lastCapsuleThresholdRef.current = crossedThreshold;
-      const newCapsule: Capsule = { wordCount: crossedThreshold, savedAt: Date.now(), text: newText };
+      const newCapsule: Capsule = { wordCount: crossedThreshold, savedAt: Date.now(), text: html };
       setCapsules((prev) => {
         const filtered = prev.filter((c) => c.wordCount !== crossedThreshold);
         const updated = [...filtered, newCapsule];
@@ -322,7 +354,7 @@ export default function Room() {
 
     // Debounced server sync (pass net word count so server uses correct value)
     if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
-    debounceTimeoutRef.current = window.setTimeout(() => sendTextUpdate(newText, netWc), 100);
+    debounceTimeoutRef.current = window.setTimeout(() => sendTextUpdate(html, netWc), 100);
 
     // 400ms debounced autosave to localStorage
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
@@ -334,12 +366,12 @@ export default function Room() {
     }, 400);
 
     // 10s debounced server backup
-    scheduleServerSave(newText, netWc);
+    scheduleServerSave(html, netWc);
   }, [code, participantId, setLatestText, sendTextUpdate, updateLocalWordCount, flushAutoSave, scheduleServerSave]);
 
   // ── Chapter Finished ───────────────────────────────────────────────────
   const handleChapterFinished = useCallback(() => {
-    const chapterText = currentTextRef.current;
+    const chapterText = textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
     if (!chapterText.trim()) return;
 
     // Download with chapter number in filename
@@ -416,50 +448,50 @@ export default function Room() {
 
   // ── Handlers ─────────────────────────────────────────────────────────
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    applyText(e.target.value);
-  };
+  // User typing in the contenteditable editor — just sync from current DOM state
+  const handleInput = useCallback(() => {
+    applyText();
+  }, [applyText]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  // Normalise Enter across browsers and apply paragraph mode
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Enter") return;
-    if (writingStyle.paragraphMode === "none") return;
     e.preventDefault();
-    const ta = e.currentTarget;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const insertion = writingStyle.paragraphMode === "indent" ? "\n    " : "\n\n";
-    const newText = text.substring(0, start) + insertion + text.substring(end);
-    pendingCursorRef.current = start + insertion.length;
-    applyText(newText);
-  };
+    if (writingStyle.paragraphMode === "indent") {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      document.execCommand("insertHTML", false, "<br>\u00a0\u00a0\u00a0\u00a0");
+    } else if (writingStyle.paragraphMode === "double") {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      document.execCommand("insertHTML", false, "<br><br>");
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      document.execCommand("insertHTML", false, "<br>");
+    }
+    applyText();
+  }, [writingStyle.paragraphMode, applyText]);
+
+  // Strip pasted HTML — keep only the plain text
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const plain = e.clipboardData.getData("text/plain");
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    document.execCommand("insertText", false, plain);
+    applyText();
+  }, [applyText]);
 
   const handleStyleChange = (partial: Partial<WritingStyle>) => {
     setWritingStyle((prev) => ({ ...prev, ...partial }));
   };
 
   const handleFormat = useCallback((type: FormatType) => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const selected = text.substring(start, end);
-    const [pre, suf] =
-      type === "bold"      ? ["**", "**"]      :
-      type === "italic"    ? ["*", "*"]         :
-                             ["<u>", "</u>"];
-    const wrapped = `${pre}${selected}${suf}`;
-    const newText = text.substring(0, start) + wrapped + text.substring(end);
-    applyText(newText);
-    requestAnimationFrame(() => {
-      ta.focus();
-      if (selected) {
-        ta.setSelectionRange(start, start + wrapped.length);
-      } else {
-        const cursor = start + pre.length;
-        ta.setSelectionRange(cursor, cursor);
-      }
-    });
-  }, [text, applyText]);
+    const div = textareaRef.current;
+    if (!div) return;
+    div.focus();
+    const command = type === "bold" ? "bold" : type === "italic" ? "italic" : "underline";
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    document.execCommand(command, false, undefined);
+    applyText();
+  }, [applyText]);
 
   const copyRoomCode = () => {
     navigator.clipboard.writeText(code);
@@ -645,22 +677,22 @@ export default function Room() {
                     )}
                   </div>
                 )}
-                <textarea
+                <div
                   ref={textareaRef}
-                  value={text}
-                  onChange={handleTextChange}
+                  contentEditable={isConnected && (isRunning || isWaiting || isCountdown)}
+                  suppressContentEditableWarning
+                  onInput={handleInput}
                   onKeyDown={handleKeyDown}
-                  disabled={!isConnected || (!isRunning && !isWaiting && !isCountdown)}
-                  placeholder={
+                  onPaste={handlePaste}
+                  spellCheck={false}
+                  data-placeholder={
                     !isConnected
                       ? "Reconnecting…"
                       : isRunning
                       ? "Write here — the clock is ticking!"
                       : "Warm up here while you wait for the sprint to start…"
                   }
-                  spellCheck={false}
-                  autoComplete="off"
-                  className="flex-1 w-full resize-none bg-card border shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground disabled:opacity-60 disabled:cursor-not-allowed"
+                  className={`writing-editor flex-1 w-full bg-card border shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground overflow-auto min-h-[380px]${(!isConnected || (!isRunning && !isWaiting && !isCountdown)) ? " opacity-60 cursor-not-allowed" : ""}`}
                   style={{
                     borderTop: (isWaiting || isCountdown) ? "none" : undefined,
                     borderRadius: (isWaiting || isCountdown) ? "0 0 0.5rem 0.5rem" : undefined,
