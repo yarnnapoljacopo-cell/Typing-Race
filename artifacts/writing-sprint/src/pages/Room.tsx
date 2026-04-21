@@ -95,8 +95,22 @@ export default function Room() {
   const pendingCursorRef = useRef<number | null>(null);
   // Highest capsule threshold already saved (e.g. 200, 400, 600...)
   const lastCapsuleThresholdRef = useRef<number>(
-    capsules.reduce((max, c) => Math.max(max, c.wordCount), 0)
+    capsules.filter((c) => !c.isFinal).reduce((max, c) => Math.max(max, c.wordCount), 0)
   );
+  // Always-current text for synchronous flush on tab close / visibility hide
+  const currentTextRef = useRef<string>(text);
+  const currentCapsulesRef = useRef<Capsule[]>(capsules);
+  const finalSnapshotTakenRef = useRef<boolean>(false);
+
+  // Synchronous flush — used by debounce, tab close, visibility hide
+  const flushAutoSave = useCallback(() => {
+    if (!code) return;
+    const t = currentTextRef.current;
+    try {
+      if (t) localStorage.setItem(autoSaveKey(code), t);
+      else localStorage.removeItem(autoSaveKey(code));
+    } catch { /* storage unavailable */ }
+  }, [code]);
 
   const {
     room,
@@ -125,17 +139,82 @@ export default function Room() {
     }
   });
 
-  // Clear autosave when the sprint ends so stale drafts don't persist
+  // Keep refs in sync with state for crash-time flushes
+  useEffect(() => { currentTextRef.current = text; }, [text]);
+  useEffect(() => { currentCapsulesRef.current = capsules; }, [capsules]);
+
+  // ── Crash protection: flush on tab close / hide / navigation ──────────
   useEffect(() => {
-    if (room?.status === "finished" && code) {
-      try { localStorage.removeItem(autoSaveKey(code)); } catch { /* ignore */ }
-    }
-  }, [room?.status, code]);
+    if (!code) return;
+
+    const flushAll = () => {
+      // Cancel any pending debounce — write through immediately
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+        autoSaveTimeoutRef.current = null;
+      }
+      flushAutoSave();
+      // Also persist current capsules (they were already saved on each milestone,
+      // but this is a defense-in-depth write).
+      try {
+        saveCapsules(code, currentCapsulesRef.current);
+      } catch { /* ignore */ }
+    };
+
+    const onBeforeUnload = () => flushAll();
+    const onPageHide = () => flushAll();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushAll();
+    };
+    const onBlur = () => flushAll();
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", onBlur);
+
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [code, flushAutoSave]);
+
+  // ── On sprint end: snapshot the FINAL text as a guaranteed capsule ────
+  // We deliberately keep the autosave around so the text remains recoverable
+  // from this device until the user starts a new sprint with the same code.
+  useEffect(() => {
+    if (room?.status !== "finished" || !code) return;
+    if (finalSnapshotTakenRef.current) return;
+    finalSnapshotTakenRef.current = true;
+
+    // Force a synchronous flush of the latest text first
+    flushAutoSave();
+
+    const finalText = currentTextRef.current;
+    const finalWords = countWords(finalText);
+    if (!finalText) return;
+
+    setCapsules((prev) => {
+      // Replace any existing "final" capsule
+      const filtered = prev.filter((c) => !c.isFinal);
+      const next: Capsule[] = [
+        ...filtered,
+        { wordCount: finalWords, savedAt: Date.now(), text: finalText, isFinal: true },
+      ];
+      saveCapsules(code, next);
+      return next;
+    });
+  }, [room?.status, code, flushAutoSave]);
 
   // ── Core text update ───────────────────────────────────────────────────
 
   const applyText = useCallback((newText: string) => {
     const wc = countWords(newText);
+    // Update the synchronous-flush ref FIRST so a crash between here and
+    // React commit still has the latest text recoverable.
+    currentTextRef.current = newText;
     setText(newText);
     setWordCount(wc);
     setLatestText(newText);
@@ -172,23 +251,17 @@ export default function Room() {
     if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
     debounceTimeoutRef.current = window.setTimeout(() => sendTextUpdate(newText), 100);
 
-    // Debounced autosave to localStorage
+    // Tight 400ms debounced autosave (was 1500ms) — minimises data loss
+    // window. Crash handlers still flush synchronously on tab close/hide.
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     autoSaveTimeoutRef.current = window.setTimeout(() => {
-      try {
-        if (newText) {
-          localStorage.setItem(autoSaveKey(code), newText);
-        } else {
-          localStorage.removeItem(autoSaveKey(code));
-        }
-      } catch { /* storage full / private mode */ }
-
+      flushAutoSave();
       // Flash "Saved" badge
       setSavedFlash(true);
       if (savedFlashTimeoutRef.current) clearTimeout(savedFlashTimeoutRef.current);
-      savedFlashTimeoutRef.current = window.setTimeout(() => setSavedFlash(false), 1800);
-    }, 1500);
-  }, [code, participantId, setLatestText, sendTextUpdate, updateLocalWordCount]);
+      savedFlashTimeoutRef.current = window.setTimeout(() => setSavedFlash(false), 1500);
+    }, 400);
+  }, [code, participantId, setLatestText, sendTextUpdate, updateLocalWordCount, flushAutoSave]);
 
   // ── Handlers ───────────────────────────────────────────────────────────
 

@@ -15,6 +15,7 @@ export interface Capsule {
   wordCount: number;
   savedAt: number;   // ms epoch
   text: string;
+  isFinal?: boolean;
 }
 
 interface WritingArchiveProps {
@@ -64,7 +65,12 @@ export function WritingArchive({
 }: WritingArchiveProps) {
   const [activeTab, setActiveTab] = useState<"current" | "capsules">("current");
 
-  const sortedCapsules = [...capsules].sort((a, b) => b.wordCount - a.wordCount);
+  const sortedCapsules = [...capsules].sort((a, b) => {
+    // Final capsule always pinned to the top
+    if (a.isFinal && !b.isFinal) return -1;
+    if (!a.isFinal && b.isFinal) return 1;
+    return b.wordCount - a.wordCount;
+  });
   const wordCount = text.match(/\b\w+\b/g)?.length ?? 0;
 
   return (
@@ -144,12 +150,17 @@ export function WritingArchive({
               ) : (
                 <div className="flex-1 min-h-0 overflow-auto space-y-3 pr-1">
                   {sortedCapsules.map((c) => (
-                    <div key={c.wordCount} className="bg-muted/30 border rounded-md overflow-hidden">
+                    <div key={`${c.wordCount}-${c.isFinal ? "final" : "milestone"}`} className={`bg-muted/30 border rounded-md overflow-hidden ${c.isFinal ? "ring-1 ring-primary/40" : ""}`}>
                       <div className="flex items-center justify-between bg-muted/50 px-3 py-2 border-b">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-wrap">
                           <span className="text-sm font-mono font-bold text-foreground">
                             {c.wordCount.toLocaleString()} words
                           </span>
+                          {c.isFinal && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wider bg-primary/15 text-primary px-1.5 py-0.5 rounded">
+                              Final
+                            </span>
+                          )}
                           <span className="text-xs text-muted-foreground">
                             saved at {formatTime(c.savedAt)}
                           </span>
