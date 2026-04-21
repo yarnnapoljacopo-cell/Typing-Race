@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useRef } from "react";
 import { Participant } from "@/hooks/useSprintRoom";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -49,8 +49,20 @@ export const RaceTrack = memo(function RaceTrack({
   durationMinutes,
   wordGoal,
 }: RaceTrackProps) {
-  // Stable lane order — sort by ID so lanes don't shuffle as words change
-  const sortedParticipants = [...participants].sort((a, b) => a.id.localeCompare(b.id));
+  // ── Stable lane assignments ───────────────────────────────────────────
+  // We lock each participant to a lane index the first time we see them.
+  // Disconnections never shift other participants' colours or numbers.
+  const laneMap = useRef<Map<string, number>>(new Map());
+  const nextLane = useRef(0);
+  participants.forEach((p) => {
+    if (!laneMap.current.has(p.id)) {
+      laneMap.current.set(p.id, nextLane.current++);
+    }
+  });
+  // Sort by the stable lane index so positions never shuffle
+  const sortedParticipants = [...participants].sort(
+    (a, b) => (laneMap.current.get(a.id) ?? 0) - (laneMap.current.get(b.id) ?? 0),
+  );
 
   const target = wordGoal ?? targetWords(durationMinutes);
 
@@ -65,18 +77,25 @@ export const RaceTrack = memo(function RaceTrack({
       </div>
 
       <div className="relative">
-        {/* Start line */}
-        <div className="absolute top-0 bottom-0 z-20 pointer-events-none" style={{ left: "56px", width: "3px" }}>
-          {Array.from({ length: 20 }).map((_, i) => (
-            <div key={i} style={{ height: "6px", background: i % 2 === 0 ? "white" : "black", opacity: 0.6 }} />
-          ))}
-        </div>
+        {/* Start line — repeating gradient fills any track height */}
+        <div
+          className="absolute top-0 bottom-0 z-20 pointer-events-none"
+          style={{
+            left: "56px",
+            width: "4px",
+            background: "repeating-linear-gradient(to bottom, rgba(255,255,255,0.65) 0px, rgba(255,255,255,0.65) 6px, rgba(0,0,0,0.55) 6px, rgba(0,0,0,0.55) 12px)",
+          }}
+        />
 
-        {/* Finish line */}
-        <div className="absolute top-0 bottom-0 z-20 pointer-events-none" style={{ right: "16px", width: "4px" }}>
-          {Array.from({ length: 20 }).map((_, i) => (
-            <div key={i} style={{ height: "6px", background: i % 2 === 0 ? "white" : "black", opacity: 0.85 }} />
-          ))}
+        {/* Finish line — repeating gradient fills any track height */}
+        <div
+          className="absolute top-0 bottom-0 z-20 pointer-events-none"
+          style={{
+            right: "16px",
+            width: "5px",
+            background: "repeating-linear-gradient(to bottom, rgba(255,255,255,0.85) 0px, rgba(255,255,255,0.85) 6px, rgba(0,0,0,0.7) 6px, rgba(0,0,0,0.7) 12px)",
+          }}
+        >
           <div
             className="absolute -top-5 left-1/2 -translate-x-1/2 text-white text-[10px] font-bold whitespace-nowrap"
             style={{ opacity: 0.8 }}
@@ -95,8 +114,10 @@ export const RaceTrack = memo(function RaceTrack({
               Waiting for participants to join...
             </div>
           ) : (
-            sortedParticipants.map((p, i) => {
-              const colors = LANE_COLORS[i % LANE_COLORS.length];
+            sortedParticipants.map((p) => {
+              // Use stable lane index — never changes even if others disconnect
+              const laneIndex = laneMap.current.get(p.id) ?? 0;
+              const colors = LANE_COLORS[laneIndex % LANE_COLORS.length];
               const isMe = p.id === currentParticipantId;
 
               // Absolute fraction: progress toward the fixed word-count target.
@@ -111,7 +132,7 @@ export const RaceTrack = memo(function RaceTrack({
                     height: "64px",
                     background: finished
                       ? "rgba(255,255,255,0.08)"
-                      : i % 2 === 0
+                      : laneIndex % 2 === 0
                       ? "rgba(255,255,255,0.04)"
                       : "rgba(0,0,0,0.10)",
                     borderBottom: "1px solid rgba(255,255,255,0.06)",
@@ -133,7 +154,7 @@ export const RaceTrack = memo(function RaceTrack({
                     className="absolute left-2 top-1/2 -translate-y-1/2 text-white/30 text-xs font-bold font-mono"
                     style={{ width: "20px", textAlign: "center" }}
                   >
-                    {i + 1}
+                    {laneIndex + 1}
                   </div>
 
                   {/*
