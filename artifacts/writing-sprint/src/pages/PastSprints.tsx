@@ -1,8 +1,7 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, FileText, ChevronDown, ChevronUp, Download } from "lucide-react";
+import { Loader2, FileText } from "lucide-react";
 
 interface Sprint {
   id: number;
@@ -12,7 +11,6 @@ interface Sprint {
   rank: number;
   totalParticipants: number;
   updatedAt: string;
-  excerpt: string;
 }
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -31,23 +29,6 @@ function formatDate(dateStr: string) {
 function formatTime(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-}
-
-function downloadText(text: string, filename: string) {
-  const blob = new Blob([text], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-async function fetchFullText(id: number): Promise<string> {
-  const res = await fetch(`${basePath}/api/user/sprints/${id}/text`, { credentials: "include" });
-  if (!res.ok) throw new Error("Failed to load text");
-  const data = await res.json();
-  return data.text ?? "";
 }
 
 function RankBadge({ rank, total }: { rank: number; total: number }) {
@@ -82,50 +63,10 @@ function RankBadge({ rank, total }: { rank: number; total: number }) {
 }
 
 function SprintCard({ sprint }: { sprint: Sprint }) {
-  const [expanded, setExpanded] = useState(false);
-  const [fullText, setFullText] = useState<string | null>(null);
-  const [loadingText, setLoadingText] = useState(false);
-
-  const handleExpand = async () => {
-    if (!expanded && fullText === null) {
-      setLoadingText(true);
-      try {
-        const text = await fetchFullText(sprint.id);
-        setFullText(text);
-      } catch {
-        setFullText(sprint.excerpt);
-      } finally {
-        setLoadingText(false);
-      }
-    }
-    setExpanded((v) => !v);
-  };
-
-  const handleDownload = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    let text = fullText;
-    if (text === null) {
-      setLoadingText(true);
-      try {
-        text = await fetchFullText(sprint.id);
-        setFullText(text);
-      } catch {
-        text = sprint.excerpt;
-      } finally {
-        setLoadingText(false);
-      }
-    }
-    const filename = `sprint-${sprint.roomCode}-${formatDate(sprint.updatedAt).replace(/\s/g, "-")}.txt`;
-    downloadText(text ?? "", filename);
-  };
-
-  const displayText = expanded ? (fullText ?? sprint.excerpt) : sprint.excerpt;
-  const hasMore = sprint.excerpt.length === 200;
-
   return (
-    <Card className="border-border hover:border-primary/30 transition-colors">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-start justify-between gap-2">
+    <Card className="border-border">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between gap-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-sm font-semibold text-primary">{sprint.roomCode}</span>
@@ -140,39 +81,7 @@ function SprintCard({ sprint }: { sprint: Sprint }) {
               <RankBadge rank={sprint.rank} total={sprint.totalParticipants} />
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-            onClick={handleDownload}
-            disabled={loadingText}
-          >
-            {loadingText ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-          </Button>
         </div>
-
-        {displayText && (
-          <div
-            className={`text-sm text-muted-foreground leading-relaxed font-serif ${
-              !expanded ? "line-clamp-3" : ""
-            }`}
-          >
-            {displayText}
-          </div>
-        )}
-
-        {(hasMore || expanded) && (
-          <button
-            onClick={handleExpand}
-            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors font-medium"
-          >
-            {expanded ? (
-              <><ChevronUp className="w-3 h-3" /> Show less</>
-            ) : (
-              <><ChevronDown className="w-3 h-3" /> Read more</>
-            )}
-          </button>
-        )}
       </CardContent>
     </Card>
   );
