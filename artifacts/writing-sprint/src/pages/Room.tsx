@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useSprintRoom } from "@/hooks/useSprintRoom";
+import { useSprintRoom, type RoomState } from "@/hooks/useSprintRoom";
 import { RaceTrack } from "@/components/RaceTrack";
 import { Timer } from "@/components/Timer";
 import { ResultsScreen } from "@/components/ResultsScreen";
@@ -136,9 +136,11 @@ export default function Room() {
   const baselineWordCountRef = useRef<number>(0);
   const prevStatusRef = useRef<string | null>(null);
 
-  // ── "Slow Bitch." — fired every 10 min if behind the leader ────────────
+  // ── "Slow Bitch." — fired every 5 min if behind the leader ─────────────
   const netWordCountRef = useRef<number>(0);
   const slowBitchHideTimerRef = useRef<number | null>(null);
+  // Always-current snapshot of room so the interval doesn't read stale state
+  const roomRef = useRef<RoomState | null>(null);
 
   // ── Goal mode tracking ───────────────────────────────────────────────────
   const wordGoalRef = useRef<number | null>(null);
@@ -490,20 +492,25 @@ export default function Room() {
     if (room?.status === "running") goalHitShownRef.current = false;
   }, [room?.status]);
 
-  // ── "Slow Bitch." every 10 min when behind the leader ──────────────────
+  // ── "Slow Bitch." every 5 min when behind the leader ───────────────────
   // Must live BEFORE the early returns (if !room / if error) so hook order
   // stays constant across every render.
+  // Uses roomRef so the callback always reads the latest participants/word
+  // counts rather than the stale closure captured at sprint-start.
   useEffect(() => {
     if (room?.status !== "running") return;
     const intervalId = window.setInterval(() => {
-      const participants = room.participants;
+      const currentRoom = roomRef.current;
+      if (!currentRoom) return;
+      const participants = currentRoom.participants;
       if (participants.length < 2) return;
       const leaderWc = Math.max(...participants.map((p) => p.wordCount));
+      if (leaderWc <= 0) return; // everyone still at 0 — too early
       if (netWordCountRef.current >= leaderWc) return;
       setSlowBitchVisible(true);
       if (slowBitchHideTimerRef.current) clearTimeout(slowBitchHideTimerRef.current);
-      slowBitchHideTimerRef.current = window.setTimeout(() => setSlowBitchVisible(false), 1500);
-    }, 10 * 60 * 1000);
+      slowBitchHideTimerRef.current = window.setTimeout(() => setSlowBitchVisible(false), 2500);
+    }, 5 * 60 * 1000);
     return () => {
       clearInterval(intervalId);
       if (slowBitchHideTimerRef.current) clearTimeout(slowBitchHideTimerRef.current);
@@ -629,6 +636,7 @@ export default function Room() {
   // Keep refs in sync so intervals/callbacks can read them without stale closures
   netWordCountRef.current = netWordCount;
   wordGoalRef.current = room.wordGoal ?? null;
+  roomRef.current = room;
 
   // Format countdown seconds as mm:ss
   const formatCountdown = (secs: number) => {
