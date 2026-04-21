@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Participant } from "@/hooks/useSprintRoom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface RaceTrackProps {
   participants: Participant[];
@@ -97,8 +97,8 @@ export const RaceTrack = memo(function RaceTrack({
               const isMe = p.id === currentParticipantId;
 
               // Absolute fraction: progress toward the fixed word-count target.
-              // Capped at 1 so no one goes past the finish line.
               const fraction = Math.min(p.wordCount / target, 1);
+              const finished = p.wordCount >= target;
 
               return (
                 <div
@@ -106,8 +106,13 @@ export const RaceTrack = memo(function RaceTrack({
                   className="relative"
                   style={{
                     height: "64px",
-                    background: i % 2 === 0 ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.10)",
+                    background: finished
+                      ? "rgba(255,255,255,0.08)"
+                      : i % 2 === 0
+                      ? "rgba(255,255,255,0.04)"
+                      : "rgba(0,0,0,0.10)",
                     borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    transition: "background 0.4s",
                   }}
                 >
                   {/* Dashed centre line */}
@@ -140,11 +145,7 @@ export const RaceTrack = memo(function RaceTrack({
                     <motion.div
                       className="absolute top-0 bottom-0 flex flex-col items-center justify-center"
                       animate={{ left: `${fraction * 100}%` }}
-                      transition={{
-                        type: "tween",
-                        ease: "easeOut",
-                        duration: 0.6,
-                      }}
+                      transition={{ type: "tween", ease: "easeOut", duration: 0.6 }}
                     >
                       {/* Name + word count badge */}
                       <div
@@ -153,22 +154,48 @@ export const RaceTrack = memo(function RaceTrack({
                           background: isMe ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.75)",
                           borderRadius: "4px",
                           padding: "1px 6px",
-                          boxShadow: isMe ? `0 0 0 2px ${colors.car}` : "none",
+                          boxShadow: finished
+                            ? `0 0 0 2px #fbbf24`
+                            : isMe
+                            ? `0 0 0 2px ${colors.car}`
+                            : "none",
                         }}
                       >
                         <span
                           className="text-[10px] font-bold truncate max-w-[60px]"
-                          style={{ color: colors.text }}
+                          style={{ color: finished ? "#92400e" : colors.text }}
                         >
-                          {isMe ? "You" : p.name}
+                          {finished ? "🏁" : ""}{isMe ? "You" : p.name}
                         </span>
                         <span className="text-[10px] font-mono font-bold" style={{ color: "#374151" }}>
                           {p.wordCount}w
                         </span>
                       </div>
-                      <CarIcon color={colors.car} />
+
+                      {/* Car — pulses when finished */}
+                      <motion.div
+                        animate={finished ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+                        transition={finished ? { repeat: Infinity, duration: 1.4, ease: "easeInOut" } : {}}
+                      >
+                        <CarIcon color={finished ? "#fbbf24" : colors.car} />
+                      </motion.div>
                     </motion.div>
                   </div>
+
+                  {/* "Goal reached!" ribbon that slides in from the right */}
+                  <AnimatePresence>
+                    {finished && (
+                      <motion.div
+                        key="ribbon"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase tracking-wider"
+                        style={{ color: "#fbbf24", textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}
+                      >
+                        Goal reached! Keep going ↗
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               );
             })
