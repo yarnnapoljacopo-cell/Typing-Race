@@ -56,10 +56,12 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
 
         // ── Inherit state from a previous connection with the same name ──────
         // If someone disconnects and quickly reconnects, they may still appear
-        // in the room. Transfer their word count and text to the new connection.
+        // in the room. Transfer their word count, text, AND id to the new
+        // connection so client-side lane maps stay stable across reconnects.
         let inheritedWordCount = 0;
         let inheritedText = "";
         let inheritedIsCreator = false;
+        let inheritedId: string | null = null;
         for (const [existingId, existingP] of room.participants) {
           if (existingP.name === name) {
             // Cancel any pending grace-period removal so the rejoin is seamless
@@ -67,6 +69,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             inheritedWordCount = existingP.wordCount;
             inheritedText = existingP.latestText;
             inheritedIsCreator = existingP.isCreator;
+            inheritedId = existingId; // reuse the same UUID so lane order never shifts
             removeParticipant(room, existingId);
             break;
           }
@@ -77,7 +80,8 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         const restoredWordCount = Math.max(inheritedWordCount, saved?.wordCount ?? 0);
         const restoredText = inheritedText || saved?.text || "";
 
-        participantId = uuidv4();
+        // Reuse the old id if this is a reconnect — guarantees lane stability
+        participantId = inheritedId ?? uuidv4();
         roomCode = code;
 
         const isCreator = inheritedIsCreator || (room.participants.size === 0 && name === room.creatorName);
