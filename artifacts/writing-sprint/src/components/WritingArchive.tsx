@@ -32,6 +32,19 @@ function formatTime(ms: number): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function htmlToPlain(html: string): string {
+  if (!html) return "";
+  const normalized = html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n");
+  const div = document.createElement("div");
+  div.innerHTML = normalized;
+  return (div.textContent ?? div.innerText ?? "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
@@ -71,7 +84,8 @@ export function WritingArchive({
     if (!a.isFinal && b.isFinal) return 1;
     return b.wordCount - a.wordCount;
   });
-  const wordCount = text.match(/\b\w+\b/g)?.length ?? 0;
+  const plainText = htmlToPlain(text);
+  const wordCount = plainText.match(/\b\w+\b/g)?.length ?? 0;
 
   return (
     <Dialog>
@@ -123,14 +137,14 @@ export function WritingArchive({
             <div className="flex-1 flex flex-col min-h-0 gap-3 pt-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  {text ? `${wordCount.toLocaleString()} words · ${text.length.toLocaleString()} characters` : "Nothing written yet."}
+                  {plainText ? `${wordCount.toLocaleString()} words · ${plainText.length.toLocaleString()} characters` : "Nothing written yet."}
                 </p>
-                {text && <CopyButton text={text} label="Copy All" />}
+                {plainText && <CopyButton text={plainText} label="Copy All" />}
               </div>
               <div className="flex-1 min-h-0 overflow-auto bg-muted/30 border rounded-md p-4">
-                {text ? (
+                {plainText ? (
                   <pre className="font-serif text-sm whitespace-pre-wrap break-words text-foreground leading-relaxed">
-                    {text}
+                    {plainText}
                   </pre>
                 ) : (
                   <p className="text-muted-foreground text-sm italic text-center py-8">
@@ -165,11 +179,11 @@ export function WritingArchive({
                             saved at {formatTime(c.savedAt)}
                           </span>
                         </div>
-                        <CopyButton text={c.text} />
+                        <CopyButton text={htmlToPlain(c.text)} />
                       </div>
                       <div className="p-3 max-h-40 overflow-auto">
                         <pre className="font-serif text-xs whitespace-pre-wrap break-words text-foreground leading-relaxed">
-                          {c.text.length > 500 ? c.text.slice(0, 500) + "…" : c.text}
+                          {(() => { const p = htmlToPlain(c.text); return p.length > 500 ? p.slice(0, 500) + "…" : p; })()}
                         </pre>
                       </div>
                     </div>
