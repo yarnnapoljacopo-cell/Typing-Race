@@ -8,7 +8,7 @@ import { WritingToolbar, type WritingStyle } from "@/components/WritingToolbar";
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 import { SpectatorView } from "@/components/SpectatorView";
 import { Button } from "@/components/ui/button";
-import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download } from "lucide-react";
+import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 
@@ -113,7 +113,7 @@ export default function Room() {
 
   // ── Server backup helpers ───────────────────────────────────────────────
   const serverSaveNow = useCallback((textToSave: string, wc: number) => {
-    if (!code || !name || !textToSave) return;
+    if (!code || !name) return;
     fetch(`/api/rooms/${encodeURIComponent(code)}/writing`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -125,6 +125,8 @@ export default function Room() {
     if (serverSaveTimeoutRef.current) clearTimeout(serverSaveTimeoutRef.current);
     serverSaveTimeoutRef.current = window.setTimeout(() => serverSaveNow(textToSave, wc), 10_000);
   }, [serverSaveNow]);
+
+  const chapterCountRef = useRef<number>(1);
 
   const downloadWriting = useCallback(() => {
     const blob = new Blob([currentTextRef.current], { type: "text/plain" });
@@ -281,6 +283,41 @@ export default function Room() {
     // 10s debounced server backup
     scheduleServerSave(newText, netWc);
   }, [code, participantId, setLatestText, sendTextUpdate, updateLocalWordCount, flushAutoSave, scheduleServerSave]);
+
+  // ── Chapter Finished ───────────────────────────────────────────────────
+  const handleChapterFinished = useCallback(() => {
+    const chapterText = currentTextRef.current;
+    if (!chapterText.trim()) return;
+
+    // Download with chapter number in filename
+    const chapterNum = chapterCountRef.current;
+    const blob = new Blob([chapterText], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `chapter-${chapterNum}-sprint-${code}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    // Adjust baseline BEFORE clearing so the net word count stays the same.
+    // Math: netWc = max(0, wc - baseline). After clear wc=0, so baseline = -netWc.
+    const currentNetWc = Math.max(0, wordCount - baselineWordCountRef.current);
+    baselineWordCountRef.current = -currentNetWc;
+
+    // Clear the box — applyText updates car, localStorage, and debounced server sync
+    applyText("");
+
+    // Immediately tell the server: empty text but same word count, so a rejoin
+    // won't restore the cleared chapter text from the backup
+    serverSaveNow("", currentNetWc);
+
+    chapterCountRef.current += 1;
+
+    toast({
+      title: `Chapter ${chapterNum} saved`,
+      description: "Downloaded and cleared. Your sprint word count continues from here.",
+    });
+  }, [wordCount, code, applyText, serverSaveNow, toast]);
 
   // ── Restore from server if localStorage was empty ──────────────────────
   useEffect(() => {
@@ -561,6 +598,22 @@ export default function Room() {
                 triggerVariant="outline"
                 triggerClassName="w-full"
               />
+
+              {/* Chapter Finished — downloads chapter, clears box, keeps car position */}
+              <div className="flex flex-col gap-1.5">
+                <Button
+                  variant="default"
+                  className="w-full"
+                  onClick={handleChapterFinished}
+                  disabled={!text.trim() || (!isRunning && !isWaiting && !isCountdown)}
+                >
+                  <BookCheck className="w-4 h-4 mr-2" />
+                  Chapter Finished
+                </Button>
+                <p className="text-[10px] text-muted-foreground text-center leading-snug px-1">
+                  Downloads chapter &amp; clears box — word count stays on the car
+                </p>
+              </div>
 
               <Button
                 variant="outline"
