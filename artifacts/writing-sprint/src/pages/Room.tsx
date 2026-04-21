@@ -328,26 +328,30 @@ export default function Room() {
     downloadWriting();
   }, [room?.status, downloadWriting]);
 
-  // ── Typewriter mode: update editor padding when mode or size changes ──
+  // ── Typewriter mode: lock editor height + add internal padding ───────
+  // The editor is flex-1 in an unconstrained column, so padding applied to it
+  // directly expands the whole page. Fix: snapshot the current visual height and
+  // pin it (flex:none + explicit height) so the padding lives INSIDE the box and
+  // overflow-auto scrolls it rather than the page growing.
   useEffect(() => {
     const div = textareaRef.current;
     if (!div) return;
     if (!writingStyle.typewriterMode) {
+      div.style.height = "";
+      div.style.flex = "";
       div.style.paddingTop = "";
       div.style.paddingBottom = "";
       return;
     }
-    const updatePad = () => {
-      const pad = Math.max(160, Math.floor(div.clientHeight * 0.45));
-      div.style.paddingTop = `${pad}px`;
-      div.style.paddingBottom = `${pad}px`;
-    };
-    updatePad();
-    // Scroll so the cursor is already centred when mode first turns on
+    // Capture current rendered height (min 380px from the Tailwind class)
+    const h = Math.max(380, div.getBoundingClientRect().height);
+    div.style.height = `${h}px`;
+    div.style.flex = "none";
+    const pad = Math.max(160, Math.floor(h * 0.45));
+    div.style.paddingTop = `${pad}px`;
+    div.style.paddingBottom = `${pad}px`;
+    // Scroll so cursor is already centred when mode turns on
     setTimeout(scrollToCursor, 50);
-    const ro = new ResizeObserver(updatePad);
-    ro.observe(div);
-    return () => ro.disconnect();
   }, [writingStyle.typewriterMode, scrollToCursor]);
 
   // ── Core text update ──────────────────────────────────────────────────
