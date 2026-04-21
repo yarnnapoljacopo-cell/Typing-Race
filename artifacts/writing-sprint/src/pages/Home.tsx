@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PenTool, ArrowRight, Loader2, Feather, Eye, Lock } from "lucide-react";
+import { PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type RoomMode = "regular" | "open";
@@ -17,6 +17,7 @@ export default function Home() {
   const [joinCode, setJoinCode] = useState("");
   const [duration, setDuration] = useState<number>(30);
   const [roomMode, setRoomMode] = useState<RoomMode>("regular");
+  const [countdownDelay, setCountdownDelay] = useState<number>(0);
 
   const createRoomMutation = useCreateRoom({
     mutation: {
@@ -38,7 +39,7 @@ export default function Home() {
       toast({ title: "Name required", description: "Please enter your name first.", variant: "destructive" });
       return;
     }
-    createRoomMutation.mutate({ data: { creatorName: name, durationMinutes: duration, mode: roomMode } });
+    createRoomMutation.mutate({ data: { creatorName: name, durationMinutes: duration, mode: roomMode, ...(countdownDelay > 0 ? { countdownDelayMinutes: countdownDelay } : {}) } as Parameters<typeof createRoomMutation.mutate>[0]["data"] });
   };
 
   const handleJoin = () => {
@@ -133,6 +134,41 @@ export default function Home() {
                         onClick={() => setDuration(d)}
                       >
                         {d} min
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pre-sprint countdown */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                    <Timer className="w-3.5 h-3.5 text-muted-foreground" />
+                    Pre-sprint Timer
+                    <span className="text-xs text-muted-foreground font-normal ml-1">(auto-starts after)</span>
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[0, 5, 10, 15].map((d) => (
+                      <Button
+                        key={d}
+                        type="button"
+                        variant={countdownDelay === d ? "default" : "outline"}
+                        className="py-5 text-sm"
+                        onClick={() => setCountdownDelay(d)}
+                      >
+                        {d === 0 ? "Off" : `${d}m`}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[20, 25, 30].map((d) => (
+                      <Button
+                        key={d}
+                        type="button"
+                        variant={countdownDelay === d ? "default" : "outline"}
+                        className="py-5 text-sm"
+                        onClick={() => setCountdownDelay(d)}
+                      >
+                        {d}m
                       </Button>
                     ))}
                   </div>

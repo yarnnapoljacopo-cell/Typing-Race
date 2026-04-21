@@ -13,7 +13,11 @@ router.post("/rooms", async (req, res): Promise<void> => {
   }
 
   const { creatorName, durationMinutes, mode } = parsed.data;
-  const room = createRoom(creatorName, durationMinutes, mode ?? "regular");
+  const rawDelay = (req.body as Record<string, unknown>).countdownDelayMinutes;
+  const countdownDelayMinutes = typeof rawDelay === "number"
+    ? Math.min(30, Math.max(0, Math.floor(rawDelay)))
+    : 0;
+  const room = createRoom(creatorName, durationMinutes, mode ?? "regular", countdownDelayMinutes);
 
   res.status(201).json({
     code: room.code,

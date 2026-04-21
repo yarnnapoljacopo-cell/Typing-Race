@@ -371,11 +371,21 @@ export default function Room() {
   const isCreator = room.participants.find((p) => p.id === participantId)?.isCreator || isCreatorParams;
   const isRunning = room.status === "running";
   const isWaiting = room.status === "waiting";
+  const isCountdown = room.status === "countdown";
   const isFinished = room.status === "finished";
   const isOpenMode = room.mode === "open";
 
   // Net word count: what shows on the badge and car during a sprint
   const netWordCount = isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : wordCount;
+
+  // Format countdown seconds as mm:ss
+  const formatCountdown = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m > 0
+      ? `${m}:${String(s).padStart(2, "0")}`
+      : `0:${String(s).padStart(2, "0")}`;
+  };
 
   // In open mode, show everyone's live text except our own car
   const otherParticipants = room.participants.filter((p) => p.id !== participantId);
@@ -459,11 +469,26 @@ export default function Room() {
             {/* Writing area */}
             <div className="md:col-span-3 flex flex-col">
               <WritingToolbar style={writingStyle} onChange={handleStyleChange} />
-              <div className="relative flex-1 min-h-[380px]">
-                {/* Pre-sprint hint bar */}
-                {isWaiting && (
-                  <div className="absolute top-0 inset-x-0 z-10 flex items-center justify-center bg-primary/8 border border-primary/20 text-primary text-xs font-medium py-1.5 px-3 gap-1.5">
-                    <span>✍️ Write ahead while you wait — words written now <strong>won't count</strong> toward your score.</span>
+              <div className="flex flex-col flex-1 min-h-[380px]">
+                {/* Pre-sprint / countdown hint bar */}
+                {(isWaiting || isCountdown) && (
+                  <div className={`flex items-center justify-center gap-2 border text-xs font-medium py-1.5 px-3 ${
+                    isCountdown
+                      ? "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-300"
+                      : "bg-primary/8 border-primary/20 text-primary"
+                  }`}
+                    style={{ borderBottom: "none" }}
+                  >
+                    {isCountdown ? (
+                      <>
+                        <span className="font-mono font-bold text-base tabular-nums">
+                          {formatCountdown(room.countdownTimeLeft ?? 0)}
+                        </span>
+                        <span>until the sprint starts — warm up while you wait!</span>
+                      </>
+                    ) : (
+                      <span>✍️ Write ahead while you wait — words written now <strong>won't count</strong> toward your score.</span>
+                    )}
                   </div>
                 )}
                 <textarea
@@ -471,7 +496,7 @@ export default function Room() {
                   value={text}
                   onChange={handleTextChange}
                   onKeyDown={handleKeyDown}
-                  disabled={!isConnected || (!isRunning && !isWaiting)}
+                  disabled={!isConnected || (!isRunning && !isWaiting && !isCountdown)}
                   placeholder={
                     !isConnected
                       ? "Reconnecting…"
@@ -481,32 +506,32 @@ export default function Room() {
                   }
                   spellCheck={false}
                   autoComplete="off"
-                  className="w-full h-full resize-none bg-card border rounded-b-lg shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex-1 w-full resize-none bg-card border shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{
-                    paddingTop: isWaiting ? "2.75rem" : undefined,
+                    borderTop: (isWaiting || isCountdown) ? "none" : undefined,
+                    borderRadius: (isWaiting || isCountdown) ? "0 0 0.5rem 0.5rem" : undefined,
                     fontFamily: writingStyle.fontFamily,
                     fontSize: `${writingStyle.fontSize}px`,
                     lineHeight: writingStyle.lineHeight,
-                    borderTop: "none",
                   }}
                 />
-                {/* Bottom-right badge row */}
-                <div className="absolute bottom-4 right-4 flex items-center gap-2 pointer-events-none">
+                {/* Below-textarea badge row */}
+                <div className="flex items-center justify-end gap-2 pt-1.5 px-1">
                   <div
-                    className="bg-primary/10 backdrop-blur border border-primary/30 px-2 py-1 rounded text-[10px] font-semibold text-primary transition-opacity duration-500"
+                    className="bg-primary/10 border border-primary/30 px-2 py-1 rounded text-[10px] font-semibold text-primary transition-opacity duration-500"
                     style={{ opacity: capsuleFlash ? 1 : 0 }}
                   >
                     Capsule saved
                   </div>
                   <div
-                    className="bg-background/90 backdrop-blur border px-2 py-1 rounded text-[10px] font-medium text-muted-foreground transition-opacity duration-500"
+                    className="bg-muted border px-2 py-1 rounded text-[10px] font-medium text-muted-foreground transition-opacity duration-500"
                     style={{ opacity: savedFlash ? 1 : 0 }}
                   >
                     Saved
                   </div>
-                  <div className="bg-background/90 backdrop-blur border px-3 py-1.5 rounded-md shadow-sm flex items-baseline gap-1.5">
-                    <span className="font-mono font-bold text-lg">{netWordCount}</span>
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  <div className="bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
+                    <span className="font-mono font-semibold text-sm text-foreground">{netWordCount}</span>
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                       {isRunning ? "words" : "warm-up"}
                     </span>
                   </div>
@@ -516,7 +541,7 @@ export default function Room() {
 
             {/* Sidebar */}
             <div className="md:col-span-1 flex flex-col gap-4">
-              <Timer timeLeft={room.timeLeft} status={room.status} />
+              <Timer timeLeft={room.timeLeft} countdownTimeLeft={room.countdownTimeLeft} status={room.status} />
 
               <WritingArchive
                 text={text}
@@ -552,8 +577,26 @@ export default function Room() {
                   <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
                   <Button onClick={startSprint} size="lg" className="w-full" disabled={!isConnected}>
                     <Play className="w-4 h-4 mr-2" />
-                    Start Sprint
+                    {room.countdownDelayMinutes > 0 ? `Start ${room.countdownDelayMinutes}m Timer` : "Start Sprint"}
                   </Button>
+                </div>
+              )}
+
+              {isCountdown && isCreator && (
+                <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-3">
+                  <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
+                  <Button onClick={startSprint} size="lg" variant="outline" className="w-full" disabled>
+                    <Play className="w-4 h-4 mr-2" />
+                    Countdown running…
+                  </Button>
+                </div>
+              )}
+
+              {isCountdown && !isCreator && (
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700 rounded-lg p-4 shadow-sm text-center">
+                  <p className="text-sm text-amber-800 dark:text-amber-300 font-medium">
+                    Sprint starts in {formatCountdown(room.countdownTimeLeft ?? 0)} — get ready!
+                  </p>
                 </div>
               )}
 

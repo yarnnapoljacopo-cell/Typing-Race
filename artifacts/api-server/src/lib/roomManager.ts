@@ -1,7 +1,7 @@
 import { WebSocket } from "ws";
 import { logger } from "./logger";
 
-export type RoomStatus = "waiting" | "running" | "finished";
+export type RoomStatus = "waiting" | "countdown" | "running" | "finished";
 
 export interface Participant {
   id: string;
@@ -22,11 +22,13 @@ export interface Room {
   code: string;
   creatorName: string;
   durationMinutes: number;
+  countdownDelayMinutes: number;
   mode: RoomMode;
   status: RoomStatus;
   participants: Map<string, Participant>;
   startTime: number | null;
   endTime: number | null;
+  countdownEndsAt: number | null;
   timerInterval: ReturnType<typeof setInterval> | null;
 }
 
@@ -37,7 +39,12 @@ function generateRoomCode(): string {
   return `SPRINT-${num}`;
 }
 
-export function createRoom(creatorName: string, durationMinutes: number, mode: RoomMode = "regular"): Room {
+export function createRoom(
+  creatorName: string,
+  durationMinutes: number,
+  mode: RoomMode = "regular",
+  countdownDelayMinutes = 0
+): Room {
   let code = generateRoomCode();
   while (rooms.has(code)) {
     code = generateRoomCode();
@@ -47,16 +54,18 @@ export function createRoom(creatorName: string, durationMinutes: number, mode: R
     code,
     creatorName,
     durationMinutes,
+    countdownDelayMinutes: Math.min(30, Math.max(0, countdownDelayMinutes)),
     mode,
     status: "waiting",
     participants: new Map(),
     startTime: null,
     endTime: null,
+    countdownEndsAt: null,
     timerInterval: null,
   };
 
   rooms.set(code, room);
-  logger.info({ code, creatorName, durationMinutes }, "Room created");
+  logger.info({ code, creatorName, durationMinutes, countdownDelayMinutes }, "Room created");
 
   setTimeout(() => {
     if (rooms.has(code) && rooms.get(code)!.status === "waiting") {
@@ -82,7 +91,6 @@ export function broadcastToRoom(room: Room, message: object, excludeId?: string)
 }
 
 export function broadcastRoomState(room: Room): void {
-  // Spectators are observers — exclude them from the racer list broadcast
   const participants = Array.from(room.participants.values())
     .filter((p) => !p.isSpectator)
     .map((p) => ({
@@ -95,7 +103,11 @@ export function broadcastRoomState(room: Room): void {
 
   const now = Date.now();
   let timeLeft: number | null = null;
-  if (room.status === "running" && room.startTime && room.endTime) {
+  let countdownTimeLeft: number | null = null;
+
+  if (room.status === "countdown" && room.countdownEndsAt) {
+    countdownTimeLeft = Math.max(0, Math.ceil((room.countdownEndsAt - now) / 1000));
+  } else if (room.status === "running" && room.startTime && room.endTime) {
     timeLeft = Math.max(0, Math.floor((room.endTime - now) / 1000));
   } else if (room.status === "finished") {
     timeLeft = 0;
@@ -107,8 +119,10 @@ export function broadcastRoomState(room: Room): void {
       code: room.code,
       status: room.status,
       durationMinutes: room.durationMinutes,
+      countdownDelayMinutes: room.countdownDelayMinutes,
       mode: room.mode,
       timeLeft,
+      countdownTimeLeft,
       participants,
     },
   };
@@ -117,6 +131,39 @@ export function broadcastRoomState(room: Room): void {
 }
 
 export function startSprint(room: Room): void {
+  if (room.status !== "waiting") return;
+
+  if (room.countdownDelayMinutes > 0) {
+    // Enter countdown phase first
+    room.status = "countdown";
+    room.countdownEndsAt = Date.now() + room.countdownDelayMinutes * 60 * 1000;
+
+    broadcastRoomState(room);
+
+    room.timerInterval = setInterval(() => {
+      const now = Date.now();
+      if (!room.countdownEndsAt || now >= room.countdownEndsAt) {
+        // Transition from countdown to running
+        if (room.timerInterval) {
+          clearInterval(room.timerInterval);
+          room.timerInterval = null;
+        }
+        room.status = "waiting";
+        room.countdownEndsAt = null;
+        _startRunning(room);
+      } else {
+        broadcastRoomState(room);
+      }
+    }, 1000);
+
+    logger.info({ code: room.code, countdownDelayMinutes: room.countdownDelayMinutes }, "Countdown started");
+    return;
+  }
+
+  _startRunning(room);
+}
+
+function _startRunning(room: Room): void {
   if (room.status !== "waiting") return;
 
   room.status = "running";
@@ -226,6 +273,7 @@ export function restartSprint(room: Room, durationMinutes: number): void {
   room.status = "waiting";
   room.startTime = null;
   room.endTime = null;
+  room.countdownEndsAt = null;
   room.durationMinutes = durationMinutes;
 
   room.participants.forEach((p) => {
