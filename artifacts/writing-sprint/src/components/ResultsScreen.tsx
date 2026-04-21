@@ -1,7 +1,8 @@
 import { Participant } from "@/hooks/useSprintRoom";
 import { Button } from "@/components/ui/button";
-import { Trophy, Medal, Award, RotateCcw } from "lucide-react";
+import { Trophy, Medal, Award, RotateCcw, Home } from "lucide-react";
 import { motion } from "framer-motion";
+import { useLocation } from "wouter";
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 
 interface ResultsScreenProps {
@@ -21,6 +22,7 @@ export function ResultsScreen({
   myText,
   capsules,
 }: ResultsScreenProps) {
+  const [, setLocation] = useLocation();
   const sorted = [...participants].sort((a, b) => b.wordCount - a.wordCount);
 
   const getRankIcon = (index: number) => {
@@ -102,10 +104,16 @@ export function ResultsScreen({
               <RotateCcw className="w-4 h-4" /> 60 Min
             </Button>
           </div>
+          <Button variant="ghost" onClick={() => setLocation("/portal")} className="gap-2 text-muted-foreground">
+            <Home className="w-4 h-4" /> Go to Home
+          </Button>
         </div>
       ) : (
-        <div className="text-center pt-6 border-t text-muted-foreground">
-          Waiting for the creator to start a new sprint...
+        <div className="flex flex-col items-center gap-3 pt-6 border-t">
+          <p className="text-sm text-muted-foreground">Waiting for the creator to start a new sprint...</p>
+          <Button variant="ghost" onClick={() => setLocation("/portal")} className="gap-2 text-muted-foreground">
+            <Home className="w-4 h-4" /> Go to Home
+          </Button>
         </div>
       )}
     </motion.div>

@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, text, integer, timestamp, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const sprintWritingTable = pgTable("sprint_writing", {
   id: serial("id").primaryKey(),
@@ -9,6 +9,8 @@ export const sprintWritingTable = pgTable("sprint_writing", {
   wordCount: integer("word_count").notNull().default(0),
   savedToFiles: boolean("saved_to_files").notNull().default(false),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("sprint_writing_room_participant_idx").on(t.roomCode, t.participantName),
+]);
 
 export type SprintWriting = typeof sprintWritingTable.$inferSelect;

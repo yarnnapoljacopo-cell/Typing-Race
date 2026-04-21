@@ -923,7 +923,7 @@ export default function Room() {
                   )}
                   <button
                     onClick={saveToMyFiles}
-                    title={savedToMyFiles ? "Saved to My Files" : "Save to My Files"}
+                    title={savedToMyFiles ? "Saved to Files" : "Save to Files"}
                     className={`flex items-center gap-1 px-2 py-1 rounded border text-[10px] font-medium transition-all duration-200 ${
                       savedToMyFiles
                         ? "bg-primary/10 border-primary/40 text-primary"
@@ -931,7 +931,7 @@ export default function Room() {
                     }`}
                   >
                     {savedToMyFiles ? <BookCheck size={12} /> : <BookOpen size={12} />}
-                    {savedToMyFiles ? "Saved" : "My Files"}
+                    {savedToMyFiles ? "Saved" : "Save to Files"}
                   </button>
                   <div className="bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
                     <span className="font-mono font-semibold text-sm text-foreground">{netWordCount}</span>
