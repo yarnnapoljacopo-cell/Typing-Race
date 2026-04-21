@@ -20,9 +20,29 @@ function useSearchParams() {
   return useMemo(() => new URLSearchParams(window.location.search), [window.location.search]);
 }
 
+// O(n) with zero array allocation — much faster than /\b\w+\b/g on large texts
 function countWords(str: string): number {
-  const matches = str.match(/\b\w+\b/g);
-  return matches ? matches.length : 0;
+  let count = 0;
+  let inWord = false;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    // \w = [a-zA-Z0-9_]
+    const isWordChar =
+      (c >= 65 && c <= 90) || (c >= 97 && c <= 122) ||
+      (c >= 48 && c <= 57) || c === 95;
+    if (isWordChar && !inWord) { count++; inWord = true; }
+    else if (!isWordChar) { inWord = false; }
+  }
+  return count;
+}
+
+// Schedule a function during browser idle time so it never blocks typing
+function scheduleIdle(fn: () => void) {
+  if (typeof requestIdleCallback !== "undefined") {
+    requestIdleCallback(fn, { timeout: 2000 });
+  } else {
+    setTimeout(fn, 0);
+  }
 }
 
 function autoSaveKey(code: string) {
@@ -102,13 +122,19 @@ export default function Room() {
   const baselineWordCountRef = useRef<number>(0);
   const prevStatusRef = useRef<string | null>(null);
 
-  const flushAutoSave = useCallback(() => {
+  const flushAutoSave = useCallback((immediate = false) => {
     if (!code) return;
     const t = currentTextRef.current;
-    try {
-      if (t) localStorage.setItem(autoSaveKey(code), t);
-      else localStorage.removeItem(autoSaveKey(code));
-    } catch { /* storage unavailable */ }
+    const write = () => {
+      try {
+        if (t) localStorage.setItem(autoSaveKey(code), t);
+        else localStorage.removeItem(autoSaveKey(code));
+      } catch { /* storage unavailable */ }
+    };
+    // During normal typing pauses: defer so it never blocks the main thread.
+    // During page unload: write immediately (idle callback may never fire).
+    if (immediate) write();
+    else scheduleIdle(write);
   }, [code]);
 
   // ── Server backup helpers ───────────────────────────────────────────────
@@ -196,7 +222,7 @@ export default function Room() {
     if (!code) return;
     const flushAll = () => {
       if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); autoSaveTimeoutRef.current = null; }
-      flushAutoSave();
+      flushAutoSave(true); // immediate — page may close before idle callback fires
       try { saveCapsules(code, currentCapsulesRef.current); } catch { /* ignore */ }
     };
     const onBeforeUnload = () => flushAll();
@@ -229,7 +255,7 @@ export default function Room() {
     setCapsules((prev) => {
       const filtered = prev.filter((c) => !c.isFinal);
       const next: Capsule[] = [...filtered, { wordCount: finalWords, savedAt: Date.now(), text: finalText, isFinal: true }];
-      saveCapsules(code, next);
+      scheduleIdle(() => saveCapsules(code, next));
       return next;
     });
   }, [room?.status, code, flushAutoSave, serverSaveNow]);
@@ -259,7 +285,8 @@ export default function Room() {
       setCapsules((prev) => {
         const filtered = prev.filter((c) => c.wordCount !== crossedThreshold);
         const updated = [...filtered, newCapsule];
-        saveCapsules(code, updated);
+        // Defer the localStorage write so it never blocks the keystroke
+        scheduleIdle(() => saveCapsules(code, updated));
         return updated;
       });
       setCapsuleFlash(true);
