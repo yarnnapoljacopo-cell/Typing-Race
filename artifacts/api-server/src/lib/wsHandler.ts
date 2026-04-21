@@ -175,6 +175,16 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             ? Math.max(0, message.netWordCount)
             : countWords(text);
 
+        // Detect suspicious resets: participant had significant progress but is
+        // now sending 0.  Log a warning so we can diagnose reconnect edge-cases.
+        const currentWc = participant.wordCount;
+        if (netWordCount === 0 && currentWc > 10) {
+          logger.warn(
+            { code: roomCode, participantId, name: participant.name, previousWordCount: currentWc },
+            "Participant word count reset to 0 — possible reconnect baseline bug"
+          );
+        }
+
         // Store latest text for catchup on reconnect / new joins
         participant.latestText = text;
 
