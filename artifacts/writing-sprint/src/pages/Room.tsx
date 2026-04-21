@@ -235,7 +235,7 @@ export default function Room() {
 
   const saveToMyFiles = useCallback(async () => {
     const plainText = textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
-    const wc = netWordCount;
+    const wc = netWordCountRef.current;
     try {
       const res = await fetch(`/api/user/files`, {
         method: "POST",
@@ -254,7 +254,7 @@ export default function Room() {
     } catch {
       toast({ title: "Couldn't save", variant: "destructive" });
     }
-  }, [code, name, netWordCount, toast]);
+  }, [code, name, toast]);
 
   const downloadWriting = useCallback(() => {
     const plainText = textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
