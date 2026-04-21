@@ -6,6 +6,7 @@ interface RaceTrackProps {
   participants: Participant[];
   currentParticipantId: string | null;
   durationMinutes: number;
+  wordGoal?: number | null;
 }
 
 const LANE_COLORS: { car: string; text: string }[] = [
@@ -46,11 +47,12 @@ export const RaceTrack = memo(function RaceTrack({
   participants,
   currentParticipantId,
   durationMinutes,
+  wordGoal,
 }: RaceTrackProps) {
   // Stable lane order — sort by ID so lanes don't shuffle as words change
   const sortedParticipants = [...participants].sort((a, b) => a.id.localeCompare(b.id));
 
-  const target = targetWords(durationMinutes);
+  const target = wordGoal ?? targetWords(durationMinutes);
 
   return (
     <div className="w-full rounded-xl overflow-hidden shadow-sm border" style={{ background: "#2d4a1e" }}>

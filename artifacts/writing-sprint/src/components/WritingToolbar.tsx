@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Type, AlignLeft } from "lucide-react";
+import { Type, AlignLeft, Bold, Italic, Underline } from "lucide-react";
 
 export interface WritingStyle {
   fontFamily: string;
@@ -35,9 +35,12 @@ const PARAGRAPH_MODES: { label: string; sublabel: string; value: WritingStyle["p
   { label: "Double", sublabel: "Blank line between paragraphs", value: "double" },
 ];
 
+export type FormatType = "bold" | "italic" | "underline";
+
 interface WritingToolbarProps {
   style: WritingStyle;
   onChange: (style: Partial<WritingStyle>) => void;
+  onFormat: (type: FormatType) => void;
 }
 
 function ToolBtn({
@@ -73,6 +76,7 @@ const Divider = () => <div className="h-6 w-px bg-border hidden sm:block" />;
 export const WritingToolbar = memo(function WritingToolbar({
   style,
   onChange,
+  onFormat,
 }: WritingToolbarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2.5 px-3 py-2 bg-card border border-b-0 rounded-t-lg">
@@ -155,6 +159,33 @@ export const WritingToolbar = memo(function WritingToolbar({
             {m.label}
           </ToolBtn>
         ))}
+      </div>
+
+      <Divider />
+
+      {/* Formatting: Bold / Italic / Underline */}
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onFormat("bold")}
+          title="Bold — wraps selection with **...**"
+          className="h-7 w-7 rounded flex items-center justify-center bg-muted/60 text-foreground hover:bg-muted transition-all"
+        >
+          <Bold size={13} strokeWidth={2.5} />
+        </button>
+        <button
+          onClick={() => onFormat("italic")}
+          title="Italic — wraps selection with *...*"
+          className="h-7 w-7 rounded flex items-center justify-center bg-muted/60 text-foreground hover:bg-muted transition-all"
+        >
+          <Italic size={13} strokeWidth={2} />
+        </button>
+        <button
+          onClick={() => onFormat("underline")}
+          title="Underline — wraps selection with <u>...</u>"
+          className="h-7 w-7 rounded flex items-center justify-center bg-muted/60 text-foreground hover:bg-muted transition-all"
+        >
+          <Underline size={13} strokeWidth={2} />
+        </button>
       </div>
 
     </div>

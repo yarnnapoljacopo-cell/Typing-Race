@@ -120,7 +120,9 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
               code: room.code,
               status: room.status,
               durationMinutes: room.durationMinutes,
+              countdownDelayMinutes: room.countdownDelayMinutes,
               mode: room.mode,
+              wordGoal: room.wordGoal,
               timeLeft:
                 room.status === "running" && room.endTime
                   ? Math.max(0, Math.floor((room.endTime - Date.now()) / 1000))

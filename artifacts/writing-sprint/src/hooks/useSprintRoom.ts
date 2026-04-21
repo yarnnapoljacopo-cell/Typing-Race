@@ -13,7 +13,8 @@ export interface RoomState {
   status: "waiting" | "countdown" | "running" | "finished";
   durationMinutes: number;
   countdownDelayMinutes: number;
-  mode: "regular" | "open";
+  mode: "regular" | "open" | "goal";
+  wordGoal: number | null;
   timeLeft: number | null;
   countdownTimeLeft: number | null;
   participants: Participant[];
@@ -71,7 +72,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
         switch (data.type) {
           case "joined":
             setParticipantId(data.participantId);
-            setRoom({ mode: "regular", countdownDelayMinutes: 0, countdownTimeLeft: null, ...data.room, participants: data.room.participants ?? [] });
+            setRoom({ mode: "regular", countdownDelayMinutes: 0, countdownTimeLeft: null, wordGoal: null, ...data.room, participants: data.room.participants ?? [] });
             // On reconnect, resend the latest text so the server has current count
             if (hasJoinedRef.current && latestTextRef.current) {
               ws.send(JSON.stringify({
@@ -88,7 +89,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
             break;
 
           case "room_state":
-            setRoom({ mode: "regular", countdownDelayMinutes: 0, countdownTimeLeft: null, ...data.room, participants: data.room.participants ?? [] });
+            setRoom({ mode: "regular", countdownDelayMinutes: 0, countdownTimeLeft: null, wordGoal: null, ...data.room, participants: data.room.participants ?? [] });
             break;
 
           case "participant_update":

@@ -4,12 +4,22 @@ import { useSprintRoom } from "@/hooks/useSprintRoom";
 import { RaceTrack } from "@/components/RaceTrack";
 import { Timer } from "@/components/Timer";
 import { ResultsScreen } from "@/components/ResultsScreen";
-import { WritingToolbar, type WritingStyle } from "@/components/WritingToolbar";
+import { WritingToolbar, type WritingStyle, type FormatType } from "@/components/WritingToolbar";
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 import { SpectatorView } from "@/components/SpectatorView";
 import { Button } from "@/components/ui/button";
 import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 
 const CAPSULE_INTERVAL = 200;
@@ -95,6 +105,7 @@ export default function Room() {
   const [savedFlash, setSavedFlash] = useState(false);
   const [capsuleFlash, setCapsuleFlash] = useState(false);
   const [slowBitchVisible, setSlowBitchVisible] = useState(false);
+  const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [capsules, setCapsules] = useState<Capsule[]>(() => loadCapsules(code));
   const [writingStyle, setWritingStyle] = useState<WritingStyle>({
     fontFamily: "Georgia, serif",
@@ -126,6 +137,10 @@ export default function Room() {
   // ── "Slow Bitch." — fired every 10 min if behind the leader ────────────
   const netWordCountRef = useRef<number>(0);
   const slowBitchHideTimerRef = useRef<number | null>(null);
+
+  // ── Goal mode tracking ───────────────────────────────────────────────────
+  const wordGoalRef = useRef<number | null>(null);
+  const goalHitShownRef = useRef<boolean>(false);
 
   const flushAutoSave = useCallback((immediate = false) => {
     if (!code) return;
@@ -281,6 +296,12 @@ export default function Room() {
     // Optimistic car movement uses net count
     if (participantId) updateLocalWordCount(participantId, netWc);
 
+    // ── Goal mode: prompt when target first reached during a sprint ───────
+    if (wordGoalRef.current !== null && netWc >= wordGoalRef.current && !goalHitShownRef.current) {
+      goalHitShownRef.current = true;
+      setGoalDialogOpen(true);
+    }
+
     // ── Time Capsule: snapshot every CAPSULE_INTERVAL words ──────────────
     const nextThreshold = lastCapsuleThresholdRef.current + CAPSULE_INTERVAL;
     if (wc >= nextThreshold) {
@@ -368,6 +389,11 @@ export default function Room() {
       .catch(() => { /* silent */ });
   }, [code, name, applyText, toast]);
 
+  // ── Goal mode: reset hit-flag when a new sprint starts ─────────────────
+  useEffect(() => {
+    if (room?.status === "running") goalHitShownRef.current = false;
+  }, [room?.status]);
+
   // ── "Slow Bitch." every 10 min when behind the leader ──────────────────
   // Must live BEFORE the early returns (if !room / if error) so hook order
   // stays constant across every render.
@@ -410,6 +436,30 @@ export default function Room() {
   const handleStyleChange = (partial: Partial<WritingStyle>) => {
     setWritingStyle((prev) => ({ ...prev, ...partial }));
   };
+
+  const handleFormat = useCallback((type: FormatType) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = text.substring(start, end);
+    const [pre, suf] =
+      type === "bold"      ? ["**", "**"]      :
+      type === "italic"    ? ["*", "*"]         :
+                             ["<u>", "</u>"];
+    const wrapped = `${pre}${selected}${suf}`;
+    const newText = text.substring(0, start) + wrapped + text.substring(end);
+    applyText(newText);
+    requestAnimationFrame(() => {
+      ta.focus();
+      if (selected) {
+        ta.setSelectionRange(start, start + wrapped.length);
+      } else {
+        const cursor = start + pre.length;
+        ta.setSelectionRange(cursor, cursor);
+      }
+    });
+  }, [text, applyText]);
 
   const copyRoomCode = () => {
     navigator.clipboard.writeText(code);
@@ -477,8 +527,9 @@ export default function Room() {
 
   // Net word count: what shows on the badge and car during a sprint
   const netWordCount = isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : wordCount;
-  // Keep ref in sync so the 10-min interval can read it without a stale closure
+  // Keep refs in sync so intervals/callbacks can read them without stale closures
   netWordCountRef.current = netWordCount;
+  wordGoalRef.current = room.wordGoal ?? null;
 
   // Format countdown seconds as mm:ss
   const formatCountdown = (secs: number) => {
@@ -564,13 +615,14 @@ export default function Room() {
             participants={room.participants}
             currentParticipantId={participantId}
             durationMinutes={room.durationMinutes}
+            wordGoal={room.wordGoal}
           />
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
 
             {/* Writing area */}
             <div className="md:col-span-3 flex flex-col">
-              <WritingToolbar style={writingStyle} onChange={handleStyleChange} />
+              <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} />
               <div className="flex flex-col flex-1 min-h-[380px]">
                 {/* Pre-sprint / countdown hint bar */}
                 {(isWaiting || isCountdown) && (
@@ -750,6 +802,33 @@ export default function Room() {
           </div>
         </div>
       )}
+
+      {/* ── Goal hit dialog ─────────────────────────────────────────── */}
+      <AlertDialog open={goalDialogOpen} onOpenChange={setGoalDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Goal reached!</AlertDialogTitle>
+            <AlertDialogDescription>
+              You've hit your target of{" "}
+              <strong>{room?.wordGoal?.toLocaleString()} words</strong>.
+              Wish to keep writing until the timer runs out?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setGoalDialogOpen(false);
+                downloadWriting();
+              }}
+            >
+              No, I'm done
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => setGoalDialogOpen(false)}>
+              Yes, keep writing!
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

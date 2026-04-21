@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer } from "lucide-react";
+import { PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-type RoomMode = "regular" | "open";
+type RoomMode = "regular" | "open" | "goal";
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -18,6 +18,7 @@ export default function Home() {
   const [duration, setDuration] = useState<number>(30);
   const [roomMode, setRoomMode] = useState<RoomMode>("regular");
   const [countdownDelay, setCountdownDelay] = useState<number>(0);
+  const [goalWords, setGoalWords] = useState<string>("1000");
 
   const createRoomMutation = useCreateRoom({
     mutation: {
@@ -39,7 +40,16 @@ export default function Home() {
       toast({ title: "Name required", description: "Please enter your name first.", variant: "destructive" });
       return;
     }
-    createRoomMutation.mutate({ data: { creatorName: name, durationMinutes: duration, mode: roomMode, ...(countdownDelay > 0 ? { countdownDelayMinutes: countdownDelay } : {}) } as Parameters<typeof createRoomMutation.mutate>[0]["data"] });
+    const wordGoal = roomMode === "goal" ? (parseInt(goalWords, 10) || 1000) : undefined;
+    createRoomMutation.mutate({
+      data: {
+        creatorName: name,
+        durationMinutes: duration,
+        mode: roomMode,
+        ...(countdownDelay > 0 ? { countdownDelayMinutes: countdownDelay } : {}),
+        ...(wordGoal ? { wordGoal } : {}),
+      } as Parameters<typeof createRoomMutation.mutate>[0]["data"],
+    });
   };
 
   const handleJoin = () => {
@@ -177,38 +187,65 @@ export default function Home() {
                 {/* Sprint mode */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Sprint Mode</label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
                       onClick={() => setRoomMode("regular")}
-                      className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-4 py-3 transition-all ${
+                      className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
                         roomMode === "regular"
                           ? "border-primary bg-primary/5 text-primary"
                           : "border-border text-muted-foreground hover:border-muted-foreground/40"
                       }`}
                     >
-                      <Lock className="w-5 h-5" />
-                      <span className="text-sm font-semibold">Regular</span>
-                      <span className="text-[10px] text-center leading-tight opacity-70">
-                        Private writing
-                      </span>
+                      <Lock className="w-4 h-4" />
+                      <span className="text-xs font-semibold">Regular</span>
+                      <span className="text-[10px] text-center leading-tight opacity-70">Private writing</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setRoomMode("open")}
-                      className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-4 py-3 transition-all ${
+                      className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
                         roomMode === "open"
                           ? "border-primary bg-primary/5 text-primary"
                           : "border-border text-muted-foreground hover:border-muted-foreground/40"
                       }`}
                     >
-                      <Eye className="w-5 h-5" />
-                      <span className="text-sm font-semibold">Spectator</span>
-                      <span className="text-[10px] text-center leading-tight opacity-70">
-                        See each other's writing live
-                      </span>
+                      <Eye className="w-4 h-4" />
+                      <span className="text-xs font-semibold">Spectator</span>
+                      <span className="text-[10px] text-center leading-tight opacity-70">See each other live</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRoomMode("goal")}
+                      className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
+                        roomMode === "goal"
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <Target className="w-4 h-4" />
+                      <span className="text-xs font-semibold">Goal</span>
+                      <span className="text-[10px] text-center leading-tight opacity-70">Hit a word target</span>
                     </button>
                   </div>
+
+                  {/* Word goal input — only shown when Goal mode is selected */}
+                  {roomMode === "goal" && (
+                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+                      <Target className="w-4 h-4 text-primary shrink-0" />
+                      <label className="text-sm font-medium text-foreground shrink-0">Word target:</label>
+                      <Input
+                        type="number"
+                        min={50}
+                        max={50000}
+                        step={50}
+                        value={goalWords}
+                        onChange={(e) => setGoalWords(e.target.value)}
+                        className="h-8 w-24 text-center font-mono focus-visible:ring-primary"
+                      />
+                      <span className="text-sm text-muted-foreground">words</span>
+                    </div>
+                  )}
                 </div>
 
                 <Button

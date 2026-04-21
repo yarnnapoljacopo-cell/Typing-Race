@@ -17,7 +17,7 @@ export interface Participant {
   disconnectTimer?: ReturnType<typeof setTimeout>;
 }
 
-export type RoomMode = "regular" | "open";
+export type RoomMode = "regular" | "open" | "goal";
 
 export interface Room {
   code: string;
@@ -25,6 +25,7 @@ export interface Room {
   durationMinutes: number;
   countdownDelayMinutes: number;
   mode: RoomMode;
+  wordGoal: number | null;
   status: RoomStatus;
   participants: Map<string, Participant>;
   startTime: number | null;
@@ -44,7 +45,8 @@ export function createRoom(
   creatorName: string,
   durationMinutes: number,
   mode: RoomMode = "regular",
-  countdownDelayMinutes = 0
+  countdownDelayMinutes = 0,
+  wordGoal: number | null = null
 ): Room {
   let code = generateRoomCode();
   while (rooms.has(code)) {
@@ -57,6 +59,7 @@ export function createRoom(
     durationMinutes,
     countdownDelayMinutes: Math.min(30, Math.max(0, countdownDelayMinutes)),
     mode,
+    wordGoal: wordGoal && wordGoal > 0 ? Math.floor(wordGoal) : null,
     status: "waiting",
     participants: new Map(),
     startTime: null,
@@ -122,6 +125,7 @@ export function broadcastRoomState(room: Room): void {
       durationMinutes: room.durationMinutes,
       countdownDelayMinutes: room.countdownDelayMinutes,
       mode: room.mode,
+      wordGoal: room.wordGoal,
       timeLeft,
       countdownTimeLeft,
       participants,
