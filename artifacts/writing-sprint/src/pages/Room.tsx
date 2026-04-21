@@ -195,20 +195,19 @@ export default function Room() {
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0).cloneRange();
     range.collapse(true);
-    const rects = range.getClientRects();
-    let caretTop: number;
-    let caretHeight: number;
-    if (rects.length > 0) {
-      caretTop = rects[0].top;
-      caretHeight = rects[0].height || writingStyle.fontSize;
-    } else {
-      caretTop = div.getBoundingClientRect().top;
-      caretHeight = writingStyle.fontSize;
-    }
+
+    const caret = range.getBoundingClientRect();
+
+    // Degenerate rect (all zeros) means the browser hasn't laid out the cursor
+    // yet — most common after Enter on a fresh empty line. Skip rather than
+    // scrolling to the wrong place.
+    if (!caret.top && !caret.left && !caret.bottom) return;
+
     const divRect = div.getBoundingClientRect();
-    const caretOffsetTop = caretTop - divRect.top + div.scrollTop;
-    div.scrollTop = Math.max(0, caretOffsetTop - div.clientHeight / 2 + caretHeight / 2);
-  }, [writingStyle.fontSize]);
+    const lineH = writingStyle.fontSize * writingStyle.lineHeight;
+    const caretOffsetTop = caret.top - divRect.top + div.scrollTop;
+    div.scrollTop = Math.max(0, caretOffsetTop - div.clientHeight / 2 + lineH / 2);
+  }, [writingStyle.fontSize, writingStyle.lineHeight]);
 
   const {
     room,
@@ -512,7 +511,7 @@ export default function Room() {
   // User typing in the contenteditable editor — just sync from current DOM state
   const handleInput = useCallback(() => {
     applyText();
-    if (writingStyle.typewriterMode) scrollToCursor();
+    if (writingStyle.typewriterMode) requestAnimationFrame(scrollToCursor);
   }, [applyText, writingStyle.typewriterMode, scrollToCursor]);
 
   // Normalise Enter across browsers and apply paragraph mode
