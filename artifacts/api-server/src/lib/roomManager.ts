@@ -220,12 +220,31 @@ export function addParticipant(room: Room, participant: Participant): void {
 export function removeParticipant(room: Room, participantId: string): void {
   room.participants.delete(participantId);
 
-  if (room.participants.size === 0 && room.status !== "running") {
-    if (room.timerInterval) {
-      clearInterval(room.timerInterval);
+  if (room.participants.size === 0) {
+    const isActive = room.status === "running" || room.status === "countdown";
+
+    if (isActive) {
+      // Room is mid-sprint — keep it alive so reconnects can restore it.
+      // The sprint timer will call endSprint naturally when time runs out.
+      logger.info({ code: room.code, status: room.status }, "Room empty during active sprint — keeping alive");
+      return;
     }
-    rooms.delete(room.code);
-    logger.info({ code: room.code }, "Empty room deleted");
+
+    // Waiting or finished — schedule cleanup after a grace period so brief
+    // disconnects don't kill the room before a rejoin can succeed.
+    const gracePeriodMs = 10 * 60 * 1000; // 10 minutes
+    const code = room.code;
+    setTimeout(() => {
+      const current = rooms.get(code);
+      if (!current) return;
+      if (current.participants.size === 0 && current.status !== "running" && current.status !== "countdown") {
+        if (current.timerInterval) clearInterval(current.timerInterval);
+        rooms.delete(code);
+        logger.info({ code }, "Empty room cleaned up after grace period");
+      }
+    }, gracePeriodMs);
+
+    logger.info({ code: room.code }, "Room empty — will clean up in 10 min if still unused");
     return;
   }
 
