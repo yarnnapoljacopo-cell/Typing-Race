@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
+import { getAuth } from "@clerk/express";
 import { createRoom, getRoom } from "../lib/roomManager";
-import { saveWriting, getWriting } from "../lib/writingStore";
+import { saveWriting, getWriting, getUserSprints } from "../lib/writingStore";
 import { CreateRoomBody, GetRoomParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -64,7 +65,10 @@ router.put("/rooms/:code/writing", async (req, res): Promise<void> => {
   if (typeof text !== "string") { res.status(400).json({ error: "text required" }); return; }
   const wc = typeof wordCount === "number" ? Math.max(0, Math.floor(wordCount)) : 0;
 
-  await saveWriting(code, participantName.trim(), text, wc);
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId ?? null;
+
+  await saveWriting(code, participantName.trim(), text, wc, clerkUserId);
   res.json({ ok: true });
 });
 
@@ -76,6 +80,48 @@ router.get("/rooms/:code/writing/:participantName", async (req, res): Promise<vo
   const result = await getWriting(code, participantName);
   if (!result) { res.status(404).json({ error: "Not found" }); return; }
   res.json(result);
+});
+
+router.get("/user/sprints", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const sprints = await getUserSprints(clerkUserId);
+  res.json(sprints);
+});
+
+router.get("/user/sprints/:id/text", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const { db, sprintWritingTable } = await import("@workspace/db");
+  const { eq, and } = await import("drizzle-orm");
+  const rows = await db
+    .select({ text: sprintWritingTable.text, clerkUserId: sprintWritingTable.clerkUserId })
+    .from(sprintWritingTable)
+    .where(and(eq(sprintWritingTable.id, id), eq(sprintWritingTable.clerkUserId, clerkUserId)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  res.json({ text: rows[0].text });
 });
 
 export default router;

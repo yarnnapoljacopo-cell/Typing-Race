@@ -1,272 +1,70 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
-import { useCreateRoom } from "@workspace/api-client-react";
+import { SignInButton, SignUpButton } from "@clerk/react";
+import { PenTool, Feather, ArrowRight, Zap, Users, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-
-type RoomMode = "regular" | "open" | "goal";
 
 export default function Home() {
-  const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const [name, setName] = useState("");
-  const [joinCode, setJoinCode] = useState("");
-  const [duration, setDuration] = useState<number>(30);
-  const [roomMode, setRoomMode] = useState<RoomMode>("regular");
-  const [countdownDelay, setCountdownDelay] = useState<number>(0);
-  const [goalWords, setGoalWords] = useState<string>("1000");
-
-  const createRoomMutation = useCreateRoom({
-    mutation: {
-      onSuccess: (data) => {
-        setLocation(`/room?code=${data.code}&name=${encodeURIComponent(name)}&isCreator=true`);
-      },
-      onError: (err) => {
-        toast({
-          title: "Failed to create room",
-          description: err.message || "An unexpected error occurred",
-          variant: "destructive",
-        });
-      },
-    },
-  });
-
-  const handleCreate = () => {
-    if (!name.trim()) {
-      toast({ title: "Name required", description: "Please enter your name first.", variant: "destructive" });
-      return;
-    }
-    const wordGoal = roomMode === "goal" ? (parseInt(goalWords, 10) || 1000) : undefined;
-    createRoomMutation.mutate({
-      data: {
-        creatorName: name,
-        durationMinutes: duration,
-        mode: roomMode,
-        ...(countdownDelay > 0 ? { countdownDelayMinutes: countdownDelay } : {}),
-        ...(wordGoal ? { wordGoal } : {}),
-      } as Parameters<typeof createRoomMutation.mutate>[0]["data"],
-    });
-  };
-
-  const handleJoin = () => {
-    if (!name.trim()) {
-      toast({ title: "Name required", description: "Please enter your name first.", variant: "destructive" });
-      return;
-    }
-    if (!joinCode.trim()) {
-      toast({ title: "Room code required", description: "Please enter a valid room code.", variant: "destructive" });
-      return;
-    }
-    setLocation(`/room?code=${encodeURIComponent(joinCode.trim().toUpperCase())}&name=${encodeURIComponent(name)}`);
-  };
-
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 selection:bg-primary/20">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 selection:bg-primary/20">
 
       <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center opacity-[0.03]">
         <Feather className="w-full h-full max-w-4xl text-primary" strokeWidth={0.5} />
       </div>
 
-      <div className="w-full max-w-md space-y-8 relative z-10">
+      <div className="w-full max-w-md space-y-10 relative z-10 text-center">
 
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-4 shadow-inner">
-            <PenTool size={32} />
+        <div className="space-y-4">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-primary/10 text-primary mb-2 shadow-inner">
+            <PenTool size={40} />
           </div>
-          <h1 className="text-4xl md:text-5xl font-serif font-bold text-foreground tracking-tight">Writing Sprint</h1>
-          <p className="text-lg text-muted-foreground font-medium">Race against fellow writers. Find your flow.</p>
+          <h1 className="text-5xl md:text-6xl font-serif font-bold text-foreground tracking-tight">
+            Writing Sprint
+          </h1>
+          <p className="text-xl text-muted-foreground font-medium leading-relaxed">
+            Race against fellow writers.<br />Find your flow.
+          </p>
         </div>
 
-        <Card className="border-border shadow-xl shadow-primary/5">
-          <CardHeader className="pb-4">
-            <CardTitle>Join the session</CardTitle>
-            <CardDescription>Enter your preferred pen name to get started.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-
-            <div className="space-y-2">
-              <label htmlFor="name" className="text-sm font-medium text-foreground">Your Name</label>
-              <Input
-                id="name"
-                placeholder="e.g. Virginia Woolf"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="text-lg py-6 focus-visible:ring-primary"
-                autoComplete="off"
-                onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-              />
+        <div className="grid grid-cols-3 gap-4 text-left">
+          <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Zap size={16} className="text-primary" />
             </div>
+            <p className="text-sm font-semibold text-foreground">Sprint</p>
+            <p className="text-xs text-muted-foreground leading-snug">Timed sessions to unlock your creativity</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Users size={16} className="text-primary" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">Compete</p>
+            <p className="text-xs text-muted-foreground leading-snug">Watch live progress on the race track</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <BookOpen size={16} className="text-primary" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">Save</p>
+            <p className="text-xs text-muted-foreground leading-snug">All your sprints saved to your account</p>
+          </div>
+        </div>
 
-            <Tabs defaultValue="join" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="join">Join Room</TabsTrigger>
-                <TabsTrigger value="create">Create Room</TabsTrigger>
-              </TabsList>
+        <div className="space-y-3">
+          <SignUpButton mode="modal">
+            <Button className="w-full py-6 text-lg hover-elevate group">
+              Create free account
+              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </Button>
+          </SignUpButton>
+          <SignInButton mode="modal">
+            <Button variant="outline" className="w-full py-6 text-lg">
+              Sign in
+            </Button>
+          </SignInButton>
+        </div>
 
-              <TabsContent value="join" className="space-y-4">
-                <div className="space-y-2">
-                  <label htmlFor="code" className="text-sm font-medium text-foreground">Room Code</label>
-                  <Input
-                    id="code"
-                    placeholder="SPRINT-XXXX"
-                    value={joinCode}
-                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                    className="font-mono text-center tracking-widest text-lg py-6 focus-visible:ring-primary"
-                    autoComplete="off"
-                    onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-                  />
-                </div>
-                <Button
-                  onClick={handleJoin}
-                  className="w-full py-6 text-lg hover-elevate group"
-                  disabled={!name.trim() || !joinCode.trim()}
-                >
-                  Enter Room
-                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </TabsContent>
-
-              <TabsContent value="create" className="space-y-4">
-                {/* Duration */}
-                <div className="space-y-3">
-                  <label className="text-sm font-medium text-foreground">Sprint Duration</label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[30, 45, 60].map((d) => (
-                      <Button
-                        key={d}
-                        type="button"
-                        variant={duration === d ? "default" : "outline"}
-                        className="py-6"
-                        onClick={() => setDuration(d)}
-                      >
-                        {d} min
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Pre-sprint countdown */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                    <Timer className="w-3.5 h-3.5 text-muted-foreground" />
-                    Pre-sprint Timer
-                    <span className="text-xs text-muted-foreground font-normal ml-1">(auto-starts after)</span>
-                  </label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[0, 5, 10, 15].map((d) => (
-                      <Button
-                        key={d}
-                        type="button"
-                        variant={countdownDelay === d ? "default" : "outline"}
-                        className="py-5 text-sm"
-                        onClick={() => setCountdownDelay(d)}
-                      >
-                        {d === 0 ? "Off" : `${d}m`}
-                      </Button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[20, 25, 30].map((d) => (
-                      <Button
-                        key={d}
-                        type="button"
-                        variant={countdownDelay === d ? "default" : "outline"}
-                        className="py-5 text-sm"
-                        onClick={() => setCountdownDelay(d)}
-                      >
-                        {d}m
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Sprint mode */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Sprint Mode</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRoomMode("regular")}
-                      className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
-                        roomMode === "regular"
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                      }`}
-                    >
-                      <Lock className="w-4 h-4" />
-                      <span className="text-xs font-semibold">Regular</span>
-                      <span className="text-[10px] text-center leading-tight opacity-70">Private writing</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRoomMode("open")}
-                      className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
-                        roomMode === "open"
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                      }`}
-                    >
-                      <Eye className="w-4 h-4" />
-                      <span className="text-xs font-semibold">Spectator</span>
-                      <span className="text-[10px] text-center leading-tight opacity-70">See each other live</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRoomMode("goal")}
-                      className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
-                        roomMode === "goal"
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                      }`}
-                    >
-                      <Target className="w-4 h-4" />
-                      <span className="text-xs font-semibold">Goal</span>
-                      <span className="text-[10px] text-center leading-tight opacity-70">Hit a word target</span>
-                    </button>
-                  </div>
-
-                  {/* Word goal input — only shown when Goal mode is selected */}
-                  {roomMode === "goal" && (
-                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
-                      <Target className="w-4 h-4 text-primary shrink-0" />
-                      <label className="text-sm font-medium text-foreground shrink-0">Word target:</label>
-                      <Input
-                        type="number"
-                        min={50}
-                        max={50000}
-                        step={50}
-                        value={goalWords}
-                        onChange={(e) => setGoalWords(e.target.value)}
-                        className="h-8 w-24 text-center font-mono focus-visible:ring-primary"
-                      />
-                      <span className="text-sm text-muted-foreground">words</span>
-                    </div>
-                  )}
-                </div>
-
-                <Button
-                  onClick={handleCreate}
-                  className="w-full py-6 text-lg hover-elevate group"
-                  disabled={!name.trim() || createRoomMutation.isPending}
-                >
-                  {createRoomMutation.isPending ? (
-                    <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Creating…</>
-                  ) : (
-                    <>
-                      Start New Session
-                      <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                </Button>
-              </TabsContent>
-            </Tabs>
-
-          </CardContent>
-        </Card>
+        <p className="text-xs text-muted-foreground/60">
+          Free to use. Your writing stays yours.
+        </p>
       </div>
     </div>
   );
