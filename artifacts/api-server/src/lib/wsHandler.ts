@@ -67,6 +67,8 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         let inheritedIsCreator = false;
         for (const [existingId, existingP] of room.participants) {
           if (existingP.name === name) {
+            // Cancel any pending grace-period removal so the rejoin is seamless
+            if (existingP.disconnectTimer) clearTimeout(existingP.disconnectTimer);
             inheritedWordCount = existingP.wordCount;
             inheritedText = existingP.latestText;
             inheritedIsCreator = existingP.isCreator;
@@ -236,12 +238,30 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
     });
 
     ws.on("close", () => {
-      if (participantId && roomCode) {
-        const room = getRoom(roomCode);
-        if (room) {
-          removeParticipant(room, participantId);
-          logger.info({ code: roomCode, participantId }, "Participant left room");
+      if (!participantId || !roomCode) return;
+      const room = getRoom(roomCode);
+      if (!room) return;
+
+      const isActive = room.status === "running" || room.status === "countdown";
+      if (isActive) {
+        // Grace period: keep the participant in the room for 30 s so a network
+        // blip or phone lock-screen doesn't flash their car out of the race track.
+        // If they reconnect within the window, the join_room handler cancels this timer.
+        const p = room.participants.get(participantId);
+        if (p) {
+          if (p.disconnectTimer) clearTimeout(p.disconnectTimer);
+          p.disconnectTimer = setTimeout(() => {
+            const currentRoom = getRoom(roomCode!);
+            if (currentRoom?.participants.has(participantId!)) {
+              removeParticipant(currentRoom, participantId!);
+              logger.info({ code: roomCode, participantId }, "Participant removed after 30 s grace period");
+            }
+          }, 30_000);
+          logger.info({ code: roomCode, participantId }, "Participant disconnected — 30 s grace started");
         }
+      } else {
+        removeParticipant(room, participantId);
+        logger.info({ code: roomCode, participantId }, "Participant left room");
       }
     });
 

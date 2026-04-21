@@ -94,6 +94,7 @@ export default function Room() {
   );
   const [savedFlash, setSavedFlash] = useState(false);
   const [capsuleFlash, setCapsuleFlash] = useState(false);
+  const [slowBitchVisible, setSlowBitchVisible] = useState(false);
   const [capsules, setCapsules] = useState<Capsule[]>(() => loadCapsules(code));
   const [writingStyle, setWritingStyle] = useState<WritingStyle>({
     fontFamily: "Georgia, serif",
@@ -121,6 +122,10 @@ export default function Room() {
   // Set to the wordCount at the moment the sprint transitions to "running".
   const baselineWordCountRef = useRef<number>(0);
   const prevStatusRef = useRef<string | null>(null);
+
+  // ── "Slow Bitch." — fired every 10 min if behind the leader ────────────
+  const netWordCountRef = useRef<number>(0);
+  const slowBitchHideTimerRef = useRef<number | null>(null);
 
   const flushAutoSave = useCallback((immediate = false) => {
     if (!code) return;
@@ -452,6 +457,29 @@ export default function Room() {
 
   // Net word count: what shows on the badge and car during a sprint
   const netWordCount = isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : wordCount;
+  // Keep ref in sync so the 10-min interval can read it without a stale closure
+  netWordCountRef.current = netWordCount;
+
+  // ── "Slow Bitch." every 10 min when behind the leader ──────────────────
+  useEffect(() => {
+    if (room?.status !== "running") return;
+
+    const intervalId = window.setInterval(() => {
+      const participants = room.participants;
+      if (participants.length < 2) return; // no race if alone
+      const leaderWc = Math.max(...participants.map((p) => p.wordCount));
+      if (netWordCountRef.current >= leaderWc) return; // you ARE the leader
+      // Show for 1.5 s then fade out
+      setSlowBitchVisible(true);
+      if (slowBitchHideTimerRef.current) clearTimeout(slowBitchHideTimerRef.current);
+      slowBitchHideTimerRef.current = window.setTimeout(() => setSlowBitchVisible(false), 1500);
+    }, 10 * 60 * 1000);
+
+    return () => {
+      clearInterval(intervalId);
+      if (slowBitchHideTimerRef.current) clearTimeout(slowBitchHideTimerRef.current);
+    };
+  }, [room?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Format countdown seconds as mm:ss
   const formatCountdown = (secs: number) => {
@@ -610,6 +638,17 @@ export default function Room() {
                       {isRunning ? "words" : "warm-up"}
                     </span>
                   </div>
+                </div>
+                {/* Slow Bitch notification — below the badge row */}
+                <div
+                  className="flex justify-center pt-1 transition-opacity duration-300"
+                  style={{ opacity: slowBitchVisible ? 1 : 0, pointerEvents: "none" }}
+                >
+                  <span
+                    className="inline-flex items-center gap-1.5 bg-foreground/90 text-background text-xs font-medium px-3 py-1 rounded-full select-none"
+                  >
+                    🐢 Slow Bitch.
+                  </span>
                 </div>
               </div>
             </div>

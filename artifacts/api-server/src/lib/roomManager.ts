@@ -14,6 +14,7 @@ export interface Participant {
   isCreator: boolean;
   isSpectator: boolean;
   latestText: string;
+  disconnectTimer?: ReturnType<typeof setTimeout>;
 }
 
 export type RoomMode = "regular" | "open";
