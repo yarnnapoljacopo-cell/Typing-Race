@@ -11,6 +11,8 @@ interface Sprint {
   rank: number;
   totalParticipants: number;
   updatedAt: string;
+  roomMode: string;
+  wordGoal: number | null;
 }
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -62,6 +64,29 @@ function RankBadge({ rank, total }: { rank: number; total: number }) {
   );
 }
 
+function ModeBadge({ mode, wordGoal, wordCount }: { mode: string; wordGoal: number | null; wordCount: number }) {
+  if (mode === "goal" && wordGoal != null) {
+    const met = wordCount >= wordGoal;
+    return met ? (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-700">
+        ✓ Goal: {wordGoal.toLocaleString()} words
+      </span>
+    ) : (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-700">
+        ✗ Goal: {wordGoal.toLocaleString()} words
+      </span>
+    );
+  }
+  if (mode === "open") {
+    return (
+      <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border border-violet-200 dark:border-violet-700">
+        Open
+      </span>
+    );
+  }
+  return null;
+}
+
 function SprintCard({ sprint }: { sprint: Sprint }) {
   return (
     <Card className="border-border">
@@ -79,6 +104,7 @@ function SprintCard({ sprint }: { sprint: Sprint }) {
                 {sprint.wordCount.toLocaleString()} {sprint.wordCount === 1 ? "word" : "words"}
               </span>
               <RankBadge rank={sprint.rank} total={sprint.totalParticipants} />
+              <ModeBadge mode={sprint.roomMode} wordGoal={sprint.wordGoal} wordCount={sprint.wordCount} />
             </div>
           </div>
         </div>

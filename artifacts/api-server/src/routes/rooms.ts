@@ -74,7 +74,8 @@ router.put("/rooms/:code/writing", async (req, res): Promise<void> => {
   const auth = getAuth(req);
   const clerkUserId = auth?.userId ?? null;
 
-  await saveWriting(code, participantName.trim(), text, wc, clerkUserId);
+  const room = getRoom(code);
+  await saveWriting(code, participantName.trim(), text, wc, clerkUserId, room?.mode ?? null, room?.wordGoal ?? null);
   res.json({ ok: true });
 });
 

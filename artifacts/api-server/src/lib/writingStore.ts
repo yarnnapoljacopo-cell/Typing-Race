@@ -8,11 +8,21 @@ export async function saveWriting(
   text: string,
   wordCount: number,
   clerkUserId?: string | null,
+  roomMode?: string | null,
+  wordGoal?: number | null,
 ): Promise<void> {
   try {
     await db
       .insert(sprintWritingTable)
-      .values({ roomCode, participantName, clerkUserId: clerkUserId ?? null, text, wordCount })
+      .values({
+        roomCode,
+        participantName,
+        clerkUserId: clerkUserId ?? null,
+        text,
+        wordCount,
+        roomMode: roomMode ?? "regular",
+        wordGoal: wordGoal ?? null,
+      })
       .onConflictDoUpdate({
         target: [sprintWritingTable.roomCode, sprintWritingTable.participantName],
         set: {
@@ -20,6 +30,8 @@ export async function saveWriting(
           wordCount,
           updatedAt: new Date(),
           ...(clerkUserId ? { clerkUserId } : {}),
+          ...(roomMode ? { roomMode } : {}),
+          ...(wordGoal != null ? { wordGoal } : {}),
         },
       });
   } catch (err) {
@@ -60,6 +72,8 @@ export async function getUserSprints(clerkUserId: string): Promise<Array<{
   totalParticipants: number;
   updatedAt: Date;
   excerpt: string;
+  roomMode: string;
+  wordGoal: number | null;
 }>> {
   try {
     const rows = await db
@@ -94,6 +108,8 @@ export async function getUserSprints(clerkUserId: string): Promise<Array<{
         totalParticipants: counts.length,
         updatedAt: r.updatedAt,
         excerpt: r.text.slice(0, 200),
+        roomMode: r.roomMode,
+        wordGoal: r.wordGoal ?? null,
       };
     });
   } catch (err) {

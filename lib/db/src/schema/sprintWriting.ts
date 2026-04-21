@@ -8,6 +8,8 @@ export const sprintWritingTable = pgTable("sprint_writing", {
   text: text("text").notNull().default(""),
   wordCount: integer("word_count").notNull().default(0),
   savedToFiles: boolean("saved_to_files").notNull().default(false),
+  roomMode: varchar("room_mode", { length: 20 }).notNull().default("regular"),
+  wordGoal: integer("word_goal"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("sprint_writing_room_participant_idx").on(t.roomCode, t.participantName),
