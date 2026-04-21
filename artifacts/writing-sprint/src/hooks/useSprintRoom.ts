@@ -70,11 +70,12 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
         const data = JSON.parse(event.data);
 
         switch (data.type) {
-          case "joined":
+          case "joined": {
+            const isReconnect = hasJoinedRef.current;
             setParticipantId(data.participantId);
             setRoom({ mode: "regular", countdownDelayMinutes: 0, countdownTimeLeft: null, wordGoal: null, ...data.room, participants: data.room.participants ?? [] });
             // On reconnect, resend the latest text so the server has current count
-            if (hasJoinedRef.current && latestTextRef.current) {
+            if (isReconnect && latestTextRef.current) {
               ws.send(JSON.stringify({
                 type: "text_update",
                 text: latestTextRef.current,
@@ -82,11 +83,13 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
               }));
             }
             hasJoinedRef.current = true;
-            // Signal Room.tsx if word count was restored from a previous session
-            if (typeof data.restoredWordCount === "number" && data.restoredWordCount > 0) {
+            // Only show "progress restored" toast on first page load — not on
+            // mid-sprint reconnects (would be noisy and interrupt writing)
+            if (!isReconnect && typeof data.restoredWordCount === "number" && data.restoredWordCount > 0) {
               setRestoredWordCount(data.restoredWordCount);
             }
             break;
+          }
 
           case "room_state":
             setRoom({ mode: "regular", countdownDelayMinutes: 0, countdownTimeLeft: null, wordGoal: null, ...data.room, participants: data.room.participants ?? [] });
@@ -151,7 +154,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
       if (hasJoinedRef.current) {
         reconnectTimeoutRef.current = window.setTimeout(() => {
           connect();
-        }, 2000);
+        }, 500);
       }
     };
 

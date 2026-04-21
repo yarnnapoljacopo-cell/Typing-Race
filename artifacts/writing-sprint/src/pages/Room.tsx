@@ -829,20 +829,18 @@ export default function Room() {
                 )}
                 <div
                   ref={textareaRef}
-                  contentEditable={isConnected && (isRunning || isWaiting || isCountdown)}
+                  contentEditable={isRunning || isWaiting || isCountdown}
                   suppressContentEditableWarning
                   onInput={handleInput}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
                   spellCheck={false}
                   data-placeholder={
-                    !isConnected
-                      ? "Reconnecting…"
-                      : isRunning
+                    isRunning
                       ? "Write here — the clock is ticking!"
                       : "Warm up here while you wait for the sprint to start…"
                   }
-                  className={`writing-editor flex-1 w-full bg-card border shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground overflow-auto min-h-[380px]${(!isConnected || (!isRunning && !isWaiting && !isCountdown)) ? " opacity-60 cursor-not-allowed" : ""}`}
+                  className={`writing-editor flex-1 w-full bg-card border shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground overflow-auto min-h-[380px]${(!isRunning && !isWaiting && !isCountdown) ? " opacity-60 cursor-not-allowed" : ""}`}
                   style={{
                     borderTop: (isWaiting || isCountdown) ? "none" : undefined,
                     borderRadius: (isWaiting || isCountdown) ? "0 0 0.5rem 0.5rem" : undefined,
