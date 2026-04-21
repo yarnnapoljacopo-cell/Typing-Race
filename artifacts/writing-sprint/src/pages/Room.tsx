@@ -268,7 +268,11 @@ export default function Room() {
         </div>
       ) : (
         <div className="flex-1 flex flex-col gap-4">
-          <RaceTrack participants={room.participants} currentParticipantId={participantId} />
+          <RaceTrack
+            participants={room.participants}
+            currentParticipantId={participantId}
+            durationMinutes={room.durationMinutes}
+          />
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
 

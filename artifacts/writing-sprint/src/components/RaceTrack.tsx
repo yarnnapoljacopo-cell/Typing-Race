@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 interface RaceTrackProps {
   participants: Participant[];
   currentParticipantId: string | null;
+  durationMinutes: number;
 }
 
 const LANE_COLORS: { car: string; text: string }[] = [
@@ -17,6 +18,12 @@ const LANE_COLORS: { car: string; text: string }[] = [
 ];
 
 const CAR_W = 48;
+
+// Words needed to reach the finish line.
+// ~30 words/min is a solid creative-writing pace for a sprint.
+function targetWords(durationMinutes: number) {
+  return Math.max(durationMinutes * 30, 60);
+}
 
 function CarIcon({ color }: { color: string }) {
   return (
@@ -37,12 +44,12 @@ function CarIcon({ color }: { color: string }) {
 export const RaceTrack = memo(function RaceTrack({
   participants,
   currentParticipantId,
+  durationMinutes,
 }: RaceTrackProps) {
-  // Stable lane order: sort by join order (id), not by word count
+  // Stable lane order — sort by ID so lanes don't shuffle as words change
   const sortedParticipants = [...participants].sort((a, b) => a.id.localeCompare(b.id));
 
-  // Max words among all participants (floor of 1 so we never divide by 0)
-  const maxWords = Math.max(...participants.map((p) => p.wordCount), 1);
+  const target = targetWords(durationMinutes);
 
   return (
     <div className="w-full rounded-xl overflow-hidden shadow-sm border" style={{ background: "#2d4a1e" }}>
@@ -50,24 +57,27 @@ export const RaceTrack = memo(function RaceTrack({
       <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
         <span className="text-white/70 text-xs font-semibold uppercase tracking-widest">Race Track</span>
         <span className="text-white/50 text-xs font-mono">
-          {participants.length} {participants.length === 1 ? "writer" : "writers"}
+          goal: {target} words &nbsp;·&nbsp; {participants.length} {participants.length === 1 ? "writer" : "writers"}
         </span>
       </div>
 
       <div className="relative">
-        {/* Start line — 56px from left */}
+        {/* Start line */}
         <div className="absolute top-0 bottom-0 z-20 pointer-events-none" style={{ left: "56px", width: "3px" }}>
           {Array.from({ length: 20 }).map((_, i) => (
             <div key={i} style={{ height: "6px", background: i % 2 === 0 ? "white" : "black", opacity: 0.6 }} />
           ))}
         </div>
 
-        {/* Finish line — 16px from right */}
+        {/* Finish line */}
         <div className="absolute top-0 bottom-0 z-20 pointer-events-none" style={{ right: "16px", width: "4px" }}>
           {Array.from({ length: 20 }).map((_, i) => (
             <div key={i} style={{ height: "6px", background: i % 2 === 0 ? "white" : "black", opacity: 0.85 }} />
           ))}
-          <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-white text-[10px] font-bold whitespace-nowrap" style={{ opacity: 0.8 }}>
+          <div
+            className="absolute -top-5 left-1/2 -translate-x-1/2 text-white text-[10px] font-bold whitespace-nowrap"
+            style={{ opacity: 0.8 }}
+          >
             FINISH
           </div>
         </div>
@@ -75,7 +85,10 @@ export const RaceTrack = memo(function RaceTrack({
         {/* Lanes */}
         <div className="flex flex-col gap-0">
           {sortedParticipants.length === 0 ? (
-            <div className="h-16 flex items-center justify-center text-white/40 text-sm italic" style={{ background: "#3a5c28" }}>
+            <div
+              className="h-16 flex items-center justify-center text-white/40 text-sm italic"
+              style={{ background: "#3a5c28" }}
+            >
               Waiting for participants to join...
             </div>
           ) : (
@@ -83,8 +96,9 @@ export const RaceTrack = memo(function RaceTrack({
               const colors = LANE_COLORS[i % LANE_COLORS.length];
               const isMe = p.id === currentParticipantId;
 
-              // progress: 0–1 fraction of track. Cap at 1.
-              const fraction = maxWords <= 1 ? 0 : Math.min(p.wordCount / maxWords, 1);
+              // Absolute fraction: progress toward the fixed word-count target.
+              // Capped at 1 so no one goes past the finish line.
+              const fraction = Math.min(p.wordCount / target, 1);
 
               return (
                 <div
@@ -101,7 +115,8 @@ export const RaceTrack = memo(function RaceTrack({
                     className="absolute top-1/2 -translate-y-1/2 left-14 right-6 pointer-events-none"
                     style={{
                       height: "2px",
-                      background: "repeating-linear-gradient(90deg, rgba(255,255,255,0.15) 0px, rgba(255,255,255,0.15) 12px, transparent 12px, transparent 24px)",
+                      background:
+                        "repeating-linear-gradient(90deg, rgba(255,255,255,0.15) 0px, rgba(255,255,255,0.15) 12px, transparent 12px, transparent 24px)",
                     }}
                   />
 
@@ -114,9 +129,9 @@ export const RaceTrack = memo(function RaceTrack({
                   </div>
 
                   {/*
-                    Track area: from 59px (just past start line) to right:20px (just before finish).
-                    The car animates `left` as a % within this wrapper, so % is relative to track width.
-                    We subtract the car's own width so it doesn't overshoot the finish line.
+                    Track area: left edge = just past start line (59px),
+                    right edge = finish line minus car width so car stops AT the line.
+                    `left` as % of this wrapper = true proportional progress.
                   */}
                   <div
                     className="absolute top-0 bottom-0"
@@ -125,7 +140,11 @@ export const RaceTrack = memo(function RaceTrack({
                     <motion.div
                       className="absolute top-0 bottom-0 flex flex-col items-center justify-center"
                       animate={{ left: `${fraction * 100}%` }}
-                      transition={{ type: "tween", ease: "easeOut", duration: 0.5 }}
+                      transition={{
+                        type: "tween",
+                        ease: "easeOut",
+                        duration: 0.6,
+                      }}
                     >
                       {/* Name + word count badge */}
                       <div
@@ -137,7 +156,10 @@ export const RaceTrack = memo(function RaceTrack({
                           boxShadow: isMe ? `0 0 0 2px ${colors.car}` : "none",
                         }}
                       >
-                        <span className="text-[10px] font-bold truncate max-w-[60px]" style={{ color: colors.text }}>
+                        <span
+                          className="text-[10px] font-bold truncate max-w-[60px]"
+                          style={{ color: colors.text }}
+                        >
                           {isMe ? "You" : p.name}
                         </span>
                         <span className="text-[10px] font-mono font-bold" style={{ color: "#374151" }}>
