@@ -4,28 +4,38 @@ import { useSprintRoom } from "@/hooks/useSprintRoom";
 import { RaceTrack } from "@/components/RaceTrack";
 import { Timer } from "@/components/Timer";
 import { ResultsScreen } from "@/components/ResultsScreen";
+import { WritingToolbar, type WritingStyle } from "@/components/WritingToolbar";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Copy, AlertCircle, Loader2, Play } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 
-// Simple hook to parse search params
 function useSearchParams() {
   return useMemo(() => new URLSearchParams(window.location.search), [window.location.search]);
 }
 
+function countWords(str: string): number {
+  const matches = str.match(/\b\w+\b/g);
+  return matches ? matches.length : 0;
+}
+
 export default function Room() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  
+
   const code = searchParams.get("code") || "";
   const name = searchParams.get("name") || "";
   const isCreatorParams = searchParams.get("isCreator") === "true";
 
   const [text, setText] = useState("");
   const [wordCount, setWordCount] = useState(0);
+  const [writingStyle, setWritingStyle] = useState<WritingStyle>({
+    fontFamily: "Georgia, serif",
+    fontSize: 18,
+    lineHeight: 1.75,
+  });
+
   const debounceTimeoutRef = useRef<number | null>(null);
 
   const {
@@ -34,48 +44,42 @@ export default function Room() {
     isConnected,
     error,
     sendTextUpdate,
+    updateLocalWordCount,
     startSprint,
     restartSprint,
     endSprint,
   } = useSprintRoom({ code, name, isCreator: isCreatorParams });
 
-  // Redirect if missing essential info
   useEffect(() => {
-    if (!code || !name) {
-      setLocation("/");
-    }
+    if (!code || !name) setLocation("/");
   }, [code, name, setLocation]);
-
-  // Word counter
-  const countWords = (str: string) => {
-    const matches = str.match(/\b\w+\b/g);
-    return matches ? matches.length : 0;
-  };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
     setText(newText);
-    
-    // Immediate word count update locally
-    const currentWordCount = countWords(newText);
-    setWordCount(currentWordCount);
 
-    // Debounced sending to server
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current);
+    const wc = countWords(newText);
+    setWordCount(wc);
+
+    // Optimistically update the car position immediately
+    if (participantId) {
+      updateLocalWordCount(participantId, wc);
     }
-    
+
+    // Send to server (debounced at 100ms for fast syncing)
+    if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
     debounceTimeoutRef.current = window.setTimeout(() => {
       sendTextUpdate(newText);
-    }, 300);
+    }, 100);
+  };
+
+  const handleStyleChange = (partial: Partial<WritingStyle>) => {
+    setWritingStyle((prev) => ({ ...prev, ...partial }));
   };
 
   const copyRoomCode = () => {
     navigator.clipboard.writeText(code);
-    toast({
-      title: "Copied!",
-      description: "Room code copied to clipboard",
-    });
+    toast({ title: "Copied!", description: "Room code copied to clipboard." });
   };
 
   if (error) {
@@ -104,19 +108,24 @@ export default function Room() {
     );
   }
 
-  const isCreator = room.participants.find(p => p.id === participantId)?.isCreator || isCreatorParams;
+  const isCreator =
+    room.participants.find((p) => p.id === participantId)?.isCreator || isCreatorParams;
+
+  const isRunning = room.status === "running";
+  const isWaiting = room.status === "waiting";
+  const isFinished = room.status === "finished";
 
   return (
-    <div className="min-h-screen w-full max-w-5xl mx-auto flex flex-col p-4 md:p-6 lg:p-8 gap-6">
-      
-      {/* Header bar */}
+    <div className="min-h-screen w-full max-w-5xl mx-auto flex flex-col p-4 md:p-6 gap-4">
+
+      {/* Header */}
       <header className="flex items-center justify-between bg-card border rounded-lg px-4 py-3 shadow-sm">
         <div className="flex items-center gap-3">
-          <h1 className="font-serif font-bold text-xl text-foreground">Writing Sprint</h1>
-          <div className="h-4 w-px bg-border hidden sm:block"></div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">Room:</span>
-            <code className="font-mono text-sm font-bold bg-muted px-2 py-1 rounded select-all">
+          <h1 className="font-serif font-bold text-lg text-foreground">Writing Sprint</h1>
+          <div className="h-4 w-px bg-border hidden sm:block" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm text-muted-foreground">Room:</span>
+            <code className="font-mono text-sm font-bold bg-muted px-2 py-0.5 rounded select-all">
               {code}
             </code>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={copyRoomCode}>
@@ -124,78 +133,109 @@ export default function Room() {
             </Button>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <div className="flex -space-x-2">
-            {room.participants.slice(0, 3).map(p => (
-              <div key={p.id} className="w-8 h-8 rounded-full bg-primary/20 border-2 border-card flex items-center justify-center text-xs font-bold text-primary" title={p.name}>
+            {room.participants.slice(0, 4).map((p) => (
+              <div
+                key={p.id}
+                title={p.name}
+                className="w-7 h-7 rounded-full bg-primary/20 border-2 border-card flex items-center justify-center text-[10px] font-bold text-primary"
+              >
                 {p.name.charAt(0).toUpperCase()}
               </div>
             ))}
-            {room.participants.length > 3 && (
-              <div className="w-8 h-8 rounded-full bg-muted border-2 border-card flex items-center justify-center text-xs font-medium text-muted-foreground">
-                +{room.participants.length - 3}
+            {room.participants.length > 4 && (
+              <div className="w-7 h-7 rounded-full bg-muted border-2 border-card flex items-center justify-center text-[10px] font-medium text-muted-foreground">
+                +{room.participants.length - 4}
               </div>
             )}
           </div>
-          <span className="text-sm font-medium text-muted-foreground ml-2">
-            {room.participants.length} {room.participants.length === 1 ? 'writer' : 'writers'}
+          <span className="text-sm text-muted-foreground ml-1">
+            {room.participants.length} {room.participants.length === 1 ? "writer" : "writers"}
           </span>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      {room.status === "finished" ? (
+      {/* Main */}
+      {isFinished ? (
         <div className="flex-1 flex items-center justify-center">
-          <ResultsScreen 
-            participants={room.participants} 
-            currentParticipantId={participantId} 
-            isCreator={isCreator} 
-            onRestart={restartSprint} 
+          <ResultsScreen
+            participants={room.participants}
+            currentParticipantId={participantId}
+            isCreator={isCreator}
+            onRestart={restartSprint}
           />
         </div>
       ) : (
-        <div className="flex-1 flex flex-col gap-6">
+        <div className="flex-1 flex flex-col gap-4">
           <RaceTrack participants={room.participants} currentParticipantId={participantId} />
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 flex-1">
-            
-            <div className="md:col-span-3 flex flex-col gap-2">
-              <div className="relative flex-1 min-h-[400px]">
-                <Textarea
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
+
+            {/* Writing area */}
+            <div className="md:col-span-3 flex flex-col">
+              <WritingToolbar
+                style={writingStyle}
+                onChange={handleStyleChange}
+                disabled={false}
+              />
+              <div className="relative flex-1 min-h-[380px]">
+                <textarea
                   value={text}
                   onChange={handleTextChange}
-                  disabled={room.status !== "running"}
-                  placeholder={room.status === "running" ? "Start writing here..." : "Waiting for the sprint to start..."}
-                  className="w-full h-full resize-none bg-card border shadow-sm text-lg font-serif leading-relaxed p-6 md:p-8 focus-visible:ring-primary/50 text-foreground"
+                  disabled={!isRunning}
+                  placeholder={
+                    isRunning
+                      ? "Start writing here..."
+                      : "Waiting for the sprint to start..."
+                  }
                   spellCheck={false}
                   autoComplete="off"
+                  className="w-full h-full resize-none bg-card border rounded-b-lg shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground disabled:opacity-60 disabled:cursor-not-allowed"
+                  style={{
+                    fontFamily: writingStyle.fontFamily,
+                    fontSize: `${writingStyle.fontSize}px`,
+                    lineHeight: writingStyle.lineHeight,
+                    borderTop: "none",
+                  }}
                 />
-                
-                {/* Word count badge in corner of textarea */}
-                <div className="absolute bottom-4 right-4 bg-background/80 backdrop-blur border px-3 py-1.5 rounded-md shadow-sm pointer-events-none flex items-baseline gap-1.5">
+
+                {/* Word count badge */}
+                <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur border px-3 py-1.5 rounded-md shadow-sm pointer-events-none flex items-baseline gap-1.5">
                   <span className="font-mono font-bold text-lg">{wordCount}</span>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Words</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    words
+                  </span>
                 </div>
               </div>
             </div>
 
-            <div className="md:col-span-1 flex flex-col gap-6">
+            {/* Sidebar */}
+            <div className="md:col-span-1 flex flex-col gap-4">
               <Timer timeLeft={room.timeLeft} status={room.status} />
-              
-              {room.status === "waiting" && isCreator && (
-                <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-4">
-                  <h3 className="font-medium text-sm text-muted-foreground">Host Controls</h3>
-                  <Button onClick={startSprint} size="lg" className="w-full group">
+
+              {isWaiting && isCreator && (
+                <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-3">
+                  <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
+                  <Button onClick={startSprint} size="lg" className="w-full">
                     <Play className="w-4 h-4 mr-2" />
                     Start Sprint
                   </Button>
                 </div>
               )}
 
-              {room.status === "running" && isCreator && (
-                <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-4">
-                  <h3 className="font-medium text-sm text-muted-foreground">Host Controls</h3>
+              {isWaiting && !isCreator && (
+                <div className="bg-card border rounded-lg p-4 shadow-sm text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Waiting for the host to start the sprint...
+                  </p>
+                </div>
+              )}
+
+              {isRunning && isCreator && (
+                <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-3">
+                  <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
                   <Button onClick={endSprint} variant="destructive" className="w-full">
                     End Early
                   </Button>
@@ -206,7 +246,6 @@ export default function Room() {
           </div>
         </div>
       )}
-      
     </div>
   );
 }

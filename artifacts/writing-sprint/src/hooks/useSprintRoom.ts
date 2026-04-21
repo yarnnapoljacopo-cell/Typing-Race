@@ -121,6 +121,18 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     };
   }, [connect]);
 
+  const updateLocalWordCount = useCallback((participantId: string, wordCount: number) => {
+    setRoom((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        participants: prev.participants.map((p) =>
+          p.id === participantId ? { ...p, wordCount } : p
+        ),
+      };
+    });
+  }, []);
+
   const sendTextUpdate = useCallback((text: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: "text_update", text }));
@@ -151,6 +163,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     isConnected,
     error,
     sendTextUpdate,
+    updateLocalWordCount,
     startSprint,
     restartSprint,
     endSprint,
