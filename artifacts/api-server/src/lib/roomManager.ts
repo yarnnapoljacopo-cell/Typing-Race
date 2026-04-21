@@ -87,6 +87,42 @@ export function getRoom(code: string): Room | undefined {
   return rooms.get(code);
 }
 
+export function getActiveRooms(): Array<{
+  code: string;
+  creatorName: string;
+  durationMinutes: number;
+  mode: RoomMode;
+  wordGoal: number | null;
+  status: RoomStatus;
+  participantCount: number;
+  timeLeft: number | null;
+  countdownTimeLeft: number | null;
+}> {
+  const now = Date.now();
+  return Array.from(rooms.values())
+    .filter((r) => r.status !== "finished")
+    .map((r) => {
+      let timeLeft: number | null = null;
+      let countdownTimeLeft: number | null = null;
+      if (r.status === "countdown" && r.countdownEndsAt) {
+        countdownTimeLeft = Math.max(0, Math.ceil((r.countdownEndsAt - now) / 1000));
+      } else if (r.status === "running" && r.endTime) {
+        timeLeft = Math.max(0, Math.floor((r.endTime - now) / 1000));
+      }
+      return {
+        code: r.code,
+        creatorName: r.creatorName,
+        durationMinutes: r.durationMinutes,
+        mode: r.mode,
+        wordGoal: r.wordGoal,
+        status: r.status,
+        participantCount: Array.from(r.participants.values()).filter((p) => !p.isSpectator).length,
+        timeLeft,
+        countdownTimeLeft,
+      };
+    });
+}
+
 export function broadcastToRoom(room: Room, message: object, excludeId?: string): void {
   const payload = JSON.stringify(message);
   room.participants.forEach((p) => {

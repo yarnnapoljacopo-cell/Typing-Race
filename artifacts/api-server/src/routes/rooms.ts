@@ -1,12 +1,16 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
-import { createRoom, getRoom } from "../lib/roomManager";
+import { createRoom, getRoom, getActiveRooms } from "../lib/roomManager";
 import { saveWriting, getWriting, getUserSprints } from "../lib/writingStore";
 import { CreateRoomBody, GetRoomParams } from "@workspace/api-zod";
 import { db, userProfilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
+
+router.get("/rooms", async (_req, res): Promise<void> => {
+  res.json(getActiveRooms());
+});
 
 router.post("/rooms", async (req, res): Promise<void> => {
   const parsed = CreateRoomBody.safeParse(req.body);

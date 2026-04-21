@@ -16,10 +16,11 @@ import {
 } from "@/components/ui/dialog";
 import {
   PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
-  Clock, BookOpen, LogOut, Pencil,
+  Clock, BookOpen, LogOut, Pencil, Radio,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
+import ActiveRooms from "./ActiveRooms";
 
 type RoomMode = "regular" | "open" | "goal";
 
@@ -183,10 +184,14 @@ export default function Portal() {
         </div>
 
         <Tabs defaultValue="sprint" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-2">
+          <TabsList className="grid w-full grid-cols-3 mb-2">
             <TabsTrigger value="sprint" className="flex items-center gap-1.5">
               <Clock size={14} />
               Sprint
+            </TabsTrigger>
+            <TabsTrigger value="rooms" className="flex items-center gap-1.5">
+              <Radio size={14} />
+              Active Rooms
             </TabsTrigger>
             <TabsTrigger value="past" className="flex items-center gap-1.5">
               <BookOpen size={14} />
@@ -364,6 +369,10 @@ export default function Portal() {
                 </Tabs>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="rooms">
+            <ActiveRooms />
           </TabsContent>
 
           <TabsContent value="past">
