@@ -46,6 +46,30 @@ function countWords(str: string): number {
   return count;
 }
 
+// Play a short ascending chime when the sprint starts (Web Audio API, no file needed)
+function playStartSound() {
+  try {
+    const ctx = new AudioContext();
+    // Three-note ascending arpeggio: C5 → E5 → G5
+    const notes = [523.25, 659.25, 783.99];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.13;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.25, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      osc.start(t);
+      osc.stop(t + 0.6);
+    });
+    setTimeout(() => ctx.close(), 2500);
+  } catch { /* audio unavailable — silent fallback */ }
+}
+
 // Schedule a function during browser idle time so it never blocks typing
 function scheduleIdle(fn: () => void) {
   if (typeof requestIdleCallback !== "undefined") {
@@ -287,6 +311,9 @@ export default function Room() {
   useEffect(() => {
     if (!room) return;
     if (prevStatusRef.current !== "running" && room.status === "running") {
+      // Play chime on genuine sprint start — skip on page-refresh reconnect (prevStatus===null)
+      if (prevStatusRef.current !== null) playStartSound();
+
       const restored = restoredNetWordsRef.current;
       const currentTotalWords = countWords(currentTextRef.current);
       if (prevStatusRef.current === null && restored > 0) {
