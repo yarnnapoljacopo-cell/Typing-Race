@@ -191,6 +191,21 @@ router.post("/user/files", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+router.delete("/user/sprints/:id", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  await db
+    .delete(sprintWritingTable)
+    .where(and(eq(sprintWritingTable.id, id), eq(sprintWritingTable.clerkUserId, clerkUserId)));
+
+  res.json({ ok: true });
+});
+
 router.delete("/user/files/:id", async (req, res): Promise<void> => {
   const auth = getAuth(req);
   const clerkUserId = auth?.userId;

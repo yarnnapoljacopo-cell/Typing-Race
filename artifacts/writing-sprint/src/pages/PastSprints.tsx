@@ -1,7 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, FileText } from "lucide-react";
+import { Loader2, FileText, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface Sprint {
   id: number;
@@ -21,6 +23,14 @@ async function fetchSprints(): Promise<Sprint[]> {
   const res = await fetch(`${basePath}/api/user/sprints`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to load sprints");
   return res.json();
+}
+
+async function deleteSprint(id: number): Promise<void> {
+  const res = await fetch(`${basePath}/api/user/sprints/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to delete sprint");
 }
 
 function formatDate(dateStr: string) {
@@ -87,7 +97,9 @@ function ModeBadge({ mode, wordGoal, wordCount }: { mode: string; wordGoal: numb
   return null;
 }
 
-function SprintCard({ sprint }: { sprint: Sprint }) {
+function SprintCard({ sprint, onDelete }: { sprint: Sprint; onDelete: (id: number) => void }) {
+  const [confirming, setConfirming] = useState(false);
+
   return (
     <Card className="border-border">
       <CardContent className="p-4">
@@ -107,6 +119,35 @@ function SprintCard({ sprint }: { sprint: Sprint }) {
               <ModeBadge mode={sprint.roomMode} wordGoal={sprint.wordGoal} wordCount={sprint.wordCount} />
             </div>
           </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {confirming ? (
+              <>
+                <button
+                  onClick={() => onDelete(sprint.id)}
+                  className="text-xs font-medium text-destructive hover:text-destructive/80 px-2 py-1 rounded border border-destructive/40 hover:bg-destructive/10 transition-colors"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => setConfirming(false)}
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-destructive h-7 w-7 p-0"
+                onClick={() => setConfirming(true)}
+                title="Delete sprint"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -114,9 +155,23 @@ function SprintCard({ sprint }: { sprint: Sprint }) {
 }
 
 export default function PastSprints() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const { data: sprints, isLoading, isError, refetch } = useQuery({
     queryKey: ["user-sprints"],
     queryFn: fetchSprints,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteSprint,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-sprints"] });
+      toast({ title: "Sprint deleted" });
+    },
+    onError: () => {
+      toast({ title: "Couldn't delete sprint", variant: "destructive" });
+    },
   });
 
   if (isLoading) {
@@ -169,7 +224,7 @@ export default function PastSprints() {
 
       <div className="space-y-3">
         {sprints.map((sprint) => (
-          <SprintCard key={sprint.id} sprint={sprint} />
+          <SprintCard key={sprint.id} sprint={sprint} onDelete={(id) => deleteMutation.mutate(id)} />
         ))}
       </div>
     </div>
