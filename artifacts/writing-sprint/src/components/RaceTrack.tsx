@@ -20,9 +20,10 @@ const LANE_COLORS: { car: string; text: string }[] = [
 const CAR_W = 48;
 
 // Words needed to reach the finish line.
-// ~30 words/min is a solid creative-writing pace for a sprint.
 function targetWords(durationMinutes: number) {
-  return Math.max(durationMinutes * 30, 60);
+  if (durationMinutes <= 30) return 2000;
+  if (durationMinutes <= 45) return 2500;
+  return 3500;
 }
 
 function CarIcon({ color }: { color: string }) {
@@ -192,7 +193,7 @@ export const RaceTrack = memo(function RaceTrack({
                         className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase tracking-wider"
                         style={{ color: "#fbbf24", textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}
                       >
-                        Goal reached! Keep going ↗
+                        You're on fire! 🔥
                       </motion.div>
                     )}
                   </AnimatePresence>
