@@ -35,6 +35,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [restoredWordCount, setRestoredWordCount] = useState<number | null>(null);
   // Live map of writer texts received by spectators
   const [participantTexts, setParticipantTexts] = useState<Record<string, ParticipantText>>({});
 
@@ -78,6 +79,10 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
               }));
             }
             hasJoinedRef.current = true;
+            // Signal Room.tsx if word count was restored from a previous session
+            if (typeof data.restoredWordCount === "number" && data.restoredWordCount > 0) {
+              setRestoredWordCount(data.restoredWordCount);
+            }
             break;
 
           case "room_state":
@@ -208,6 +213,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     isConnected,
     error,
     participantTexts,
+    restoredWordCount,
     setLatestText,
     sendTextUpdate,
     updateLocalWordCount,

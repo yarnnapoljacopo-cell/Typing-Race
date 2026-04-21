@@ -13,6 +13,7 @@ import {
   restartSprint,
   Participant,
 } from "./roomManager";
+import { getWriting } from "./writingStore";
 
 function countWords(text: string): number {
   return text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
@@ -27,7 +28,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
     let participantId: string | null = null;
     let roomCode: string | null = null;
 
-    ws.on("message", (data: Buffer) => {
+    ws.on("message", async (data: Buffer) => {
       let message: Record<string, unknown>;
       try {
         message = JSON.parse(data.toString());
@@ -58,22 +59,43 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           return;
         }
 
+        // ── Inherit state from a previous connection with the same name ──────
+        // If someone disconnects and quickly reconnects, they may still appear
+        // in the room. Transfer their word count and text to the new connection.
+        let inheritedWordCount = 0;
+        let inheritedText = "";
+        let inheritedIsCreator = false;
+        for (const [existingId, existingP] of room.participants) {
+          if (existingP.name === name) {
+            inheritedWordCount = existingP.wordCount;
+            inheritedText = existingP.latestText;
+            inheritedIsCreator = existingP.isCreator;
+            removeParticipant(room, existingId);
+            break;
+          }
+        }
+
+        // ── Restore word count from DB if higher than in-memory value ────────
+        const saved = await getWriting(code, name);
+        const restoredWordCount = Math.max(inheritedWordCount, saved?.wordCount ?? 0);
+        const restoredText = inheritedText || saved?.text || "";
+
         participantId = uuidv4();
         roomCode = code;
 
-        const isCreator = room.participants.size === 0 && name === room.creatorName;
+        const isCreator = inheritedIsCreator || (room.participants.size === 0 && name === room.creatorName);
 
         const participant: Participant = {
           id: participantId,
           name,
-          wordCount: 0,
+          wordCount: restoredWordCount,
           wpm: 0,
           lastWordCountTime: Date.now(),
-          lastWordCount: 0,
+          lastWordCount: restoredWordCount,
           ws,
           isCreator,
           isSpectator: false,
-          latestText: "",
+          latestText: restoredText,
         };
 
         addParticipant(room, participant);
@@ -91,6 +113,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             type: "joined",
             participantId,
             isCreator,
+            restoredWordCount: restoredWordCount > 0 ? restoredWordCount : undefined,
             room: {
               code: room.code,
               status: room.status,

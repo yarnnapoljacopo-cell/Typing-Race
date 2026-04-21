@@ -142,6 +142,7 @@ export default function Room() {
     isConnected,
     error,
     participantTexts,
+    restoredWordCount,
     setLatestText,
     sendTextUpdate,
     updateLocalWordCount,
@@ -153,6 +154,15 @@ export default function Room() {
   useEffect(() => {
     if (!code || !name) setLocation("/");
   }, [code, name, setLocation]);
+
+  // ── Toast when server restored previous word count ───────────────────
+  useEffect(() => {
+    if (!restoredWordCount) return;
+    toast({
+      title: "Progress restored",
+      description: `Your previous ${restoredWordCount} words have been recovered — continue right where you left off.`,
+    });
+  }, [restoredWordCount, toast]);
 
   // Restore cursor after a programmatic paragraph insert
   useEffect(() => {
@@ -320,14 +330,29 @@ export default function Room() {
   // ── Render ────────────────────────────────────────────────────────────
 
   if (error) {
+    const isFinishedError = error.toLowerCase().includes("finished");
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <Alert variant="destructive" className="max-w-md">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Connection Error</AlertTitle>
+          <AlertTitle>{isFinishedError ? "Sprint Ended" : "Connection Error"}</AlertTitle>
           <AlertDescription className="space-y-4 mt-2">
-            <p>{error}</p>
-            <Button variant="outline" onClick={() => setLocation("/")} className="w-full">Return Home</Button>
+            <p>{isFinishedError ? "This sprint has already finished. Your writing is safely saved." : error}</p>
+            <div className="flex flex-col gap-2">
+              {!isFinishedError && code && name && (
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    setLocation(`/room?code=${encodeURIComponent(code)}&name=${encodeURIComponent(name)}`);
+                    window.location.reload();
+                  }}
+                  className="w-full"
+                >
+                  Rejoin Room
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setLocation("/")} className="w-full">Return Home</Button>
+            </div>
           </AlertDescription>
         </Alert>
       </div>

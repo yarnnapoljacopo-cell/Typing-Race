@@ -5,7 +5,8 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { Eye, FileText } from "lucide-react";
+import { Eye, FileText, Copy, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const LANE_COLORS = [
   "#3b82f6", // blue
@@ -24,20 +25,52 @@ interface SpectatorViewProps {
   currentParticipantId: string | null;
 }
 
-function WritingPreview({ text, wordCount }: { text: string; wordCount: number }) {
-  const preview = text.length > 600 ? "…" + text.slice(-600) : text;
+function WritingPreview({
+  text,
+  wordCount,
+  fullText,
+}: {
+  text: string;
+  wordCount: number;
+  fullText: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (!fullText) return;
+    navigator.clipboard.writeText(fullText).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <FileText className="w-3 h-3" />
-        <span className="font-mono font-semibold">{wordCount}</span>
-        <span>words written</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <FileText className="w-3 h-3" />
+          <span className="font-mono font-semibold">{wordCount}</span>
+          <span>words written</span>
+        </div>
+        {fullText && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-xs gap-1.5"
+            onClick={handleCopy}
+          >
+            {copied ? (
+              <><Check className="w-3 h-3 text-green-500" /> Copied!</>
+            ) : (
+              <><Copy className="w-3 h-3" /> Copy all</>
+            )}
+          </Button>
+        )}
       </div>
       {text ? (
         <div className="max-h-64 overflow-auto rounded border bg-muted/30 p-3">
           <pre className="font-serif text-xs whitespace-pre-wrap break-words leading-relaxed text-foreground">
-            {preview}
+            {text}
           </pre>
         </div>
       ) : (
@@ -73,6 +106,10 @@ export function SpectatorView({
       {sorted.map((p, i) => {
         const color = LANE_COLORS[i % LANE_COLORS.length];
         const pText = participantTexts[p.id];
+        const fullText = pText?.text ?? "";
+        const preview = fullText.length > 600
+          ? fullText.slice(0, 600) + "…"
+          : fullText;
         const isMe = p.id === currentParticipantId;
 
         return (
@@ -138,8 +175,9 @@ export function SpectatorView({
                   <span className="text-sm font-semibold">{p.name}</span>
                 </div>
                 <WritingPreview
-                  text={pText?.text ?? ""}
+                  text={preview}
                   wordCount={p.wordCount}
+                  fullText={fullText}
                 />
               </div>
             </HoverCardContent>
