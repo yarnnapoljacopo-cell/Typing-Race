@@ -331,15 +331,26 @@ export default function Room() {
 
   if (error) {
     const isFinishedError = error.toLowerCase().includes("finished");
+    const isRoomGone = error === "Room not found";
+    const canRejoin = !isFinishedError && !isRoomGone && code && name;
+
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <Alert variant="destructive" className="max-w-md">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>{isFinishedError ? "Sprint Ended" : "Connection Error"}</AlertTitle>
+          <AlertTitle>
+            {isFinishedError ? "Sprint Ended" : isRoomGone ? "Room No Longer Available" : "Connection Error"}
+          </AlertTitle>
           <AlertDescription className="space-y-4 mt-2">
-            <p>{isFinishedError ? "This sprint has already finished. Your writing is safely saved." : error}</p>
+            <p>
+              {isFinishedError
+                ? "This sprint has already finished. Your writing is safely saved."
+                : isRoomGone
+                ? "This room has expired or been closed. Rooms only last while the session is active — once everyone leaves or the server restarts, the room is gone. Your writing was saved and you can download it from home."
+                : error}
+            </p>
             <div className="flex flex-col gap-2">
-              {!isFinishedError && code && name && (
+              {canRejoin && (
                 <Button
                   variant="default"
                   onClick={() => {

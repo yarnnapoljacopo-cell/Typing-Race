@@ -126,6 +126,14 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
 
           case "error":
             setError(data.message);
+            // For fatal room errors, stop the reconnect loop
+            if (
+              data.message === "Room not found" ||
+              data.message === "Sprint already finished"
+            ) {
+              hasJoinedRef.current = false;
+              ws.close();
+            }
             break;
 
           case "pong":
