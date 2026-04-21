@@ -130,6 +130,23 @@ router.get("/user/sprints/:id/text", async (req, res): Promise<void> => {
   res.json({ text: rows[0].text });
 });
 
+function htmlToPlain(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 router.get("/user/files", async (req, res): Promise<void> => {
   const auth = getAuth(req);
   const clerkUserId = auth?.userId;
@@ -147,7 +164,7 @@ router.get("/user/files", async (req, res): Promise<void> => {
     participantName: r.participantName,
     wordCount: r.wordCount,
     updatedAt: r.updatedAt,
-    excerpt: r.text.slice(0, 200),
+    excerpt: htmlToPlain(r.text).slice(0, 200),
   })));
 });
 

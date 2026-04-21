@@ -38,6 +38,18 @@ async function unsaveFile(id: number): Promise<void> {
   if (!res.ok) throw new Error("Failed to remove file");
 }
 
+function htmlToPlain(html: string): string {
+  if (!html) return "";
+  const div = document.createElement("div");
+  div.innerHTML = html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n");
+  return (div.textContent ?? div.innerText ?? "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -67,8 +79,8 @@ function FileCard({ file, onRemove }: { file: SavedFile; onRemove: (id: number) 
     if (!expanded && fullText === null) {
       setLoadingText(true);
       try {
-        const text = await fetchFullText(file.id);
-        setFullText(text);
+        const raw = await fetchFullText(file.id);
+        setFullText(htmlToPlain(raw));
       } catch {
         setFullText(file.excerpt);
       } finally {
@@ -84,8 +96,10 @@ function FileCard({ file, onRemove }: { file: SavedFile; onRemove: (id: number) 
     if (text === null) {
       setLoadingText(true);
       try {
-        text = await fetchFullText(file.id);
-        setFullText(text);
+        const raw = await fetchFullText(file.id);
+        const plain = htmlToPlain(raw);
+        setFullText(plain);
+        text = plain;
       } catch {
         text = file.excerpt;
       } finally {
@@ -138,7 +152,7 @@ function FileCard({ file, onRemove }: { file: SavedFile; onRemove: (id: number) 
         </div>
 
         {displayText && (
-          <div className={`text-sm text-muted-foreground leading-relaxed font-serif ${!expanded ? "line-clamp-3" : ""}`}>
+          <div className={`text-sm text-muted-foreground leading-relaxed font-serif whitespace-pre-line ${!expanded ? "line-clamp-3" : ""}`}>
             {displayText}
           </div>
         )}
