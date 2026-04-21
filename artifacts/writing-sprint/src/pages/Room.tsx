@@ -104,7 +104,10 @@ export default function Room() {
   );
   // Persistent save-status pill: never disappears, only upgrades.
   // "unsaved" → "local" (400 ms debounce) → "cloud" (5 s debounce).
-  const [saveStatus, setSaveStatus] = useState<"unsaved" | "local" | "cloud">("unsaved");
+  const [saveStatus, setSaveStatus] = useState<"unsaved" | "local" | "cloud">(() =>
+    // If we loaded text from localStorage, start in "local" state
+    code && localStorage.getItem(autoSaveKey(code)) ? "local" : "unsaved"
+  );
   const [capsuleFlash, setCapsuleFlash] = useState(false);
   const [slowBitchVisible, setSlowBitchVisible] = useState(false);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
@@ -126,6 +129,7 @@ export default function Room() {
   const pendingNetWcRef = useRef<number>(0);
   const serverSaveTimeoutRef = useRef<number | null>(null);
   const capsuleFlashTimeoutRef = useRef<number | null>(null);
+  const textareaInitDoneRef = useRef(false);
   const pendingCursorRef = useRef<number | null>(null);
   const lastCapsuleThresholdRef = useRef<number>(
     capsules.filter((c) => !c.isFinal).reduce((max, c) => Math.max(max, c.wordCount), 0)
@@ -252,10 +256,16 @@ export default function Room() {
     });
   }, [restoredWordCount, toast]);
 
-  // ── Seed contenteditable with localStorage content on first mount ────────
+  // ── Seed contenteditable with localStorage content once the div is in the DOM
+  // The component does an early return when !room, so textareaRef is null on the
+  // very first render.  We watch participantId (set at the same time as room) so
+  // the effect retries after the room loads and the div is actually mounted.
   useEffect(() => {
+    if (textareaInitDoneRef.current) return; // already ran
     const div = textareaRef.current;
-    if (!div || !text) return;
+    if (!div) return; // div not in DOM yet — will retry when participantId changes
+    textareaInitDoneRef.current = true;
+    if (!text) return;
     div.innerHTML = text;
     // Cursor to end
     const sel = window.getSelection();
@@ -266,8 +276,9 @@ export default function Room() {
       sel.removeAllRanges();
       sel.addRange(range);
     }
+  // text is intentionally omitted: we only want the stored value, not re-init on keystrokes
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // only once on mount
+  }, [participantId]); // participantId defined ⟹ room loaded ⟹ div now in DOM
 
   useEffect(() => { currentTextRef.current = text; }, [text]);
   useEffect(() => { currentCapsulesRef.current = capsules; }, [capsules]);
