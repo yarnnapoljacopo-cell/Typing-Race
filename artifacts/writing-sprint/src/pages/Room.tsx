@@ -8,7 +8,7 @@ import { WritingToolbar, type WritingStyle } from "@/components/WritingToolbar";
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 import { SpectatorView } from "@/components/SpectatorView";
 import { Button } from "@/components/ui/button";
-import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye } from "lucide-react";
+import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 
@@ -85,6 +85,7 @@ export default function Room() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
   const autoSaveTimeoutRef = useRef<number | null>(null);
+  const serverSaveTimeoutRef = useRef<number | null>(null);
   const savedFlashTimeoutRef = useRef<number | null>(null);
   const capsuleFlashTimeoutRef = useRef<number | null>(null);
   const pendingCursorRef = useRef<number | null>(null);
@@ -94,6 +95,7 @@ export default function Room() {
   const currentTextRef = useRef<string>(text);
   const currentCapsulesRef = useRef<Capsule[]>(capsules);
   const finalSnapshotTakenRef = useRef<boolean>(false);
+  const serverRestoreDoneRef = useRef<boolean>(false);
 
   // ── Baseline: words written BEFORE sprint started don't count ──────────
   // Set to the wordCount at the moment the sprint transitions to "running".
@@ -107,6 +109,31 @@ export default function Room() {
       if (t) localStorage.setItem(autoSaveKey(code), t);
       else localStorage.removeItem(autoSaveKey(code));
     } catch { /* storage unavailable */ }
+  }, [code]);
+
+  // ── Server backup helpers ───────────────────────────────────────────────
+  const serverSaveNow = useCallback((textToSave: string, wc: number) => {
+    if (!code || !name || !textToSave) return;
+    fetch(`/api/rooms/${encodeURIComponent(code)}/writing`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ participantName: name, text: textToSave, wordCount: wc }),
+    }).catch(() => { /* silent — localStorage is the local fallback */ });
+  }, [code, name]);
+
+  const scheduleServerSave = useCallback((textToSave: string, wc: number) => {
+    if (serverSaveTimeoutRef.current) clearTimeout(serverSaveTimeoutRef.current);
+    serverSaveTimeoutRef.current = window.setTimeout(() => serverSaveNow(textToSave, wc), 10_000);
+  }, [serverSaveNow]);
+
+  const downloadWriting = useCallback(() => {
+    const blob = new Blob([currentTextRef.current], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `writing-sprint-${code}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   }, [code]);
 
   const {
@@ -184,6 +211,8 @@ export default function Room() {
     flushAutoSave();
     const finalText = currentTextRef.current;
     const finalWords = countWords(finalText);
+    // Flush to server immediately on sprint end
+    serverSaveNow(finalText, finalWords);
     if (!finalText) return;
     setCapsules((prev) => {
       const filtered = prev.filter((c) => !c.isFinal);
@@ -191,7 +220,8 @@ export default function Room() {
       saveCapsules(code, next);
       return next;
     });
-  }, [room?.status, code, flushAutoSave]);
+  }, [room?.status, code, flushAutoSave, serverSaveNow]);
+
 
   // ── Core text update ──────────────────────────────────────────────────
 
@@ -229,7 +259,7 @@ export default function Room() {
     if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
     debounceTimeoutRef.current = window.setTimeout(() => sendTextUpdate(newText, netWc), 100);
 
-    // 400ms debounced autosave
+    // 400ms debounced autosave to localStorage
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     autoSaveTimeoutRef.current = window.setTimeout(() => {
       flushAutoSave();
@@ -237,7 +267,27 @@ export default function Room() {
       if (savedFlashTimeoutRef.current) clearTimeout(savedFlashTimeoutRef.current);
       savedFlashTimeoutRef.current = window.setTimeout(() => setSavedFlash(false), 1500);
     }, 400);
-  }, [code, participantId, setLatestText, sendTextUpdate, updateLocalWordCount, flushAutoSave]);
+
+    // 10s debounced server backup
+    scheduleServerSave(newText, netWc);
+  }, [code, participantId, setLatestText, sendTextUpdate, updateLocalWordCount, flushAutoSave, scheduleServerSave]);
+
+  // ── Restore from server if localStorage was empty ──────────────────────
+  useEffect(() => {
+    if (!code || !name || serverRestoreDoneRef.current) return;
+    if (currentTextRef.current) { serverRestoreDoneRef.current = true; return; }
+    serverRestoreDoneRef.current = true;
+    fetch(`/api/rooms/${encodeURIComponent(code)}/writing/${encodeURIComponent(name)}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.text && !currentTextRef.current) {
+          applyText(data.text);
+          try { localStorage.setItem(autoSaveKey(code), data.text); } catch { /* ignore */ }
+          toast({ title: "Writing restored", description: "Your previous writing has been recovered from the server." });
+        }
+      })
+      .catch(() => { /* silent */ });
+  }, [code, name, applyText, toast]);
 
   // ── Handlers ─────────────────────────────────────────────────────────
 
@@ -450,6 +500,16 @@ export default function Room() {
                 triggerVariant="outline"
                 triggerClassName="w-full"
               />
+
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={downloadWriting}
+                disabled={!text}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download .txt
+              </Button>
 
               {/* Live writers panel — only in open mode */}
               {isOpenMode && otherParticipants.length > 0 && (

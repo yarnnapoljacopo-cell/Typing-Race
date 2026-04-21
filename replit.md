@@ -37,7 +37,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Express 5 server at `/api` and `/ws`
 - WebSocket server for real-time room management (`src/lib/wsHandler.ts`)
 - In-memory room manager (`src/lib/roomManager.ts`) — rooms live for 2 hours
-- No database needed — all state is in-memory
+- PostgreSQL writing backup: PUT /api/rooms/:code/writing, GET /api/rooms/:code/writing/:name
+- Writing store (`src/lib/writingStore.ts`) — Drizzle upsert/fetch on `sprint_writing` table
 
 ## WebSocket Protocol
 

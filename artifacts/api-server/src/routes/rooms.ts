@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { createRoom, getRoom } from "../lib/roomManager";
+import { saveWriting, getWriting } from "../lib/writingStore";
 import { CreateRoomBody, GetRoomParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -43,6 +44,31 @@ router.get("/rooms/:code", async (req, res): Promise<void> => {
     status: room.status,
     participantCount: room.participants.size,
   });
+});
+
+router.put("/rooms/:code/writing", async (req, res): Promise<void> => {
+  const code = req.params.code?.toUpperCase();
+  if (!code) { res.status(400).json({ error: "Missing code" }); return; }
+
+  const { participantName, text, wordCount } = req.body ?? {};
+  if (typeof participantName !== "string" || !participantName.trim()) {
+    res.status(400).json({ error: "participantName required" }); return;
+  }
+  if (typeof text !== "string") { res.status(400).json({ error: "text required" }); return; }
+  const wc = typeof wordCount === "number" ? Math.max(0, Math.floor(wordCount)) : 0;
+
+  await saveWriting(code, participantName.trim(), text, wc);
+  res.json({ ok: true });
+});
+
+router.get("/rooms/:code/writing/:participantName", async (req, res): Promise<void> => {
+  const code = req.params.code?.toUpperCase();
+  const participantName = req.params.participantName;
+  if (!code || !participantName) { res.status(400).json({ error: "Missing params" }); return; }
+
+  const result = await getWriting(code, participantName);
+  if (!result) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(result);
 });
 
 export default router;
