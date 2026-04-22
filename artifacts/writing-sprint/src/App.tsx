@@ -111,6 +111,12 @@ function HomeRedirect() {
   const { guestName } = useGuest();
 
   if (!isLoaded) return null;
+
+  // In the desktop app, go straight to offline sprint if there's no connection
+  if (!!(window as any).electronAPI && !navigator.onLine) {
+    return <Redirect to="/offline-sprint" />;
+  }
+
   if (isSignedIn || guestName) return <Redirect to="/portal" />;
   return <Home />;
 }
