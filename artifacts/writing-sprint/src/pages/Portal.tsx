@@ -295,40 +295,38 @@ export default function Portal() {
         )}
 
         <div className="flex items-center justify-between px-1">
-          {/* Skin toggle — unlocked at Eternal Quill (75k XP) */}
-          {!isGuest && (profile?.xp ?? 0) >= 75000 && (
-            <button
-              type="button"
-              onClick={cycleSkin}
-              title={`Active skin: ${SKINS[activeSkin]?.label ?? "Default"} — click to cycle`}
-              className={`fixed bottom-5 right-28 z-50 flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-bold shadow-xl border-2 transition-all duration-300 ${
-                activeSkin === "final"
-                  ? "bg-[#120e04] border-[#daa520] text-[#daa520]"
-                  : activeSkin === "eternal"
-                  ? "bg-[#07102a] border-[#60a5fa] text-[#60a5fa]"
-                  : "bg-background border-border text-foreground hover:border-blue-500 hover:text-blue-500"
-              }`}
-            >
-              <span className="text-base">{activeSkin === "final" ? "⚜️" : activeSkin === "eternal" ? "✨" : "🖋"}</span>
-              <span>{SKINS[activeSkin]?.label ?? "Default"}</span>
-            </button>
-          )}
-
-          {/* Villain Mode toggle — unlocked at Ink Reaper (10k XP) */}
+          {/* Mode toggles — circular icon buttons grouped at bottom-right */}
           {!isGuest && (profile?.xp ?? 0) >= 10000 && (
-            <button
-              type="button"
-              onClick={toggleVillainMode}
-              title={isVillainMode ? "Disable Villain Mode" : "Enable Villain Mode (Ink Reaper perk)"}
-              className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-bold shadow-xl border-2 transition-all duration-300 ${
-                isVillainMode
-                  ? "bg-red-950 border-red-600 text-red-300 hover:bg-red-900"
-                  : "bg-background border-border text-foreground hover:border-red-500 hover:text-red-500"
-              }`}
-            >
-              <span className="text-base">🩸</span>
-              <span>{isVillainMode ? "Villain Mode ON" : "Villain Mode"}</span>
-            </button>
+            <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2">
+              {(profile?.xp ?? 0) >= 75000 && (
+                <button
+                  type="button"
+                  onClick={cycleSkin}
+                  title={`Skin: ${SKINS[activeSkin]?.label ?? "Default"} — click to cycle`}
+                  className={`w-11 h-11 rounded-full flex items-center justify-center text-lg shadow-lg border-2 transition-all duration-200 hover:scale-110 active:scale-95 ${
+                    activeSkin === "final"
+                      ? "bg-[#120e04] border-[#daa520]"
+                      : activeSkin === "eternal"
+                      ? "bg-[#07102a] border-[#60a5fa]"
+                      : "bg-card border-border hover:border-primary"
+                  }`}
+                >
+                  {activeSkin === "final" ? "⚜️" : activeSkin === "eternal" ? "✨" : "🖋"}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={toggleVillainMode}
+                title={isVillainMode ? "Disable Villain Mode" : "Enable Villain Mode"}
+                className={`w-11 h-11 rounded-full flex items-center justify-center text-lg shadow-lg border-2 transition-all duration-200 hover:scale-110 active:scale-95 ${
+                  isVillainMode
+                    ? "bg-red-950 border-red-600"
+                    : "bg-card border-border hover:border-red-500"
+                }`}
+              >
+                🩸
+              </button>
+            </div>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
