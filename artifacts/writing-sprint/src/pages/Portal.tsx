@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -16,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
-  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User, Users,
+  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User, Users, ChevronDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
@@ -201,65 +208,52 @@ export default function Portal() {
         )}
 
         <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 text-sm">
-              <span className="font-medium text-foreground">
-                {(!isGuest && profileLoading) ? "…" : displayName}
-              </span>
-              <button
-                onClick={openEditDialog}
-                className="text-muted-foreground hover:text-primary transition-colors"
-                title="Edit writer name"
-              >
-                <Pencil size={13} />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1 text-sm text-foreground hover:text-primary transition-colors">
+                <span className="font-medium">
+                  {(!isGuest && profileLoading) ? "…" : displayName}
+                </span>
+                <ChevronDown size={13} className="text-muted-foreground mt-px" />
               </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[180px]">
+              <DropdownMenuItem onClick={openEditDialog} className="gap-2">
+                <Pencil size={14} className="text-muted-foreground" />
+                Edit writer name
+              </DropdownMenuItem>
               {!isGuest && (
                 <>
-                  <button
-                    onClick={() => setLocation("/my-files")}
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                    title="My Files"
-                  >
-                    <BookOpen size={15} />
-                  </button>
-                  <button
-                    onClick={() => setLocation("/friends")}
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                    title="Friends"
-                  >
-                    <Users size={15} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (profile?.writerName) setLocation(`/profile/${encodeURIComponent(profile.writerName)}`);
-                    }}
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                    title="My Profile"
-                    disabled={!profile?.writerName}
-                  >
-                    <User size={15} />
-                  </button>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setLocation("/my-files")} className="gap-2">
+                    <BookOpen size={14} className="text-muted-foreground" />
+                    My Files
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLocation("/friends")} className="gap-2">
+                    <Users size={14} className="text-muted-foreground" />
+                    Friends
+                  </DropdownMenuItem>
+                  {profile?.writerName && (
+                    <DropdownMenuItem
+                      onClick={() => setLocation(`/profile/${encodeURIComponent(profile.writerName!)}`)}
+                      className="gap-2"
+                    >
+                      <User size={14} className="text-muted-foreground" />
+                      My Profile
+                    </DropdownMenuItem>
+                  )}
                 </>
               )}
-            </div>
-          </div>
-          {isGuest ? (
-            <button
-              onClick={handleExitGuest}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <LogOut size={14} />
-              Exit guest
-            </button>
-          ) : (
-            <button
-              onClick={() => signOut()}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <LogOut size={14} />
-              Sign out
-            </button>
-          )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <button
+            onClick={isGuest ? handleExitGuest : () => signOut()}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <LogOut size={14} />
+            {isGuest ? "Exit guest" : "Sign out"}
+          </button>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
