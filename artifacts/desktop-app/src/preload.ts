@@ -23,6 +23,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
   saveSettings: (settings: Record<string, string>) =>
     ipcRenderer.invoke("save-settings", settings),
 
+  // Offline sprint file operations (desktop only)
+  saveDraft: (text: string) =>
+    ipcRenderer.invoke("save-draft", { text }),
+  saveRecovery: (text: string) =>
+    ipcRenderer.invoke("save-recovery", { text }),
+  checkRecovery: (): Promise<{ exists: boolean; content?: string }> =>
+    ipcRenderer.invoke("check-recovery"),
+  dismissRecovery: () =>
+    ipcRenderer.invoke("dismiss-recovery"),
+  saveSprintFile: (text: string, defaultName: string) =>
+    ipcRenderer.invoke("save-sprint-file", { text, defaultName }),
+  syncOfflineSprint: (data: { duration: number; words: number; text: string }) =>
+    ipcRenderer.invoke("sync-offline-sprint", data),
+
   // Events from main process (menu items)
   onGoOffline: (cb: () => void) => {
     ipcRenderer.on("trigger-go-offline", cb);

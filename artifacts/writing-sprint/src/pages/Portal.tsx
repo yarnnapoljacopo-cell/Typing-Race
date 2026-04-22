@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
-  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User, Users, ChevronDown, KeyRound, Crown,
+  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User, Users, ChevronDown, KeyRound, Crown, WifiOff,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
@@ -502,6 +502,24 @@ export default function Portal() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Sprint Offline button — Electron desktop only */}
+                {(window as any).__ELECTRON__ && (
+                  <button
+                    type="button"
+                    onClick={() => setLocation("/offline-sprint")}
+                    className="w-full flex items-center gap-3 rounded-xl border-2 border-dashed border-border px-4 py-3.5 text-left hover:border-muted-foreground/40 hover:bg-muted/30 transition-all group"
+                  >
+                    <div className="rounded-lg bg-muted p-2 group-hover:bg-muted-foreground/10 transition-colors">
+                      <WifiOff className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">Sprint Offline</div>
+                      <div className="text-xs text-muted-foreground">Full solo sprint · saves locally · no login needed</div>
+                    </div>
+                    <ArrowRight className="ml-auto w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                  </button>
+                )}
+
                 <Tabs defaultValue="join" className="w-full">
                   <TabsList className="grid w-full grid-cols-2 mb-4">
                     <TabsTrigger value="join">Join Room</TabsTrigger>

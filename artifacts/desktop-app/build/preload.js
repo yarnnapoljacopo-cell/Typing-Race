@@ -16,6 +16,13 @@ import_electron.contextBridge.exposeInMainWorld("electronAPI", {
   // Settings
   getSettings: () => import_electron.ipcRenderer.invoke("get-settings"),
   saveSettings: (settings) => import_electron.ipcRenderer.invoke("save-settings", settings),
+  // Offline sprint file operations (desktop only)
+  saveDraft: (text) => import_electron.ipcRenderer.invoke("save-draft", { text }),
+  saveRecovery: (text) => import_electron.ipcRenderer.invoke("save-recovery", { text }),
+  checkRecovery: () => import_electron.ipcRenderer.invoke("check-recovery"),
+  dismissRecovery: () => import_electron.ipcRenderer.invoke("dismiss-recovery"),
+  saveSprintFile: (text, defaultName) => import_electron.ipcRenderer.invoke("save-sprint-file", { text, defaultName }),
+  syncOfflineSprint: (data) => import_electron.ipcRenderer.invoke("sync-offline-sprint", data),
   // Events from main process (menu items)
   onGoOffline: (cb) => {
     import_electron.ipcRenderer.on("trigger-go-offline", cb);

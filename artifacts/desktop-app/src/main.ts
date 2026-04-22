@@ -159,6 +159,18 @@ function injectElectronBridge(win: BrowserWindow) {
   });
 }
 
+// ── Offline sprint helpers ─────────────────────────────────────────────────────
+
+function writingSprintDocsDir(sub: string) {
+  const base = path.join(app.getPath("documents"), "WritingSprint", sub);
+  fs.mkdirSync(base, { recursive: true });
+  return base;
+}
+
+function recoveryFilePath() {
+  return path.join(writingSprintDocsDir("recovery"), "recovery.txt");
+}
+
 // ── IPC Handlers ──────────────────────────────────────────────────────────────
 
 ipcMain.handle("save-file", async (_e, { content, defaultName }: { content: string; defaultName: string }) => {
@@ -230,6 +242,87 @@ ipcMain.handle("save-settings", (_e, settings: typeof DEFAULT_SETTINGS) => {
   currentSettings = settings;
   nativeTheme.themeSource = (settings.theme as "system" | "light" | "dark") ?? "system";
   return { ok: true };
+});
+
+// ── Offline sprint IPC ────────────────────────────────────────────────────────
+
+ipcMain.handle("save-draft", (_e, { text }: { text: string }) => {
+  const draftsDir = writingSprintDocsDir("drafts");
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fname = `sprint-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}.txt`;
+  const fpath = path.join(draftsDir, fname);
+  fs.writeFileSync(fpath, text, "utf-8");
+  return { ok: true, path: fpath };
+});
+
+ipcMain.handle("save-recovery", (_e, { text }: { text: string }) => {
+  fs.writeFileSync(recoveryFilePath(), text, "utf-8");
+  return { ok: true };
+});
+
+ipcMain.handle("check-recovery", () => {
+  const rp = recoveryFilePath();
+  if (fs.existsSync(rp)) {
+    const content = fs.readFileSync(rp, "utf-8");
+    if (content.trim()) return { exists: true, content };
+  }
+  return { exists: false };
+});
+
+ipcMain.handle("dismiss-recovery", () => {
+  const rp = recoveryFilePath();
+  if (fs.existsSync(rp)) fs.unlinkSync(rp);
+  return { ok: true };
+});
+
+ipcMain.handle("save-sprint-file", async (_e, { text, defaultName }: { text: string; defaultName: string }) => {
+  if (!mainWindow) return { saved: false };
+  const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: path.join(writingSprintDocsDir("drafts"), defaultName),
+    filters: [
+      { name: "Text File", extensions: ["txt"] },
+      { name: "Markdown", extensions: ["md"] },
+      { name: "Word Document", extensions: ["docx"] },
+    ],
+  });
+  if (canceled || !filePath) return { saved: false };
+
+  if (filePath.endsWith(".docx")) {
+    const { Document, Packer, Paragraph, TextRun } = await import("docx");
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: text.split("\n").map((line) =>
+          new Paragraph({ children: [new TextRun(line || " ")] })
+        ),
+      }],
+    });
+    const buffer = await Packer.toBuffer(doc);
+    fs.writeFileSync(filePath, buffer);
+  } else {
+    fs.writeFileSync(filePath, text, "utf-8");
+  }
+
+  const rp = recoveryFilePath();
+  if (fs.existsSync(rp)) fs.unlinkSync(rp);
+  return { saved: true, path: filePath };
+});
+
+ipcMain.handle("sync-offline-sprint", async (_e, { duration, words, text }: { duration: number; words: number; text: string }) => {
+  const url = currentSettings.serverUrl;
+  if (!url) return { ok: false, error: "No server URL configured" };
+  try {
+    const apiUrl = url.replace(/\/$/, "") + "/api/user/sprints";
+    const res = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ duration, words, text, source: "offline" }),
+    });
+    return { ok: res.ok, status: res.status };
+  } catch (err: any) {
+    return { ok: false, error: err?.message };
+  }
 });
 
 // ── Menu ──────────────────────────────────────────────────────────────────────

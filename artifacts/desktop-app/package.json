@@ -1,6 +1,6 @@
 {
   "name": "@workspace/desktop-app",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "Writing Sprint — Desktop App",
   "author": "Writing Sprint",
   "repository": {
@@ -23,6 +23,7 @@
     "version": "node scripts/bump.mjs"
   },
   "dependencies": {
+    "docx": "^9.6.1",
     "electron-updater": "^6.8.3"
   },
   "devDependencies": {

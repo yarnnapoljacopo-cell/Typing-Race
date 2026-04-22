@@ -1,0 +1,55 @@
+Here's the prompt for Replit Agent:
+
+    Add a dedicated Offline Mode button to the Writing Sprint desktop app that gives users a full solo sprint experience without needing an internet connection.
+
+    Entry point:
+
+        Add a clearly visible "Sprint Offline" button on the main screen alongside the existing Join/Create room buttons
+        The button should only appear when running as a desktop app (Electron), not on the web version
+        Clicking it opens the full offline sprint room immediately, no login required
+
+    Offline sprint room — full featured: The offline sprint room should feel identical to a regular online sprint room with:
+
+        Sprint timer with custom duration selection (5, 10, 15, 20, 30, 45, 60 minutes or custom)
+        Full writing canvas with the same editor used in online mode
+        Live word count display updating as you type
+        WPM counter
+        Same text formatting options available in online rooms
+        Download button to save writing as .txt, .md, or .docx at any time
+        A clean minimal UI matching the existing app design
+
+    Auto-save to computer storage:
+
+        Every 30 seconds automatically save the current writing to a local file on the user's computer
+        Save location: Documents/WritingSprint/drafts/ folder
+        Filename format: sprint-YYYY-MM-DD-HH-mm.txt
+        If the folder doesn't exist, create it automatically
+        Show a subtle "Auto-saved" indicator in the corner when a save occurs
+
+    Crash protection:
+
+        On every keystroke, save a recovery file to a temp location separate from the main auto-save
+        Recovery file location: Documents/WritingSprint/recovery/recovery.txt
+        When the app opens, check if a recovery file exists
+        If it does, show a banner: "We found unsaved writing from your last session. Would you like to recover it?" with "Recover" and "Dismiss" buttons
+        If user clicks Recover, load the text into a new offline sprint
+        If user clicks Dismiss, delete the recovery file
+        Delete the recovery file automatically when the user manually saves or downloads their writing
+
+    End of sprint:
+
+        When the timer runs out show the same end-of-sprint screen as online mode
+        Show final word count and WPM
+        Offer three options: Save to Computer, Copy Text, Start New Sprint
+        Save to Computer opens a native file save dialog letting the user choose exactly where to save and in what format (.txt, .md, .docx)
+        After saving, ask: "Would you like to sync this sprint to your account?" — if they're logged in, sync it to their sprint history
+
+    Sync when online:
+
+        If the user completes an offline sprint while not logged in, save it locally
+        When they next open the app and are connected, show: "You have 1 offline sprint waiting to sync. Sync now?"
+        Syncing adds it to their sprint history, word count total, and rank progress
+
+    This is desktop-app only — none of these file system features should appear in the web version. Use Electron's ipcRenderer and ipcMain for all file operations. Do not use any browser file APIs.
+
+    After implementing, push as v1.0.15.

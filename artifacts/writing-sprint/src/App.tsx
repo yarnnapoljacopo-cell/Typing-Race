@@ -13,6 +13,7 @@ import MyFiles from "@/pages/MyFiles";
 import Profile from "@/pages/Profile";
 import Friends from "@/pages/Friends";
 import GlobalRanking from "@/pages/GlobalRanking";
+import OfflineSprint from "@/pages/OfflineSprint";
 import { GuestProvider, useGuest } from "@/lib/guestContext";
 import { VillainModeProvider } from "@/lib/villainModeContext";
 import { SkinProvider } from "@/lib/skinContext";
@@ -218,6 +219,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/friends" component={FriendsGuard} />
               <Route path="/global-ranking" component={GlobalRankingGuard} />
               <Route path="/profile/:name" component={Profile} />
+              <Route path="/offline-sprint" component={OfflineSprint} />
               <Route path="/sign-in/*?" component={SignInPage} />
               <Route path="/sign-up/*?" component={SignUpPage} />
               <Route component={NotFound} />
