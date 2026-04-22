@@ -226,6 +226,7 @@ router.delete("/user/files/:id", async (req, res): Promise<void> => {
 
 router.get("/user/profile", async (req, res): Promise<void> => {
   const auth = getAuth(req);
+  console.log("[auth-debug] getAuth result:", JSON.stringify({ userId: auth?.userId, sessionId: auth?.sessionId, hasClaims: !!auth?.sessionClaims, cookie: req.headers.cookie ? "present" : "absent", authorization: req.headers.authorization ? "present" : "absent" }));
   const clerkUserId = auth?.userId;
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
 

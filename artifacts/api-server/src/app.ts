@@ -8,6 +8,9 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Trust Replit's reverse proxy so Express sees the correct protocol/IP
+app.set("trust proxy", true);
+
 app.use(
   pinoHttp({
     logger,

@@ -39,11 +39,19 @@ export function clerkProxyMiddleware(): RequestHandler {
   return createProxyMiddleware({
     target: CLERK_FAPI,
     changeOrigin: true,
+    // Rewrite Set-Cookie domain from Clerk's domain to the current host so
+    // the browser stores session cookies for the app's own domain.
+    cookieDomainRewrite: { "*": "" },
     pathRewrite: (path: string) =>
       path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
       proxyReq: (proxyReq, req) => {
-        const protocol = req.headers["x-forwarded-proto"] || "https";
+        // Prefer x-forwarded-proto so we get "https" even when Replit's
+        // mTLS proxy speaks plain HTTP to us internally.
+        const protocol =
+          (Array.isArray(req.headers["x-forwarded-proto"])
+            ? req.headers["x-forwarded-proto"][0]
+            : req.headers["x-forwarded-proto"]) || "https";
         const host = req.headers.host || "";
         const proxyUrl = `${protocol}://${host}${CLERK_PROXY_PATH}`;
 

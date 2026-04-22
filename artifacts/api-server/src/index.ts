@@ -18,6 +18,8 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+console.log("[startup-debug] NODE_ENV:", process.env.NODE_ENV, "| CLERK_SECRET_KEY set:", !!process.env.CLERK_SECRET_KEY, "| CLERK_PUBLISHABLE_KEY set:", !!process.env.CLERK_PUBLISHABLE_KEY, "| CLERK_PROXY_URL:", process.env.CLERK_PROXY_URL ?? "(not set)");
+
 const server = createServer(app);
 setupWebSocketServer(server);
 
