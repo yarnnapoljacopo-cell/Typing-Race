@@ -1120,20 +1120,6 @@ export default function Room() {
                   isKartMode={room.mode === "kart"}
                 />
               )}
-              {/* Kart Mode HUD */}
-              {room.mode === "kart" && isRunning && participantId && (
-                <div className="rounded-xl border bg-card/80 backdrop-blur px-4 py-3" style={{ background: "rgba(20,20,30,0.85)", borderColor: "rgba(255,255,255,0.12)" }}>
-                  <KartHUD
-                    items={kartState.items}
-                    kartBonusWords={kartState.bonusWords}
-                    blurCounter={kartState.blurCounter}
-                    boldText={kartState.boldText}
-                    starActive={kartState.starActive}
-                    onUseItem={sendUseItem}
-                    flashEvent={kartState.flashEvent}
-                  />
-                </div>
-              )}
               {/* Death Mode: grace-period countdown banner */}
               {graceCountdown !== null && isRunning && (
                 <div className="flex items-center justify-center gap-3 rounded-xl border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm font-bold text-red-700 dark:text-red-300 animate-in fade-in duration-200">
@@ -1181,6 +1167,20 @@ export default function Room() {
                       Exit focus
                     </button>
                   </div>
+                </div>
+              )}
+              {/* Kart Mode HUD — shown in both normal and focus modes, below focus bar */}
+              {room.mode === "kart" && isRunning && participantId && (
+                <div className="mb-3 rounded-xl border px-4 py-3" style={{ background: "rgba(20,20,30,0.85)", borderColor: "rgba(255,255,255,0.12)" }}>
+                  <KartHUD
+                    items={kartState.items}
+                    kartBonusWords={kartState.bonusWords}
+                    blurCounter={kartState.blurCounter}
+                    boldText={kartState.boldText}
+                    starActive={kartState.starActive}
+                    onUseItem={sendUseItem}
+                    flashEvent={kartState.flashEvent}
+                  />
                 </div>
               )}
               {!readMode && <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} />}

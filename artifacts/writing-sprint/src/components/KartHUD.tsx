@@ -145,13 +145,13 @@ export function KartHUD({
         </div>
       </div>
 
-      {/* Items guide panel */}
+      {/* Items guide panel — opens downward so it never clips off the top */}
       {showHelp && (
         <div
           ref={helpRef}
           className="absolute z-50 rounded-xl shadow-2xl overflow-hidden"
           style={{
-            bottom: "calc(100% + 10px)",
+            top: "calc(100% + 8px)",
             left: 0,
             width: "min(420px, calc(100vw - 32px))",
             background: "#0f0f1a",
