@@ -163,6 +163,8 @@ export default function Room() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [survivedSeconds, setSurvivedSeconds] = useState(0);
   const eliminationStartedRef = useRef(false);
+  const sprintStartedAtRef = useRef<number | null>(null);
+  const [clientElapsedMs, setClientElapsedMs] = useState(0);
 
   const textareaRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
@@ -383,6 +385,33 @@ export default function Room() {
     prevStatusRef.current = room.status;
   }, [room?.status, sendTextUpdate]);
 
+  // ── Client-side elapsed clock for smooth reaper movement ─────────────
+  // The server sends timeLeft roughly every second; interpolating client-side
+  // makes the reaper line advance at a visually constant pace.
+  useEffect(() => {
+    if (!room || room.status !== "running") {
+      sprintStartedAtRef.current = null;
+      setClientElapsedMs(0);
+      return;
+    }
+    // Estimate sprint start from server's timeLeft the first time we see "running"
+    if (sprintStartedAtRef.current === null) {
+      const serverElapsed = room.timeLeft != null
+        ? Math.max(0, room.durationMinutes * 60 - room.timeLeft) * 1000
+        : 0;
+      sprintStartedAtRef.current = Date.now() - serverElapsed;
+      setClientElapsedMs(serverElapsed);
+    }
+    const interval = setInterval(() => {
+      if (sprintStartedAtRef.current != null) {
+        setClientElapsedMs(Date.now() - sprintStartedAtRef.current);
+      }
+    }, 150);
+    return () => clearInterval(interval);
+  // Only re-init when status changes, not on every timeLeft heartbeat
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.status]);
+
   // ── Crash protection ──────────────────────────────────────────────────
   useEffect(() => {
     if (!code) return;
@@ -411,12 +440,12 @@ export default function Room() {
   // Compute a safe "am I eliminated" value using optional chaining so it can
   // live before the early returns and be used as a real effect dependency.
   const _deathWpm = room?.deathModeWpm ?? null;
-  const _timeLeft = room?.timeLeft ?? null;
-  const _durMin = room?.durationMinutes ?? 0;
   const _myWC = room?.participants.find((p) => p.id === participantId)?.wordCount ?? 0;
   const _wordGoal = room?.wordGoal ?? null;
-  const _reaperEarlyWC = _deathWpm != null && _timeLeft != null && room?.status === "running"
-    ? Math.floor(_deathWpm * Math.max(0, _durMin * 60 - _timeLeft) / 60)
+  const _durMin = room?.durationMinutes ?? 0;
+  // Use smooth client-side elapsed time for reaper position
+  const _reaperEarlyWC = _deathWpm != null && room?.status === "running"
+    ? Math.floor(_deathWpm * (clientElapsedMs / 1000) / 60)
     : 0;
   const isEliminatedEarly = _reaperEarlyWC > 0 && _myWC < _reaperEarlyWC && _myWC < (_wordGoal ?? _durMin * 200);
   // Ref so interval callback always reads the latest value without stale closure
@@ -436,7 +465,7 @@ export default function Room() {
     eliminationStartedRef.current = true;
 
     // Snapshot how many seconds the writer survived
-    const elapsed = _timeLeft != null ? Math.max(0, _durMin * 60 - _timeLeft) : 0;
+    const elapsed = Math.floor(clientElapsedMs / 1000);
     setSurvivedSeconds(elapsed);
 
     let count = 3;
@@ -811,8 +840,8 @@ export default function Room() {
   // Game over — show the death screen instead of the sprint room
   if (isGameOver) {
     const goWC = room.participants.find((p) => p.id === participantId)?.wordCount ?? 0;
-    const goReaper = room.deathModeWpm != null && room.timeLeft != null
-      ? Math.floor(room.deathModeWpm * Math.max(0, room.durationMinutes * 60 - room.timeLeft) / 60)
+    const goReaper = room.deathModeWpm != null
+      ? Math.floor(room.deathModeWpm * (clientElapsedMs / 1000) / 60)
       : null;
     return (
       <GameOverScreen
@@ -821,6 +850,8 @@ export default function Room() {
         room={room}
         currentParticipantId={participantId}
         reaperWordCount={goReaper}
+        text={text}
+        capsules={capsules}
       />
     );
   }
@@ -835,12 +866,9 @@ export default function Room() {
   // Net word count: what shows on the badge and car during a sprint
   const netWordCount = isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : wordCount;
 
-  // Death Mode: compute how many words the reaper has "consumed" based on elapsed time
-  const elapsedSeconds = room.deathModeWpm != null && room.timeLeft != null
-    ? Math.max(0, room.durationMinutes * 60 - room.timeLeft)
-    : 0;
-  const reaperWordCount = (isRunning || isFinished) && room.deathModeWpm != null
-    ? Math.floor(room.deathModeWpm * elapsedSeconds / 60)
+  // Death Mode: smooth client-side reaper position (updates every 150 ms)
+  const reaperWordCount = isRunning && room.deathModeWpm != null
+    ? Math.floor(room.deathModeWpm * (clientElapsedMs / 1000) / 60)
     : null;
   const myParticipant = room.participants.find((p) => p.id === participantId);
   const isEliminated = reaperWordCount != null && myParticipant != null

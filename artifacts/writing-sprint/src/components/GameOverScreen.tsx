@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { RaceTrack } from "@/components/RaceTrack";
-import { Participant, RoomState } from "@/hooks/useSprintRoom";
-import { Home, FileText, Eye, EyeOff, Zap } from "lucide-react";
+import { RoomState } from "@/hooks/useSprintRoom";
+import { Capsule } from "@/components/WritingArchive";
+import { Home, Eye, EyeOff, Zap, Copy, Check, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
 
 interface GameOverScreenProps {
   wordsWritten: number;
@@ -11,6 +12,8 @@ interface GameOverScreenProps {
   room: RoomState;
   currentParticipantId: string | null;
   reaperWordCount: number | null;
+  text: string;
+  capsules: Capsule[];
 }
 
 function wpmFromStats(words: number, seconds: number) {
@@ -18,32 +21,57 @@ function wpmFromStats(words: number, seconds: number) {
   return Math.round((words / seconds) * 60);
 }
 
+function formatTime(ms: number) {
+  const d = new Date(ms);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function htmlToPlain(html: string) {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return div.innerText ?? div.textContent ?? "";
+}
+
+function CopyButton({ getText, label = "Copy" }: { getText: () => string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(getText());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* silent */ }
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all duration-200 ${
+        copied
+          ? "bg-green-900/40 text-green-400 border border-green-700/40"
+          : "bg-white/5 text-white/50 border border-white/10 hover:bg-white/10 hover:text-white/70"
+      }`}
+    >
+      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+      {copied ? "Copied!" : label}
+    </button>
+  );
+}
+
 const SKULL_SVG = (
   <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-    {/* Outer glow */}
     <circle cx="60" cy="52" r="38" fill="rgba(239,68,68,0.08)" />
-    {/* Skull dome */}
     <path
       d="M60 18C39.5 18 23 33.5 23 52c0 12 6.5 22.5 16.5 28.5V90h41V80.5C90.5 74.5 97 64 97 52 97 33.5 80.5 18 60 18z"
       fill="#1a1a1a" stroke="#ef4444" strokeWidth="2"
     />
-    {/* Left eye socket */}
     <ellipse cx="47" cy="54" rx="9" ry="11" fill="#ef4444" opacity="0.85" />
-    {/* Right eye socket */}
     <ellipse cx="73" cy="54" rx="9" ry="11" fill="#ef4444" opacity="0.85" />
-    {/* Left pupil glow */}
     <ellipse cx="47" cy="54" rx="4" ry="5" fill="#fca5a5" opacity="0.6" />
-    {/* Right pupil glow */}
     <ellipse cx="73" cy="54" rx="4" ry="5" fill="#fca5a5" opacity="0.6" />
-    {/* Nose */}
     <path d="M57 68l3-7 3 7z" fill="#ef4444" opacity="0.6" />
-    {/* Jaw */}
     <rect x="39" y="90" width="42" height="13" rx="3" fill="#1a1a1a" stroke="#ef4444" strokeWidth="1.5" />
-    {/* Teeth */}
     {[42, 50, 58, 66, 74].map((x) => (
       <rect key={x} x={x} y="90" width="6" height="10" rx="1" fill="#2a2a2a" stroke="#ef4444" strokeWidth="1" />
     ))}
-    {/* Crack lines */}
     <path d="M60 18 L63 35 L58 42 L65 52" stroke="#ef4444" strokeWidth="1" opacity="0.4" strokeLinecap="round" />
     <path d="M75 24 L72 38" stroke="#ef4444" strokeWidth="0.8" opacity="0.3" strokeLinecap="round" />
   </svg>
@@ -60,7 +88,6 @@ function DeathParticles() {
     size: 2 + Math.random() * 5,
     opacity: 0.1 + Math.random() * 0.3,
   }));
-
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
       {particles.map((p) => (
@@ -82,9 +109,13 @@ export function GameOverScreen({
   room,
   currentParticipantId,
   reaperWordCount,
+  text,
+  capsules,
 }: GameOverScreenProps) {
   const [, navigate] = useLocation();
   const [spectating, setSpectating] = useState(false);
+  const [writingOpen, setWritingOpen] = useState(false);
+  const [writingTab, setWritingTab] = useState<"text" | "capsules">("text");
   const [showStats, setShowStats] = useState(false);
 
   const wpm = wpmFromStats(wordsWritten, survivedSeconds);
@@ -99,6 +130,10 @@ export function GameOverScreen({
     reaperWordCount == null || p.wordCount >= reaperWordCount
   ).length;
 
+  const plainText = htmlToPlain(text);
+  const hasCapsules = capsules.length > 0;
+  const hasWriting = plainText.trim().length > 0 || hasCapsules;
+
   useEffect(() => {
     const t = setTimeout(() => setShowStats(true), 600);
     return () => clearTimeout(t);
@@ -108,7 +143,7 @@ export function GameOverScreen({
     <div className="fixed inset-0 z-50 flex flex-col overflow-auto" style={{ background: "#0a0a0f" }}>
       <DeathParticles />
 
-      {/* Scanline overlay */}
+      {/* Scanlines */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -117,16 +152,16 @@ export function GameOverScreen({
         }}
       />
 
-      <div className="relative z-10 flex flex-col items-center justify-start min-h-screen px-4 py-10 gap-8">
+      <div className="relative z-10 flex flex-col items-center justify-start min-h-screen px-4 py-10 gap-7">
 
-        {/* Skull + title */}
+        {/* Skull + ELIMINATED */}
         <motion.div
           initial={{ scale: 0.5, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 180, damping: 14 }}
           className="flex flex-col items-center gap-4"
         >
-          <div className="w-28 h-28 relative">
+          <div className="w-28 h-28">
             <motion.div
               animate={{ filter: ["drop-shadow(0 0 8px #ef4444)", "drop-shadow(0 0 20px #ef4444)", "drop-shadow(0 0 8px #ef4444)"] }}
               transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
@@ -135,7 +170,6 @@ export function GameOverScreen({
               {SKULL_SVG}
             </motion.div>
           </div>
-
           <div className="text-center">
             <motion.h1
               initial={{ opacity: 0, y: 10 }}
@@ -157,13 +191,12 @@ export function GameOverScreen({
           </div>
         </motion.div>
 
-        {/* Stats cards */}
+        {/* Stats */}
         <AnimatePresence>
           {showStats && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
               className="grid grid-cols-3 gap-3 w-full max-w-md"
             >
               {[
@@ -188,7 +221,6 @@ export function GameOverScreen({
           )}
         </AnimatePresence>
 
-        {/* Survivor count */}
         {showStats && totalParticipants > 1 && (
           <motion.p
             initial={{ opacity: 0 }}
@@ -207,14 +239,24 @@ export function GameOverScreen({
           transition={{ delay: 0.7 }}
           className="flex flex-col gap-3 w-full max-w-xs"
         >
-          <button
-            onClick={() => navigate("/portal?tab=past")}
-            className="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 border border-red-500/30 text-red-300 hover:bg-red-500/10 hover:border-red-500/60 hover:text-red-200"
-            style={{ background: "rgba(239,68,68,0.07)" }}
-          >
-            <FileText className="w-4 h-4" />
-            My Writing
-          </button>
+          {/* My Writing — inline toggle */}
+          {hasWriting && (
+            <button
+              onClick={() => setWritingOpen((o) => !o)}
+              className={`flex items-center justify-between w-full py-3.5 px-4 rounded-xl font-semibold text-sm transition-all duration-200 border ${
+                writingOpen
+                  ? "border-red-500/50 text-red-300 bg-red-500/10"
+                  : "border-red-500/30 text-red-300 hover:bg-red-500/10 hover:border-red-500/60"
+              }`}
+              style={{ background: writingOpen ? undefined : "rgba(239,68,68,0.07)" }}
+            >
+              <div className="flex items-center gap-2.5">
+                <BookOpen className="w-4 h-4" />
+                My Writing
+              </div>
+              {writingOpen ? <ChevronUp className="w-4 h-4 opacity-60" /> : <ChevronDown className="w-4 h-4 opacity-60" />}
+            </button>
+          )}
 
           <button
             onClick={() => navigate("/portal")}
@@ -238,6 +280,89 @@ export function GameOverScreen({
             </button>
           )}
         </motion.div>
+
+        {/* My Writing panel */}
+        <AnimatePresence>
+          {writingOpen && hasWriting && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+              className="w-full max-w-2xl overflow-hidden"
+            >
+              <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#111118" }}>
+                {/* Tab bar */}
+                <div className="flex items-center gap-0 border-b border-white/10">
+                  {(["text", "capsules"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setWritingTab(tab)}
+                      className={`px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+                        writingTab === tab
+                          ? "text-red-300 border-b-2 border-red-500 bg-red-500/5"
+                          : "text-white/30 hover:text-white/50"
+                      }`}
+                    >
+                      {tab === "text" ? "Your Text" : `Capsules (${capsules.length})`}
+                    </button>
+                  ))}
+                  <div className="ml-auto px-3">
+                    {writingTab === "text" && plainText.trim() && (
+                      <CopyButton getText={() => plainText} label="Copy all" />
+                    )}
+                  </div>
+                </div>
+
+                {/* Text tab */}
+                {writingTab === "text" && (
+                  <div className="p-4 max-h-80 overflow-y-auto">
+                    {plainText.trim() ? (
+                      <p
+                        className="text-white/70 text-sm leading-relaxed whitespace-pre-wrap font-serif"
+                        style={{ fontFamily: "Georgia, serif" }}
+                      >
+                        {plainText}
+                      </p>
+                    ) : (
+                      <p className="text-white/25 text-sm italic text-center py-6">Nothing written yet</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Capsules tab */}
+                {writingTab === "capsules" && (
+                  <div className="max-h-80 overflow-y-auto divide-y divide-white/5">
+                    {capsules.length === 0 ? (
+                      <p className="text-white/25 text-sm italic text-center py-6">No capsules yet — they save every 200 words</p>
+                    ) : (
+                      [...capsules].reverse().map((c, i) => {
+                        const plain = htmlToPlain(c.text);
+                        const preview = plain.slice(0, 120).trim();
+                        return (
+                          <div key={i} className="flex items-start justify-between gap-3 px-4 py-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">
+                                  {c.isFinal ? "Final snapshot" : `${c.wordCount} words`}
+                                </span>
+                                <span className="text-[10px] text-white/25 font-mono">{formatTime(c.savedAt)}</span>
+                              </div>
+                              <p className="text-white/45 text-xs leading-relaxed line-clamp-2 font-serif" style={{ fontFamily: "Georgia, serif" }}>
+                                {preview}{plain.length > 120 ? "…" : ""}
+                              </p>
+                            </div>
+                            <CopyButton getText={() => plain} label="Copy" />
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Spectate panel */}
         <AnimatePresence>
@@ -268,7 +393,7 @@ export function GameOverScreen({
           )}
         </AnimatePresence>
 
-        {/* Flavour line */}
+        {/* Flavour */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
