@@ -11,7 +11,7 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const borderColorMap: Record<number, string> = {
   0: "#71717a", 1: "#94a3b8", 2: "#f97316",
-  3: "#8b5cf6", 4: "#dc2626", 5: "#facc15", 6: "#22d3ee",
+  3: "#8b5cf6", 4: "#dc2626", 5: "#facc15", 6: "#22d3ee", 7: "#e879f9",
 };
 
 interface FriendEntry {

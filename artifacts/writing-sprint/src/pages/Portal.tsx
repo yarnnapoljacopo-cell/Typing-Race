@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
-  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User, Users, ChevronDown, KeyRound,
+  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User, Users, ChevronDown, KeyRound, Crown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
@@ -311,6 +311,18 @@ export default function Portal() {
                       <User size={14} className="text-muted-foreground" />
                       My Profile
                     </DropdownMenuItem>
+                  )}
+                  {(profile?.xp ?? 0) >= 200000 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => setLocation("/global-ranking")}
+                        className="gap-2 text-fuchsia-500 focus:text-fuchsia-500 focus:bg-fuchsia-500/10"
+                      >
+                        <Crown size={14} />
+                        Global Ranking
+                      </DropdownMenuItem>
+                    </>
                   )}
                 </>
               )}

@@ -80,6 +80,16 @@ export const RANKS: Rank[] = [
     glowColor: "rgba(34,211,238,0.7)",
     badgeGradient: "from-cyan-400 via-blue-500 to-indigo-700",
   },
+  {
+    index: 7,
+    emoji: "👑",
+    title: "The Ranker",
+    subtitle: "sovereign of the leaderboard — their name is carved into the global record",
+    minXp: 200000,
+    borderStyle: "border-4 border-fuchsia-400 shadow-fuchsia-400",
+    glowColor: "rgba(232,121,249,0.85)",
+    badgeGradient: "from-fuchsia-400 via-pink-500 to-rose-600",
+  },
 ];
 
 export function getRankFromXp(xp: number): Rank {

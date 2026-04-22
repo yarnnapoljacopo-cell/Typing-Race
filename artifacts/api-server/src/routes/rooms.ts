@@ -4,16 +4,17 @@ import { createRoom, getRoom, getActiveRooms } from "../lib/roomManager";
 import { saveWriting, getWriting, getUserSprints } from "../lib/writingStore";
 import { CreateRoomBody, GetRoomParams } from "@workspace/api-zod";
 import { db, userProfilesTable, sprintWritingTable, friendshipsTable } from "@workspace/db";
-import { eq, and, or, ne, desc, sql, max, sum, count, inArray, ilike } from "drizzle-orm";
+import { eq, and, or, ne, desc, sql, max, sum, count, inArray, ilike, gte } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 const router: IRouter = Router();
 
 // ── Writing Deviation (XP decay) ────────────────────────────────────────────
 // Rank thresholds (index → min XP)
-const RANK_THRESHOLDS = [0, 250, 1000, 3500, 10000, 25000, 75000];
-// XP lost per day after 5 days idle, indexed by rank (0–2 = no decay, 3–6 = decay)
-const DECAY_RATE_PER_DAY = [0, 0, 0, 15, 40, 100, 250];
+const RANK_THRESHOLDS = [0, 250, 1000, 3500, 10000, 25000, 75000, 200000];
+// XP lost per day after 5 days idle, indexed by rank (0–2 = no decay, 3–7 = decay)
+const DECAY_RATE_PER_DAY = [0, 0, 0, 15, 40, 100, 250, 500];
+const RANKER_MIN_XP = 200000;
 const DECAY_GRACE_DAYS = 5;
 
 function getRankIndex(xp: number): number {
@@ -436,6 +437,23 @@ router.get("/users/by-name/:name/profile", async (req, res): Promise<void> => {
     highestWordCount: Number(statsRow?.highestWordCount ?? 0),
     sprintCount: Number(statsRow?.sprintCount ?? 0),
   });
+});
+
+// ── Global Ranking (Rankers only) ───────────────────────────────────────────
+// Public read — the page itself gates access by rank on the client, but
+// anyone who guesses the URL just gets a list of writer names + XP, which
+// is intentionally public leaderboard data.
+router.get("/rankings/global", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      writerName: userProfilesTable.writerName,
+      xp: userProfilesTable.xp,
+    })
+    .from(userProfilesTable)
+    .where(gte(userProfilesTable.xp, RANKER_MIN_XP))
+    .orderBy(desc(userProfilesTable.xp));
+
+  res.json(rows);
 });
 
 router.get("/friends", async (req, res): Promise<void> => {

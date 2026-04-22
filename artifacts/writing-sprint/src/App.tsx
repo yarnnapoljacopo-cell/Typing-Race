@@ -12,6 +12,7 @@ import Room from "@/pages/Room";
 import MyFiles from "@/pages/MyFiles";
 import Profile from "@/pages/Profile";
 import Friends from "@/pages/Friends";
+import GlobalRanking from "@/pages/GlobalRanking";
 import { GuestProvider, useGuest } from "@/lib/guestContext";
 
 const queryClient = new QueryClient();
@@ -145,6 +146,14 @@ function FriendsGuard() {
   return <Redirect to="/" />;
 }
 
+function GlobalRankingGuard() {
+  const { isSignedIn, isLoaded } = useAuth();
+
+  if (!isLoaded) return null;
+  if (isSignedIn) return <GlobalRanking />;
+  return <Redirect to="/" />;
+}
+
 // ── Cache invalidator ──────────────────────────────────────────────────────
 
 function ClerkQueryClientCacheInvalidator() {
@@ -203,6 +212,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/room" component={RoomGuard} />
               <Route path="/my-files" component={MyFilesGuard} />
               <Route path="/friends" component={FriendsGuard} />
+              <Route path="/global-ranking" component={GlobalRankingGuard} />
               <Route path="/profile/:name" component={Profile} />
               <Route path="/sign-in/*?" component={SignInPage} />
               <Route path="/sign-up/*?" component={SignUpPage} />

@@ -44,6 +44,7 @@ const borderColorMap: Record<number, string> = {
   4: "#dc2626",
   5: "#facc15",
   6: "#22d3ee",
+  7: "#e879f9",
 };
 
 const glowMap: Record<number, string> = {
@@ -54,6 +55,7 @@ const glowMap: Record<number, string> = {
   4: "0 0 20px rgba(220,38,38,0.6)",
   5: "0 0 25px rgba(250,204,21,0.7)",
   6: "0 0 30px rgba(34,211,238,0.8), 0 0 60px rgba(34,211,238,0.3)",
+  7: "0 0 35px rgba(232,121,249,0.9), 0 0 70px rgba(232,121,249,0.35)",
 };
 
 const bgMap: Record<number, string> = {
@@ -64,6 +66,7 @@ const bgMap: Record<number, string> = {
   4: "#1c0808",
   5: "#201800",
   6: "#080c20",
+  7: "#1a0020",
 };
 
 function RankDetailDialog({ rank, open, onClose }: { rank: Rank | null; open: boolean; onClose: () => void }) {
@@ -195,7 +198,7 @@ function RankBadge({ xp }: { xp: number }) {
             style={{
               width: `${progress}%`,
               background: rank.index >= 5
-                ? `linear-gradient(90deg, ${borderColorMap[rank.index]}, ${rank.index === 6 ? "#6366f1" : "#f97316"})`
+                ? `linear-gradient(90deg, ${borderColorMap[rank.index]}, ${rank.index === 7 ? "#ec4899" : rank.index === 6 ? "#6366f1" : "#f97316"})`
                 : borderColorMap[rank.index],
               boxShadow: rank.index >= 3 ? `0 0 6px ${borderColorMap[rank.index]}` : "none",
             }}
