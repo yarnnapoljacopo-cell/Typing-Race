@@ -3,11 +3,12 @@ import { SignInButton, SignUpButton } from "@clerk/react";
 import { PenTool, Feather, ArrowRight, Zap, Users, BookOpen, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { setGuestName } from "@/lib/guest";
+import { useGuest } from "@/lib/guestContext";
 import { useLocation } from "wouter";
 
 export default function Home() {
   const [, setLocation] = useLocation();
+  const { updateGuestName } = useGuest();
   const [guestStep, setGuestStep] = useState<"hidden" | "form">("hidden");
   const [guestInput, setGuestInput] = useState("");
   const [error, setError] = useState("");
@@ -22,7 +23,7 @@ export default function Home() {
       setError("Name must be 32 characters or fewer.");
       return;
     }
-    setGuestName(name);
+    updateGuestName(name);
     setLocation("/portal");
   };
 
