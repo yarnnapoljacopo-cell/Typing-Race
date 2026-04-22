@@ -105,6 +105,7 @@ jobs:
         run: pnpm run build:linux
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          APPIMAGE_EXTRACT_AND_RUN: 1
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
