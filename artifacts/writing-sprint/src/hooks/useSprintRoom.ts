@@ -13,8 +13,10 @@ export interface RoomState {
   status: "waiting" | "countdown" | "running" | "finished";
   durationMinutes: number;
   countdownDelayMinutes: number;
-  mode: "regular" | "open" | "goal";
+  mode: "regular" | "open" | "goal" | "boss";
   wordGoal: number | null;
+  bossWordGoal: number | null;
+  bossTotalWords: number | null;
   deathModeWpm: number | null;
   timeLeft: number | null;
   countdownTimeLeft: number | null;
@@ -39,6 +41,8 @@ const ROOM_STATE_DEFAULTS = {
   countdownDelayMinutes: 0,
   countdownTimeLeft: null,
   wordGoal: null,
+  bossWordGoal: null,
+  bossTotalWords: null,
   deathModeWpm: null,
 };
 

@@ -7,6 +7,7 @@ export const roomsTable = pgTable("rooms", {
   countdownDelayMinutes: integer("countdown_delay_minutes").notNull().default(0),
   mode: varchar("mode", { length: 20 }).notNull().default("regular"),
   wordGoal: integer("word_goal"),
+  bossWordGoal: integer("boss_word_goal"),
   deathModeWpm: integer("death_mode_wpm"),
   status: varchar("status", { length: 20 }).notNull().default("waiting"),
   startTime: bigint("start_time", { mode: "number" }),

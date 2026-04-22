@@ -32,6 +32,13 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Multiplayer writing sprint with real-time race track
 - WebSocket-based room system (`/ws` path)
 - REST endpoints: POST /api/rooms (create), GET /api/rooms/:code (lookup)
+- Room modes: regular, open (no time limit), goal (word target), boss battle (collective HP boss)
+- Death Mode: typing speed floor — fall below WPM threshold and the sprint ends for you
+- Focus Mode: hides all UI chrome for distraction-free writing
+- XP/Levels system: 7 ranks (Blank Page → Eternal Quill), 1 XP per 5 words, 2× for 1st place
+- Writer profiles at `/profile/:name` with rank badge, XP bar, and rank progression
+- My Files page: saved sprint writing capsules per user
+- Clerk auth + guest mode; XP only awarded to signed-in users
 
 ### API Server (`artifacts/api-server`)
 - Express 5 server at `/api` and `/ws`
@@ -39,6 +46,9 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - In-memory room manager (`src/lib/roomManager.ts`) — rooms live for 2 hours
 - PostgreSQL writing backup: PUT /api/rooms/:code/writing, GET /api/rooms/:code/writing/:name
 - Writing store (`src/lib/writingStore.ts`) — Drizzle upsert/fetch on `sprint_writing` table
+- XP endpoint: POST /api/user/xp (awards XP to signed-in users after sprints)
+- Public profile endpoint: GET /api/user/profile/:name (returns xp, wordCount totals)
+- Boss battle: bossWordGoal column in rooms table; roomManager tracks collective HP and broadcasts defeat
 
 ## WebSocket Protocol
 

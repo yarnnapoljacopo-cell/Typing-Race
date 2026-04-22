@@ -29,7 +29,10 @@ router.post("/rooms", async (req, res): Promise<void> => {
   const wordGoal = typeof rawGoal === "number" && rawGoal > 0 ? Math.floor(rawGoal) : null;
   const rawDeathWpm = rawBody.deathModeWpm;
   const deathModeWpm = typeof rawDeathWpm === "number" ? rawDeathWpm : null;
-  const room = createRoom(creatorName, durationMinutes, mode ?? "regular", countdownDelayMinutes, wordGoal, deathModeWpm);
+  const rawBossGoal = rawBody.bossWordGoal;
+  const bossWordGoal = typeof rawBossGoal === "number" && rawBossGoal > 0 ? Math.floor(rawBossGoal) : null;
+  const effectiveMode = bossWordGoal ? "boss" : (mode ?? "regular");
+  const room = createRoom(creatorName, durationMinutes, effectiveMode, countdownDelayMinutes, wordGoal, deathModeWpm, bossWordGoal);
 
   res.status(201).json({
     code: room.code,
@@ -226,7 +229,6 @@ router.delete("/user/files/:id", async (req, res): Promise<void> => {
 
 router.get("/user/profile", async (req, res): Promise<void> => {
   const auth = getAuth(req);
-  console.log("[auth-debug] getAuth result:", JSON.stringify({ userId: auth?.userId, sessionId: auth?.sessionId, hasClaims: !!auth?.sessionClaims, cookie: req.headers.cookie ? "present" : "absent", authorization: req.headers.authorization ? "present" : "absent" }));
   const clerkUserId = auth?.userId;
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -236,7 +238,40 @@ router.get("/user/profile", async (req, res): Promise<void> => {
     .where(eq(userProfilesTable.clerkUserId, clerkUserId))
     .limit(1);
 
-  res.json({ writerName: rows[0]?.writerName ?? null });
+  res.json({ writerName: rows[0]?.writerName ?? null, xp: rows[0]?.xp ?? 0 });
+});
+
+router.post("/user/xp", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { wordCount, isFirstPlace } = req.body ?? {};
+  if (typeof wordCount !== "number" || wordCount < 0) {
+    res.status(400).json({ error: "wordCount required" }); return;
+  }
+
+  const base = Math.max(5, Math.ceil(wordCount / 5));
+  const xpGained = isFirstPlace === true ? base * 2 : base;
+
+  const rows = await db
+    .select({ xp: userProfilesTable.xp })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.clerkUserId, clerkUserId))
+    .limit(1);
+
+  if (rows.length === 0) {
+    res.status(404).json({ error: "Profile not found" }); return;
+  }
+
+  const newXp = (rows[0].xp ?? 0) + xpGained;
+
+  await db
+    .update(userProfilesTable)
+    .set({ xp: newXp, updatedAt: new Date() })
+    .where(eq(userProfilesTable.clerkUserId, clerkUserId));
+
+  res.json({ xpGained, newXp });
 });
 
 router.put("/user/profile", async (req, res): Promise<void> => {
@@ -285,6 +320,7 @@ router.get("/users/by-name/:name/profile", async (req, res): Promise<void> => {
   res.json({
     name,
     writerName: profileRows[0]?.writerName ?? name,
+    xp: profileRows[0]?.xp ?? 0,
     totalWords: Number(statsRow?.totalWords ?? 0),
     highestWordCount: Number(statsRow?.highestWordCount ?? 0),
     sprintCount: Number(statsRow?.sprintCount ?? 0),

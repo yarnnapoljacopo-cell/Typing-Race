@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@clerk/react";
 import { useSprintRoom, type RoomState } from "@/hooks/useSprintRoom";
 import { RaceTrack } from "@/components/RaceTrack";
+import { BossTrack } from "@/components/BossTrack";
 import { Timer } from "@/components/Timer";
 import { ResultsScreen } from "@/components/ResultsScreen";
 import { GameOverScreen } from "@/components/GameOverScreen";
@@ -128,10 +130,13 @@ function saveCapsules(code: string, capsules: Capsule[]) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 export default function Room() {
   const [, setLocation] = useLocation();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const { isSignedIn } = useAuth();
 
   const code = searchParams.get("code") || "";
   const name = searchParams.get("name") || "";
@@ -162,6 +167,8 @@ export default function Room() {
   const [graceCountdown, setGraceCountdown] = useState<number | null>(null);
   const [isGameOver, setIsGameOver] = useState(false);
   const [survivedSeconds, setSurvivedSeconds] = useState(0);
+  const [xpGained, setXpGained] = useState<number | null>(null);
+  const xpAwardedRef = useRef(false);
   const eliminationStartedRef = useRef(false);
   const sprintStartedAtRef = useRef<number | null>(null);
   const [clientElapsedMs, setClientElapsedMs] = useState(0);
@@ -707,6 +714,31 @@ export default function Room() {
     if (room?.status === "finished") setDistractionFree(false);
   }, [room?.status]);
 
+  // ── Award XP when sprint finishes (signed-in users only) ─────────────
+  useEffect(() => {
+    if (!room || room.status !== "finished" || !isSignedIn || xpAwardedRef.current) return;
+    xpAwardedRef.current = true;
+
+    const myWc = room.participants.find((p) => p.id === participantId)?.wordCount ?? 0;
+    if (myWc <= 0) return;
+
+    const sorted = [...room.participants].sort((a, b) => b.wordCount - a.wordCount);
+    const isFirstPlace = sorted[0]?.id === participantId;
+
+    fetch(`${basePath}/api/user/xp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ wordCount: myWc, isFirstPlace }),
+    })
+      .then((r) => r.json())
+      .then((data: { xpGained?: number }) => {
+        if (typeof data.xpGained === "number") setXpGained(data.xpGained);
+      })
+      .catch(() => { /* silent */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.status, isSignedIn, participantId]);
+
   // ── "Slow Bitch." every 5 min when behind the leader ───────────────────
   // Must live BEFORE the early returns (if !room / if error) so hook order
   // stays constant across every render.
@@ -972,20 +1004,30 @@ export default function Room() {
             onRestart={restartSprint}
             myText={text}
             capsules={capsules}
+            xpGained={xpGained}
+            isBossMode={room.mode === "boss"}
           />
         </div>
       ) : (
         <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col gap-4"}>
-          {/* Race track — hidden in distraction-free mode */}
+          {/* Race / boss track — hidden in distraction-free mode */}
           {!distractionFree && (
             <>
-              <RaceTrack
-                participants={room.participants}
-                currentParticipantId={participantId}
-                durationMinutes={room.durationMinutes}
-                wordGoal={room.wordGoal}
-                reaperWordCount={reaperWordCount}
-              />
+              {room.mode === "boss" && room.bossWordGoal ? (
+                <BossTrack
+                  participants={room.participants}
+                  currentParticipantId={participantId}
+                  bossWordGoal={room.bossWordGoal}
+                />
+              ) : (
+                <RaceTrack
+                  participants={room.participants}
+                  currentParticipantId={participantId}
+                  durationMinutes={room.durationMinutes}
+                  wordGoal={room.wordGoal}
+                  reaperWordCount={reaperWordCount}
+                />
+              )}
               {/* Death Mode: grace-period countdown banner */}
               {graceCountdown !== null && isRunning && (
                 <div className="flex items-center justify-center gap-3 rounded-xl border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm font-bold text-red-700 dark:text-red-300 animate-in fade-in duration-200">

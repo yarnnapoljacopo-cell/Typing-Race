@@ -19,7 +19,7 @@ export interface Participant {
   disconnectTimer?: ReturnType<typeof setTimeout>;
 }
 
-export type RoomMode = "regular" | "open" | "goal";
+export type RoomMode = "regular" | "open" | "goal" | "boss";
 
 export interface Room {
   code: string;
@@ -28,6 +28,7 @@ export interface Room {
   countdownDelayMinutes: number;
   mode: RoomMode;
   wordGoal: number | null;
+  bossWordGoal: number | null;
   deathModeWpm: number | null;
   status: RoomStatus;
   participants: Map<string, Participant>;
@@ -58,6 +59,7 @@ function persistRoom(room: Room): void {
       countdownDelayMinutes: room.countdownDelayMinutes,
       mode: room.mode,
       wordGoal: room.wordGoal,
+      bossWordGoal: room.bossWordGoal,
       deathModeWpm: room.deathModeWpm,
       status: room.status,
       startTime: room.startTime,
@@ -112,6 +114,7 @@ export async function restoreRoomsFromDB(): Promise<void> {
         countdownDelayMinutes: row.countdownDelayMinutes ?? 0,
         mode: (row.mode as RoomMode) ?? "regular",
         wordGoal: row.wordGoal ?? null,
+        bossWordGoal: row.bossWordGoal ?? null,
         deathModeWpm: row.deathModeWpm ?? null,
         status: row.status as RoomStatus,
         participants: new Map(),
@@ -179,7 +182,8 @@ export function createRoom(
   mode: RoomMode = "regular",
   countdownDelayMinutes = 0,
   wordGoal: number | null = null,
-  deathModeWpm: number | null = null
+  deathModeWpm: number | null = null,
+  bossWordGoal: number | null = null
 ): Room {
   let code = generateRoomCode();
   while (rooms.has(code)) {
@@ -193,6 +197,7 @@ export function createRoom(
     countdownDelayMinutes: Math.min(30, Math.max(0, countdownDelayMinutes)),
     mode,
     wordGoal: wordGoal && wordGoal > 0 ? Math.floor(wordGoal) : null,
+    bossWordGoal: mode === "boss" && bossWordGoal && bossWordGoal > 0 ? Math.floor(bossWordGoal) : null,
     deathModeWpm: deathModeWpm && VALID_DEATH_WPMS.includes(deathModeWpm) ? deathModeWpm : null,
     status: "waiting",
     participants: new Map(),
@@ -289,6 +294,10 @@ export function broadcastRoomState(room: Room): void {
     timeLeft = 0;
   }
 
+  const bossTotalWords = room.mode === "boss"
+    ? participants.reduce((sum, p) => sum + p.wordCount, 0)
+    : null;
+
   broadcastToRoom(room, {
     type: "room_state",
     room: {
@@ -298,6 +307,8 @@ export function broadcastRoomState(room: Room): void {
       countdownDelayMinutes: room.countdownDelayMinutes,
       mode: room.mode,
       wordGoal: room.wordGoal,
+      bossWordGoal: room.bossWordGoal,
+      bossTotalWords,
       deathModeWpm: room.deathModeWpm,
       timeLeft,
       countdownTimeLeft,
@@ -464,6 +475,17 @@ export function updateParticipantStats(
       isCreator: participant.isCreator,
     },
   });
+
+  // Boss mode: check if collective word count defeated the boss
+  if (room.mode === "boss" && room.bossWordGoal && room.status === "running") {
+    const total = Array.from(room.participants.values())
+      .filter((p) => !p.isSpectator)
+      .reduce((sum, p) => sum + p.wordCount, 0);
+    if (total >= room.bossWordGoal) {
+      broadcastToRoom(room, { type: "boss_defeated", bossTotalWords: total });
+      endSprint(room);
+    }
+  }
 }
 
 export function restartSprint(room: Room, durationMinutes: number): void {

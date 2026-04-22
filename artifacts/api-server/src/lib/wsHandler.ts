@@ -120,6 +120,10 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             isCreator: p.isCreator,
           }));
 
+        const bossTotalWords = room.mode === "boss"
+          ? currentParticipants.reduce((sum, p) => sum + p.wordCount, 0)
+          : null;
+
         ws.send(
           JSON.stringify({
             type: "joined",
@@ -133,6 +137,9 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
               countdownDelayMinutes: room.countdownDelayMinutes,
               mode: room.mode,
               wordGoal: room.wordGoal,
+              bossWordGoal: room.bossWordGoal,
+              bossTotalWords,
+              deathModeWpm: room.deathModeWpm,
               timeLeft:
                 room.status === "running" && room.endTime
                   ? Math.max(0, Math.floor((room.endTime - Date.now()) / 1000))

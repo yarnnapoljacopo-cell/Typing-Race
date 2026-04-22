@@ -16,14 +16,14 @@ import {
 } from "@/components/ui/dialog";
 import {
   PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
-  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound,
+  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
 import ActiveRooms from "./ActiveRooms";
 import { useGuest } from "@/lib/guestContext";
 
-type RoomMode = "regular" | "open" | "goal";
+type RoomMode = "regular" | "open" | "goal" | "boss";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -66,6 +66,7 @@ export default function Portal() {
   const [roomMode, setRoomMode] = useState<RoomMode>("regular");
   const [countdownDelay, setCountdownDelay] = useState<number>(0);
   const [goalWords, setGoalWords] = useState<string>("1000");
+  const [bossGoalWords, setBossGoalWords] = useState<string>("5000");
   const [deathModeWpm, setDeathModeWpm] = useState<number | null>(null);
 
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
@@ -138,14 +139,16 @@ export default function Portal() {
 
   const handleCreate = () => {
     const wordGoal = roomMode === "goal" ? (parseInt(goalWords, 10) || 1000) : undefined;
+    const bossWordGoal = roomMode === "boss" ? (parseInt(bossGoalWords, 10) || 5000) : undefined;
     createRoomMutation.mutate({
       data: {
         creatorName: displayName,
         durationMinutes: duration,
-        mode: roomMode,
+        mode: roomMode === "boss" ? "regular" : roomMode,
         ...(countdownDelay > 0 ? { countdownDelayMinutes: countdownDelay } : {}),
         ...(wordGoal ? { wordGoal } : {}),
         ...(deathModeWpm ? { deathModeWpm } : {}),
+        ...(bossWordGoal ? { bossWordGoal } : {}),
       } as Parameters<typeof createRoomMutation.mutate>[0]["data"],
     });
   };
@@ -211,13 +214,25 @@ export default function Portal() {
                 <Pencil size={13} />
               </button>
               {!isGuest && (
-                <button
-                  onClick={() => setLocation("/my-files")}
-                  className="text-muted-foreground hover:text-primary transition-colors"
-                  title="My Files"
-                >
-                  <BookOpen size={15} />
-                </button>
+                <>
+                  <button
+                    onClick={() => setLocation("/my-files")}
+                    className="text-muted-foreground hover:text-primary transition-colors"
+                    title="My Files"
+                  >
+                    <BookOpen size={15} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (profile?.writerName) setLocation(`/profile/${encodeURIComponent(profile.writerName)}`);
+                    }}
+                    className="text-muted-foreground hover:text-primary transition-colors"
+                    title="My Profile"
+                    disabled={!profile?.writerName}
+                  >
+                    <User size={15} />
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -361,7 +376,7 @@ export default function Portal() {
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground">Sprint Mode</label>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
                           onClick={() => setRoomMode("regular")}
@@ -401,6 +416,19 @@ export default function Portal() {
                           <span className="text-xs font-semibold">Goal</span>
                           <span className="text-[10px] text-center leading-tight opacity-70">Hit a word target</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setRoomMode("boss")}
+                          className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
+                            roomMode === "boss"
+                              ? "border-purple-500 bg-purple-500/10 text-purple-400"
+                              : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                          }`}
+                        >
+                          <Swords className="w-4 h-4" />
+                          <span className="text-xs font-semibold">Boss Battle</span>
+                          <span className="text-[10px] text-center leading-tight opacity-70">Defeat the monster</span>
+                        </button>
                       </div>
 
                       {roomMode === "goal" && (
@@ -417,6 +445,44 @@ export default function Portal() {
                             className="h-8 w-24 text-center font-mono focus-visible:ring-primary"
                           />
                           <span className="text-sm text-muted-foreground">words</span>
+                        </div>
+                      )}
+
+                      {roomMode === "boss" && (
+                        <div className="mt-3 rounded-lg border border-purple-500/30 bg-purple-500/5 px-4 py-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Swords className="w-4 h-4 text-purple-400 shrink-0" />
+                            <label className="text-sm font-medium text-foreground shrink-0">Boss HP (words to defeat):</label>
+                          </div>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {[2500, 5000, 10000, 25000].map((w) => (
+                              <button
+                                key={w}
+                                type="button"
+                                onClick={() => setBossGoalWords(String(w))}
+                                className={`flex flex-col items-center rounded-lg border-2 py-2 text-xs font-semibold transition-all ${
+                                  bossGoalWords === String(w)
+                                    ? "border-purple-500 bg-purple-500/20 text-purple-300"
+                                    : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                                }`}
+                              >
+                                {w >= 1000 ? `${w / 1000}k` : w}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              min={500}
+                              max={200000}
+                              step={500}
+                              value={bossGoalWords}
+                              onChange={(e) => setBossGoalWords(e.target.value)}
+                              className="h-8 w-28 text-center font-mono focus-visible:ring-purple-500"
+                            />
+                            <span className="text-sm text-muted-foreground">custom words</span>
+                          </div>
+                          <p className="text-[10px] text-purple-400/70">Everyone writes together to defeat the boss. Cars are replaced by fighters!</p>
                         </div>
                       )}
                     </div>
