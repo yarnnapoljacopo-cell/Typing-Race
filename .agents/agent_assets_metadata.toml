@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "s7T4knWCkhrbiLJyQ4KWq"
+uri = "file://artifacts/desktop-app/resources/icon_new.png"
+type = "image"
+title = "writing sprint pen icon"
