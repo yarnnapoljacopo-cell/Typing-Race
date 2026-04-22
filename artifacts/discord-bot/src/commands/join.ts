@@ -47,7 +47,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (sprint.announcementMessage) {
     const modeLabel = sprint.mode === "goal" && sprint.wordGoal ? ` · Goal: ${sprint.wordGoal} words` : sprint.mode !== "regular" ? ` · Mode: ${sprint.mode}` : "";
     const appBaseUrl = process.env.API_BASE_URL?.replace(/\/$/, "") ?? "";
-    const joinLink = `${appBaseUrl}/room/${sprint.roomCode}`;
+    const joinLink = `${appBaseUrl}/room?code=${sprint.roomCode}`;
     const delayLabel = sprint.delayMinutes === 1 ? "1 minute" : `${sprint.delayMinutes} minutes`;
 
     await sprint.announcementMessage.edit(

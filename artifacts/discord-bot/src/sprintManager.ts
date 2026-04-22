@@ -73,7 +73,7 @@ export async function startSprint(opts: {
   });
   const roomCode = room.code;
 
-  const joinLink = `${appBaseUrl}/room/${roomCode}`;
+  const joinLink = `${appBaseUrl}/room?code=${roomCode}`;
   const modeLabel = mode === "goal" && wordGoal ? ` · Goal: ${wordGoal} words` : mode !== "regular" ? ` · Mode: ${mode}` : "";
   const delayLabel = delayMinutes === 1 ? "1 minute" : `${delayMinutes} minutes`;
 
@@ -133,7 +133,7 @@ async function launchSprint(sprint: ChannelSprint, channel: TextChannel, appBase
     if (msg.type === "joined") {
       sprint.participantId = msg.participantId as string;
       ws.send(JSON.stringify({ type: "start_sprint" }));
-      const joinLink = `${appBaseUrl}/room/${sprint.roomCode}`;
+      const joinLink = `${appBaseUrl}/room?code=${sprint.roomCode}`;
       const modeExtra = sprint.mode === "goal" && sprint.wordGoal
         ? ` Target: ${sprint.wordGoal} words.`
         : sprint.mode === "open" ? " (Open mode — everyone can see each other's text!)" : "";
