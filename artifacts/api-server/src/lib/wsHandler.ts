@@ -84,7 +84,16 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         participantId = inheritedId ?? uuidv4();
         roomCode = code;
 
-        const isCreator = inheritedIsCreator || (room.participants.size === 0 && name === room.creatorName);
+        // Grant creator status if: (a) this is a reconnect that already had it,
+        // OR (b) the name matches the room's designated creator name.
+        // The old "size === 0" gate broke Discord-bot-launched sprints because
+        // web participants had already joined by the time the bot connected.
+        const isCreator = inheritedIsCreator || name === room.creatorName;
+
+        // A participant may self-declare as spectator only if they are the creator
+        // (prevents random people from hiding from the race track).
+        const wantsSpectator = message.spectator === true;
+        const isSpectator = wantsSpectator && isCreator;
 
         const participant: Participant = {
           id: participantId,
@@ -95,19 +104,21 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           lastWordCount: restoredWordCount,
           ws,
           isCreator,
-          isSpectator: false,
+          isSpectator,
           latestText: restoredText,
         };
 
         addParticipant(room, participant);
 
-        const currentParticipants = Array.from(room.participants.values()).map((p) => ({
-          id: p.id,
-          name: p.name,
-          wordCount: p.wordCount,
-          wpm: p.wpm,
-          isCreator: p.isCreator,
-        }));
+        const currentParticipants = Array.from(room.participants.values())
+          .filter((p) => !p.isSpectator)
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            wordCount: p.wordCount,
+            wpm: p.wpm,
+            isCreator: p.isCreator,
+          }));
 
         ws.send(
           JSON.stringify({

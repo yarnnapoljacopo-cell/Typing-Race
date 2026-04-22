@@ -119,7 +119,9 @@ async function launchSprint(sprint: ChannelSprint, channel: TextChannel, appBase
   sprint.ws = ws;
 
   ws.on("open", () => {
-    ws.send(JSON.stringify({ type: "join_room", code: sprint.roomCode, name: "DiscordBot" }));
+    // spectator: true hides the bot from the race track while still granting
+    // creator powers so it can fire start_sprint / end_sprint.
+    ws.send(JSON.stringify({ type: "join_room", code: sprint.roomCode, name: "DiscordBot", spectator: true }));
   });
 
   ws.on("message", (raw: Buffer) => {
