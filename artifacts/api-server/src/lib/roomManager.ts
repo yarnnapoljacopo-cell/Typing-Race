@@ -101,6 +101,7 @@ function persistRoom(room: Room): void {
       bossWordGoal: room.bossWordGoal,
       deathModeWpm: room.deathModeWpm,
       passwordHash: room.passwordHash,
+      gladiatorDeathGap: room.gladiatorDeathGap,
       status: room.status,
       startTime: room.startTime,
       endTime: room.endTime,

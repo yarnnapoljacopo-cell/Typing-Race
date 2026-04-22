@@ -10,6 +10,7 @@ export const roomsTable = pgTable("rooms", {
   bossWordGoal: integer("boss_word_goal"),
   deathModeWpm: integer("death_mode_wpm"),
   passwordHash: varchar("password_hash", { length: 100 }),
+  gladiatorDeathGap: integer("gladiator_death_gap"),
   status: varchar("status", { length: 20 }).notNull().default("waiting"),
   startTime: bigint("start_time", { mode: "number" }),
   endTime: bigint("end_time", { mode: "number" }),

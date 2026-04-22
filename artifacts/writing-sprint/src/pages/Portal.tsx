@@ -31,7 +31,7 @@ import ActiveRooms from "./ActiveRooms";
 import { useGuest } from "@/lib/guestContext";
 import { useVillainMode } from "@/lib/villainModeContext";
 
-type RoomMode = "regular" | "open" | "goal" | "boss" | "kart";
+type RoomMode = "regular" | "open" | "goal" | "boss" | "kart" | "gladiator";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
