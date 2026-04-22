@@ -6,3 +6,9 @@ id = "s7T4knWCkhrbiLJyQ4KWq"
 uri = "file://artifacts/desktop-app/resources/icon_new.png"
 type = "image"
 title = "writing sprint pen icon"
+
+[[generated]]
+id = "E24W4wxPsE-rcRCKuLoTn"
+uri = "file://artifacts/desktop-app/resources/icon_base.png"
+type = "image"
+title = "writing sprint fountain pen icon"

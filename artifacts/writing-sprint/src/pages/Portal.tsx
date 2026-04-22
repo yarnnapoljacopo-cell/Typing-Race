@@ -503,7 +503,7 @@ export default function Portal() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Sprint Offline button — Electron desktop only */}
-                {(window as any).__ELECTRON__ && (
+                {!!(window as any).electronAPI && (
                   <button
                     type="button"
                     onClick={() => setLocation("/offline-sprint")}
