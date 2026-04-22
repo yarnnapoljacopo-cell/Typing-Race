@@ -1,0 +1,26 @@
+{
+  "name": "@workspace/desktop-app",
+  "version": "1.0.0",
+  "description": "Writing Sprint — Desktop App",
+  "main": "build/main.js",
+  "private": true,
+  "scripts": {
+    "dev": "tsc && electron build/main.js",
+    "build:ts": "tsc",
+    "build": "tsc && electron-builder build --config electron-builder.config.js --publish never",
+    "build:win": "tsc && electron-builder build --config electron-builder.config.js --win --publish never",
+    "build:mac": "tsc && electron-builder build --config electron-builder.config.js --mac --publish never",
+    "build:linux": "tsc && electron-builder build --config electron-builder.config.js --linux --publish never",
+    "pack": "tsc && electron-builder build --config electron-builder.config.js --dir --publish never"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.0.0",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.4.0"
+  }
+}

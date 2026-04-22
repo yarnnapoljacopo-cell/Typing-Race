@@ -1,0 +1,10 @@
+{
+  "name": "@workspace/desktop-app",
+  "version": "1.0.0",
+  "description": "Writing Sprint — Desktop App",
+  "main": "build/main.js",
+  "private": true,
+  "dependencies": {
+    "better-sqlite3": "^9.4.3"
+  }
+}

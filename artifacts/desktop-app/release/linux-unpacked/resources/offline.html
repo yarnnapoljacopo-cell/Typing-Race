@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Writing Sprint — Offline Mode</title>
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --border: #2a2a2a;
+    --text: #e8e8e8;
+    --muted: #777;
+    --accent: #7c6aef;
+    --accent-dim: #3d3566;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --radius: 10px;
+    --font: system-ui, -apple-system, sans-serif;
+    --font-mono: ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f4f0;
+      --surface: #ffffff;
+      --border: #e0ddd5;
+      --text: #1a1a1a;
+      --muted: #888;
+      --accent: #6351d8;
+      --accent-dim: #e8e4ff;
+    }
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: var(--font); background: var(--bg); color: var(--text); }
+
+  /* ── Layout ── */
+  #app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  #topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 18px; background: var(--surface); border-bottom: 1px solid var(--border);
+    -webkit-app-region: drag; user-select: none; gap: 12px;
+  }
+  #topbar > * { -webkit-app-region: no-drag; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    background: var(--accent-dim); color: var(--accent); letter-spacing: .03em;
+  }
+  .logo { font-weight: 700; font-size: 15px; letter-spacing: -.02em; }
+
+  button {
+    cursor: pointer; border: none; border-radius: var(--radius);
+    font-family: var(--font); font-size: 13px; transition: opacity .15s, background .15s;
+  }
+  button:active { opacity: .8; }
+  .btn-primary { background: var(--accent); color: #fff; padding: 8px 18px; font-weight: 600; }
+  .btn-ghost { background: transparent; color: var(--muted); padding: 6px 12px; border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+  .btn-danger { background: transparent; color: var(--danger); padding: 6px 12px; border: 1px solid var(--border); font-size: 12px; }
+
+  /* ── Views ── */
+  .view { display: none; flex: 1; overflow: auto; }
+  .view.active { display: flex; }
+
+  /* ── Setup view ── */
+  #setup-view {
+    flex-direction: column; align-items: center; justify-content: center; gap: 32px; padding: 40px 20px;
+  }
+  .setup-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 36px 40px; width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 24px;
+  }
+  .setup-card h2 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+  .setup-card p { color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .field { display: flex; flex-direction: column; gap: 8px; }
+  .field label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .grid-select { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .grid-select button {
+    padding: 10px 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-size: 13px; font-weight: 500;
+  }
+  .grid-select button.selected { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  input[type=number] {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-size: 14px; padding: 10px 14px; width: 100%;
+    font-family: var(--font);
+  }
+  input[type=number]:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+  /* ── Sprint view ── */
+  #sprint-view { flex-direction: column; }
+  #sprint-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--border); gap: 16px; flex-shrink: 0;
+  }
+  #timer-display {
+    font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono); letter-spacing: -.04em; color: var(--accent);
+  }
+  #timer-display.warning { color: var(--danger); }
+  #wc-display { font-size: 15px; font-weight: 700; color: var(--muted); }
+  #wc-display span { color: var(--text); }
+  #progress-bar-wrap {
+    height: 3px; background: var(--border); position: relative; flex-shrink: 0;
+  }
+  #progress-bar { height: 100%; background: var(--accent); transition: width .4s ease; width: 0; }
+  #writing-area {
+    flex: 1; padding: 40px 10%; font-size: 16px; line-height: 1.85;
+    border: none; outline: none; background: transparent; color: var(--text);
+    resize: none; font-family: 'Georgia', serif; font-size: 17px;
+  }
+  #writing-area::placeholder { color: var(--muted); }
+  #sprint-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 20px; background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0;
+  }
+  .wpm-badge { font-size: 12px; color: var(--muted); }
+
+  /* ── Results view ── */
+  #results-view { flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 40px 20px; }
+  .results-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 36px 40px; width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 20px; text-align: center;
+  }
+  .results-card h2 { font-size: 24px; font-weight: 800; }
+  .stats-row { display: flex; gap: 12px; }
+  .stat { flex: 1; background: var(--bg); border-radius: 10px; padding: 14px; }
+  .stat-val { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+  .results-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+  /* ── History view ── */
+  #history-view { flex-direction: column; padding: 24px; gap: 16px; }
+  #history-view h2 { font-size: 18px; font-weight: 700; }
+  .history-list { display: flex; flex-direction: column; gap: 10px; }
+  .history-item {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .history-item-info { flex: 1; min-width: 0; }
+  .history-item-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .history-item-excerpt { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+  .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 15px; }
+
+  /* ── Online banner ── */
+  #online-banner {
+    display: none; background: #16521e; color: #86efac;
+    padding: 8px 18px; font-size: 13px; text-align: center; cursor: pointer;
+  }
+  #online-banner:hover { background: #1a6325; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Topbar -->
+  <div id="topbar">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="logo">Writing Sprint</span>
+      <span class="pill">✈ Offline Mode</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-ghost" onclick="showView('history-view')">History</button>
+      <button class="btn-ghost" onclick="tryGoOnline()">↑ Connect</button>
+    </div>
+  </div>
+
+  <!-- Online available banner -->
+  <div id="online-banner" onclick="tryGoOnline()">
+    🌐 Internet detected — click to connect to the full Writing Sprint app
+  </div>
+
+  <!-- Setup view -->
+  <div id="setup-view" class="view active">
+    <div class="setup-card">
+      <div>
+        <h2>Solo Sprint</h2>
+        <p>You're offline. Write solo — your sprints are saved locally and sync when you reconnect.</p>
+      </div>
+
+      <div class="field">
+        <label>Duration</label>
+        <div class="grid-select" id="duration-grid">
+          <button onclick="selectDuration(5)">5 min</button>
+          <button onclick="selectDuration(10)" class="selected">10 min</button>
+          <button onclick="selectDuration(15)">15 min</button>
+          <button onclick="selectDuration(20)">20 min</button>
+          <button onclick="selectDuration(30)">30 min</button>
+          <button onclick="selectDuration(60)">60 min</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Word Goal <span style="font-weight:400;text-transform:none;">(optional)</span></label>
+        <input type="number" id="goal-input" placeholder="e.g. 500" min="1" max="100000" />
+      </div>
+
+      <button class="btn-primary" style="width:100%;padding:12px;" onclick="startSprint()">
+        Start Writing
+      </button>
+    </div>
+  </div>
+
+  <!-- Sprint view -->
+  <div id="sprint-view" class="view">
+    <div id="sprint-header">
+      <div>
+        <div id="timer-display">10:00</div>
+      </div>
+      <div id="wc-display"><span id="wc-num">0</span> words</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-ghost" onclick="endSprint(true)">End Early</button>
+      </div>
+    </div>
+    <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+    <textarea
+      id="writing-area"
+      placeholder="Start writing… your words are automatically saved."
+      spellcheck="true"
+      oninput="onWrite()"
+    ></textarea>
+    <div id="sprint-footer">
+      <span class="wpm-badge" id="wpm-badge">— wpm</span>
+      <span style="font-size:12px;color:var(--muted);" id="goal-progress"></span>
+    </div>
+  </div>
+
+  <!-- Results view -->
+  <div id="results-view" class="view">
+    <div class="results-card">
+      <h2>Sprint Complete 🎉</h2>
+      <div class="stats-row">
+        <div class="stat">
+          <div class="stat-val" id="res-words">0</div>
+          <div class="stat-label">Words</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="res-wpm">0</div>
+          <div class="stat-label">Avg WPM</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="res-time">0:00</div>
+          <div class="stat-label">Time</div>
+        </div>
+      </div>
+      <div class="results-actions">
+        <button class="btn-primary" onclick="saveToFile()">Save to File…</button>
+        <button class="btn-ghost" onclick="newSprint()">New Sprint</button>
+        <button class="btn-ghost" onclick="showView('history-view')">History</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);">Sprint saved locally. XP will sync when you reconnect.</p>
+    </div>
+  </div>
+
+  <!-- History view -->
+  <div id="history-view" class="view">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <h2>Offline Sprint History</h2>
+      <button class="btn-ghost" onclick="newSprint()">← New Sprint</button>
+    </div>
+    <div class="history-list" id="history-list">
+      <div class="empty-state">No offline sprints yet.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let selectedDuration = 10; // minutes
+let timerInterval = null;
+let secondsLeft = 0;
+let totalSeconds = 0;
+let sprintStartTime = null;
+let wordCountAtStart = 0;
+let lastWcTime = null;
+let lastWcVal = 0;
+let finalText = '';
+let finalWords = 0;
+let savedSprintId = null;
+
+// ── Duration selection ────────────────────────────────────────────────────────
+function selectDuration(min) {
+  selectedDuration = min;
+  document.querySelectorAll('#duration-grid button').forEach(b => {
+    b.classList.toggle('selected', b.textContent.trim() === `${min} min`);
+  });
+}
+
+// ── View management ───────────────────────────────────────────────────────────
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'history-view') loadHistory();
+}
+
+// ── Sprint lifecycle ──────────────────────────────────────────────────────────
+function startSprint() {
+  const goalInput = document.getElementById('goal-input');
+  const goal = goalInput.value ? parseInt(goalInput.value) : null;
+  window._sprintGoal = goal;
+
+  totalSeconds = selectedDuration * 60;
+  secondsLeft = totalSeconds;
+  sprintStartTime = Date.now();
+  wordCountAtStart = 0;
+  lastWcTime = Date.now();
+  lastWcVal = 0;
+  finalText = '';
+  finalWords = 0;
+  savedSprintId = null;
+
+  document.getElementById('writing-area').value = '';
+  document.getElementById('wc-num').textContent = '0';
+  document.getElementById('timer-display').classList.remove('warning');
+  updateGoalProgress(0, goal);
+
+  showView('sprint-view');
+  document.getElementById('writing-area').focus();
+  updateTimer();
+  timerInterval = setInterval(tick, 1000);
+}
+
+function tick() {
+  secondsLeft--;
+  updateTimer();
+  if (secondsLeft <= 0) endSprint(false);
+}
+
+function updateTimer() {
+  const m = Math.floor(secondsLeft / 60);
+  const s = secondsLeft % 60;
+  document.getElementById('timer-display').textContent =
+    `${m}:${s.toString().padStart(2, '0')}`;
+  document.getElementById('timer-display').classList.toggle('warning', secondsLeft <= 60);
+
+  const pct = ((totalSeconds - secondsLeft) / totalSeconds) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+function onWrite() {
+  const text = document.getElementById('writing-area').value;
+  const wc = countWords(text);
+  document.getElementById('wc-num').textContent = wc;
+
+  // WPM (rolling over last 30s)
+  const now = Date.now();
+  if (now - lastWcTime >= 5000) {
+    const elapsed = (now - lastWcTime) / 60000;
+    const wpm = Math.round((wc - lastWcVal) / elapsed);
+    if (wpm > 0 && wpm < 300) {
+      document.getElementById('wpm-badge').textContent = `${wpm} wpm`;
+    }
+    lastWcTime = now;
+    lastWcVal = wc;
+  }
+
+  updateGoalProgress(wc, window._sprintGoal);
+}
+
+function updateGoalProgress(wc, goal) {
+  const el = document.getElementById('goal-progress');
+  if (!goal) { el.textContent = ''; return; }
+  const pct = Math.min(100, Math.round((wc / goal) * 100));
+  el.textContent = `${wc} / ${goal} words (${pct}%)`;
+  if (wc >= goal) el.style.color = 'var(--success)';
+  else el.style.color = 'var(--muted)';
+}
+
+function countWords(str) {
+  return str.trim() === '' ? 0 : str.trim().split(/\s+/).length;
+}
+
+function fmtTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+async function endSprint(early) {
+  clearInterval(timerInterval);
+  timerInterval = null;
+
+  const text = document.getElementById('writing-area').value;
+  const words = countWords(text);
+  const elapsed = totalSeconds - secondsLeft;
+
+  finalText = text;
+  finalWords = words;
+
+  // Show results
+  document.getElementById('res-words').textContent = words.toLocaleString();
+  const wpm = elapsed > 0 ? Math.round(words / (elapsed / 60)) : 0;
+  document.getElementById('res-wpm').textContent = wpm;
+  document.getElementById('res-time').textContent = fmtTime(elapsed);
+
+  showView('results-view');
+
+  // Save locally
+  if (words > 0 && window.electronAPI) {
+    const result = await window.electronAPI.saveOfflineSprint({
+      duration: selectedDuration,
+      words,
+      text,
+      goal: window._sprintGoal ?? undefined,
+    });
+    savedSprintId = result?.id;
+  }
+}
+
+function newSprint() {
+  showView('setup-view');
+}
+
+async function saveToFile() {
+  if (!window.electronAPI) return alert('File saving not available.');
+  const date = new Date().toISOString().slice(0, 10);
+  const result = await window.electronAPI.saveFile(finalText, `sprint-${date}.txt`);
+  if (result?.saved) {
+    // Brief feedback
+    const btn = event.target;
+    const orig = btn.textContent;
+    btn.textContent = '✓ Saved!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  }
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+async function loadHistory() {
+  const list = document.getElementById('history-list');
+  if (!window.electronAPI) {
+    list.innerHTML = '<div class="empty-state">Storage not available.</div>';
+    return;
+  }
+  const sprints = await window.electronAPI.getOfflineSprints();
+  if (!sprints || sprints.length === 0) {
+    list.innerHTML = '<div class="empty-state">No offline sprints yet. Write something!</div>';
+    return;
+  }
+  list.innerHTML = sprints.map(s => `
+    <div class="history-item">
+      <div class="history-item-info">
+        <div style="font-weight:600;">${s.words.toLocaleString()} words · ${s.duration} min</div>
+        <div class="history-item-meta">${new Date(s.created_at).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="history-item-excerpt">${escHtml(s.text.trim().slice(0, 120))}…</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+        <button class="btn-ghost" style="font-size:12px;padding:4px 10px;" onclick="exportSprint(${s.id}, ${JSON.stringify(s.text)})">Export</button>
+        <button class="btn-danger" onclick="deleteSprint(${s.id}, this)">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function exportSprint(id, text) {
+  if (!window.electronAPI) return;
+  const date = new Date().toISOString().slice(0, 10);
+  await window.electronAPI.saveFile(text, `sprint-${id}-${date}.txt`);
+}
+
+async function deleteSprint(id, btn) {
+  if (!window.electronAPI) return;
+  if (!confirm('Delete this sprint?')) return;
+  await window.electronAPI.deleteOfflineSprint(id);
+  loadHistory();
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Online detection ──────────────────────────────────────────────────────────
+async function tryGoOnline() {
+  if (!window.electronAPI) return;
+  const result = await window.electronAPI.goOnline();
+  if (!result?.online) {
+    alert('Still offline. Check your internet connection and try again.');
+  }
+}
+
+async function checkOnlineStatus() {
+  if (!window.electronAPI) return;
+  const online = await window.electronAPI.isOnline();
+  const banner = document.getElementById('online-banner');
+  banner.style.display = online ? 'block' : 'none';
+}
+
+// Poll for connectivity every 15s
+setInterval(checkOnlineStatus, 15000);
+checkOnlineStatus();
+
+// Listen for menu triggers
+if (window.electronAPI) {
+  window.electronAPI.onGoOffline?.(() => { /* already offline */ });
+  window.electronAPI.onGoOnline?.(() => tryGoOnline());
+}
+</script>
+</body>
+</html>
