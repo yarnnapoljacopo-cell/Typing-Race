@@ -27,9 +27,26 @@ function formatTime(ms: number) {
 }
 
 function htmlToPlain(html: string) {
+  if (!html) return "";
   const div = document.createElement("div");
   div.innerHTML = html;
-  return div.innerText ?? div.textContent ?? "";
+  // innerText returns "" on detached elements in many browsers; fall back to
+  // textContent, then to a manual regex strip so we never lose the user's text.
+  const inner = div.innerText || div.textContent || "";
+  if (inner.trim()) return inner;
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function CopyButton({ getText, label = "Copy" }: { getText: () => string; label?: string }) {
@@ -239,24 +256,22 @@ export function GameOverScreen({
           transition={{ delay: 0.7 }}
           className="flex flex-col gap-3 w-full max-w-xs"
         >
-          {/* My Writing — inline toggle */}
-          {hasWriting && (
-            <button
-              onClick={() => setWritingOpen((o) => !o)}
-              className={`flex items-center justify-between w-full py-3.5 px-4 rounded-xl font-semibold text-sm transition-all duration-200 border ${
-                writingOpen
-                  ? "border-red-500/50 text-red-300 bg-red-500/10"
-                  : "border-red-500/30 text-red-300 hover:bg-red-500/10 hover:border-red-500/60"
-              }`}
-              style={{ background: writingOpen ? undefined : "rgba(239,68,68,0.07)" }}
-            >
-              <div className="flex items-center gap-2.5">
-                <BookOpen className="w-4 h-4" />
-                My Writing
-              </div>
-              {writingOpen ? <ChevronUp className="w-4 h-4 opacity-60" /> : <ChevronDown className="w-4 h-4 opacity-60" />}
-            </button>
-          )}
+          {/* My Writing — inline toggle (always shown) */}
+          <button
+            onClick={() => setWritingOpen((o) => !o)}
+            className={`flex items-center justify-between w-full py-3.5 px-4 rounded-xl font-semibold text-sm transition-all duration-200 border ${
+              writingOpen
+                ? "border-red-500/50 text-red-300 bg-red-500/10"
+                : "border-red-500/30 text-red-300 hover:bg-red-500/10 hover:border-red-500/60"
+            }`}
+            style={{ background: writingOpen ? undefined : "rgba(239,68,68,0.07)" }}
+          >
+            <div className="flex items-center gap-2.5">
+              <BookOpen className="w-4 h-4" />
+              My Writing
+            </div>
+            {writingOpen ? <ChevronUp className="w-4 h-4 opacity-60" /> : <ChevronDown className="w-4 h-4 opacity-60" />}
+          </button>
 
           <button
             onClick={() => navigate("/portal")}
@@ -266,7 +281,7 @@ export function GameOverScreen({
             Home
           </button>
 
-          {room.status === "running" && (
+          {room.participants.length > 0 && (
             <button
               onClick={() => setSpectating((s) => !s)}
               className={`flex items-center justify-center gap-2.5 w-full py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 border ${

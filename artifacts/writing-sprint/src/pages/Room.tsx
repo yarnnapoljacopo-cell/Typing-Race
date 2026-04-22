@@ -390,8 +390,12 @@ export default function Room() {
   // makes the reaper line advance at a visually constant pace.
   useEffect(() => {
     if (!room || room.status !== "running") {
-      sprintStartedAtRef.current = null;
-      setClientElapsedMs(0);
+      // Don't reset while on the Game Over screen — the spectate panel still
+      // needs a valid elapsed time to position the reaper correctly.
+      if (!isGameOver) {
+        sprintStartedAtRef.current = null;
+        setClientElapsedMs(0);
+      }
       return;
     }
     // Estimate sprint start from server's timeLeft the first time we see "running"
@@ -408,9 +412,10 @@ export default function Room() {
       }
     }, 150);
     return () => clearInterval(interval);
-  // Only re-init when status changes, not on every timeLeft heartbeat
+  // Re-run when status changes or game-over state changes (to avoid resetting
+  // clientElapsedMs while the spectate panel is still active).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.status]);
+  }, [room?.status, isGameOver]);
 
   // ── Crash protection ──────────────────────────────────────────────────
   useEffect(() => {
