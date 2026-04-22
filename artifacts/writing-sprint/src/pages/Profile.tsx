@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Pen, TrendingUp, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { RANKS, getRankFromXp, getNextRank, xpProgressPercent } from "@/lib/ranks";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { RANKS, getRankFromXp, getNextRank, xpProgressPercent, type Rank } from "@/lib/ranks";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -34,40 +36,97 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
+const borderColorMap: Record<number, string> = {
+  0: "#71717a",
+  1: "#94a3b8",
+  2: "#f97316",
+  3: "#8b5cf6",
+  4: "#dc2626",
+  5: "#facc15",
+  6: "#22d3ee",
+};
+
+const glowMap: Record<number, string> = {
+  0: "none",
+  1: "0 0 10px rgba(148,163,184,0.3)",
+  2: "0 0 15px rgba(249,115,22,0.5)",
+  3: "0 0 15px rgba(139,92,246,0.5)",
+  4: "0 0 20px rgba(220,38,38,0.6)",
+  5: "0 0 25px rgba(250,204,21,0.7)",
+  6: "0 0 30px rgba(34,211,238,0.8), 0 0 60px rgba(34,211,238,0.3)",
+};
+
+const bgMap: Record<number, string> = {
+  0: "#1c1c20",
+  1: "#1e2130",
+  2: "#1c1008",
+  3: "#1a1030",
+  4: "#1c0808",
+  5: "#201800",
+  6: "#080c20",
+};
+
+function RankDetailDialog({ rank, open, onClose }: { rank: Rank | null; open: boolean; onClose: () => void }) {
+  if (!rank) return null;
+  const nextRank = getNextRank(rank);
+  const color = borderColorMap[rank.index];
+  const xpRangeText = nextRank
+    ? `${rank.minXp.toLocaleString()} – ${(nextRank.minXp - 1).toLocaleString()} XP`
+    : `${rank.minXp.toLocaleString()}+ XP`;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-xs text-center">
+        <DialogHeader>
+          <DialogTitle className="sr-only">{rank.title}</DialogTitle>
+          <DialogDescription className="sr-only">{rank.subtitle}</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col items-center gap-4 py-2">
+          <div
+            className="w-20 h-20 rounded-full flex items-center justify-center"
+            style={{
+              border: `4px solid ${color}`,
+              boxShadow: glowMap[rank.index],
+              background: bgMap[rank.index],
+            }}
+          >
+            <span className="text-4xl">{rank.emoji}</span>
+          </div>
+
+          <div className="space-y-1">
+            <div
+              className="text-base font-black uppercase tracking-wider"
+              style={{ color, textShadow: rank.index >= 4 ? `0 0 10px ${color}` : "none" }}
+            >
+              {rank.title}
+            </div>
+            <div className="text-xs text-muted-foreground italic">{rank.subtitle}</div>
+          </div>
+
+          <div
+            className="text-xs font-mono font-semibold px-3 py-1.5 rounded-full"
+            style={{ background: bgMap[rank.index], color, border: `1px solid ${color}40` }}
+          >
+            {xpRangeText}
+          </div>
+
+          {rank.index === 0 && (
+            <p className="text-xs text-muted-foreground">The starting rank — every writer begins here.</p>
+          )}
+          {rank.index === 6 && (
+            <p className="text-xs text-muted-foreground">The highest rank. Very few reach this level.</p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RankBadge({ xp }: { xp: number }) {
   const rank = getRankFromXp(xp);
   const nextRank = getNextRank(rank);
   const progress = xpProgressPercent(xp, rank, nextRank);
-
-  const borderColorMap: Record<number, string> = {
-    0: "#71717a",
-    1: "#94a3b8",
-    2: "#f97316",
-    3: "#8b5cf6",
-    4: "#dc2626",
-    5: "#facc15",
-    6: "#22d3ee",
-  };
-
-  const glowMap: Record<number, string> = {
-    0: "none",
-    1: "0 0 10px rgba(148,163,184,0.3)",
-    2: "0 0 15px rgba(249,115,22,0.5)",
-    3: "0 0 15px rgba(139,92,246,0.5)",
-    4: "0 0 20px rgba(220,38,38,0.6)",
-    5: "0 0 25px rgba(250,204,21,0.7)",
-    6: "0 0 30px rgba(34,211,238,0.8), 0 0 60px rgba(34,211,238,0.3)",
-  };
-
-  const bgMap: Record<number, string> = {
-    0: "#1c1c20",
-    1: "#1e2130",
-    2: "#1c1008",
-    3: "#1a1030",
-    4: "#1c0808",
-    5: "#201800",
-    6: "#080c20",
-  };
+  const [selectedRank, setSelectedRank] = useState<Rank | null>(null);
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -150,31 +209,39 @@ function RankBadge({ xp }: { xp: number }) {
         )}
       </div>
 
-      {/* All ranks reference */}
+      {/* All ranks reference — click each to see details */}
       <div className="w-full max-w-xs">
-        <div className="text-[10px] text-muted-foreground text-center mb-2 uppercase tracking-wider">Rank Progression</div>
+        <div className="text-[10px] text-muted-foreground text-center mb-2 uppercase tracking-wider">Rank Progression — click to explore</div>
         <div className="grid grid-cols-7 gap-1">
           {RANKS.map((r) => (
-            <div
+            <button
               key={r.index}
-              className="flex flex-col items-center gap-0.5"
-              title={`${r.title} (${r.minXp} XP)`}
+              className="flex flex-col items-center gap-0.5 group"
+              onClick={() => setSelectedRank(r)}
+              title={`${r.title} (${r.minXp.toLocaleString()} XP)`}
             >
               <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
+                className="w-7 h-7 rounded-full flex items-center justify-center text-sm transition-transform group-hover:scale-110 group-hover:opacity-100"
                 style={{
                   border: `2px solid ${r.index <= rank.index ? borderColorMap[r.index] : "#374151"}`,
                   background: r.index <= rank.index ? bgMap[r.index] : "transparent",
                   boxShadow: r.index === rank.index ? `0 0 8px ${borderColorMap[r.index]}` : "none",
                   opacity: r.index <= rank.index ? 1 : 0.3,
+                  cursor: "pointer",
                 }}
               >
                 <span style={{ fontSize: "12px" }}>{r.emoji}</span>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
+
+      <RankDetailDialog
+        rank={selectedRank}
+        open={selectedRank !== null}
+        onClose={() => setSelectedRank(null)}
+      />
     </div>
   );
 }

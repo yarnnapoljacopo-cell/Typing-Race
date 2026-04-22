@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
-  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User,
+  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User, Users,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
@@ -221,6 +221,13 @@ export default function Portal() {
                     title="My Files"
                   >
                     <BookOpen size={15} />
+                  </button>
+                  <button
+                    onClick={() => setLocation("/friends")}
+                    className="text-muted-foreground hover:text-primary transition-colors"
+                    title="Friends"
+                  >
+                    <Users size={15} />
                   </button>
                   <button
                     onClick={() => {

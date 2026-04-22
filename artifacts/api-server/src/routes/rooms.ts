@@ -3,8 +3,8 @@ import { getAuth } from "@clerk/express";
 import { createRoom, getRoom, getActiveRooms } from "../lib/roomManager";
 import { saveWriting, getWriting, getUserSprints } from "../lib/writingStore";
 import { CreateRoomBody, GetRoomParams } from "@workspace/api-zod";
-import { db, userProfilesTable, sprintWritingTable } from "@workspace/db";
-import { eq, and, desc, sql, max, sum, count } from "drizzle-orm";
+import { db, userProfilesTable, sprintWritingTable, friendshipsTable } from "@workspace/db";
+import { eq, and, or, ne, desc, sql, max, sum, count, inArray, ilike } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -325,6 +325,153 @@ router.get("/users/by-name/:name/profile", async (req, res): Promise<void> => {
     highestWordCount: Number(statsRow?.highestWordCount ?? 0),
     sprintCount: Number(statsRow?.sprintCount ?? 0),
   });
+});
+
+router.get("/friends", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rows = await db
+    .select({
+      id: friendshipsTable.id,
+      requesterId: friendshipsTable.requesterId,
+      addresseeId: friendshipsTable.addresseeId,
+      status: friendshipsTable.status,
+    })
+    .from(friendshipsTable)
+    .where(or(
+      eq(friendshipsTable.requesterId, clerkUserId),
+      eq(friendshipsTable.addresseeId, clerkUserId),
+    ));
+
+  const otherIds = rows.map((f) => f.requesterId === clerkUserId ? f.addresseeId : f.requesterId);
+
+  const profiles = otherIds.length > 0
+    ? await db
+        .select({ clerkUserId: userProfilesTable.clerkUserId, writerName: userProfilesTable.writerName, xp: userProfilesTable.xp })
+        .from(userProfilesTable)
+        .where(inArray(userProfilesTable.clerkUserId, otherIds))
+    : [];
+
+  const profileMap = Object.fromEntries(profiles.map((p) => [p.clerkUserId, p]));
+
+  const friends: { id: number; writerName: string; xp: number }[] = [];
+  const pendingReceived: { id: number; writerName: string; xp: number }[] = [];
+  const pendingSent: { id: number; writerName: string; xp: number }[] = [];
+
+  for (const f of rows) {
+    const otherId = f.requesterId === clerkUserId ? f.addresseeId : f.requesterId;
+    const profile = profileMap[otherId];
+    const entry = { id: f.id, writerName: profile?.writerName ?? "", xp: profile?.xp ?? 0 };
+    if (f.status === "accepted") {
+      friends.push(entry);
+    } else if (f.status === "pending") {
+      if (f.addresseeId === clerkUserId) {
+        pendingReceived.push(entry);
+      } else {
+        pendingSent.push(entry);
+      }
+    }
+  }
+
+  res.json({ friends, pendingReceived, pendingSent });
+});
+
+router.get("/users/search", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const q = String(req.query.q ?? "").trim();
+  if (q.length < 2) { res.status(400).json({ error: "Query must be at least 2 characters" }); return; }
+
+  const results = await db
+    .select({ clerkUserId: userProfilesTable.clerkUserId, writerName: userProfilesTable.writerName, xp: userProfilesTable.xp })
+    .from(userProfilesTable)
+    .where(and(
+      ilike(userProfilesTable.writerName, `%${q}%`),
+      ne(userProfilesTable.clerkUserId, clerkUserId),
+    ))
+    .limit(10);
+
+  res.json(results);
+});
+
+router.post("/friends/request", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { writerName } = req.body ?? {};
+  if (!writerName) { res.status(400).json({ error: "writerName required" }); return; }
+
+  const targetRows = await db
+    .select({ clerkUserId: userProfilesTable.clerkUserId })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.writerName, writerName))
+    .limit(1);
+
+  if (targetRows.length === 0) { res.status(404).json({ error: "Writer not found" }); return; }
+  const addresseeId = targetRows[0].clerkUserId;
+  if (addresseeId === clerkUserId) { res.status(400).json({ error: "Cannot add yourself" }); return; }
+
+  const existing = await db
+    .select({ id: friendshipsTable.id })
+    .from(friendshipsTable)
+    .where(or(
+      and(eq(friendshipsTable.requesterId, clerkUserId), eq(friendshipsTable.addresseeId, addresseeId)),
+      and(eq(friendshipsTable.requesterId, addresseeId), eq(friendshipsTable.addresseeId, clerkUserId)),
+    ))
+    .limit(1);
+
+  if (existing.length > 0) { res.status(409).json({ error: "Already connected or pending" }); return; }
+
+  await db.insert(friendshipsTable).values({ requesterId: clerkUserId, addresseeId, status: "pending" });
+
+  res.json({ ok: true });
+});
+
+router.post("/friends/:id/accept", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const rows = await db
+    .select()
+    .from(friendshipsTable)
+    .where(and(eq(friendshipsTable.id, id), eq(friendshipsTable.addresseeId, clerkUserId), eq(friendshipsTable.status, "pending")))
+    .limit(1);
+
+  if (rows.length === 0) { res.status(404).json({ error: "Request not found" }); return; }
+
+  await db
+    .update(friendshipsTable)
+    .set({ status: "accepted" })
+    .where(eq(friendshipsTable.id, id));
+
+  res.json({ ok: true });
+});
+
+router.delete("/friends/:id", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  await db
+    .delete(friendshipsTable)
+    .where(and(
+      eq(friendshipsTable.id, id),
+      or(eq(friendshipsTable.requesterId, clerkUserId), eq(friendshipsTable.addresseeId, clerkUserId)),
+    ));
+
+  res.json({ ok: true });
 });
 
 export default router;
