@@ -14,7 +14,7 @@ import { WritingToolbar, type WritingStyle, type FormatType } from "@/components
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 import { SpectatorView } from "@/components/SpectatorView";
 import { Button } from "@/components/ui/button";
-import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck, BookOpen, Maximize2, Minimize2, LogOut } from "lucide-react";
+import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck, BookOpen, PenLine, Maximize2, Minimize2, LogOut } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -176,6 +176,7 @@ export default function Room() {
   const [writingStyle, setWritingStyle] = useState<WritingStyle>(loadWritingStyle);
   const [savedToMyFiles, setSavedToMyFiles] = useState(false);
   const [distractionFree, setDistractionFree] = useState(false);
+  const [readMode, setReadMode] = useState(false);
   const [graceCountdown, setGraceCountdown] = useState<number | null>(null);
   const [isGameOver, setIsGameOver] = useState(false);
   const [survivedSeconds, setSurvivedSeconds] = useState(0);
@@ -1016,6 +1017,45 @@ export default function Room() {
             {room.participants.length} {room.participants.length === 1 ? "writer" : "writers"}
           </span>
 
+          {/* Read / Write toggle — visible in all active states */}
+          {(isWaiting || isCountdown || isRunning || isFinished) && (
+            <>
+              <div className="w-px h-5 bg-border mx-1 hidden sm:block" />
+              <Button
+                variant={readMode ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  setReadMode((v) => {
+                    if (v) {
+                      // returning to write — refocus editor after paint
+                      setTimeout(() => {
+                        const el = textareaRef.current;
+                        if (el) {
+                          el.focus();
+                          const range = document.createRange();
+                          const sel = window.getSelection();
+                          range.selectNodeContents(el);
+                          range.collapse(false);
+                          sel?.removeAllRanges();
+                          sel?.addRange(range);
+                        }
+                      }, 50);
+                    }
+                    return !v;
+                  });
+                }}
+                className="gap-1.5 text-xs px-2"
+                title={readMode ? "Switch back to writing" : "Read what you've written"}
+              >
+                {readMode ? (
+                  <><PenLine className="w-3.5 h-3.5" /><span className="hidden sm:inline">Write</span></>
+                ) : (
+                  <><BookOpen className="w-3.5 h-3.5" /><span className="hidden sm:inline">Read</span></>
+                )}
+              </Button>
+            </>
+          )}
+
           {/* Leave Sprint — only shown while running, separated from the participant avatars */}
           {isRunning && (
             <>
@@ -1128,16 +1168,26 @@ export default function Room() {
                     <span className="text-muted-foreground text-xs">|</span>
                     <span className="font-mono text-sm text-foreground">{netWordCount} <span className="text-muted-foreground font-normal text-xs">words</span></span>
                   </div>
-                  <button
-                    onClick={() => setDistractionFree(false)}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted/60"
-                  >
-                    <Minimize2 className="w-3.5 h-3.5" />
-                    Exit focus
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setReadMode((v) => !v)}
+                      className={`flex items-center gap-1.5 text-xs transition-colors px-2 py-1 rounded ${readMode ? "text-foreground bg-muted/60" : "text-muted-foreground hover:text-foreground hover:bg-muted/60"}`}
+                      title={readMode ? "Switch back to writing" : "Read what you've written"}
+                    >
+                      {readMode ? <PenLine className="w-3.5 h-3.5" /> : <BookOpen className="w-3.5 h-3.5" />}
+                      {readMode ? "Write" : "Read"}
+                    </button>
+                    <button
+                      onClick={() => setDistractionFree(false)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted/60"
+                    >
+                      <Minimize2 className="w-3.5 h-3.5" />
+                      Exit focus
+                    </button>
+                  </div>
                 </div>
               )}
-              <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} />
+              {!readMode && <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} />}
               <div className={`flex flex-col flex-1 min-h-[380px]${kartState.boldText ? " kart-banana-hit" : ""}${kartState.blurCounter ? " kart-blur-counter" : ""}`}>
                 {/* Pre-sprint / countdown hint bar */}
                 {(isWaiting || isCountdown) && (
@@ -1162,7 +1212,7 @@ export default function Room() {
                 )}
                 <div
                   ref={textareaRef}
-                  contentEditable={isRunning || isWaiting || isCountdown}
+                  contentEditable={!readMode && (isRunning || isWaiting || isCountdown)}
                   suppressContentEditableWarning
                   onInput={handleInput}
                   onKeyDown={handleKeyDown}
@@ -1173,13 +1223,21 @@ export default function Room() {
                       ? "Write here — the clock is ticking!"
                       : "Warm up here while you wait for the sprint to start…"
                   }
-                  className={`writing-editor flex-1 w-full bg-card border shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground overflow-auto min-h-[380px]${(!isRunning && !isWaiting && !isCountdown) ? " opacity-60 cursor-not-allowed" : ""}`}
+                  className={`writing-editor flex-1 w-full border shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground overflow-auto min-h-[380px]${
+                    readMode
+                      ? " bg-card/60 cursor-default select-text"
+                      : (!isRunning && !isWaiting && !isCountdown)
+                      ? " bg-card opacity-60 cursor-not-allowed"
+                      : " bg-card"
+                  }`}
                   style={{
                     borderTop: (isWaiting || isCountdown) ? "none" : undefined,
                     borderRadius: (isWaiting || isCountdown) ? "0 0 0.5rem 0.5rem" : undefined,
                     fontFamily: writingStyle.fontFamily,
                     fontSize: `${writingStyle.fontSize}px`,
-                    lineHeight: writingStyle.lineHeight,
+                    lineHeight: readMode ? 1.9 : writingStyle.lineHeight,
+                    outline: readMode ? "none" : undefined,
+                    caretColor: readMode ? "transparent" : undefined,
                   }}
                 />
                 {/* Below-textarea badge row */}
