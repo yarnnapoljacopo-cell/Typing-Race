@@ -4,6 +4,7 @@ import { useSprintRoom, type RoomState } from "@/hooks/useSprintRoom";
 import { RaceTrack } from "@/components/RaceTrack";
 import { Timer } from "@/components/Timer";
 import { ResultsScreen } from "@/components/ResultsScreen";
+import { GameOverScreen } from "@/components/GameOverScreen";
 import { WritingToolbar, type WritingStyle, type FormatType } from "@/components/WritingToolbar";
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 import { SpectatorView } from "@/components/SpectatorView";
@@ -158,6 +159,10 @@ export default function Room() {
   const [writingStyle, setWritingStyle] = useState<WritingStyle>(loadWritingStyle);
   const [savedToMyFiles, setSavedToMyFiles] = useState(false);
   const [distractionFree, setDistractionFree] = useState(false);
+  const [graceCountdown, setGraceCountdown] = useState<number | null>(null);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [survivedSeconds, setSurvivedSeconds] = useState(0);
+  const eliminationStartedRef = useRef(false);
 
   const textareaRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
@@ -401,6 +406,62 @@ export default function Room() {
       window.removeEventListener("blur", onBlur);
     };
   }, [code, flushAutoSave]);
+
+  // ── Death Mode grace countdown ────────────────────────────────────────
+  // Compute a safe "am I eliminated" value using optional chaining so it can
+  // live before the early returns and be used as a real effect dependency.
+  const _deathWpm = room?.deathModeWpm ?? null;
+  const _timeLeft = room?.timeLeft ?? null;
+  const _durMin = room?.durationMinutes ?? 0;
+  const _myWC = room?.participants.find((p) => p.id === participantId)?.wordCount ?? 0;
+  const _wordGoal = room?.wordGoal ?? null;
+  const _reaperEarlyWC = _deathWpm != null && _timeLeft != null && room?.status === "running"
+    ? Math.floor(_deathWpm * Math.max(0, _durMin * 60 - _timeLeft) / 60)
+    : 0;
+  const isEliminatedEarly = _reaperEarlyWC > 0 && _myWC < _reaperEarlyWC && _myWC < (_wordGoal ?? _durMin * 200);
+  // Ref so interval callback always reads the latest value without stale closure
+  const isEliminatedRef = useRef(false);
+  isEliminatedRef.current = isEliminatedEarly;
+
+  useEffect(() => {
+    if (isGameOver) return;
+    if (!isEliminatedEarly) {
+      if (eliminationStartedRef.current) {
+        eliminationStartedRef.current = false;
+        setGraceCountdown(null);
+      }
+      return;
+    }
+    if (eliminationStartedRef.current) return;
+    eliminationStartedRef.current = true;
+
+    // Snapshot how many seconds the writer survived
+    const elapsed = _timeLeft != null ? Math.max(0, _durMin * 60 - _timeLeft) : 0;
+    setSurvivedSeconds(elapsed);
+
+    let count = 3;
+    setGraceCountdown(count);
+
+    const interval = setInterval(() => {
+      if (!isEliminatedRef.current) {
+        clearInterval(interval);
+        eliminationStartedRef.current = false;
+        setGraceCountdown(null);
+        return;
+      }
+      count -= 1;
+      if (count <= 0) {
+        clearInterval(interval);
+        setGraceCountdown(null);
+        setIsGameOver(true);
+      } else {
+        setGraceCountdown(count);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEliminatedEarly, isGameOver]);
 
   // ── Final capsule on sprint end ───────────────────────────────────────
   useEffect(() => {
@@ -747,6 +808,23 @@ export default function Room() {
     );
   }
 
+  // Game over — show the death screen instead of the sprint room
+  if (isGameOver) {
+    const goWC = room.participants.find((p) => p.id === participantId)?.wordCount ?? 0;
+    const goReaper = room.deathModeWpm != null && room.timeLeft != null
+      ? Math.floor(room.deathModeWpm * Math.max(0, room.durationMinutes * 60 - room.timeLeft) / 60)
+      : null;
+    return (
+      <GameOverScreen
+        wordsWritten={goWC}
+        survivedSeconds={survivedSeconds}
+        room={room}
+        currentParticipantId={participantId}
+        reaperWordCount={goReaper}
+      />
+    );
+  }
+
   const isCreator = room.participants.find((p) => p.id === participantId)?.isCreator || isCreatorParams;
   const isRunning = room.status === "running";
   const isWaiting = room.status === "waiting";
@@ -768,6 +846,9 @@ export default function Room() {
   const isEliminated = reaperWordCount != null && myParticipant != null
     && myParticipant.wordCount < reaperWordCount
     && myParticipant.wordCount < (room.wordGoal ?? room.durationMinutes * 200);
+
+  // Sync to ref so the grace countdown interval can read it without stale closure
+  isEliminatedRef.current = isEliminated;
   // Keep refs in sync so intervals/callbacks can read them without stale closures
   netWordCountRef.current = netWordCount;
   wordGoalRef.current = room.wordGoal ?? null;
@@ -867,12 +948,12 @@ export default function Room() {
                 wordGoal={room.wordGoal}
                 reaperWordCount={reaperWordCount}
               />
-              {/* Death Mode elimination banner */}
-              {isEliminated && isRunning && (
-                <div className="flex items-center justify-center gap-3 rounded-xl border border-red-500/40 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 text-sm font-semibold text-red-700 dark:text-red-300 animate-in fade-in slide-in-from-top-1 duration-300">
-                  <span className="text-base">💀</span>
-                  The reaper caught you — keep writing to fight back!
-                  <span className="text-base">💀</span>
+              {/* Death Mode: grace-period countdown banner */}
+              {graceCountdown !== null && isRunning && (
+                <div className="flex items-center justify-center gap-3 rounded-xl border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm font-bold text-red-700 dark:text-red-300 animate-in fade-in duration-200">
+                  <span className="text-xl tabular-nums">{graceCountdown}</span>
+                  <span>The reaper caught you — keep typing or you're out!</span>
+                  <span className="text-xl">💀</span>
                 </div>
               )}
             </>

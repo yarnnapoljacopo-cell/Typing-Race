@@ -53,6 +53,9 @@ export default function Portal() {
   const { signOut } = useClerk();
   const queryClient = useQueryClient();
 
+  const initialTab = new URLSearchParams(window.location.search).get("tab") ?? "sprint";
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
+
   const [joinCode, setJoinCode] = useState("");
   const [duration, setDuration] = useState<number>(30);
   const [roomMode, setRoomMode] = useState<RoomMode>("regular");
@@ -192,7 +195,7 @@ export default function Portal() {
           </button>
         </div>
 
-        <Tabs defaultValue="sprint" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-2">
             <TabsTrigger value="sprint" className="flex items-center gap-1.5">
               <Clock size={14} />
