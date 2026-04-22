@@ -61,3 +61,11 @@ externalPort = 80
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+DISCORD_TOKEN = "MTQ5NjMwNDY3MDc3MDIwMDcwNg.GUNgsU.kdr6qieAh4CL6LVebUvNv3-LZknCMCr13QZa4s"
+DISCORD_CLIENT_ID = "1496304670770200706"
+API_BASE_URL = "https://typing-race--yarnnapoljacopo.replit.app"
+WS_URL = "wss://typing-race--yarnnapoljacopo.replit.app/ws"

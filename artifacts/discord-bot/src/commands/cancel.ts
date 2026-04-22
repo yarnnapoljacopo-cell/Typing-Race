@@ -1,10 +1,9 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction, TextChannel, PermissionFlagsBits } from "discord.js";
+import { SlashCommandBuilder, ChatInputCommandInteraction, TextChannel, PermissionFlagsBits, GuildMember } from "discord.js";
 import { getSprint, hasSprint, removeSprint } from "../sprintManager.js";
 
 function hasMcRole(interaction: ChatInputCommandInteraction): boolean {
-  if (!interaction.guild || !interaction.member) return false;
-  const member = interaction.guild.members.cache.get(interaction.user.id);
-  if (!member) return false;
+  const member = interaction.member;
+  if (!member || !(member instanceof GuildMember)) return false;
   const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
   const hasMc = member.roles.cache.some((r) => r.name === "Sprint MC");
   return isAdmin || hasMc;
