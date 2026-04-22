@@ -11,7 +11,8 @@
     "build:win": "tsc && electron-builder build --config electron-builder.config.js --win --publish never",
     "build:mac": "tsc && electron-builder build --config electron-builder.config.js --mac --publish never",
     "build:linux": "tsc && electron-builder build --config electron-builder.config.js --linux --publish never",
-    "pack": "tsc && electron-builder build --config electron-builder.config.js --dir --publish never"
+    "pack": "tsc && electron-builder build --config electron-builder.config.js --dir --publish never",
+    "version": "node scripts/bump.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3"
