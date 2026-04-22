@@ -6,6 +6,7 @@ import bcrypt from "bcrypt";
 import {
   getRoom,
   addParticipant,
+  reconnectParticipant,
   removeParticipant,
   updateParticipantStats,
   startSprint,
@@ -79,13 +80,15 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         let inheritedId: string | null = null;
         for (const [existingId, existingP] of room.participants) {
           if (existingP.name === name) {
-            // Cancel any pending grace-period removal so the rejoin is seamless
+            // Cancel any pending grace-period removal so the rejoin is seamless.
+            // Do NOT call removeParticipant here — we will update this entry
+            // in-place via reconnectParticipant so the Map position (and
+            // therefore every client's lane/colour assignment) never changes.
             if (existingP.disconnectTimer) clearTimeout(existingP.disconnectTimer);
             inheritedWordCount = existingP.wordCount;
             inheritedText = existingP.latestText;
             inheritedIsCreator = existingP.isCreator;
-            inheritedId = existingId; // reuse the same UUID so lane order never shifts
-            removeParticipant(room, existingId);
+            inheritedId = existingId;
             break;
           }
         }
@@ -110,20 +113,36 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         const wantsSpectator = message.spectator === true;
         const isSpectator = wantsSpectator && isCreator;
 
-        const participant: Participant = {
-          id: participantId,
-          name,
-          wordCount: restoredWordCount,
-          wpm: 0,
-          lastWordCountTime: Date.now(),
-          lastWordCount: restoredWordCount,
-          ws,
-          isCreator,
-          isSpectator,
-          latestText: restoredText,
-        };
-
-        addParticipant(room, participant);
+        // For reconnects, update the existing entry in-place so the participant
+        // keeps their original Map position (= stable lane + colour for everyone).
+        // For new joins, insert normally.
+        let participant: Participant;
+        if (inheritedId) {
+          participant = reconnectParticipant(
+            room,
+            participantId,
+            ws,
+            restoredWordCount,
+            restoredText,
+            isCreator,
+            isSpectator,
+            name,
+          );
+        } else {
+          participant = {
+            id: participantId,
+            name,
+            wordCount: restoredWordCount,
+            wpm: 0,
+            lastWordCountTime: Date.now(),
+            lastWordCount: restoredWordCount,
+            ws,
+            isCreator,
+            isSpectator,
+            latestText: restoredText,
+          };
+          addParticipant(room, participant);
+        }
 
         const currentParticipants = Array.from(room.participants.values())
           .filter((p) => !p.isSpectator)

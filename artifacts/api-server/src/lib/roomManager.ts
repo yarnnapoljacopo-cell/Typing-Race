@@ -418,6 +418,68 @@ export function addParticipant(room: Room, participant: Participant): void {
   broadcastRoomState(room);
 }
 
+/**
+ * Update an existing participant's live connection in-place.
+ *
+ * Unlike removeParticipant + addParticipant, this:
+ *  - Keeps the entry at its original position in `room.participants` (Map
+ *    preserves insertion order), so every client's lane-map stays stable.
+ *  - Emits only ONE broadcastRoomState instead of two, eliminating the
+ *    one-frame flicker where other clients briefly see the writer disappear.
+ */
+export function reconnectParticipant(
+  room: Room,
+  existingId: string,
+  ws: WebSocket,
+  wordCount: number,
+  text: string,
+  isCreator: boolean,
+  isSpectator: boolean,
+  name: string,
+): Participant {
+  const existing = room.participants.get(existingId);
+
+  if (!existing) {
+    // Participant was already removed (grace period expired just before this
+    // reconnect arrived).  Fall back to a normal fresh add at end of Map.
+    const participant: Participant = {
+      id: existingId,
+      name,
+      wordCount,
+      wpm: 0,
+      lastWordCountTime: Date.now(),
+      lastWordCount: wordCount,
+      ws,
+      isCreator,
+      isSpectator,
+      latestText: text,
+    };
+    room.participants.set(existingId, participant);
+    broadcastRoomState(room);
+    return participant;
+  }
+
+  // Cancel any pending grace-period eviction (already cancelled in wsHandler
+  // before this is called, but be safe in case the flow changes).
+  if (existing.disconnectTimer) {
+    clearTimeout(existing.disconnectTimer);
+    existing.disconnectTimer = undefined;
+  }
+
+  // Mutate in-place — Map entry keeps its original insertion position.
+  existing.ws = ws;
+  existing.wordCount = wordCount;
+  existing.lastWordCount = wordCount;
+  existing.lastWordCountTime = Date.now();
+  existing.wpm = 0;
+  existing.isCreator = isCreator;
+  existing.isSpectator = isSpectator;
+  existing.latestText = text;
+
+  broadcastRoomState(room);
+  return existing;
+}
+
 export function removeParticipant(room: Room, participantId: string): void {
   room.participants.delete(participantId);
 
