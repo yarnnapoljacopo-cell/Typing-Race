@@ -19,6 +19,8 @@ export interface Participant {
   isSpectator: boolean;
   latestText: string;
   clerkUserId: string | null;
+  nameplate: string;
+  xp: number;
   disconnectTimer?: ReturnType<typeof setTimeout>;
   kartItems: string[];
   kartBonusWords: number;
@@ -66,6 +68,7 @@ export interface Room {
   activeStars: Map<string, number>;
   gladiatorDeathGap: number | null;
   gladiatorMatchStats: GladiatorMatchStats | null;
+  creatorXp: number;
 }
 
 export interface GladiatorMatchStats {
@@ -262,6 +265,7 @@ export function createRoom(
     activeStars: new Map(),
     gladiatorDeathGap: mode === "gladiator" && gladiatorDeathGap && VALID_GLADIATOR_DEATH_GAPS.includes(gladiatorDeathGap as (typeof VALID_GLADIATOR_DEATH_GAPS)[number]) ? gladiatorDeathGap : (mode === "gladiator" ? 400 : null),
     gladiatorMatchStats: null,
+    creatorXp: 0,
   };
 
   rooms.set(code, room);
@@ -339,6 +343,8 @@ export function broadcastRoomState(room: Room): void {
       wordCount: p.wordCount,
       wpm: p.wpm,
       isCreator: p.isCreator,
+      nameplate: p.nameplate,
+      xp: p.xp,
     }));
 
   const now = Date.now();
@@ -373,6 +379,7 @@ export function broadcastRoomState(room: Room): void {
       timeLeft,
       countdownTimeLeft,
       participants,
+      creatorXp: room.creatorXp,
     },
   });
 }
@@ -601,9 +608,20 @@ export function reconnectParticipant(
       isSpectator,
       latestText: text,
       clerkUserId,
+      nameplate: "default",
+      xp: 0,
       kartItems: [],
       kartBonusWords: 0,
       kartNextItemAt: 250,
+      gladiatorHp: 1000,
+      gladiatorBuffs: [],
+      gladiatorFrenzyStartWc: wordCount,
+      gladiatorFrenzyStartTime: Date.now(),
+      gladiatorAheadSince: null,
+      gladiatorMomentumSince: null,
+      gladiatorMomentumGapAtStart: null,
+      gladiatorWoundSince: null,
+      gladiatorWoundGapAtStart: null,
     };
     room.participants.set(existingId, participant);
     broadcastRoomState(room);

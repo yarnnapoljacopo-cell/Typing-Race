@@ -396,3 +396,51 @@ html.villain h1, html.villain h2 {
   55%  { transform: scaleX(-1) rotate(-5deg) translateX(-3px); }
   100% { transform: scaleX(-1) rotate(0deg) translateX(0px); }
 }
+
+/* ── Eternal Skin (Eternal Quill, 75k+ XP) ─────────────────────────── */
+[data-skin="eternal"] {
+  --skin-bg: #04071a;
+  --skin-text: #c8d8ff;
+  --skin-accent: #60a5fa;
+}
+[data-skin="eternal"] body,
+[data-skin="eternal"] .bg-background {
+  background-color: var(--skin-bg) !important;
+}
+[data-skin="eternal"] .bg-card {
+  background-color: #07102a !important;
+  border-color: #1a2a5a !important;
+}
+[data-skin="eternal"] .text-foreground {
+  color: var(--skin-text) !important;
+}
+[data-skin="eternal"] [contenteditable] {
+  color: #c8d8ff !important;
+  caret-color: #60a5fa !important;
+}
+
+/* ── Final Skin (The Ranker, 200k+ XP) ─────────────────────────────── */
+[data-skin="final"] {
+  --skin-bg: #070501;
+  --skin-text: #f5e6c0;
+  --skin-accent: #daa520;
+}
+[data-skin="final"] body,
+[data-skin="final"] .bg-background {
+  background-color: var(--skin-bg) !important;
+}
+[data-skin="final"] .bg-card {
+  background-color: #120e04 !important;
+  border-color: #3d2d00 !important;
+}
+[data-skin="final"] .text-foreground {
+  color: var(--skin-text) !important;
+}
+[data-skin="final"] [contenteditable] {
+  color: #f5e6c0 !important;
+  caret-color: #daa520 !important;
+}
+[data-skin="final"] .font-serif {
+  font-family: "Georgia", "Times New Roman", serif !important;
+  letter-spacing: 0.02em;
+}

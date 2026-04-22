@@ -62,6 +62,19 @@ Room status flow: waiting → running → finished
 - After each OpenAPI spec change, run codegen and then manually fix `lib/api-zod/src/index.ts` to only export `./generated/api` (orval regenerates it with duplicates)
 - The `/ws` path must remain in the API server's `artifact.toml` paths array for WebSocket proxying to work
 
+## Rank Reward System
+- DB: `user_profiles` has `active_nameplate` + `active_skin` columns
+- Nameplates: default / crimson (10k XP, Ink Reaper) / gold (25k, Grand Scribe) / blue (75k, Eternal Quill) / purple (200k, The Ranker)
+- Skins: Eternal (75k, stars canvas) / Final (200k, gold ink-drop canvas reacting to typing speed)
+- Room WS: `broadcastRoomState` sends participant `nameplate`+`xp` + `creatorXp`
+- Grand Scribe banner shown in room when host XP >= 25k; Ranker banner when >= 200k
+- Ranker Crown (👑) shown next to participant names in SpectatorView
+- `SkinOverlay` component mounted in Room.tsx (cosmic stars or gold ink drops)
+- `SkinProvider` context in App.tsx: reads `localStorage.activeSkin`, sets `html[data-skin]`
+- Portal skin toggle button (unlocked at 75k XP) cycles Default → Eternal → Final
+- Profile.tsx nameplate picker: shows when viewing own profile, saves via PATCH /user/preferences
+- API: `GET /api/user/profile` returns `activeNameplate`+`activeSkin`+`writerName`; `PATCH /user/preferences` validates XP before saving
+
 ### Discord Bot (`artifacts/discord-bot`)
 - Standalone Node.js + TypeScript process (not a web artifact)
 - Mirrors the Sprinto bot flow: `/sprint`, `/join`, `/words`, `/leave`, `/cancel`, `/end`, `/time`, `/status`, `/pb`, `/stats`

@@ -8,6 +8,8 @@ export interface Participant {
   wpm: number;
   isCreator: boolean;
   kartBonusWords?: number;
+  nameplate?: string;
+  xp?: number;
 }
 
 export interface RoomState {
@@ -24,6 +26,7 @@ export interface RoomState {
   timeLeft: number | null;
   countdownTimeLeft: number | null;
   participants: Participant[];
+  creatorXp: number;
 }
 
 export interface GladiatorResult {
@@ -90,6 +93,7 @@ const ROOM_STATE_DEFAULTS = {
   bossTotalWords: null,
   deathModeWpm: null,
   gladiatorDeathGap: null,
+  creatorXp: 0,
 };
 
 // Exponential backoff: 500ms, 1s, 2s, 4s, 8s, capped at 10s

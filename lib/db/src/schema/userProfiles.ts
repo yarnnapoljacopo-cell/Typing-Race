@@ -7,6 +7,8 @@ export const userProfilesTable = pgTable("user_profiles", {
   lastSprintAt: timestamp("last_sprint_at"),
   decayCheckedAt: timestamp("decay_checked_at"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  activeNameplate: varchar("active_nameplate", { length: 20 }).notNull().default("default"),
+  activeSkin: varchar("active_skin", { length: 20 }).notNull().default("default"),
 });
 
 export type UserProfile = typeof userProfilesTable.$inferSelect;

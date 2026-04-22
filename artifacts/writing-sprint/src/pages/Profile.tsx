@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Pen, TrendingUp, Hash } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useUser } from "@clerk/react";
+import { ArrowLeft, Pen, TrendingUp, Hash, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { RANKS, getRankFromXp, getNextRank, xpProgressPercent, type Rank } from "@/lib/ranks";
+import { NAMEPLATES, getUnlockedNameplates, type NameplateKey } from "@/lib/nameplates";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -22,6 +24,22 @@ async function fetchProfile(name: string): Promise<PublicProfile> {
   const res = await fetch(`${basePath}/api/users/by-name/${encodeURIComponent(name)}/profile`);
   if (!res.ok) throw new Error("Failed to load profile");
   return res.json();
+}
+
+async function fetchOwnPrefs(): Promise<{ nameplate: string; skin: string; writerName: string }> {
+  const res = await fetch(`${basePath}/api/user/profile`);
+  if (!res.ok) throw new Error("Not authenticated");
+  const data = await res.json();
+  return { nameplate: data.activeNameplate ?? "default", skin: data.activeSkin ?? "default", writerName: data.writerName ?? "" };
+}
+
+async function saveNameplate(nameplate: string): Promise<void> {
+  const res = await fetch(`${basePath}/api/user/preferences`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nameplate }),
+  });
+  if (!res.ok) throw new Error("Failed to save");
 }
 
 interface Top10Entry { writerName: string; xp: number; position: number; }
@@ -299,6 +317,8 @@ export default function Profile() {
   const [, params] = useRoute("/profile/:name");
   const [, setLocation] = useLocation();
   const name = decodeURIComponent(params?.name ?? "");
+  const { user } = useUser();
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["profile", name],
@@ -310,6 +330,29 @@ export default function Profile() {
     queryKey: ["top10"],
     queryFn: fetchTop10,
     staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: ownPrefs } = useQuery({
+    queryKey: ["own-prefs"],
+    queryFn: fetchOwnPrefs,
+    enabled: !!user,
+    staleTime: 30_000,
+  });
+
+  const isOwnProfile = !!user && (
+    ownPrefs?.writerName?.toLowerCase() === name.toLowerCase() ||
+    (user.username?.toLowerCase() === name.toLowerCase()) ||
+    (user.fullName?.toLowerCase() === name.toLowerCase()) ||
+    ((user.publicMetadata?.writerName as string | undefined)?.toLowerCase() === name.toLowerCase())
+  );
+
+  const nameplateMutation = useMutation({
+    mutationFn: saveNameplate,
+    onSuccess: (_data, nameplate) => {
+      queryClient.setQueryData(["own-prefs"], (old: { nameplate: string; skin: string; writerName: string } | undefined) =>
+        old ? { ...old, nameplate } : { nameplate, skin: "default", writerName: name }
+      );
+    },
   });
 
   const globalRankEntry = top10?.find(
@@ -380,6 +423,44 @@ export default function Profile() {
                   {Math.round(data.totalWords / data.sprintCount).toLocaleString()}
                 </span> words per sprint
               </p>
+            )}
+
+            {/* Nameplate Picker — only visible on own profile */}
+            {isOwnProfile && data.xp >= 10000 && (
+              <Card>
+                <CardContent className="pt-5 pb-5 px-5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Your Nameplate</p>
+                  <div className="flex flex-wrap gap-2">
+                    {getUnlockedNameplates(data.xp).map((np) => {
+                      const isActive = (ownPrefs?.nameplate ?? "default") === np.key;
+                      return (
+                        <button
+                          key={np.key}
+                          onClick={() => nameplateMutation.mutate(np.key)}
+                          title={np.description}
+                          disabled={nameplateMutation.isPending}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all duration-200 ${
+                            isActive
+                              ? "border-current opacity-100 ring-2 ring-offset-1 ring-offset-card"
+                              : "border-border opacity-60 hover:opacity-90"
+                          }`}
+                          style={
+                            np.key !== "default"
+                              ? { color: NAMEPLATES[np.key as NameplateKey]?.color, borderColor: isActive ? NAMEPLATES[np.key as NameplateKey]?.color : undefined, outlineColor: isActive ? NAMEPLATES[np.key as NameplateKey]?.color : undefined }
+                              : {}
+                          }
+                        >
+                          {isActive && <Check className="w-3 h-3" />}
+                          {np.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {data.xp < 25000 && (
+                    <p className="text-[11px] text-muted-foreground mt-2">More nameplates unlock at higher ranks.</p>
+                  )}
+                </CardContent>
+              </Card>
             )}
           </>
         )}

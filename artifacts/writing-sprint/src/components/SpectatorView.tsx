@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/hover-card";
 import { Eye, FileText, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getNameplateStyle } from "@/lib/nameplates";
 
 const LANE_COLORS = [
   "#3b82f6", // blue
@@ -136,7 +137,17 @@ export function SpectatorView({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
+                    <div className="flex items-center gap-1 min-w-0">
+                      {(p.xp ?? 0) >= 200000 && (
+                        <span className="text-xs leading-none animate-bounce" title="The Ranker">👑</span>
+                      )}
+                      <span
+                        className="text-sm font-medium truncate"
+                        style={getNameplateStyle(p.nameplate)}
+                      >
+                        {p.name}
+                      </span>
+                    </div>
                     {isMe && (
                       <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded font-semibold">
                         You

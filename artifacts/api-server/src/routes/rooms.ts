@@ -351,7 +351,53 @@ router.get("/user/profile", async (req, res): Promise<void> => {
     inDecay,
     daysUntilDecay,
     decayRatePerDay,
+    activeNameplate: profile?.activeNameplate ?? "default",
+    activeSkin: profile?.activeSkin ?? "default",
   });
+});
+
+router.patch("/user/preferences", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { activeNameplate, activeSkin } = req.body ?? {};
+
+  const NAMEPLATE_MIN_XP: Record<string, number> = {
+    default: 0, crimson: 10000, gold: 25000, blue: 75000, purple: 200000,
+  };
+  const SKIN_MIN_XP: Record<string, number> = {
+    default: 0, eternal: 75000, final: 200000,
+  };
+
+  const rows = await db
+    .select({ xp: userProfilesTable.xp })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.clerkUserId, clerkUserId))
+    .limit(1);
+
+  const currentXp = rows[0]?.xp ?? 0;
+  const updates: Record<string, string> = {};
+
+  if (activeNameplate !== undefined) {
+    const minXp = NAMEPLATE_MIN_XP[activeNameplate] ?? 999999;
+    if (currentXp >= minXp) updates.activeNameplate = activeNameplate;
+    else { res.status(403).json({ error: "Not enough XP for that nameplate" }); return; }
+  }
+  if (activeSkin !== undefined) {
+    const minXp = SKIN_MIN_XP[activeSkin] ?? 999999;
+    if (currentXp >= minXp) updates.activeSkin = activeSkin;
+    else { res.status(403).json({ error: "Not enough XP for that skin" }); return; }
+  }
+
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
+
+  await db
+    .update(userProfilesTable)
+    .set({ ...updates, updatedAt: new Date() })
+    .where(eq(userProfilesTable.clerkUserId, clerkUserId));
+
+  res.json({ ok: true, ...updates });
 });
 
 router.post("/user/xp", async (req, res): Promise<void> => {

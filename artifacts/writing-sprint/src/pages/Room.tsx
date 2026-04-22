@@ -2,6 +2,8 @@ import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useSprintRoom, type RoomState } from "@/hooks/useSprintRoom";
+import { getNameplateStyle } from "@/lib/nameplates";
+import { SkinOverlay } from "@/components/SkinOverlay";
 import { RaceTrack } from "@/components/RaceTrack";
 import { KartHUD } from "@/components/KartHUD";
 import { GladiatorHUD } from "@/components/GladiatorHUD";
@@ -974,6 +976,30 @@ export default function Room() {
               : "Connection lost — reconnecting… your writing is safe."}
           </span>
           <Loader2 className="w-3.5 h-3.5 animate-spin ml-auto shrink-0" />
+        </div>
+      )}
+
+      <SkinOverlay typingSpeed={
+        isRunning && clientElapsedMs > 0
+          ? Math.round((netWordCountRef.current / (clientElapsedMs / 60000)))
+          : 0
+      } />
+
+      {/* Grand Scribe / Ranker room banner */}
+      {!distractionFree && room.creatorXp >= 25000 && (
+        <div
+          className="flex items-center justify-center gap-2 py-1.5 px-4 rounded-lg text-xs font-semibold tracking-wide"
+          style={
+            room.creatorXp >= 200000
+              ? { background: "linear-gradient(90deg, #1a0040 0%, #2d0070 50%, #1a0040 100%)", color: "#a855f7", border: "1px solid #a855f750", textShadow: "0 0 10px #a855f7aa" }
+              : { background: "linear-gradient(90deg, #1a1000 0%, #302000 50%, #1a1000 100%)", color: "#f59e0b", border: "1px solid #f59e0b50", textShadow: "0 0 8px #f59e0b88" }
+          }
+        >
+          {room.creatorXp >= 200000 ? (
+            <><span>👑</span><span>Hosted by a Ranker</span></>
+          ) : (
+            <><span>✨</span><span>Hosted by a Grand Scribe</span></>
+          )}
         </div>
       )}
 

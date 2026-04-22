@@ -30,6 +30,8 @@ import PastSprints from "./PastSprints";
 import ActiveRooms from "./ActiveRooms";
 import { useGuest } from "@/lib/guestContext";
 import { useVillainMode } from "@/lib/villainModeContext";
+import { useSkin } from "@/lib/skinContext";
+import { SKINS, type SkinKey } from "@/lib/nameplates";
 
 type RoomMode = "regular" | "open" | "goal" | "boss" | "kart" | "gladiator";
 
@@ -73,6 +75,17 @@ export default function Portal() {
   const queryClient = useQueryClient();
   const { guestName, updateGuestName, exitGuest } = useGuest();
   const { isVillainMode, toggleVillainMode } = useVillainMode();
+  const { activeSkin, setActiveSkin } = useSkin();
+
+  function cycleSkin() {
+    const xp = profile?.xp ?? 0;
+    const available: SkinKey[] = ["default"];
+    if (xp >= 75000) available.push("eternal");
+    if (xp >= 200000) available.push("final");
+    const idx = available.indexOf(activeSkin);
+    const next = available[(idx + 1) % available.length];
+    setActiveSkin(next);
+  }
 
   const isGuest = !isSignedIn && !!guestName;
 
@@ -282,6 +295,25 @@ export default function Portal() {
         )}
 
         <div className="flex items-center justify-between px-1">
+          {/* Skin toggle — unlocked at Eternal Quill (75k XP) */}
+          {!isGuest && (profile?.xp ?? 0) >= 75000 && (
+            <button
+              type="button"
+              onClick={cycleSkin}
+              title={`Active skin: ${SKINS[activeSkin]?.label ?? "Default"} — click to cycle`}
+              className={`fixed bottom-5 right-28 z-50 flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-bold shadow-xl border-2 transition-all duration-300 ${
+                activeSkin === "final"
+                  ? "bg-[#120e04] border-[#daa520] text-[#daa520]"
+                  : activeSkin === "eternal"
+                  ? "bg-[#07102a] border-[#60a5fa] text-[#60a5fa]"
+                  : "bg-background border-border text-foreground hover:border-blue-500 hover:text-blue-500"
+              }`}
+            >
+              <span className="text-base">{activeSkin === "final" ? "⚜️" : activeSkin === "eternal" ? "✨" : "🖋"}</span>
+              <span>{SKINS[activeSkin]?.label ?? "Default"}</span>
+            </button>
+          )}
+
           {/* Villain Mode toggle — unlocked at Ink Reaper (10k XP) */}
           {!isGuest && (profile?.xp ?? 0) >= 10000 && (
             <button

@@ -18,6 +18,8 @@ import {
   Room,
 } from "./roomManager";
 import { getWriting } from "./writingStore";
+import { db, userProfilesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { rollItem, rollMysteryItems, ITEM_EMOJIS } from "./kartItems";
 import {
   initGladiatorParticipant,
@@ -146,6 +148,29 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         }
         const resolvedClerkUserId = incomingClerkUserId ?? inheritedClerkUserId;
 
+        // ── Look up profile for nameplate, xp, and Grand Scribe spectating ──
+        let userNameplate = "default";
+        let userXp = 0;
+        if (resolvedClerkUserId) {
+          const profileRows = await db
+            .select({ xp: userProfilesTable.xp, activeNameplate: userProfilesTable.activeNameplate })
+            .from(userProfilesTable)
+            .where(eq(userProfilesTable.clerkUserId, resolvedClerkUserId))
+            .limit(1);
+          if (profileRows[0]) {
+            userXp = profileRows[0].xp;
+            // Only apply nameplate if user still has the required XP for it
+            const nameplateMinXp: Record<string, number> = {
+              crimson: 10000, gold: 25000, blue: 75000, purple: 200000,
+            };
+            const minRequired = nameplateMinXp[profileRows[0].activeNameplate] ?? 0;
+            userNameplate = userXp >= minRequired ? (profileRows[0].activeNameplate ?? "default") : "default";
+          }
+        }
+
+        // Grand Scribes (25k+ XP) can join any room as an invisible spectator
+        const isGrandScribe = userXp >= 25000;
+
         // ── Restore word count from DB if higher than in-memory value ────────
         const saved = await getWriting(code, name);
         const restoredWordCount = Math.max(inheritedWordCount, saved?.wordCount ?? 0);
@@ -161,10 +186,9 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         // web participants had already joined by the time the bot connected.
         const isCreator = inheritedIsCreator || name === room.creatorName;
 
-        // A participant may self-declare as spectator only if they are the creator
-        // (prevents random people from hiding from the race track).
+        // Creators and Grand Scribes (25k+ XP) can join as invisible spectators
         const wantsSpectator = message.spectator === true;
-        const isSpectator = wantsSpectator && isCreator;
+        const isSpectator = wantsSpectator && (isCreator || isGrandScribe);
 
         // For reconnects, update the existing entry in-place so the participant
         // keeps their original Map position (= stable lane + colour for everyone).
@@ -195,6 +219,8 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             isSpectator,
             latestText: restoredText,
             clerkUserId: resolvedClerkUserId,
+            nameplate: userNameplate,
+            xp: userXp,
             kartItems: [],
             kartBonusWords: 0,
             kartNextItemAt: 250,
@@ -211,6 +237,15 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           addParticipant(room, participant);
         }
 
+        // Always refresh nameplate/xp for reconnects too
+        if (inheritedId) {
+          const p = room.participants.get(participantId);
+          if (p) { p.nameplate = userNameplate; p.xp = userXp; }
+        }
+
+        // Update creatorXp when the creator joins
+        if (isCreator) room.creatorXp = userXp;
+
         const currentParticipants = Array.from(room.participants.values())
           .filter((p) => !p.isSpectator)
           .map((p) => ({
@@ -219,6 +254,8 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             wordCount: p.wordCount,
             wpm: p.wpm,
             isCreator: p.isCreator,
+            nameplate: p.nameplate,
+            xp: p.xp,
           }));
 
         const bossTotalWords = room.mode === "boss"
@@ -247,6 +284,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
                   ? Math.max(0, Math.floor((room.endTime - Date.now()) / 1000))
                   : null,
               participants: currentParticipants,
+              creatorXp: room.creatorXp,
             },
           })
         );
