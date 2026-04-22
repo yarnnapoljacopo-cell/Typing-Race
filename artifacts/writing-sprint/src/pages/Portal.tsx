@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useUser, useClerk, useAuth, SignUpButton, SignInButton } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -94,6 +94,10 @@ export default function Portal() {
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [nameInput, setNameInput] = useState("");
 
+  // Holds the password between handleCreate() and onSuccess() so it can be
+  // stored in sessionStorage before the creator is navigated into the room.
+  const pendingRoomPasswordRef = useRef<string | null>(null);
+
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["user-profile"],
     queryFn: fetchProfile,
@@ -160,6 +164,13 @@ export default function Portal() {
   const createRoomMutation = useCreateRoom({
     mutation: {
       onSuccess: (data) => {
+        // If the creator set a password, stash it so the Room page can pass it
+        // in the join_room WS message (same flow as any other joiner).
+        const pw = pendingRoomPasswordRef.current;
+        if (pw) {
+          sessionStorage.setItem(`room_password_${data.code}`, pw);
+          pendingRoomPasswordRef.current = null;
+        }
         setLocation(`/room?code=${data.code}&name=${encodeURIComponent(displayName)}&isCreator=true`);
       },
       onError: (err) => {
@@ -176,6 +187,8 @@ export default function Portal() {
     const wordGoal = roomMode === "goal" ? (parseInt(goalWords, 10) || 1000) : undefined;
     const bossWordGoal = roomMode === "boss" ? (parseInt(bossGoalWords, 10) || 5000) : undefined;
     const pw = useRoomPassword && roomPassword.trim() ? roomPassword.trim() : undefined;
+    // Stash password so onSuccess can write it to sessionStorage for the creator's own join
+    pendingRoomPasswordRef.current = pw ?? null;
     createRoomMutation.mutate({
       data: {
         creatorName: displayName,
@@ -629,12 +642,12 @@ export default function Portal() {
                       </div>
                       {useRoomPassword && (
                         <Input
-                          type="password"
+                          type="text"
                           placeholder="Enter a room password"
                           value={roomPassword}
                           onChange={(e) => setRoomPassword(e.target.value)}
-                          className="focus-visible:ring-primary"
-                          autoComplete="new-password"
+                          className="focus-visible:ring-primary font-mono tracking-wide"
+                          autoComplete="off"
                         />
                       )}
                     </div>
