@@ -25,6 +25,16 @@ if (!DISCORD_TOKEN) {
   process.exit(1);
 }
 
+// Prevent unhandled rejections / exceptions from crashing the bot process.
+// Without this, a single failed channel.send() or WS error can kill the bot
+// and cause every subsequent Discord interaction to get "did not respond".
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[Bot] Unhandled promise rejection:", reason, "at:", promise);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[Bot] Uncaught exception:", err);
+});
+
 type Command = {
   data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
   execute: (interaction: ChatInputCommandInteraction) => Promise<void>;

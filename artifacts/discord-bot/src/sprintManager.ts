@@ -120,7 +120,12 @@ export async function startSprint(opts: {
   // Connect to the server immediately and fire start_sprint right away.
   // The server owns the countdown (countdownDelayMinutes set above), so web
   // clients and Discord see the exact same timer.
-  void connectAndStart(sprint, channel, appBaseUrl);
+  // NOTE: must use .catch() — `void` would turn any rejection into an
+  // unhandled promise rejection, crashing the entire Node.js process.
+  connectAndStart(sprint, channel, appBaseUrl).catch((err: unknown) => {
+    console.error("[SprintManager] connectAndStart failed:", err);
+    void channel.send("⚠️ Could not connect to the sprint server. Please try `/cancel` and start a new sprint.").catch(() => undefined);
+  });
 }
 
 async function connectAndStart(sprint: ChannelSprint, channel: TextChannel, appBaseUrl: string): Promise<void> {
@@ -164,17 +169,18 @@ async function connectAndStart(sprint: ChannelSprint, channel: TextChannel, appB
         const modeExtra = sprint.mode === "goal" && sprint.wordGoal
           ? ` Target: ${sprint.wordGoal} words.`
           : sprint.mode === "open" ? " (Open mode — everyone can see each other's text!)" : "";
-        void channel.send(
+        channel.send(
           `🖊️ **The sprint has begun!** You have ${sprint.durationMinutes} minutes. Go go go!${modeExtra}\n` +
           `Room code: \`${sprint.roomCode}\` | Website: ${joinLink}`
-        );
+        ).catch((err: unknown) => console.error("[SprintManager] channel.send (start) failed:", err));
 
         // Use server's timeLeft to schedule the warning precisely.
         const timeLeft = typeof roomMsg.timeLeft === "number" ? roomMsg.timeLeft : sprint.durationMinutes * 60;
         const warnInMs = (timeLeft - 60) * 1000;
         if (warnInMs > 0) {
           sprint.warningTimer = setTimeout(() => {
-            void channel.send("⏰ **One minute left!** Wrap up your thoughts.");
+            channel.send("⏰ **One minute left!** Wrap up your thoughts.")
+              .catch((err: unknown) => console.error("[SprintManager] warning send failed:", err));
           }, warnInMs);
         }
       }
@@ -189,12 +195,15 @@ async function connectAndStart(sprint: ChannelSprint, channel: TextChannel, appB
         wordCount: r.wordCount,
         wpm: r.wpm,
       }));
-      void handleSprintEnded(sprint, channel);
+      handleSprintEnded(sprint, channel).catch((err: unknown) => {
+        console.error("[SprintManager] handleSprintEnded failed:", err);
+      });
     }
   });
 
-  ws.on("error", () => {
-    void channel.send("⚠️ Lost connection to the sprint server. The sprint may still be running on the website.");
+  ws.on("error", (err) => {
+    console.error("[SprintManager] WebSocket error:", err);
+    channel.send("⚠️ Lost connection to the sprint server. The sprint may still be running on the website.").catch(() => undefined);
   });
 
   ws.on("close", () => {
@@ -242,13 +251,15 @@ export async function endSprintEarly(sprint: ChannelSprint, channel: TextChannel
     clearTimeout(sprint.warningTimer);
     sprint.warningTimer = null;
   }
-  if (sprint.ws) {
+  // Only send end_sprint if the WS is actually open — sending on a connecting
+  // or closing socket throws and could crash the bot.
+  if (sprint.ws && sprint.ws.readyState === WebSocket.OPEN) {
     sprint.ws.send(JSON.stringify({ type: "end_sprint" }));
     // Let the server's sprint_ended event drive handleSprintEnded via the
     // message listener — don't call it directly here to avoid double-posting.
     return;
   }
-  // WS already gone (e.g. called before sprint connected) — clean up manually.
+  // WS already gone or not yet open — clean up manually.
   if (sprint.status === "joining") {
     sprint.status = "done";
     sprints.delete(`${sprint.guildId}:${sprint.channelId}`);
