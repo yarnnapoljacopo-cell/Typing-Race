@@ -79,16 +79,6 @@ export default function Portal() {
   const [modesOpen, setModesOpen] = useState(false);
   const modesPanelRef = useRef<HTMLDivElement>(null);
 
-  function cycleSkin() {
-    const xp = profile?.xp ?? 0;
-    const available: SkinKey[] = ["default"];
-    if (xp >= 75000) available.push("eternal");
-    if (xp >= 200000) available.push("final");
-    const idx = available.indexOf(activeSkin);
-    const next = available[(idx + 1) % available.length];
-    setActiveSkin(next);
-  }
-
   const closeModes = useCallback((e: MouseEvent) => {
     if (modesPanelRef.current && !modesPanelRef.current.contains(e.target as Node)) {
       setModesOpen(false);
@@ -313,29 +303,66 @@ export default function Portal() {
             <div ref={modesPanelRef} className="fixed bottom-5 right-5 z-50">
               {/* Popup panel */}
               {modesOpen && (
-                <div className="absolute bottom-14 right-0 bg-card border border-border rounded-xl shadow-xl p-2 flex flex-col gap-1 min-w-[160px]">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-2 pt-1 pb-0.5">Modes</p>
+                <div className="absolute bottom-14 right-0 bg-card border border-border rounded-xl shadow-xl p-2 flex flex-col gap-0.5 min-w-[185px]">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-2 pt-1 pb-1">Modes</p>
+
+                  {/* Villain Mode toggle */}
                   <button
                     type="button"
-                    onClick={() => { toggleVillainMode(); }}
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isVillainMode ? "bg-red-950/80 text-red-300" : "hover:bg-muted text-foreground"
+                    onClick={toggleVillainMode}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                      isVillainMode ? "bg-red-950/70 text-red-300" : "hover:bg-muted text-foreground"
                     }`}
                   >
-                    <span className="text-base">🩸</span>
-                    <span>Villain Mode{isVillainMode ? " — ON" : ""}</span>
+                    <span className="text-base leading-none">🩸</span>
+                    <span className="flex-1">Villain Mode</span>
+                    {isVillainMode && <span className="text-[10px] font-bold text-red-400 ml-auto">ON</span>}
                   </button>
+
+                  {/* Skin options — only shown at Eternal Quill (75k+) */}
                   {(profile?.xp ?? 0) >= 75000 && (
-                    <button
-                      type="button"
-                      onClick={() => { cycleSkin(); }}
-                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        activeSkin !== "default" ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"
-                      }`}
-                    >
-                      <span className="text-base">{activeSkin === "final" ? "⚜️" : activeSkin === "eternal" ? "✨" : "🖋"}</span>
-                      <span>{SKINS[activeSkin]?.label ?? "Default"} Skin</span>
-                    </button>
+                    <>
+                      <div className="h-px bg-border mx-2 my-0.5" />
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-2 pb-0.5">Skin</p>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveSkin("default")}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                          activeSkin === "default" ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"
+                        }`}
+                      >
+                        <span className="text-base leading-none">🖋</span>
+                        <span className="flex-1">Default</span>
+                        {activeSkin === "default" && <span className="text-[10px] text-primary ml-auto">✓</span>}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveSkin("eternal")}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                          activeSkin === "eternal" ? "bg-[#07102a] text-[#60a5fa]" : "hover:bg-muted text-foreground"
+                        }`}
+                      >
+                        <span className="text-base leading-none">✨</span>
+                        <span className="flex-1">Eternal Skin</span>
+                        {activeSkin === "eternal" && <span className="text-[10px] text-[#60a5fa] ml-auto">✓</span>}
+                      </button>
+
+                      {(profile?.xp ?? 0) >= 200000 && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveSkin("final")}
+                          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full text-left ${
+                            activeSkin === "final" ? "bg-[#120e04] text-[#daa520]" : "hover:bg-muted text-foreground"
+                          }`}
+                        >
+                          <span className="text-base leading-none">⚜️</span>
+                          <span className="flex-1">Final Skin</span>
+                          {activeSkin === "final" && <span className="text-[10px] text-[#daa520] ml-auto">✓</span>}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               )}
