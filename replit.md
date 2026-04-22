@@ -50,4 +50,15 @@ Room status flow: waiting → running → finished
 - After each OpenAPI spec change, run codegen and then manually fix `lib/api-zod/src/index.ts` to only export `./generated/api` (orval regenerates it with duplicates)
 - The `/ws` path must remain in the API server's `artifact.toml` paths array for WebSocket proxying to work
 
+### Discord Bot (`artifacts/discord-bot`)
+- Standalone Node.js + TypeScript process (not a web artifact)
+- Mirrors the Sprinto bot flow: `/sprint`, `/join`, `/words`, `/leave`, `/cancel`, `/end`, `/time`, `/status`, `/pb`, `/stats`
+- Creates Writing Sprint rooms via REST API (`POST /api/rooms`) as "DiscordBot" creator
+- Connects to the backend WebSocket (`/ws`) to trigger `start_sprint` / `end_sprint`
+- Tracks Discord participants and word count submissions internally
+- Per-guild stats persisted in `artifacts/discord-bot/data/stats.json`
+- Requires env secrets: `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `API_BASE_URL`
+- One-time command registration: `pnpm --filter @workspace/discord-bot run deploy`
+- Started via the "Discord Bot" workflow (configure and start once secrets are set)
+
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.

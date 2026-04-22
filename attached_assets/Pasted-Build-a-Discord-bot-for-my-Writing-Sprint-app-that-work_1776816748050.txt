@@ -1,0 +1,72 @@
+Build a Discord bot for my Writing Sprint app that works just like the Sprinto bot — familiar commands, same flow, but powered by my existing backend.
+Tech stack:
+
+discord.js v14, TypeScript
+ws library for WebSocket connection to my server
+node-fetch for REST API calls
+Lives in artifacts/discord-bot/
+
+Environment variables:
+
+DISCORD_TOKEN
+DISCORD_CLIENT_ID
+API_BASE_URL — e.g. https://typing-race--yarnnapoljacopo.replit.app
+WS_URL — e.g. wss://typing-race--yarnnapoljacopo.replit.app/ws
+
+
+Commands — modelled on Sprinto:
+/sprint — Start a default 15-minute sprint, beginning in 1 minute. Bot posts a countdown message then announces when the sprint starts, including the room code and a join link to the website.
+/sprint for [duration] — Start a sprint of a custom length. Examples: /sprint for 30, /sprint for 1hr, /sprint for 45 mins
+/sprint in [time] — Start a default 15-minute sprint delayed by a set time. Example: /sprint in 5 starts in 5 minutes.
+/sprint for [duration] in [time] — Custom duration with a delayed start. Example: /sprint for 30 in 10 starts a 30-minute sprint in 10 minutes.
+/sprint for [duration] at [:mm] — Schedule a sprint to start at a specific clock minute. Example: /sprint for 20 at :30 starts a 20-minute sprint at the next half hour.
+/sprint mode [regular/open/goal] — Choose the sprint mode before starting. Regular = private writing, word count only. Open = everyone sees each other's text live. Goal = set a target word count. If mode is not specified, default to regular.
+/sprint goal [words] — Start a goal-mode sprint with a specific word target. Example: /sprint goal 500 starts a sprint where everyone is racing to 500 words.
+/sprint random — Spin the wheel! Starts a sprint of a random length between 10 and 25 minutes.
+/join [starting word count] — Join the active sprint in this channel. Starting word count defaults to 0. Example: /join 1200 if you already have 1200 words written and want to track new words only.
+/words [final word count] — Submit your final word count when the sprint ends. The bot calculates words written by subtracting your starting count. Example: /words 1642
+/words +[words written] — Submit just the words you wrote during the sprint, without needing to remember your starting count. Example: /words +342
+/leave — Leave the current sprint.
+/cancel — Cancel the sprint before it starts (creator or Sprint MC role only).
+/end — End the sprint early (creator or Sprint MC role only).
+/time — Show how much time is left in the current sprint.
+/status — Show current sprint status and who has joined. No word count updates during the sprint — only shown at the end.
+/pb — Show your personal best sprint (most words written in a single sprint).
+/stats [@user] — Show your own or another user's total words written, number of sprints, and average WPM.
+
+Bot behaviour — matching Sprinto's flow:
+
+When /sprint is called, bot posts: "A sprint is starting in 1 minute! Type /join to join. Room code: SPRINT-XXXX | Join on the website: [link]"
+During the join window, bot updates the message as people join
+When the sprint starts, bot announces: "The sprint has begun! You have 15 minutes. Go go go! 🖊️"
+At 1 minute remaining, bot warns: "One minute left!"
+When the sprint ends, bot posts: "Time's up! Please submit your final word count with /words [count]. You have 2 minutes to submit."
+After everyone submits (or the 2-minute window closes), bot posts the final scoreboard only — rankings, word counts, and WPM. No mid-sprint updates at all.
+Bot then congratulates the top writer and shows total group word count.
+
+No live updates during the sprint. The only word count reveal is the final scoreboard after the sprint ends. This matches the Sprinto experience.
+WebSocket connection:
+
+Connect to the room's WebSocket as a silent spectator named "DiscordBot"
+Only listen for the sprint_ended event to trigger the final scoreboard
+Ignore all participant_update and room_state events during the sprint
+
+Sprint MC role:
+
+If a Discord role named "Sprint MC" exists on the server, members with that role can cancel, end, or take over any sprint
+Server admins always have Sprint MC powers
+
+Channel behaviour:
+
+Only one sprint can run per channel at a time
+Sprints in different channels are independent
+Bot ignores sprint commands outside of allowed channels if /setup-channel has been configured
+
+Do not modify any existing backend files. The bot is a standalone process that only uses the existing REST API and WebSocket.
+Include a README.md in artifacts/discord-bot/ explaining:
+
+How to create a bot on the Discord Developer Portal
+How to get the token and client ID
+How to invite the bot to a server
+How to run the bot alongside the existing Replit app
+How to set up a Sprint MC role
