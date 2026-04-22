@@ -15497,7 +15497,7 @@ var CONFIG_DIR = import_path.default.join(import_electron.app.getPath("userData"
 var CONFIG_FILE = import_path.default.join(CONFIG_DIR, "settings.json");
 var SPRINTS_FILE = import_path.default.join(CONFIG_DIR, "offline-sprints.json");
 var DEFAULT_SETTINGS = {
-  serverUrl: "",
+  serverUrl: "https://typing-race--yarnnapoljacopo.replit.app/",
   theme: "system"
 };
 function loadSettings() {
@@ -15506,6 +15506,9 @@ function loadSettings() {
       const saved = JSON.parse(import_fs.default.readFileSync(CONFIG_FILE, "utf-8"));
       if (saved.serverUrl && (saved.serverUrl.includes("replit.dev") || saved.serverUrl.includes("riker.replit.dev"))) {
         saved.serverUrl = "";
+      }
+      if (!saved.serverUrl) {
+        saved.serverUrl = DEFAULT_SETTINGS.serverUrl;
       }
       return { ...DEFAULT_SETTINGS, ...saved };
     }

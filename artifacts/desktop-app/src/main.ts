@@ -21,7 +21,7 @@ const CONFIG_FILE = path.join(CONFIG_DIR, "settings.json");
 const SPRINTS_FILE = path.join(CONFIG_DIR, "offline-sprints.json");
 
 const DEFAULT_SETTINGS = {
-  serverUrl: "",
+  serverUrl: "https://typing-race--yarnnapoljacopo.replit.app/",
   theme: "system",
 };
 
@@ -32,6 +32,10 @@ function loadSettings(): typeof DEFAULT_SETTINGS {
       // Migrate: clear any saved Replit dev-preview URL — those are not valid production URLs
       if (saved.serverUrl && (saved.serverUrl.includes("replit.dev") || saved.serverUrl.includes("riker.replit.dev"))) {
         saved.serverUrl = "";
+      }
+      // Migrate: fill in default server URL for users who had no URL configured
+      if (!saved.serverUrl) {
+        saved.serverUrl = DEFAULT_SETTINGS.serverUrl;
       }
       return { ...DEFAULT_SETTINGS, ...saved };
     }
