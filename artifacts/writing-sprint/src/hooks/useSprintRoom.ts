@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import type { KartFlashEvent } from "@/components/KartHUD";
 
 export interface Participant {
   id: string;
@@ -6,6 +7,7 @@ export interface Participant {
   wordCount: number;
   wpm: number;
   isCreator: boolean;
+  kartBonusWords?: number;
 }
 
 export interface RoomState {
@@ -13,7 +15,7 @@ export interface RoomState {
   status: "waiting" | "countdown" | "running" | "finished";
   durationMinutes: number;
   countdownDelayMinutes: number;
-  mode: "regular" | "open" | "goal" | "boss";
+  mode: "regular" | "open" | "goal" | "boss" | "kart";
   wordGoal: number | null;
   bossWordGoal: number | null;
   bossTotalWords: number | null;
@@ -21,6 +23,17 @@ export interface RoomState {
   timeLeft: number | null;
   countdownTimeLeft: number | null;
   participants: Participant[];
+}
+
+export interface KartState {
+  items: string[];
+  bonusWords: number;
+  carOffsets: Record<string, number>;
+  blurCounter: boolean;
+  boldText: boolean;
+  starActive: boolean;
+  starActiveIds: string[];
+  flashEvent: KartFlashEvent | null;
 }
 
 export interface ParticipantText {
@@ -64,6 +77,22 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [restoredWordCount, setRestoredWordCount] = useState<number | null>(null);
   const [participantTexts, setParticipantTexts] = useState<Record<string, ParticipantText>>({});
+
+  // Kart state
+  const [kartState, setKartState] = useState<KartState>({
+    items: [],
+    bonusWords: 0,
+    carOffsets: {},
+    blurCounter: false,
+    boldText: false,
+    starActive: false,
+    starActiveIds: [],
+    flashEvent: null,
+  });
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const boldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const starTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -177,6 +206,95 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
             break;
           }
 
+          case "item_earned": {
+            setKartState((prev) => ({
+              ...prev,
+              items: [...prev.items, data.item as string].slice(0, 3),
+            }));
+            break;
+          }
+
+          case "item_used": {
+            const effect = data.effect as string;
+            const amount = (data.amount as number) ?? 0;
+            const targetId = data.targetId as string | undefined;
+            const targetIds = data.targetIds as string[] | undefined;
+
+            if (effect === "car_subtract") {
+              setKartState((prev) => {
+                const next = { ...prev.carOffsets };
+                if (targetId) next[targetId] = (next[targetId] ?? 0) - amount;
+                if (targetIds) targetIds.forEach((id) => { next[id] = (next[id] ?? 0) - amount; });
+                return { ...prev, carOffsets: next };
+              });
+            } else if (effect === "car_add" && targetId) {
+              setKartState((prev) => ({
+                ...prev,
+                carOffsets: { ...prev.carOffsets, [targetId]: (prev.carOffsets[targetId] ?? 0) + amount },
+              }));
+            } else if (effect === "star" && targetId) {
+              const starDuration = (data.duration as number) ?? 30000;
+              setKartState((prev) => ({
+                ...prev,
+                starActiveIds: [...prev.starActiveIds.filter((id) => id !== targetId), targetId],
+              }));
+              setTimeout(() => {
+                setKartState((prev) => ({
+                  ...prev,
+                  starActiveIds: prev.starActiveIds.filter((id) => id !== targetId),
+                }));
+              }, starDuration);
+            }
+
+            // Flash notification
+            const itemEmoji = (data.emoji as string) ?? "🎮";
+            const sourceName = (data.sourceName as string) ?? "Someone";
+            const targetName = (data.targetName as string) ?? "";
+            const flashMsg = targetName
+              ? `${sourceName} hit ${targetName}!`
+              : `${sourceName} used an item!`;
+            const flashEvent: KartFlashEvent = {
+              emoji: itemEmoji,
+              label: data.item as string,
+              message: flashMsg,
+              color: "#a855f7",
+            };
+            if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+            setKartState((prev) => ({ ...prev, flashEvent }));
+            flashTimerRef.current = setTimeout(() => {
+              setKartState((prev) => ({ ...prev, flashEvent: null }));
+            }, 3000);
+            break;
+          }
+
+          case "item_effect_start": {
+            const effect = data.effect as string;
+            const duration = (data.duration as number) ?? 5000;
+            const amount = (data.amount as number) ?? 0;
+            if (effect === "blur_counter") {
+              if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+              setKartState((prev) => ({ ...prev, blurCounter: true }));
+              blurTimerRef.current = setTimeout(() => {
+                setKartState((prev) => ({ ...prev, blurCounter: false }));
+              }, duration);
+            } else if (effect === "bold_text") {
+              if (boldTimerRef.current) clearTimeout(boldTimerRef.current);
+              setKartState((prev) => ({ ...prev, boldText: true }));
+              boldTimerRef.current = setTimeout(() => {
+                setKartState((prev) => ({ ...prev, boldText: false }));
+              }, duration);
+            } else if (effect === "star") {
+              if (starTimerRef.current) clearTimeout(starTimerRef.current);
+              setKartState((prev) => ({ ...prev, starActive: true }));
+              starTimerRef.current = setTimeout(() => {
+                setKartState((prev) => ({ ...prev, starActive: false }));
+              }, duration);
+            } else if (effect === "bonus_words") {
+              setKartState((prev) => ({ ...prev, bonusWords: prev.bonusWords + amount }));
+            }
+            break;
+          }
+
           case "pong":
             break;
         }
@@ -266,6 +384,19 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
     }
   }, []);
 
+  const sendUseItem = useCallback((item: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      setKartState((prev) => {
+        const idx = prev.items.indexOf(item);
+        if (idx === -1) return prev;
+        const items = [...prev.items];
+        items.splice(idx, 1);
+        return { ...prev, items };
+      });
+      wsRef.current.send(JSON.stringify({ type: "use_item", item }));
+    }
+  }, []);
+
   return {
     room,
     participantId,
@@ -280,5 +411,7 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
     startSprint,
     restartSprint,
     endSprint,
+    kartState,
+    sendUseItem,
   };
 }

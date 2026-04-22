@@ -8,6 +8,9 @@ interface RaceTrackProps {
   durationMinutes: number;
   wordGoal?: number | null;
   reaperWordCount?: number | null;
+  carOffsets?: Record<string, number>;
+  starActiveIds?: string[];
+  isKartMode?: boolean;
 }
 
 const LANE_COLORS: { car: string; text: string }[] = [
@@ -50,6 +53,9 @@ export const RaceTrack = memo(function RaceTrack({
   durationMinutes,
   wordGoal,
   reaperWordCount,
+  carOffsets,
+  starActiveIds,
+  isKartMode,
 }: RaceTrackProps) {
   // ── Stable lane assignments ───────────────────────────────────────────
   // We lock each participant to a lane index the first time we see them.
@@ -67,6 +73,15 @@ export const RaceTrack = memo(function RaceTrack({
   );
 
   const target = wordGoal ?? targetWords(durationMinutes);
+
+  // Kart mode: find 1st place by effective word count (wordCount + carOffset)
+  const firstPlaceId = isKartMode && participants.length > 0
+    ? [...participants].sort((a, b) => {
+        const ae = Math.max(0, a.wordCount + (carOffsets?.[a.id] ?? 0));
+        const be = Math.max(0, b.wordCount + (carOffsets?.[b.id] ?? 0));
+        return be - ae;
+      })[0]?.id
+    : null;
   const reaperFraction = reaperWordCount != null && reaperWordCount > 0
     ? Math.min(reaperWordCount / target, 1)
     : null;
@@ -151,10 +166,12 @@ export const RaceTrack = memo(function RaceTrack({
               const colors = LANE_COLORS[laneIndex % LANE_COLORS.length];
               const isMe = p.id === currentParticipantId;
 
-              // Absolute fraction: progress toward the fixed word-count target.
-              const fraction = Math.min(p.wordCount / target, 1);
-              const finished = p.wordCount >= target;
+              const effectiveWordCount = Math.max(0, p.wordCount + (carOffsets?.[p.id] ?? 0));
+              const fraction = Math.min(effectiveWordCount / target, 1);
+              const finished = effectiveWordCount >= target;
               const eliminated = reaperWordCount != null && p.wordCount < reaperWordCount && !finished;
+              const hasStarActive = starActiveIds?.includes(p.id) ?? false;
+              const isFirstPlace = firstPlaceId === p.id;
 
               return (
                 <div
@@ -236,11 +253,21 @@ export const RaceTrack = memo(function RaceTrack({
                         </span>
                       </div>
 
+                      {/* Kart mode: crown on 1st place */}
+                      {isFirstPlace && isKartMode && !finished && (
+                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-sm leading-none pointer-events-none" style={{ textShadow: "0 0 6px #fbbf24" }}>
+                          👑
+                        </div>
+                      )}
+
                       {/* Car — pulses when finished, fades when eliminated */}
                       <motion.div
                         animate={finished ? { scale: [1, 1.08, 1] } : { scale: 1 }}
                         transition={finished ? { repeat: Infinity, duration: 1.4, ease: "easeInOut" } : {}}
-                        style={{ opacity: eliminated ? 0.4 : 1 }}
+                        style={{
+                          opacity: eliminated ? 0.4 : 1,
+                          filter: hasStarActive ? "drop-shadow(0 0 6px #fbbf24) drop-shadow(0 0 10px #fde047)" : undefined,
+                        }}
                       >
                         <CarIcon color={eliminated ? "#6b7280" : finished ? "#fbbf24" : colors.car} />
                       </motion.div>

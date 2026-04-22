@@ -1,0 +1,19 @@
+Villain mode — a dark UI theme that unlocks at Ink Reaper rank, black background, red accents, dramatic fonts. Your rank has power and it shows. Make it so that it can be turned on and off.
+Love this idea! It's like Mario Kart but for writing. Here's the prompt:
+
+Add a Kart mode to the Writing Sprint app. This is a new room mode called "kart" that transforms the sprint into a chaotic racing game where writers can attack, defend, and power up while writing.
+How it works:
+Every X words written, the writer earns a random item box. Items can be used to affect other racers or boost yourself. The more you write, the more items you get. Items are activated by clicking an item button in the UI.
+
+Items (randomised when earned):
+🔴 Red Shell — target the writer directly ahead of you. Freezes their word count display for 20 seconds (they can still type but can't see their own count as well as car word count. It gets blurred before returning, causing panic)
+🟢 Green Shell — fires randomly at any writer in the room. Could hit anyone including yourself. When it hits, their car loses 100 words. (Only the car meter. Don't touch anything related to what they're writing)
+🍌 Banana Peel — place it behind you. The next writer to overtake you gets their next words to be in bold for the next 5 seconds before going back to normal.
+⭐ Star — invincibility for 30 seconds. All incoming items bounce off you and hit random other writers instead
+🔵 Blue Shell — targets whoever is in 1st place. Knocks the car back by 200 words. Just their car word count.
+⚡ Lightning — hits every other writer in the room simultaneously, reducing their word count by 300 words (cosmetic only, doesn't affect real count)
+🍄 Mushroom — Adds just the user car with 200 words.
+🎁 Mystery Box — gives you 3 random items at once
+👻 Boo — steals an item from the writer ahead of you and gives it to you
+🌟 Golden Pen — extremely rare. Adds 400 bonus words to your final count. Only appears once per sprint.
+Once they receive the item, they are stored in storage and they can use at any time during sprint

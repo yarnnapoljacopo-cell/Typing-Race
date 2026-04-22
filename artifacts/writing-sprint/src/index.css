@@ -292,3 +292,79 @@
 .writing-editor u {
   text-decoration: underline;
 }
+
+/* ── Villain Mode ──────────────────────────────────────────────────────── */
+html.villain {
+  --background: 0 0% 5%;
+  --foreground: 0 0% 90%;
+  --border: 0 25% 20%;
+
+  --card: 0 0% 8%;
+  --card-foreground: 0 0% 90%;
+  --card-border: 0 25% 22%;
+
+  --popover: 0 0% 8%;
+  --popover-foreground: 0 0% 90%;
+  --popover-border: 0 25% 22%;
+
+  --primary: 0 75% 50%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 0 15% 14%;
+  --secondary-foreground: 0 0% 85%;
+
+  --muted: 0 12% 12%;
+  --muted-foreground: 0 10% 55%;
+
+  --accent: 0 20% 16%;
+  --accent-foreground: 0 0% 88%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --input: 0 15% 16%;
+  --ring: 0 75% 50%;
+
+  --sidebar: 0 0% 5%;
+  --sidebar-foreground: 0 0% 90%;
+  --sidebar-border: 0 25% 20%;
+  --sidebar-primary: 0 75% 50%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 0 15% 14%;
+  --sidebar-accent-foreground: 0 0% 85%;
+  --sidebar-ring: 0 75% 50%;
+
+  --app-font-serif: 'Georgia', 'Times New Roman', serif;
+}
+
+html.villain body {
+  font-family: var(--app-font-sans);
+}
+
+html.villain h1, html.villain h2 {
+  font-family: var(--app-font-serif);
+  color: hsl(0 75% 55%);
+}
+
+/* ── Kart Mode effects ─────────────────────────────────────────────────── */
+.kart-blur-counter .kart-word-count {
+  filter: blur(6px);
+  transition: filter 0.4s ease;
+}
+
+.kart-banana-hit .writing-editor {
+  font-weight: bold !important;
+  border-color: hsl(48 96% 53%) !important;
+  box-shadow: 0 0 14px hsl(48 96% 53% / 0.5) !important;
+  transition: all 0.2s ease;
+}
+
+.kart-star-active .kart-car-marker {
+  filter: drop-shadow(0 0 6px #fbbf24) drop-shadow(0 0 12px #fbbf24);
+  animation: kart-star-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes kart-star-pulse {
+  from { filter: drop-shadow(0 0 4px #fbbf24) drop-shadow(0 0 8px #fbbf24); }
+  to   { filter: drop-shadow(0 0 10px #fbbf24) drop-shadow(0 0 18px #fde047); }
+}

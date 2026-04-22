@@ -12,13 +12,45 @@ import {
   startSprint,
   endSprint,
   broadcastRoomState,
+  broadcastToRoom,
   restartSprint,
   Participant,
+  Room,
 } from "./roomManager";
 import { getWriting } from "./writingStore";
+import { rollItem, rollMysteryItems, ITEM_EMOJIS } from "./kartItems";
 
 function countWords(text: string): number {
   return text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
+}
+
+function isStarActive(room: Room, participantId: string): boolean {
+  const expiry = room.activeStars.get(participantId);
+  return expiry !== undefined && expiry > Date.now();
+}
+
+function getActiveParticipants(room: Room): Participant[] {
+  return Array.from(room.participants.values()).filter((p) => !p.isSpectator);
+}
+
+function getParticipantPosition(room: Room, participantId: string): { position: number; total: number } {
+  const active = getActiveParticipants(room);
+  const sorted = [...active].sort((a, b) => b.wordCount - a.wordCount);
+  const pos = sorted.findIndex((p) => p.id === participantId) + 1;
+  return { position: pos || active.length, total: active.length };
+}
+
+function getRedirectTarget(room: Room, excludeIds: string[]): Participant | null {
+  const eligible = getActiveParticipants(room).filter(
+    (p) => !excludeIds.includes(p.id) && !isStarActive(room, p.id) && p.ws.readyState === WebSocket.OPEN,
+  );
+  return eligible.length > 0 ? eligible[Math.floor(Math.random() * eligible.length)] : null;
+}
+
+function sendEffect(target: Participant, effect: string, duration?: number, sourceName?: string, extra?: Record<string, unknown>): void {
+  if (target.ws.readyState === WebSocket.OPEN) {
+    target.ws.send(JSON.stringify({ type: "item_effect_start", effect, duration, sourceName, ...extra }));
+  }
 }
 
 export function setupWebSocketServer(server: Server): WebSocketServer {
@@ -146,6 +178,9 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             isSpectator,
             latestText: restoredText,
             clerkUserId: resolvedClerkUserId,
+            kartItems: [],
+            kartBonusWords: 0,
+            kartNextItemAt: 250,
           };
           addParticipant(room, participant);
         }
@@ -262,6 +297,196 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
               p.ws.send(payload);
             }
           });
+        }
+
+        // Kart mode: item earning + banana trap check
+        if (room.mode === "kart" && room.status === "running") {
+          const { position, total } = getParticipantPosition(room, participantId);
+
+          while (participant.kartItems.length < 3 && participant.wordCount >= participant.kartNextItemAt) {
+            participant.kartNextItemAt += 250;
+            const item = rollItem(position, total, !room.goldenPenUsed);
+            if (item === "golden_pen") room.goldenPenUsed = true;
+            participant.kartItems.push(item);
+            ws.send(JSON.stringify({ type: "item_earned", item, emoji: ITEM_EMOJIS[item] }));
+          }
+
+          room.bananaTraps = room.bananaTraps.filter((trap) => {
+            if (trap.placedById === participantId) return true;
+            if (participant.wordCount <= trap.threshold) return true;
+
+            let targetPId = participantId;
+            let targetP: Participant = participant;
+
+            if (isStarActive(room, participantId)) {
+              const redirect = getRedirectTarget(room, [participantId, trap.placedById]);
+              if (redirect) { targetPId = redirect.id; targetP = redirect; }
+              else return false;
+            }
+
+            sendEffect(targetP, "bold_text", 5000, trap.placedByName);
+            broadcastToRoom(room, {
+              type: "item_used", item: "banana", emoji: ITEM_EMOJIS["banana"],
+              sourceId: trap.placedById, sourceName: trap.placedByName,
+              targetId: targetPId, targetName: targetP.name,
+              effect: "bold_text", duration: 5000,
+            });
+            return false;
+          });
+        }
+
+        return;
+      }
+
+      if (type === "use_item") {
+        if (room.mode !== "kart" || room.status !== "running") return;
+        const item = message.item as string;
+        const itemIdx = participant.kartItems.indexOf(item);
+        if (itemIdx === -1) return;
+        participant.kartItems.splice(itemIdx, 1);
+
+        const active = getActiveParticipants(room);
+        const sorted = [...active].sort((a, b) => b.wordCount - a.wordCount);
+        const senderIdx = sorted.findIndex((p) => p.id === participantId);
+
+        switch (item) {
+          case "red_shell": {
+            const ahead = senderIdx > 0 ? sorted[senderIdx - 1] : null;
+            if (!ahead || ahead.id === participantId) break;
+            const targetP = isStarActive(room, ahead.id)
+              ? getRedirectTarget(room, [participantId, ahead.id])
+              : ahead;
+            if (!targetP) break;
+            sendEffect(targetP, "blur_counter", 20000, participant.name);
+            broadcastToRoom(room, {
+              type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
+              sourceId: participantId, sourceName: participant.name,
+              targetId: targetP.id, targetName: targetP.name,
+              effect: "blur_counter", duration: 20000,
+            });
+            break;
+          }
+          case "green_shell": {
+            const pool = active.filter((p) => !isStarActive(room, p.id) && p.ws.readyState === WebSocket.OPEN);
+            if (pool.length === 0) break;
+            const targetP = pool[Math.floor(Math.random() * pool.length)];
+            broadcastToRoom(room, {
+              type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
+              sourceId: participantId, sourceName: participant.name,
+              targetId: targetP.id, targetName: targetP.name,
+              effect: "car_subtract", amount: 100,
+            });
+            break;
+          }
+          case "banana": {
+            const trapId = Math.random().toString(36).slice(2);
+            room.bananaTraps.push({ id: trapId, placedById: participantId, placedByName: participant.name, threshold: participant.wordCount });
+            broadcastToRoom(room, {
+              type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
+              sourceId: participantId, sourceName: participant.name,
+              effect: "banana_placed",
+            });
+            break;
+          }
+          case "star": {
+            const expiry = Date.now() + 30000;
+            room.activeStars.set(participantId, expiry);
+            setTimeout(() => room.activeStars.delete(participantId), 30000);
+            sendEffect(participant, "star", 30000);
+            broadcastToRoom(room, {
+              type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
+              sourceId: participantId, sourceName: participant.name,
+              targetId: participantId, effect: "star", duration: 30000,
+            });
+            break;
+          }
+          case "blue_shell": {
+            let targetP = sorted[0];
+            if (!targetP) break;
+            if (targetP.id === participantId && sorted.length > 1) targetP = sorted[1];
+            if (isStarActive(room, targetP.id)) {
+              const redirect = getRedirectTarget(room, [participantId]);
+              if (!redirect) break;
+              targetP = redirect;
+            }
+            broadcastToRoom(room, {
+              type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
+              sourceId: participantId, sourceName: participant.name,
+              targetId: targetP.id, targetName: targetP.name,
+              effect: "car_subtract", amount: 200,
+            });
+            break;
+          }
+          case "lightning": {
+            const hitIds: string[] = [];
+            const hitNames: string[] = [];
+            for (const p of active) {
+              if (p.id === participantId) continue;
+              if (isStarActive(room, p.id)) continue;
+              hitIds.push(p.id);
+              hitNames.push(p.name);
+            }
+            broadcastToRoom(room, {
+              type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
+              sourceId: participantId, sourceName: participant.name,
+              targetIds: hitIds, targetNames: hitNames,
+              effect: "car_subtract", amount: 300,
+            });
+            break;
+          }
+          case "mushroom": {
+            broadcastToRoom(room, {
+              type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
+              sourceId: participantId, sourceName: participant.name,
+              targetId: participantId, targetName: participant.name,
+              effect: "car_add", amount: 200,
+            });
+            break;
+          }
+          case "mystery_box": {
+            const newItems = rollMysteryItems(3);
+            const available = 3 - participant.kartItems.length;
+            const toAdd = newItems.slice(0, available);
+            participant.kartItems.push(...toAdd);
+            for (const ni of toAdd) {
+              ws.send(JSON.stringify({ type: "item_earned", item: ni, emoji: ITEM_EMOJIS[ni] }));
+            }
+            broadcastToRoom(room, {
+              type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
+              sourceId: participantId, sourceName: participant.name,
+              effect: "mystery_box",
+            });
+            break;
+          }
+          case "boo": {
+            if (senderIdx <= 0 && sorted.length > 0) break;
+            const ahead = senderIdx > 0 ? sorted[senderIdx - 1] : null;
+            if (!ahead || ahead.kartItems.length === 0) break;
+            const stealIdx = Math.floor(Math.random() * ahead.kartItems.length);
+            const stolen = ahead.kartItems.splice(stealIdx, 1)[0];
+            if (participant.kartItems.length < 3) {
+              participant.kartItems.push(stolen);
+              ws.send(JSON.stringify({ type: "item_earned", item: stolen, emoji: ITEM_EMOJIS[stolen as keyof typeof ITEM_EMOJIS] }));
+            }
+            broadcastToRoom(room, {
+              type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
+              sourceId: participantId, sourceName: participant.name,
+              targetId: ahead.id, targetName: ahead.name,
+              stolenItem: stolen, stolenEmoji: ITEM_EMOJIS[stolen as keyof typeof ITEM_EMOJIS],
+              effect: "boo",
+            });
+            break;
+          }
+          case "golden_pen": {
+            participant.kartBonusWords += 400;
+            broadcastToRoom(room, {
+              type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
+              sourceId: participantId, sourceName: participant.name,
+              targetId: participantId, targetName: participant.name,
+              effect: "bonus_words", amount: 400,
+            });
+            break;
+          }
         }
         return;
       }

@@ -19,9 +19,19 @@ export interface Participant {
   latestText: string;
   clerkUserId: string | null;
   disconnectTimer?: ReturnType<typeof setTimeout>;
+  kartItems: string[];
+  kartBonusWords: number;
+  kartNextItemAt: number;
 }
 
-export type RoomMode = "regular" | "open" | "goal" | "boss";
+export type RoomMode = "regular" | "open" | "goal" | "boss" | "kart";
+
+export interface BananaTrap {
+  id: string;
+  placedById: string;
+  placedByName: string;
+  threshold: number;
+}
 
 export interface Room {
   code: string;
@@ -40,6 +50,9 @@ export interface Room {
   countdownEndsAt: number | null;
   timerInterval: ReturnType<typeof setInterval> | null;
   closeTimer?: ReturnType<typeof setTimeout>;
+  bananaTraps: BananaTrap[];
+  goldenPenUsed: boolean;
+  activeStars: Map<string, number>;
 }
 
 const rooms = new Map<string, Room>();
@@ -127,6 +140,9 @@ export async function restoreRoomsFromDB(): Promise<void> {
         endTime: row.endTime ?? null,
         countdownEndsAt: row.countdownEndsAt ?? null,
         timerInterval: null,
+        bananaTraps: [],
+        goldenPenUsed: false,
+        activeStars: new Map(),
       };
 
       if (row.status === "running") {
@@ -212,6 +228,9 @@ export function createRoom(
     endTime: null,
     countdownEndsAt: null,
     timerInterval: null,
+    bananaTraps: [],
+    goldenPenUsed: false,
+    activeStars: new Map(),
   };
 
   rooms.set(code, room);
@@ -447,8 +466,9 @@ export function endSprint(room: Room): void {
       wordCount: p.wordCount,
       wpm: p.wpm,
       isCreator: p.isCreator,
+      kartBonusWords: room.mode === "kart" ? p.kartBonusWords : 0,
     }))
-    .sort((a, b) => b.wordCount - a.wordCount);
+    .sort((a, b) => (b.wordCount + b.kartBonusWords) - (a.wordCount + a.kartBonusWords));
 
   broadcastToRoom(room, { type: "sprint_ended", results: participants });
 
@@ -516,6 +536,9 @@ export function reconnectParticipant(
       isSpectator,
       latestText: text,
       clerkUserId,
+      kartItems: [],
+      kartBonusWords: 0,
+      kartNextItemAt: 250,
     };
     room.participants.set(existingId, participant);
     broadcastRoomState(room);

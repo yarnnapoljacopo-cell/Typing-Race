@@ -29,8 +29,9 @@ import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
 import ActiveRooms from "./ActiveRooms";
 import { useGuest } from "@/lib/guestContext";
+import { useVillainMode } from "@/lib/villainModeContext";
 
-type RoomMode = "regular" | "open" | "goal" | "boss";
+type RoomMode = "regular" | "open" | "goal" | "boss" | "kart";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -71,6 +72,7 @@ export default function Portal() {
   const { isSignedIn } = useAuth();
   const queryClient = useQueryClient();
   const { guestName, updateGuestName, exitGuest } = useGuest();
+  const { isVillainMode, toggleVillainMode } = useVillainMode();
 
   const isGuest = !isSignedIn && !!guestName;
 
@@ -278,6 +280,22 @@ export default function Portal() {
         )}
 
         <div className="flex items-center justify-between px-1">
+          {/* Villain Mode toggle — unlocked at Ink Reaper (10k XP) */}
+          {!isGuest && (profile?.xp ?? 0) >= 10000 && (
+            <button
+              type="button"
+              onClick={toggleVillainMode}
+              title={isVillainMode ? "Disable Villain Mode" : "Enable Villain Mode (Ink Reaper perk)"}
+              className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-bold shadow-xl border-2 transition-all duration-300 ${
+                isVillainMode
+                  ? "bg-red-950 border-red-600 text-red-300 hover:bg-red-900"
+                  : "bg-background border-border text-foreground hover:border-red-500 hover:text-red-500"
+              }`}
+            >
+              <span className="text-base">🩸</span>
+              <span>{isVillainMode ? "Villain Mode ON" : "Villain Mode"}</span>
+            </button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-1 text-sm text-foreground hover:text-primary transition-colors">
@@ -485,7 +503,7 @@ export default function Portal() {
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground">Sprint Mode</label>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                         <button
                           type="button"
                           onClick={() => setRoomMode("regular")}
@@ -538,7 +556,32 @@ export default function Portal() {
                           <span className="text-xs font-semibold">Boss Battle</span>
                           <span className="text-[10px] text-center leading-tight opacity-70">Defeat the monster</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setRoomMode("kart")}
+                          className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
+                            roomMode === "kart"
+                              ? "border-orange-500 bg-orange-500/10 text-orange-400"
+                              : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                          }`}
+                        >
+                          <span className="text-base leading-none">🏎️</span>
+                          <span className="text-xs font-semibold">Kart Mode</span>
+                          <span className="text-[10px] text-center leading-tight opacity-70">Items &amp; chaos</span>
+                        </button>
                       </div>
+
+                      {roomMode === "kart" && (
+                        <div className="mt-3 rounded-lg border border-orange-500/30 bg-orange-500/5 px-4 py-3 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">🏎️</span>
+                            <span className="text-sm font-medium text-foreground">Kart Mode</span>
+                          </div>
+                          <p className="text-[11px] text-orange-400/80 leading-relaxed">
+                            Earn items every 250 words — Red Shells, Blue Shells, Stars, and the legendary Golden Pen (+400 real bonus words). Last place gets the best items. May the chaos begin!
+                          </p>
+                        </div>
+                      )}
 
                       {roomMode === "goal" && (
                         <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">

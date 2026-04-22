@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useSprintRoom, type RoomState } from "@/hooks/useSprintRoom";
 import { RaceTrack } from "@/components/RaceTrack";
+import { KartHUD } from "@/components/KartHUD";
 import { BossTrack } from "@/components/BossTrack";
 import { Timer } from "@/components/Timer";
 import { ResultsScreen } from "@/components/ResultsScreen";
@@ -328,6 +329,8 @@ export default function Room() {
     startSprint,
     restartSprint,
     endSprint,
+    kartState,
+    sendUseItem,
   } = useSprintRoom({ code, name, isCreator: isCreatorParams, password: roomPassword, clerkUserId: userId ?? null });
 
   useEffect(() => {
@@ -1052,7 +1055,24 @@ export default function Room() {
                   durationMinutes={room.durationMinutes}
                   wordGoal={room.wordGoal}
                   reaperWordCount={reaperWordCount}
+                  carOffsets={room.mode === "kart" ? kartState.carOffsets : undefined}
+                  starActiveIds={room.mode === "kart" ? kartState.starActiveIds : undefined}
+                  isKartMode={room.mode === "kart"}
                 />
+              )}
+              {/* Kart Mode HUD */}
+              {room.mode === "kart" && isRunning && participantId && (
+                <div className="rounded-xl border bg-card/80 backdrop-blur px-4 py-3" style={{ background: "rgba(20,20,30,0.85)", borderColor: "rgba(255,255,255,0.12)" }}>
+                  <KartHUD
+                    items={kartState.items}
+                    kartBonusWords={kartState.bonusWords}
+                    blurCounter={kartState.blurCounter}
+                    boldText={kartState.boldText}
+                    starActive={kartState.starActive}
+                    onUseItem={sendUseItem}
+                    flashEvent={kartState.flashEvent}
+                  />
+                </div>
               )}
               {/* Death Mode: grace-period countdown banner */}
               {graceCountdown !== null && isRunning && (
@@ -1094,7 +1114,7 @@ export default function Room() {
                 </div>
               )}
               <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} />
-              <div className="flex flex-col flex-1 min-h-[380px]">
+              <div className={`flex flex-col flex-1 min-h-[380px]${kartState.boldText ? " kart-banana-hit" : ""}${kartState.blurCounter ? " kart-blur-counter" : ""}`}>
                 {/* Pre-sprint / countdown hint bar */}
                 {(isWaiting || isCountdown) && (
                   <div className={`flex items-center justify-center gap-2 border text-xs font-medium py-1.5 px-3 ${
@@ -1179,8 +1199,8 @@ export default function Room() {
                     {savedToMyFiles ? <BookCheck size={12} /> : <BookOpen size={12} />}
                     {savedToMyFiles ? "Saved" : "Save to Files"}
                   </button>
-                  <div className="bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
-                    <span className="font-mono font-semibold text-sm text-foreground">{netWordCount}</span>
+                  <div className="kart-word-count bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
+                    <span className="font-mono font-semibold text-sm text-foreground">{netWordCount}{room.mode === "kart" && kartState.bonusWords > 0 ? <span className="text-orange-400 text-xs ml-1">+{kartState.bonusWords}</span> : null}</span>
                     <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                       {isRunning ? "words" : "warm-up"}
                     </span>

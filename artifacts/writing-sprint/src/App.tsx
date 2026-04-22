@@ -14,6 +14,7 @@ import Profile from "@/pages/Profile";
 import Friends from "@/pages/Friends";
 import GlobalRanking from "@/pages/GlobalRanking";
 import { GuestProvider, useGuest } from "@/lib/guestContext";
+import { VillainModeProvider } from "@/lib/villainModeContext";
 
 const queryClient = new QueryClient();
 
@@ -204,6 +205,7 @@ function ClerkProviderWithRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <GuestProvider>
+          <VillainModeProvider>
           <ClerkQueryClientCacheInvalidator />
           <TooltipProvider>
             <Switch>
@@ -220,6 +222,7 @@ function ClerkProviderWithRoutes() {
             </Switch>
             <Toaster />
           </TooltipProvider>
+          </VillainModeProvider>
         </GuestProvider>
       </QueryClientProvider>
     </ClerkProvider>
