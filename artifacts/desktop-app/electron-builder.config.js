@@ -33,7 +33,7 @@ module.exports = {
     target: [{ target: "dmg", arch: ["x64"] }],
     category: "public.app-category.productivity",
     identity: null,
-    icon: path.resolve(__dirname, "resources/icon.png"),
+    icon: path.resolve(__dirname, "resources/icon.icns"),
   },
   linux: {
     target: [{ target: "AppImage", arch: ["x64"] }],
