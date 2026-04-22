@@ -12,3 +12,9 @@ id = "E24W4wxPsE-rcRCKuLoTn"
 uri = "file://artifacts/desktop-app/resources/icon_base.png"
 type = "image"
 title = "writing sprint fountain pen icon"
+
+[[generated]]
+id = "FrcY1zLmK47qXqLAyuQvs"
+uri = "file://artifacts/desktop-app/resources/icon_flat.png"
+type = "image"
+title = "flat white pen nib icon"
