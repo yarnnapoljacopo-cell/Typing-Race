@@ -1055,27 +1055,14 @@ export default function Room() {
             <>
               {room.mode === "gladiator" ? (
                 <>
-                  {/* Gladiator: show death gap prominently before sprint starts */}
-                  {(isWaiting || isCountdown) && room.gladiatorDeathGap && (
-                    <div
-                      className="rounded-xl border-2 border-red-700/50 px-5 py-4 text-center space-y-1"
-                      style={{ background: "rgba(127,29,29,0.18)" }}
-                    >
-                      <div className="text-2xl">⚔️</div>
-                      <div className="text-sm font-bold text-red-300">
-                        Death Gap: <span className="text-red-200 text-base">{room.gladiatorDeathGap} words</span>
-                      </div>
-                      <p className="text-[11px] text-red-400/70">
-                        Reach {room.gladiatorDeathGap} words ahead of your opponent and they fall instantly.
-                        Writing heals HP — the gap deals damage. Two enter, one leaves.
-                      </p>
-                    </div>
-                  )}
-                  {/* Gladiator HUD during sprint */}
-                  {isRunning && room.gladiatorDeathGap && (
+                  {/* Arena scene — visible during waiting, countdown, and running */}
+                  {(isWaiting || isCountdown || isRunning) && room.gladiatorDeathGap && (
                     <GladiatorHUD
                       state={gladiatorState}
                       deathGap={room.gladiatorDeathGap}
+                      myName={myParticipant?.name ?? "You"}
+                      opponentName={otherParticipants[0]?.name ?? null}
+                      isRunning={isRunning}
                     />
                   )}
                 </>

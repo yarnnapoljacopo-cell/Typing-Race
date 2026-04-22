@@ -368,3 +368,9 @@ html.villain h1, html.villain h2 {
   from { filter: drop-shadow(0 0 4px #fbbf24) drop-shadow(0 0 8px #fbbf24); }
   to   { filter: drop-shadow(0 0 10px #fbbf24) drop-shadow(0 0 18px #fde047); }
 }
+
+@keyframes lastStandShake {
+  0%, 100% { transform: translateX(0); }
+  25%       { transform: translateX(-3px) rotate(-1deg); }
+  75%       { transform: translateX(3px) rotate(1deg); }
+}
