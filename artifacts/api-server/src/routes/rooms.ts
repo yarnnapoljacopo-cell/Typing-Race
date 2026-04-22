@@ -8,6 +8,77 @@ import { eq, and, or, ne, desc, sql, max, sum, count, inArray, ilike } from "dri
 
 const router: IRouter = Router();
 
+// ── Writing Deviation (XP decay) ────────────────────────────────────────────
+// Rank thresholds (index → min XP)
+const RANK_THRESHOLDS = [0, 250, 1000, 3500, 10000, 25000, 75000];
+// XP lost per day after 5 days idle, indexed by rank (0–2 = no decay, 3–6 = decay)
+const DECAY_RATE_PER_DAY = [0, 0, 0, 15, 40, 100, 250];
+const DECAY_GRACE_DAYS = 5;
+
+function getRankIndex(xp: number): number {
+  for (let i = RANK_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (xp >= RANK_THRESHOLDS[i]) return i;
+  }
+  return 0;
+}
+
+interface DecayResult {
+  xpLost: number;
+  newXp: number;
+}
+
+async function applyXpDecay(clerkUserId: string): Promise<DecayResult | null> {
+  const rows = await db
+    .select({
+      xp: userProfilesTable.xp,
+      lastSprintAt: userProfilesTable.lastSprintAt,
+      decayCheckedAt: userProfilesTable.decayCheckedAt,
+    })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.clerkUserId, clerkUserId))
+    .limit(1);
+
+  if (rows.length === 0) return null;
+  const { xp, lastSprintAt, decayCheckedAt } = rows[0];
+  const now = new Date();
+
+  // No sprint ever recorded → nothing to decay against
+  if (!lastSprintAt) return null;
+
+  const rankIndex = getRankIndex(xp);
+  if (rankIndex < 3) {
+    // Below Author — reset check timestamp so we don't pile up days if they level up later
+    await db
+      .update(userProfilesTable)
+      .set({ decayCheckedAt: now })
+      .where(eq(userProfilesTable.clerkUserId, clerkUserId));
+    return null;
+  }
+
+  // Decay window opens DECAY_GRACE_DAYS after last sprint
+  const decayWindowStart = new Date(lastSprintAt.getTime() + DECAY_GRACE_DAYS * 86_400_000);
+
+  // The point from which we haven't yet charged any decay
+  const chargeFrom =
+    decayCheckedAt && decayCheckedAt > decayWindowStart ? decayCheckedAt : decayWindowStart;
+
+  if (now <= chargeFrom) return null; // Grace period still active
+
+  const decayDays = Math.floor((now.getTime() - chargeFrom.getTime()) / 86_400_000);
+  if (decayDays <= 0) return null;
+
+  const decayPerDay = DECAY_RATE_PER_DAY[rankIndex];
+  const totalDecay = decayDays * decayPerDay;
+  const newXp = Math.max(0, xp - totalDecay);
+
+  await db
+    .update(userProfilesTable)
+    .set({ xp: newXp, decayCheckedAt: now, updatedAt: now })
+    .where(eq(userProfilesTable.clerkUserId, clerkUserId));
+
+  return { xpLost: xp - newXp, newXp };
+}
+
 router.get("/rooms", async (_req, res): Promise<void> => {
   res.json(getActiveRooms());
 });
@@ -232,13 +303,46 @@ router.get("/user/profile", async (req, res): Promise<void> => {
   const clerkUserId = auth?.userId;
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
+  // Apply any uncharged decay first (lazy evaluation)
+  const decayResult = await applyXpDecay(clerkUserId);
+
   const rows = await db
     .select()
     .from(userProfilesTable)
     .where(eq(userProfilesTable.clerkUserId, clerkUserId))
     .limit(1);
 
-  res.json({ writerName: rows[0]?.writerName ?? null, xp: rows[0]?.xp ?? 0 });
+  const profile = rows[0];
+  const xp = profile?.xp ?? 0;
+  const lastSprintAt = profile?.lastSprintAt;
+  const now = new Date();
+
+  // Decay warning info for the frontend
+  let daysUntilDecay: number | null = null;
+  let inDecay = false;
+  let decayRatePerDay = 0;
+
+  if (lastSprintAt) {
+    const daysSinceLastSprint = (now.getTime() - lastSprintAt.getTime()) / 86_400_000;
+    const rankIndex = getRankIndex(xp);
+    if (rankIndex >= 3) {
+      decayRatePerDay = DECAY_RATE_PER_DAY[rankIndex];
+      if (daysSinceLastSprint > DECAY_GRACE_DAYS) {
+        inDecay = true;
+      } else {
+        daysUntilDecay = Math.ceil(DECAY_GRACE_DAYS - daysSinceLastSprint);
+      }
+    }
+  }
+
+  res.json({
+    writerName: profile?.writerName ?? null,
+    xp,
+    xpDecayed: decayResult?.xpLost ?? 0,
+    inDecay,
+    daysUntilDecay,
+    decayRatePerDay,
+  });
 });
 
 router.post("/user/xp", async (req, res): Promise<void> => {
@@ -265,10 +369,11 @@ router.post("/user/xp", async (req, res): Promise<void> => {
   }
 
   const newXp = (rows[0].xp ?? 0) + xpGained;
+  const now = new Date();
 
   await db
     .update(userProfilesTable)
-    .set({ xp: newXp, updatedAt: new Date() })
+    .set({ xp: newXp, lastSprintAt: now, decayCheckedAt: now, updatedAt: now })
     .where(eq(userProfilesTable.clerkUserId, clerkUserId));
 
   res.json({ xpGained, newXp });

@@ -34,7 +34,16 @@ type RoomMode = "regular" | "open" | "goal" | "boss";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-async function fetchProfile(): Promise<{ writerName: string | null }> {
+interface ProfileData {
+  writerName: string | null;
+  xp: number;
+  xpDecayed: number;
+  inDecay: boolean;
+  daysUntilDecay: number | null;
+  decayRatePerDay: number;
+}
+
+async function fetchProfile(): Promise<ProfileData> {
   const res = await fetch(`${basePath}/api/user/profile`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to load profile");
   return res.json();
@@ -104,6 +113,19 @@ export default function Portal() {
       setNameDialogOpen(true);
     }
   }, [isGuest, profileLoading, profile?.writerName, user]);
+
+  // Toast when XP was just lost to Writing Deviation
+  useEffect(() => {
+    if (!isGuest && !profileLoading && profile?.xpDecayed && profile.xpDecayed > 0) {
+      toast({
+        title: "Writing Deviation",
+        description: `You lost ${profile.xpDecayed} XP for going silent. Write to stop the bleed.`,
+        variant: "destructive",
+      });
+    }
+  // Only fire once on first load (profile reference changes when data arrives)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.xpDecayed]);
 
   const displayName = isGuest
     ? (guestName ?? "Guest")
@@ -255,6 +277,32 @@ export default function Portal() {
             {isGuest ? "Exit guest" : "Sign out"}
           </button>
         </div>
+
+        {/* Writing Deviation warning banner */}
+        {!isGuest && !profileLoading && profile && (
+          <>
+            {profile.inDecay && profile.decayRatePerDay > 0 && (
+              <div className="flex items-start gap-2.5 rounded-md border border-red-500/40 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+                <span className="mt-0.5 text-red-400 shrink-0">⚠️</span>
+                <div className="leading-snug">
+                  <span className="font-semibold text-red-200">Writing Deviation active</span>
+                  <span className="text-red-300/80"> — you're bleeding </span>
+                  <span className="font-semibold text-red-200">{profile.decayRatePerDay} XP/day</span>
+                  <span className="text-red-300/80"> until you sprint again.</span>
+                </div>
+              </div>
+            )}
+            {!profile.inDecay && profile.daysUntilDecay !== null && profile.daysUntilDecay <= 2 && (
+              <div className="flex items-start gap-2.5 rounded-md border border-amber-500/40 bg-amber-950/20 px-3 py-2 text-sm text-amber-300">
+                <span className="mt-0.5 shrink-0">🕰️</span>
+                <div className="leading-snug">
+                  <span className="font-semibold text-amber-200">Writing Deviation in {profile.daysUntilDecay} day{profile.daysUntilDecay !== 1 ? "s" : ""}</span>
+                  <span className="text-amber-300/80"> — sprint now to reset the clock and protect your XP.</span>
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {isGuest ? (
