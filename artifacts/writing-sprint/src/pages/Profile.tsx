@@ -37,9 +37,13 @@ async function saveNameplate(nameplate: string): Promise<void> {
   const res = await fetch(`${basePath}/api/user/preferences`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nameplate }),
+    credentials: "include",
+    body: JSON.stringify({ activeNameplate: nameplate }),
   });
-  if (!res.ok) throw new Error("Failed to save");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? "Failed to save");
+  }
 }
 
 interface Top10Entry { writerName: string; xp: number; position: number; }

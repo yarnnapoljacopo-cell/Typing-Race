@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useUser, useClerk, useAuth, SignUpButton, SignInButton } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -76,6 +76,8 @@ export default function Portal() {
   const { guestName, updateGuestName, exitGuest } = useGuest();
   const { isVillainMode, toggleVillainMode } = useVillainMode();
   const { activeSkin, setActiveSkin } = useSkin();
+  const [modesOpen, setModesOpen] = useState(false);
+  const modesPanelRef = useRef<HTMLDivElement>(null);
 
   function cycleSkin() {
     const xp = profile?.xp ?? 0;
@@ -86,6 +88,17 @@ export default function Portal() {
     const next = available[(idx + 1) % available.length];
     setActiveSkin(next);
   }
+
+  const closeModes = useCallback((e: MouseEvent) => {
+    if (modesPanelRef.current && !modesPanelRef.current.contains(e.target as Node)) {
+      setModesOpen(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (modesOpen) document.addEventListener("mousedown", closeModes);
+    return () => document.removeEventListener("mousedown", closeModes);
+  }, [modesOpen, closeModes]);
 
   const isGuest = !isSignedIn && !!guestName;
 
@@ -295,36 +308,53 @@ export default function Portal() {
         )}
 
         <div className="flex items-center justify-between px-1">
-          {/* Mode toggles — circular icon buttons grouped at bottom-right */}
+          {/* Single modes button — unlocked at Ink Reaper (10k XP) */}
           {!isGuest && (profile?.xp ?? 0) >= 10000 && (
-            <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2">
-              {(profile?.xp ?? 0) >= 75000 && (
-                <button
-                  type="button"
-                  onClick={cycleSkin}
-                  title={`Skin: ${SKINS[activeSkin]?.label ?? "Default"} — click to cycle`}
-                  className={`w-11 h-11 rounded-full flex items-center justify-center text-lg shadow-lg border-2 transition-all duration-200 hover:scale-110 active:scale-95 ${
-                    activeSkin === "final"
-                      ? "bg-[#120e04] border-[#daa520]"
-                      : activeSkin === "eternal"
-                      ? "bg-[#07102a] border-[#60a5fa]"
-                      : "bg-card border-border hover:border-primary"
-                  }`}
-                >
-                  {activeSkin === "final" ? "⚜️" : activeSkin === "eternal" ? "✨" : "🖋"}
-                </button>
+            <div ref={modesPanelRef} className="fixed bottom-5 right-5 z-50">
+              {/* Popup panel */}
+              {modesOpen && (
+                <div className="absolute bottom-14 right-0 bg-card border border-border rounded-xl shadow-xl p-2 flex flex-col gap-1 min-w-[160px]">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-2 pt-1 pb-0.5">Modes</p>
+                  <button
+                    type="button"
+                    onClick={() => { toggleVillainMode(); }}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isVillainMode ? "bg-red-950/80 text-red-300" : "hover:bg-muted text-foreground"
+                    }`}
+                  >
+                    <span className="text-base">🩸</span>
+                    <span>Villain Mode{isVillainMode ? " — ON" : ""}</span>
+                  </button>
+                  {(profile?.xp ?? 0) >= 75000 && (
+                    <button
+                      type="button"
+                      onClick={() => { cycleSkin(); }}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        activeSkin !== "default" ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"
+                      }`}
+                    >
+                      <span className="text-base">{activeSkin === "final" ? "⚜️" : activeSkin === "eternal" ? "✨" : "🖋"}</span>
+                      <span>{SKINS[activeSkin]?.label ?? "Default"} Skin</span>
+                    </button>
+                  )}
+                </div>
               )}
+              {/* The single trigger button */}
               <button
                 type="button"
-                onClick={toggleVillainMode}
-                title={isVillainMode ? "Disable Villain Mode" : "Enable Villain Mode"}
+                onClick={() => setModesOpen((v) => !v)}
+                title="Modes"
                 className={`w-11 h-11 rounded-full flex items-center justify-center text-lg shadow-lg border-2 transition-all duration-200 hover:scale-110 active:scale-95 ${
-                  isVillainMode
+                  modesOpen
+                    ? "bg-foreground border-foreground text-background"
+                    : isVillainMode
                     ? "bg-red-950 border-red-600"
-                    : "bg-card border-border hover:border-red-500"
+                    : activeSkin !== "default"
+                    ? activeSkin === "final" ? "bg-[#120e04] border-[#daa520]" : "bg-[#07102a] border-[#60a5fa]"
+                    : "bg-card border-border hover:border-primary"
                 }`}
               >
-                🩸
+                {modesOpen ? "✕" : isVillainMode ? "🩸" : activeSkin === "final" ? "⚜️" : activeSkin === "eternal" ? "✨" : "✦"}
               </button>
             </div>
           )}
