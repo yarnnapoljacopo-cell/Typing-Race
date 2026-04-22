@@ -1169,20 +1169,6 @@ export default function Room() {
                   </div>
                 </div>
               )}
-              {/* Kart Mode HUD — shown in both normal and focus modes, below focus bar */}
-              {room.mode === "kart" && isRunning && participantId && (
-                <div className="mb-3 rounded-xl border px-4 py-3" style={{ background: "rgba(20,20,30,0.85)", borderColor: "rgba(255,255,255,0.12)" }}>
-                  <KartHUD
-                    items={kartState.items}
-                    kartBonusWords={kartState.bonusWords}
-                    blurCounter={kartState.blurCounter}
-                    boldText={kartState.boldText}
-                    starActive={kartState.starActive}
-                    onUseItem={sendUseItem}
-                    flashEvent={kartState.flashEvent}
-                  />
-                </div>
-              )}
               {!readMode && <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} />}
               <div className={`flex flex-col flex-1 min-h-[380px]${kartState.boldText ? " kart-banana-hit" : ""}${kartState.blurCounter ? " kart-blur-counter" : ""}`}>
                 {/* Pre-sprint / countdown hint bar */}
@@ -1416,6 +1402,21 @@ export default function Room() {
                   <Maximize2 className="w-4 h-4 mr-2" />
                   Focus Mode
                 </Button>
+              )}
+
+              {/* Kart Mode HUD — right below Focus Mode button */}
+              {room.mode === "kart" && isRunning && participantId && (
+                <div className="rounded-xl border px-4 py-3" style={{ background: "rgba(20,20,30,0.85)", borderColor: "rgba(255,255,255,0.12)" }}>
+                  <KartHUD
+                    items={kartState.items}
+                    kartBonusWords={kartState.bonusWords}
+                    blurCounter={kartState.blurCounter}
+                    boldText={kartState.boldText}
+                    starActive={kartState.starActive}
+                    onUseItem={sendUseItem}
+                    flashEvent={kartState.flashEvent}
+                  />
+                </div>
               )}
             </div>}
 
