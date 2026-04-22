@@ -1056,21 +1056,17 @@ export default function Room() {
             </>
           )}
 
-          {/* Leave Sprint — only shown while running, separated from the participant avatars */}
-          {isRunning && (
-            <>
-              <div className="w-px h-5 bg-border mx-1 hidden sm:block" />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setLeaveDialogOpen(true)}
-                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-1.5 text-xs px-2"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Leave</span>
-              </Button>
-            </>
-          )}
+          {/* Leave — always visible in the top-right */}
+          <div className="w-px h-5 bg-border mx-1 hidden sm:block" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLeaveDialogOpen(true)}
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-1.5 text-xs px-2"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Leave</span>
+          </Button>
         </div>
       </header>}
 
