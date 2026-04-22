@@ -28,7 +28,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build macOS app
-        run: pnpm --filter @workspace/desktop-app run build:mac
+        working-directory: artifacts/desktop-app
+        run: pnpm run build:mac
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -63,7 +64,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Windows app
-        run: pnpm --filter @workspace/desktop-app run build:win
+        working-directory: artifacts/desktop-app
+        run: pnpm run build:win
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
@@ -99,7 +101,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Linux app
-        run: pnpm --filter @workspace/desktop-app run build:linux
+        working-directory: artifacts/desktop-app
+        run: pnpm run build:linux
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
@@ -157,7 +160,7 @@ jobs:
 
             | Platform | Installer |
             |----------|-----------|
-            | macOS    | `.dmg` — drag to Applications |
+            | macOS    | `.dmg` — universal binary (Intel + Apple Silicon) |
             | Windows  | `.exe` — NSIS installer |
             | Linux    | `.AppImage` — make executable, then run |
 
