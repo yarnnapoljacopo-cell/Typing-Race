@@ -1,5 +1,7 @@
 import { WebSocket } from "ws";
 import { logger } from "./logger";
+import { db, roomsTable } from "@workspace/db";
+import { eq, gt, and, ne } from "drizzle-orm";
 
 export type RoomStatus = "waiting" | "countdown" | "running" | "finished";
 
@@ -33,7 +35,6 @@ export interface Room {
   endTime: number | null;
   countdownEndsAt: number | null;
   timerInterval: ReturnType<typeof setInterval> | null;
-  /** Auto-close timer set when the sprint ends; cancelled on restart. */
   closeTimer?: ReturnType<typeof setTimeout>;
 }
 
@@ -45,6 +46,132 @@ function generateRoomCode(): string {
 }
 
 const VALID_DEATH_WPMS = [10, 20, 30, 40, 50];
+
+// ── DB persistence helpers ─────────────────────────────────────────────────
+
+function persistRoom(room: Room): void {
+  db.insert(roomsTable)
+    .values({
+      code: room.code,
+      creatorName: room.creatorName,
+      durationMinutes: room.durationMinutes,
+      countdownDelayMinutes: room.countdownDelayMinutes,
+      mode: room.mode,
+      wordGoal: room.wordGoal,
+      deathModeWpm: room.deathModeWpm,
+      status: room.status,
+      startTime: room.startTime,
+      endTime: room.endTime,
+      countdownEndsAt: room.countdownEndsAt,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [roomsTable.code],
+      set: {
+        status: room.status,
+        startTime: room.startTime,
+        endTime: room.endTime,
+        countdownEndsAt: room.countdownEndsAt,
+        durationMinutes: room.durationMinutes,
+        updatedAt: new Date(),
+      },
+    })
+    .catch((err: unknown) => logger.error({ err, code: room.code }, "Failed to persist room"));
+}
+
+function deleteRoomFromDB(code: string): void {
+  db.delete(roomsTable)
+    .where(eq(roomsTable.code, code))
+    .catch((err: unknown) => logger.error({ err, code }, "Failed to delete room from DB"));
+}
+
+export async function restoreRoomsFromDB(): Promise<void> {
+  const now = Date.now();
+  const cutoff = new Date(now - 3 * 60 * 60 * 1000); // 3 hours ago
+
+  try {
+    const rows = await db
+      .select()
+      .from(roomsTable)
+      .where(
+        and(
+          gt(roomsTable.createdAt, cutoff),
+          ne(roomsTable.status, "finished"),
+        )
+      );
+
+    let restored = 0;
+
+    for (const row of rows) {
+      if (rooms.has(row.code)) continue;
+
+      const room: Room = {
+        code: row.code,
+        creatorName: row.creatorName,
+        durationMinutes: row.durationMinutes,
+        countdownDelayMinutes: row.countdownDelayMinutes ?? 0,
+        mode: (row.mode as RoomMode) ?? "regular",
+        wordGoal: row.wordGoal ?? null,
+        deathModeWpm: row.deathModeWpm ?? null,
+        status: row.status as RoomStatus,
+        participants: new Map(),
+        startTime: row.startTime ?? null,
+        endTime: row.endTime ?? null,
+        countdownEndsAt: row.countdownEndsAt ?? null,
+        timerInterval: null,
+      };
+
+      if (row.status === "running") {
+        if (row.endTime && row.endTime > now) {
+          // Sprint still has time remaining
+          rooms.set(row.code, room);
+          room.timerInterval = setInterval(() => {
+            if (!room.endTime || Date.now() >= room.endTime) {
+              endSprint(room);
+            } else {
+              broadcastRoomState(room);
+            }
+          }, 1000);
+          restored++;
+        }
+        // If endTime already passed, don't restore — room is effectively done
+      } else if (row.status === "countdown") {
+        if (row.countdownEndsAt && row.countdownEndsAt > now) {
+          rooms.set(row.code, room);
+          room.timerInterval = setInterval(() => {
+            if (!room.countdownEndsAt || Date.now() >= room.countdownEndsAt) {
+              if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = null; }
+              room.status = "waiting";
+              room.countdownEndsAt = null;
+              _startRunning(room);
+            } else {
+              broadcastRoomState(room);
+            }
+          }, 1000);
+          restored++;
+        } else {
+          // Countdown expired while server was down — start the sprint now
+          room.status = "waiting";
+          room.countdownEndsAt = null;
+          rooms.set(row.code, room);
+          _startRunning(room);
+          restored++;
+        }
+      } else if (row.status === "waiting") {
+        rooms.set(row.code, room);
+        restored++;
+      }
+    }
+
+    if (restored > 0) {
+      logger.info({ restored }, "Rooms restored from database on startup");
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to restore rooms from database");
+  }
+}
+
+// ── Room lifecycle ─────────────────────────────────────────────────────────
 
 export function createRoom(
   creatorName: string,
@@ -76,11 +203,13 @@ export function createRoom(
   };
 
   rooms.set(code, room);
+  persistRoom(room);
   logger.info({ code, creatorName, durationMinutes, countdownDelayMinutes }, "Room created");
 
   setTimeout(() => {
     if (rooms.has(code) && rooms.get(code)!.status === "waiting") {
       rooms.delete(code);
+      deleteRoomFromDB(code);
       logger.info({ code }, "Room expired after inactivity");
     }
   }, 2 * 60 * 60 * 1000);
@@ -160,7 +289,7 @@ export function broadcastRoomState(room: Room): void {
     timeLeft = 0;
   }
 
-  const message = {
+  broadcastToRoom(room, {
     type: "room_state",
     room: {
       code: room.code,
@@ -174,29 +303,23 @@ export function broadcastRoomState(room: Room): void {
       countdownTimeLeft,
       participants,
     },
-  };
-
-  broadcastToRoom(room, message);
+  });
 }
 
 export function startSprint(room: Room): void {
   if (room.status !== "waiting") return;
 
   if (room.countdownDelayMinutes > 0) {
-    // Enter countdown phase first
     room.status = "countdown";
     room.countdownEndsAt = Date.now() + room.countdownDelayMinutes * 60 * 1000;
+    persistRoom(room);
 
     broadcastRoomState(room);
 
     room.timerInterval = setInterval(() => {
       const now = Date.now();
       if (!room.countdownEndsAt || now >= room.countdownEndsAt) {
-        // Transition from countdown to running
-        if (room.timerInterval) {
-          clearInterval(room.timerInterval);
-          room.timerInterval = null;
-        }
+        if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = null; }
         room.status = "waiting";
         room.countdownEndsAt = null;
         _startRunning(room);
@@ -218,6 +341,7 @@ function _startRunning(room: Room): void {
   room.status = "running";
   room.startTime = Date.now();
   room.endTime = room.startTime + room.durationMinutes * 60 * 1000;
+  persistRoom(room);
 
   broadcastRoomState(room);
 
@@ -239,10 +363,8 @@ export function endSprint(room: Room): void {
   if (room.status === "finished") return;
 
   room.status = "finished";
-  if (room.timerInterval) {
-    clearInterval(room.timerInterval);
-    room.timerInterval = null;
-  }
+  if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = null; }
+  persistRoom(room);
 
   const participants = Array.from(room.participants.values())
     .filter((p) => !p.isSpectator)
@@ -255,21 +377,15 @@ export function endSprint(room: Room): void {
     }))
     .sort((a, b) => b.wordCount - a.wordCount);
 
-  broadcastToRoom(room, {
-    type: "sprint_ended",
-    results: participants,
-  });
+  broadcastToRoom(room, { type: "sprint_ended", results: participants });
 
-  // Auto-close the room 10 minutes after the sprint ends.
-  // This guarantees everyone has a window to view results, download writing,
-  // and start a new sprint — regardless of whether anyone disconnects.
   if (room.closeTimer) clearTimeout(room.closeTimer);
   room.closeTimer = setTimeout(() => {
     const current = rooms.get(room.code);
     if (!current || current.status !== "finished") return;
     if (current.timerInterval) clearInterval(current.timerInterval);
-    // Delete first so ws.on("close") handlers see the room as gone and exit early
     rooms.delete(current.code);
+    deleteRoomFromDB(current.code);
     current.participants.forEach((p) => {
       if (p.ws.readyState === WebSocket.OPEN) p.ws.close(1000, "Room closed after sprint");
     });
@@ -291,15 +407,11 @@ export function removeParticipant(room: Room, participantId: string): void {
     const isActive = room.status === "running" || room.status === "countdown";
 
     if (isActive) {
-      // Room is mid-sprint — keep it alive so reconnects can restore it.
-      // The sprint timer will call endSprint naturally when time runs out.
       logger.info({ code: room.code, status: room.status }, "Room empty during active sprint — keeping alive");
       return;
     }
 
-    // Waiting or finished — schedule cleanup after a grace period so brief
-    // disconnects don't kill the room before a rejoin can succeed.
-    const gracePeriodMs = 10 * 60 * 1000; // 10 minutes
+    const gracePeriodMs = 10 * 60 * 1000;
     const code = room.code;
     setTimeout(() => {
       const current = rooms.get(code);
@@ -307,6 +419,7 @@ export function removeParticipant(room: Room, participantId: string): void {
       if (current.participants.size === 0 && current.status !== "running" && current.status !== "countdown") {
         if (current.timerInterval) clearInterval(current.timerInterval);
         rooms.delete(code);
+        deleteRoomFromDB(code);
         logger.info({ code }, "Empty room cleaned up after grace period");
       }
     }, gracePeriodMs);
@@ -356,17 +469,14 @@ export function updateParticipantStats(
 export function restartSprint(room: Room, durationMinutes: number): void {
   if (room.status !== "finished") return;
 
-  // Cancel the post-sprint auto-close so the room stays open for the new sprint
-  if (room.closeTimer) {
-    clearTimeout(room.closeTimer);
-    room.closeTimer = undefined;
-  }
+  if (room.closeTimer) { clearTimeout(room.closeTimer); room.closeTimer = undefined; }
 
   room.status = "waiting";
   room.startTime = null;
   room.endTime = null;
   room.countdownEndsAt = null;
   room.durationMinutes = durationMinutes;
+  persistRoom(room);
 
   room.participants.forEach((p) => {
     p.wordCount = 0;

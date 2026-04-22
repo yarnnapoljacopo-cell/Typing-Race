@@ -34,25 +34,43 @@ interface UseSprintRoomProps {
   isCreator?: boolean;
 }
 
-export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomProps) {
+const ROOM_STATE_DEFAULTS = {
+  mode: "regular" as const,
+  countdownDelayMinutes: 0,
+  countdownTimeLeft: null,
+  wordGoal: null,
+  deathModeWpm: null,
+};
+
+// Exponential backoff: 500ms, 1s, 2s, 4s, 8s, capped at 10s
+function nextDelay(attempt: number): number {
+  return Math.min(500 * Math.pow(2, attempt), 10_000);
+}
+
+// How long to keep retrying "Room not found" — covers server restart window
+const ROOM_NOT_FOUND_RETRY_MS = 90_000;
+
+export function useSprintRoom({ code, name }: UseSprintRoomProps) {
   const [room, setRoom] = useState<RoomState | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [restoredWordCount, setRestoredWordCount] = useState<number | null>(null);
-  // Live map of writer texts received by spectators
   const [participantTexts, setParticipantTexts] = useState<Record<string, ParticipantText>>({});
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
-  // Track the latest text so we can resend it after reconnect
   const latestTextRef = useRef<string>("");
   const latestNetWordCountRef = useRef<number>(0);
-  // Whether we've joined at least once (i.e., future opens are reconnects)
   const hasJoinedRef = useRef(false);
+  const reconnectAttemptRef = useRef(0);
+  // Tracks when we first lost connection (for the "Room not found" retry window)
+  const disconnectedAtRef = useRef<number | null>(null);
+  const unmountedRef = useRef(false);
 
   const connect = useCallback(() => {
-    if (!code || !name) return;
+    if (!code || !name || unmountedRef.current) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -61,21 +79,25 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     wsRef.current = ws;
 
     ws.onopen = () => {
+      if (unmountedRef.current) { ws.close(); return; }
       setIsConnected(true);
+      setIsReconnecting(false);
       setError(null);
+      reconnectAttemptRef.current = 0;
       ws.send(JSON.stringify({ type: "join_room", code, name }));
     };
 
     ws.onmessage = (event) => {
+      if (unmountedRef.current) return;
       try {
         const data = JSON.parse(event.data);
 
         switch (data.type) {
           case "joined": {
             const isReconnect = hasJoinedRef.current;
+            disconnectedAtRef.current = null;
             setParticipantId(data.participantId);
-            setRoom({ mode: "regular", countdownDelayMinutes: 0, countdownTimeLeft: null, wordGoal: null, deathModeWpm: null, ...data.room, participants: data.room.participants ?? [] });
-            // On reconnect, resend the latest text so the server has current count
+            setRoom({ ...ROOM_STATE_DEFAULTS, ...data.room, participants: data.room.participants ?? [] });
             if (isReconnect && latestTextRef.current) {
               ws.send(JSON.stringify({
                 type: "text_update",
@@ -84,8 +106,6 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
               }));
             }
             hasJoinedRef.current = true;
-            // Only show "progress restored" toast on first page load — not on
-            // mid-sprint reconnects (would be noisy and interrupt writing)
             if (!isReconnect && typeof data.restoredWordCount === "number" && data.restoredWordCount > 0) {
               setRestoredWordCount(data.restoredWordCount);
             }
@@ -93,7 +113,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
           }
 
           case "room_state":
-            setRoom({ mode: "regular", countdownDelayMinutes: 0, countdownTimeLeft: null, wordGoal: null, deathModeWpm: null, ...data.room, participants: data.room.participants ?? [] });
+            setRoom({ ...ROOM_STATE_DEFAULTS, ...data.room, participants: data.room.participants ?? [] });
             break;
 
           case "participant_update":
@@ -101,16 +121,13 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
               if (!prev) return prev;
               const exists = prev.participants.some((p) => p.id === data.participant.id);
               const participants = exists
-                ? prev.participants.map((p) =>
-                    p.id === data.participant.id ? data.participant : p
-                  )
+                ? prev.participants.map((p) => p.id === data.participant.id ? data.participant : p)
                 : [...prev.participants, data.participant];
               return { ...prev, participants };
             });
             break;
 
           case "participant_text":
-            // Spectators receive live text from writers
             setParticipantTexts((prev) => ({
               ...prev,
               [data.participantId]: {
@@ -129,17 +146,27 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
             });
             break;
 
-          case "error":
+          case "error": {
+            const isRoomNotFound = data.message === "Room not found";
+            const elapsed = disconnectedAtRef.current
+              ? Date.now() - disconnectedAtRef.current
+              : 0;
+
+            // During a server restart the room re-hydrates from DB — keep retrying
+            // for up to ROOM_NOT_FOUND_RETRY_MS before giving up.
+            if (isRoomNotFound && hasJoinedRef.current && elapsed < ROOM_NOT_FOUND_RETRY_MS) {
+              // Don't surface the error yet; just let onclose schedule a retry
+              ws.close();
+              return;
+            }
+
             setError(data.message);
-            // For fatal room errors, stop the reconnect loop
-            if (
-              data.message === "Room not found" ||
-              data.message === "Sprint already finished"
-            ) {
+            if (isRoomNotFound || data.message === "Sprint already finished") {
               hasJoinedRef.current = false;
               ws.close();
             }
             break;
+          }
 
           case "pong":
             break;
@@ -150,12 +177,19 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     };
 
     ws.onclose = () => {
+      if (unmountedRef.current) return;
       setIsConnected(false);
-      // Only retry if we previously joined (not on a fatal error)
+
       if (hasJoinedRef.current) {
+        if (disconnectedAtRef.current === null) {
+          disconnectedAtRef.current = Date.now();
+        }
+        setIsReconnecting(true);
+        const delay = nextDelay(reconnectAttemptRef.current);
+        reconnectAttemptRef.current += 1;
         reconnectTimeoutRef.current = window.setTimeout(() => {
           connect();
-        }, 500);
+        }, delay);
       }
     };
 
@@ -165,6 +199,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
   }, [code, name]);
 
   useEffect(() => {
+    unmountedRef.current = false;
     connect();
 
     const pingInterval = setInterval(() => {
@@ -174,13 +209,13 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     }, 15000);
 
     return () => {
+      unmountedRef.current = true;
       clearInterval(pingInterval);
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (wsRef.current) wsRef.current.close();
     };
   }, [connect]);
 
-  // Called by Room.tsx on every text change to keep the ref current
   const setLatestText = useCallback((text: string, netWordCount?: number) => {
     latestTextRef.current = text;
     if (netWordCount !== undefined) latestNetWordCountRef.current = netWordCount;
@@ -226,6 +261,7 @@ export function useSprintRoom({ code, name, isCreator = false }: UseSprintRoomPr
     room,
     participantId,
     isConnected,
+    isReconnecting,
     error,
     participantTexts,
     restoredWordCount,

@@ -301,6 +301,7 @@ export default function Room() {
     room,
     participantId,
     isConnected,
+    isReconnecting,
     error,
     participantTexts,
     restoredWordCount,
@@ -907,10 +908,14 @@ export default function Room() {
     }>
 
       {/* Reconnecting banner */}
-      {!isConnected && (
+      {(!isConnected || isReconnecting) && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2 text-sm font-medium">
           <WifiOff className="w-4 h-4 shrink-0" />
-          <span>Connection lost — reconnecting… your writing is safe.</span>
+          <span>
+            {isReconnecting
+              ? "Server restarted — reconnecting… your room and writing are being restored."
+              : "Connection lost — reconnecting… your writing is safe."}
+          </span>
           <Loader2 className="w-3.5 h-3.5 animate-spin ml-auto shrink-0" />
         </div>
       )}
