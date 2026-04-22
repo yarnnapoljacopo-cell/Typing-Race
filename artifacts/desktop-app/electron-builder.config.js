@@ -25,6 +25,7 @@ module.exports = {
   mac: {
     target: [{ target: "dmg", arch: ["x64"] }],
     category: "public.app-category.productivity",
+    identity: null,
   },
   linux: {
     target: [{ target: "AppImage", arch: ["x64"] }],
