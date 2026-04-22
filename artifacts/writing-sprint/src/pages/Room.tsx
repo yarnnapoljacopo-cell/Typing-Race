@@ -1293,15 +1293,29 @@ export default function Room() {
                 </div>
               )}
 
-              {isWaiting && isCreator && (
-                <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-3">
-                  <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
-                  <Button onClick={startSprint} size="lg" className="w-full" disabled={!isConnected}>
-                    <Play className="w-4 h-4 mr-2" />
-                    {room.countdownDelayMinutes > 0 ? `Start ${room.countdownDelayMinutes}m Timer` : "Start Sprint"}
-                  </Button>
-                </div>
-              )}
+              {isWaiting && isCreator && (() => {
+                const gladiatorNeedsOpponent = room.mode === "gladiator" &&
+                  room.participants.length < 2;
+                return (
+                  <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-3">
+                    <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
+                    {gladiatorNeedsOpponent && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 text-center font-medium animate-pulse">
+                        ⚔️ Waiting for a second gladiator to enter the arena…
+                      </p>
+                    )}
+                    <Button
+                      onClick={startSprint}
+                      size="lg"
+                      className="w-full"
+                      disabled={!isConnected || gladiatorNeedsOpponent}
+                    >
+                      <Play className="w-4 h-4 mr-2" />
+                      {room.countdownDelayMinutes > 0 ? `Start ${room.countdownDelayMinutes}m Timer` : "Start Sprint"}
+                    </Button>
+                  </div>
+                );
+              })()}
 
               {isCountdown && isCreator && (
                 <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-3">

@@ -374,3 +374,25 @@ html.villain h1, html.villain h2 {
   25%       { transform: translateX(-3px) rotate(-1deg); }
   75%       { transform: translateX(3px) rotate(1deg); }
 }
+
+@keyframes torchFlicker {
+  0%   { transform: scaleX(1) scaleY(1); opacity: 0.85; }
+  20%  { transform: scaleX(1.12) scaleY(0.94); opacity: 1; }
+  45%  { transform: scaleX(0.88) scaleY(1.08); opacity: 0.78; }
+  70%  { transform: scaleX(1.06) scaleY(0.96); opacity: 0.95; }
+  100% { transform: scaleX(1) scaleY(1); opacity: 0.85; }
+}
+
+@keyframes slashRight {
+  0%   { transform: rotate(0deg) translateX(0px); }
+  22%  { transform: rotate(14deg) translateX(9px) translateY(4px); }
+  55%  { transform: rotate(-5deg) translateX(-3px); }
+  100% { transform: rotate(0deg) translateX(0px); }
+}
+
+@keyframes slashLeft {
+  0%   { transform: scaleX(-1) rotate(0deg) translateX(0px); }
+  22%  { transform: scaleX(-1) rotate(14deg) translateX(9px) translateY(4px); }
+  55%  { transform: scaleX(-1) rotate(-5deg) translateX(-3px); }
+  100% { transform: scaleX(-1) rotate(0deg) translateX(0px); }
+}

@@ -380,6 +380,15 @@ export function broadcastRoomState(room: Room): void {
 export function startSprint(room: Room): void {
   if (room.status !== "waiting") return;
 
+  // Gladiator mode requires exactly 2 non-spectator participants
+  if (room.mode === "gladiator") {
+    const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator);
+    if (fighters.length < 2) {
+      logger.warn({ code: room.code }, "Gladiator start blocked — need 2 fighters");
+      return;
+    }
+  }
+
   if (room.countdownDelayMinutes > 0) {
     room.status = "countdown";
     room.countdownEndsAt = Date.now() + room.countdownDelayMinutes * 60 * 1000;
