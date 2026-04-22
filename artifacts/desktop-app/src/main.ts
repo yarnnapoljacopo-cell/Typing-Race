@@ -8,6 +8,7 @@ import {
   nativeTheme,
   session,
 } from "electron";
+import { autoUpdater } from "electron-updater";
 import path from "path";
 import fs from "fs";
 import https from "https";
@@ -347,6 +348,44 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+// ── Auto-updater ──────────────────────────────────────────────────────────────
+
+function setupAutoUpdater() {
+  // Only run in packaged app; skip on macOS (unsigned apps can't auto-update)
+  if (!app.isPackaged || process.platform === "darwin") return;
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("update-downloaded", (info) => {
+    if (!mainWindow) return;
+    dialog
+      .showMessageBox(mainWindow, {
+        type: "info",
+        title: "Update Ready — Writing Sprint",
+        message: `Version ${info.version} has been downloaded.`,
+        detail:
+          "The update installs automatically when you quit, or restart now to apply it immediately.",
+        buttons: ["Restart Now", "Later"],
+        defaultId: 0,
+        cancelId: 1,
+      })
+      .then(({ response }) => {
+        if (response === 0) autoUpdater.quitAndInstall(false, true);
+      });
+  });
+
+  autoUpdater.on("error", (err) => {
+    // Silently log — never surface update errors to the user
+    console.error("[auto-update]", err?.message);
+  });
+
+  // Delay first check so the window has time to appear
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch(() => {});
+  }, 10_000);
+}
+
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
@@ -354,6 +393,7 @@ app.whenReady().then(() => {
     session.defaultSession.setCertificateVerifyProc((_req, cb) => cb(0));
   }
   createWindow();
+  setupAutoUpdater();
 });
 
 app.on("window-all-closed", () => {

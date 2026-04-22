@@ -1,6 +1,12 @@
 const path = require("path");
 
 module.exports = {
+  publish: {
+    provider: "github",
+    owner: "yarnnapoljacopo-cell",
+    repo: "Typing-Race",
+    releaseType: "draft",
+  },
   appId: "com.writingsprint.app",
   productName: "Writing Sprint",
   copyright: "Writing Sprint",
