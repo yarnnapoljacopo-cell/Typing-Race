@@ -18,3 +18,9 @@ id = "FrcY1zLmK47qXqLAyuQvs"
 uri = "file://artifacts/desktop-app/resources/icon_flat.png"
 type = "image"
 title = "flat white pen nib icon"
+
+[[generated]]
+id = "IA6djW54Lju2RchsvuZEP"
+uri = "file://artifacts/desktop-app/resources/icon_dark_raw.png"
+type = "image"
+title = "dark gold pen nib icon"
