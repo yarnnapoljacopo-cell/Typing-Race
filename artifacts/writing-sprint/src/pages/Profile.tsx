@@ -261,7 +261,7 @@ function RankBadge({ xp }: { xp: number }) {
       {/* All ranks reference — click each to see details */}
       <div className="w-full max-w-xs">
         <div className="text-[10px] text-muted-foreground text-center mb-2 uppercase tracking-wider">Rank Progression — click to explore</div>
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-8 gap-1">
           {RANKS.map((r) => (
             <button
               key={r.index}
