@@ -470,9 +470,34 @@ function escHtml(s) {
 // ── Online detection ──────────────────────────────────────────────────────────
 async function tryGoOnline() {
   if (!window.electronAPI) return;
+
+  // If no server URL is configured, prompt the user to enter one first
+  const settings = await window.electronAPI.getSettings();
+  if (!settings?.serverUrl) {
+    const url = prompt(
+      'Enter your Writing Sprint server URL to connect:\n(e.g. https://your-app.replit.app/writing-sprint/)',
+      ''
+    );
+    if (!url || !url.trim()) return;
+    const trimmed = url.trim().endsWith('/') ? url.trim() : url.trim() + '/';
+    await window.electronAPI.saveSettings({ ...settings, serverUrl: trimmed });
+  }
+
   const result = await window.electronAPI.goOnline();
   if (!result?.online) {
-    alert('Still offline. Check your internet connection and try again.');
+    const retry = confirm(
+      'Could not reach the server. Check that the URL is correct and the server is running.\n\nWant to change the server URL?'
+    );
+    if (retry) {
+      const settings2 = await window.electronAPI.getSettings();
+      const url = prompt('Server URL:', settings2?.serverUrl || '');
+      if (url && url.trim()) {
+        const trimmed = url.trim().endsWith('/') ? url.trim() : url.trim() + '/';
+        await window.electronAPI.saveSettings({ ...settings2, serverUrl: trimmed });
+        const result2 = await window.electronAPI.goOnline();
+        if (!result2?.online) alert('Still could not connect. Check the URL and try again.');
+      }
+    }
   }
 }
 
