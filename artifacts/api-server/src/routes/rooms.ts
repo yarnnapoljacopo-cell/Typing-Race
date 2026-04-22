@@ -5,6 +5,7 @@ import { saveWriting, getWriting, getUserSprints } from "../lib/writingStore";
 import { CreateRoomBody, GetRoomParams } from "@workspace/api-zod";
 import { db, userProfilesTable, sprintWritingTable, friendshipsTable } from "@workspace/db";
 import { eq, and, or, ne, desc, sql, max, sum, count, inArray, ilike } from "drizzle-orm";
+import bcrypt from "bcrypt";
 
 const router: IRouter = Router();
 
@@ -102,8 +103,12 @@ router.post("/rooms", async (req, res): Promise<void> => {
   const deathModeWpm = typeof rawDeathWpm === "number" ? rawDeathWpm : null;
   const rawBossGoal = rawBody.bossWordGoal;
   const bossWordGoal = typeof rawBossGoal === "number" && rawBossGoal > 0 ? Math.floor(rawBossGoal) : null;
+  const rawPassword = rawBody.roomPassword;
+  const passwordHash = (typeof rawPassword === "string" && rawPassword.trim().length > 0)
+    ? await bcrypt.hash(rawPassword.trim(), 10)
+    : null;
   const effectiveMode = bossWordGoal ? "boss" : (mode ?? "regular");
-  const room = createRoom(creatorName, durationMinutes, effectiveMode, countdownDelayMinutes, wordGoal, deathModeWpm, bossWordGoal);
+  const room = createRoom(creatorName, durationMinutes, effectiveMode, countdownDelayMinutes, wordGoal, deathModeWpm, bossWordGoal, passwordHash);
 
   res.status(201).json({
     code: room.code,
@@ -133,6 +138,7 @@ router.get("/rooms/:code", async (req, res): Promise<void> => {
     durationMinutes: room.durationMinutes,
     status: room.status,
     participantCount: room.participants.size,
+    isPasswordProtected: !!room.passwordHash,
   });
 });
 

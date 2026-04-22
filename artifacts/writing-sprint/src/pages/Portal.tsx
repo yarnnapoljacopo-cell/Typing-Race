@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
-  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User, Users, ChevronDown,
+  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User, Users, ChevronDown, KeyRound,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
@@ -84,6 +84,12 @@ export default function Portal() {
   const [goalWords, setGoalWords] = useState<string>("1000");
   const [bossGoalWords, setBossGoalWords] = useState<string>("5000");
   const [deathModeWpm, setDeathModeWpm] = useState<number | null>(null);
+  const [useRoomPassword, setUseRoomPassword] = useState(false);
+  const [roomPassword, setRoomPassword] = useState("");
+
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [pendingJoinCode, setPendingJoinCode] = useState("");
+  const [joinPasswordInput, setJoinPasswordInput] = useState("");
 
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -169,6 +175,7 @@ export default function Portal() {
   const handleCreate = () => {
     const wordGoal = roomMode === "goal" ? (parseInt(goalWords, 10) || 1000) : undefined;
     const bossWordGoal = roomMode === "boss" ? (parseInt(bossGoalWords, 10) || 5000) : undefined;
+    const pw = useRoomPassword && roomPassword.trim() ? roomPassword.trim() : undefined;
     createRoomMutation.mutate({
       data: {
         creatorName: displayName,
@@ -178,16 +185,44 @@ export default function Portal() {
         ...(wordGoal ? { wordGoal } : {}),
         ...(deathModeWpm ? { deathModeWpm } : {}),
         ...(bossWordGoal ? { bossWordGoal } : {}),
+        ...(pw ? { roomPassword: pw } : {}),
       } as Parameters<typeof createRoomMutation.mutate>[0]["data"],
     });
   };
 
-  const handleJoin = () => {
-    if (!joinCode.trim()) {
+  const handleJoin = async () => {
+    const code = joinCode.trim().toUpperCase();
+    if (!code) {
       toast({ title: "Room code required", description: "Please enter a valid room code.", variant: "destructive" });
       return;
     }
-    setLocation(`/room?code=${encodeURIComponent(joinCode.trim().toUpperCase())}&name=${encodeURIComponent(displayName)}`);
+    try {
+      const res = await fetch(`${basePath}/api/rooms/${encodeURIComponent(code)}`, { credentials: "include" });
+      if (!res.ok) {
+        toast({ title: "Room not found", description: "Check the code and try again.", variant: "destructive" });
+        return;
+      }
+      const roomInfo = await res.json();
+      if (roomInfo.isPasswordProtected) {
+        setPendingJoinCode(code);
+        setJoinPasswordInput("");
+        setPasswordDialogOpen(true);
+        return;
+      }
+    } catch {
+      // If fetch fails, proceed and let the WS connection handle the error
+    }
+    setLocation(`/room?code=${encodeURIComponent(code)}&name=${encodeURIComponent(displayName)}`);
+  };
+
+  const handlePasswordJoinConfirm = () => {
+    if (!joinPasswordInput.trim()) {
+      toast({ title: "Password required", variant: "destructive" });
+      return;
+    }
+    sessionStorage.setItem(`room_password_${pendingJoinCode}`, joinPasswordInput.trim());
+    setPasswordDialogOpen(false);
+    setLocation(`/room?code=${encodeURIComponent(pendingJoinCode)}&name=${encodeURIComponent(displayName)}`);
   };
 
   const handleExitGuest = () => {
@@ -576,6 +611,34 @@ export default function Portal() {
                       )}
                     </div>
 
+                    {/* Room Password */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                          <KeyRound className="w-3.5 h-3.5 text-muted-foreground" />
+                          Room Password
+                          <span className="text-xs text-muted-foreground font-normal ml-1">(optional)</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => { setUseRoomPassword(!useRoomPassword); setRoomPassword(""); }}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${useRoomPassword ? "bg-primary" : "bg-input"}`}
+                        >
+                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${useRoomPassword ? "translate-x-4" : "translate-x-0"}`} />
+                        </button>
+                      </div>
+                      {useRoomPassword && (
+                        <Input
+                          type="password"
+                          placeholder="Enter a room password"
+                          value={roomPassword}
+                          onChange={(e) => setRoomPassword(e.target.value)}
+                          className="focus-visible:ring-primary"
+                          autoComplete="new-password"
+                        />
+                      )}
+                    </div>
+
                     <Button
                       onClick={handleCreate}
                       className="w-full py-6 text-lg hover-elevate group"
@@ -607,6 +670,39 @@ export default function Portal() {
           )}
         </Tabs>
       </div>
+
+      {/* Password prompt when joining a protected room */}
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl flex items-center gap-2">
+              <KeyRound size={18} className="text-primary" />
+              Room password
+            </DialogTitle>
+            <DialogDescription>
+              This room is protected. Enter the password to join.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <Input
+              type="password"
+              placeholder="Enter room password"
+              value={joinPasswordInput}
+              onChange={(e) => setJoinPasswordInput(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handlePasswordJoinConfirm()}
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setPasswordDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handlePasswordJoinConfirm} disabled={!joinPasswordInput.trim()}>
+                Enter Room
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={nameDialogOpen} onOpenChange={setNameDialogOpen}>
         <DialogContent className="sm:max-w-sm">

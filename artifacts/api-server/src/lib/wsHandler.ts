@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { IncomingMessage, Server } from "http";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "./logger";
+import bcrypt from "bcrypt";
 import {
   getRoom,
   addParticipant,
@@ -52,6 +53,20 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         if (!room) {
           ws.send(JSON.stringify({ type: "error", message: "Room not found" }));
           return;
+        }
+
+        // ── Password check ────────────────────────────────────────────────────
+        if (room.passwordHash) {
+          const providedPassword = message.password as string | undefined;
+          if (!providedPassword) {
+            ws.send(JSON.stringify({ type: "error", message: "Password required", code: "PASSWORD_REQUIRED" }));
+            return;
+          }
+          const match = await bcrypt.compare(providedPassword, room.passwordHash);
+          if (!match) {
+            ws.send(JSON.stringify({ type: "error", message: "Incorrect room password", code: "WRONG_PASSWORD" }));
+            return;
+          }
         }
 
         // ── Inherit state from a previous connection with the same name ──────

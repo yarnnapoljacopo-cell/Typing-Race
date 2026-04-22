@@ -142,6 +142,15 @@ export default function Room() {
   const name = searchParams.get("name") || "";
   const isCreatorParams = searchParams.get("isCreator") === "true";
 
+  // Read room password from sessionStorage (set by Portal before navigating here)
+  const [roomPassword] = useState<string | null>(() => {
+    if (!code) return null;
+    const key = `room_password_${code}`;
+    const pw = sessionStorage.getItem(key);
+    if (pw) sessionStorage.removeItem(key); // consume immediately
+    return pw;
+  });
+
   const [text, setText] = useState(() => {
     if (code) {
       try { return localStorage.getItem(autoSaveKey(code)) ?? ""; } catch { return ""; }
@@ -318,7 +327,7 @@ export default function Room() {
     startSprint,
     restartSprint,
     endSprint,
-  } = useSprintRoom({ code, name, isCreator: isCreatorParams });
+  } = useSprintRoom({ code, name, isCreator: isCreatorParams, password: roomPassword });
 
   useEffect(() => {
     if (!code || !name) setLocation("/");

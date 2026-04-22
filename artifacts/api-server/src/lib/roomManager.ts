@@ -30,6 +30,7 @@ export interface Room {
   wordGoal: number | null;
   bossWordGoal: number | null;
   deathModeWpm: number | null;
+  passwordHash: string | null;
   status: RoomStatus;
   participants: Map<string, Participant>;
   startTime: number | null;
@@ -61,6 +62,7 @@ function persistRoom(room: Room): void {
       wordGoal: room.wordGoal,
       bossWordGoal: room.bossWordGoal,
       deathModeWpm: room.deathModeWpm,
+      passwordHash: room.passwordHash,
       status: room.status,
       startTime: room.startTime,
       endTime: room.endTime,
@@ -116,6 +118,7 @@ export async function restoreRoomsFromDB(): Promise<void> {
         wordGoal: row.wordGoal ?? null,
         bossWordGoal: row.bossWordGoal ?? null,
         deathModeWpm: row.deathModeWpm ?? null,
+        passwordHash: row.passwordHash ?? null,
         status: row.status as RoomStatus,
         participants: new Map(),
         startTime: row.startTime ?? null,
@@ -183,7 +186,8 @@ export function createRoom(
   countdownDelayMinutes = 0,
   wordGoal: number | null = null,
   deathModeWpm: number | null = null,
-  bossWordGoal: number | null = null
+  bossWordGoal: number | null = null,
+  passwordHash: string | null = null
 ): Room {
   let code = generateRoomCode();
   while (rooms.has(code)) {
@@ -199,6 +203,7 @@ export function createRoom(
     wordGoal: wordGoal && wordGoal > 0 ? Math.floor(wordGoal) : null,
     bossWordGoal: mode === "boss" && bossWordGoal && bossWordGoal > 0 ? Math.floor(bossWordGoal) : null,
     deathModeWpm: deathModeWpm && VALID_DEATH_WPMS.includes(deathModeWpm) ? deathModeWpm : null,
+    passwordHash,
     status: "waiting",
     participants: new Map(),
     startTime: null,
@@ -236,6 +241,7 @@ export function getActiveRooms(): Array<{
   participantCount: number;
   timeLeft: number | null;
   countdownTimeLeft: number | null;
+  isPasswordProtected: boolean;
 }> {
   const now = Date.now();
   return Array.from(rooms.values())
@@ -258,6 +264,7 @@ export function getActiveRooms(): Array<{
         participantCount: Array.from(r.participants.values()).filter((p) => !p.isSpectator).length,
         timeLeft,
         countdownTimeLeft,
+        isPasswordProtected: !!r.passwordHash,
       };
     });
 }

@@ -34,6 +34,7 @@ interface UseSprintRoomProps {
   code: string;
   name: string;
   isCreator?: boolean;
+  password?: string | null;
 }
 
 const ROOM_STATE_DEFAULTS = {
@@ -54,7 +55,7 @@ function nextDelay(attempt: number): number {
 // How long to keep retrying "Room not found" — covers server restart window
 const ROOM_NOT_FOUND_RETRY_MS = 90_000;
 
-export function useSprintRoom({ code, name }: UseSprintRoomProps) {
+export function useSprintRoom({ code, name, password }: UseSprintRoomProps) {
   const [room, setRoom] = useState<RoomState | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +89,9 @@ export function useSprintRoom({ code, name }: UseSprintRoomProps) {
       setIsReconnecting(false);
       setError(null);
       reconnectAttemptRef.current = 0;
-      ws.send(JSON.stringify({ type: "join_room", code, name }));
+      const joinMsg: Record<string, unknown> = { type: "join_room", code, name };
+      if (password) joinMsg.password = password;
+      ws.send(JSON.stringify(joinMsg));
     };
 
     ws.onmessage = (event) => {

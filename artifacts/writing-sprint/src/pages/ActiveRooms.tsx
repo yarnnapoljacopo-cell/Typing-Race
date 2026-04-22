@@ -1,9 +1,14 @@
+import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useUser } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Users, Clock, Target, Eye, Lock, Radio } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
+import { Loader2, Users, Clock, Target, Eye, Lock, Radio, KeyRound } from "lucide-react";
 
 interface ActiveRoom {
   code: string;
@@ -15,6 +20,7 @@ interface ActiveRoom {
   participantCount: number;
   timeLeft: number | null;
   countdownTimeLeft: number | null;
+  isPasswordProtected?: boolean;
 }
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -69,6 +75,8 @@ function StatusBadge({ room }: { room: ActiveRoom }) {
 export default function ActiveRooms() {
   const [, setLocation] = useLocation();
   const { user } = useUser();
+  const [passwordDialogRoom, setPasswordDialogRoom] = React.useState<string | null>(null);
+  const [joinPasswordInput, setJoinPasswordInput] = React.useState("");
 
   const { data: profile } = useQuery({
     queryKey: ["user-profile"],
@@ -88,8 +96,20 @@ export default function ActiveRooms() {
     user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] ||
     "Writer";
 
-  const handleJoin = (code: string) => {
-    setLocation(`/room?code=${encodeURIComponent(code)}&name=${encodeURIComponent(displayName)}`);
+  const handleJoin = (room: ActiveRoom) => {
+    if (room.isPasswordProtected) {
+      setPasswordDialogRoom(room.code);
+      setJoinPasswordInput("");
+      return;
+    }
+    setLocation(`/room?code=${encodeURIComponent(room.code)}&name=${encodeURIComponent(displayName)}`);
+  };
+
+  const handlePasswordConfirm = () => {
+    if (!passwordDialogRoom || !joinPasswordInput.trim()) return;
+    sessionStorage.setItem(`room_password_${passwordDialogRoom}`, joinPasswordInput.trim());
+    setPasswordDialogRoom(null);
+    setLocation(`/room?code=${encodeURIComponent(passwordDialogRoom)}&name=${encodeURIComponent(displayName)}`);
   };
 
   if (isLoading) {
@@ -125,6 +145,34 @@ export default function ActiveRooms() {
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground px-1">Updates every 5 seconds</p>
 
+      <Dialog open={!!passwordDialogRoom} onOpenChange={(open) => !open && setPasswordDialogRoom(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl flex items-center gap-2">
+              <KeyRound size={18} className="text-primary" />
+              Room password
+            </DialogTitle>
+            <DialogDescription>
+              This room is protected. Enter the password to join.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <Input
+              type="password"
+              placeholder="Enter room password"
+              value={joinPasswordInput}
+              onChange={(e) => setJoinPasswordInput(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handlePasswordConfirm()}
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setPasswordDialogRoom(null)}>Cancel</Button>
+              <Button onClick={handlePasswordConfirm} disabled={!joinPasswordInput.trim()}>Enter Room</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {rooms.map((room) => (
         <div
           key={room.code}
@@ -135,15 +183,20 @@ export default function ActiveRooms() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-mono text-sm font-bold text-primary tracking-wide">{room.code}</span>
                 <StatusBadge room={room} />
+                {room.isPasswordProtected && (
+                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground border border-border rounded-full px-1.5 py-0.5">
+                    <KeyRound size={9} /> Private
+                  </span>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">Created by {room.creatorName}</p>
             </div>
             <Button
               size="sm"
-              onClick={() => handleJoin(room.code)}
+              onClick={() => handleJoin(room)}
               className="shrink-0"
             >
-              Join
+              {room.isPasswordProtected ? <><KeyRound size={12} className="mr-1" />Join</> : "Join"}
             </Button>
           </div>
 
