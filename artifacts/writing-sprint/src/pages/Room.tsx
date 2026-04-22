@@ -1405,7 +1405,7 @@ export default function Room() {
               )}
 
               {/* Kart Mode HUD — right below Focus Mode button */}
-              {room.mode === "kart" && isRunning && participantId && (
+              {room.mode === "kart" && isRunning && (
                 <div className="rounded-xl border px-4 py-3" style={{ background: "rgba(20,20,30,0.85)", borderColor: "rgba(255,255,255,0.12)" }}>
                   <KartHUD
                     items={kartState.items}
