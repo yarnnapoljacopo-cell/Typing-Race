@@ -24,6 +24,52 @@ async function fetchProfile(name: string): Promise<PublicProfile> {
   return res.json();
 }
 
+interface Top10Entry { writerName: string; xp: number; position: number; }
+
+async function fetchTop10(): Promise<Top10Entry[]> {
+  const res = await fetch(`${basePath}/api/rankings/top10`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+const POSITION_SYMBOLS: Record<number, string> = {
+  1: "🥇", 2: "🥈", 3: "🥉",
+  4: "👑", 5: "👑", 6: "👑", 7: "👑", 8: "👑", 9: "👑", 10: "👑",
+};
+
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+}
+
+function GlobalRankBadge({ position }: { position: number }) {
+  const isMedal = position <= 3;
+  const medalColors: Record<number, { border: string; glow: string; bg: string; text: string }> = {
+    1: { border: "#fbbf24", glow: "0 0 18px #fbbf2466", bg: "rgba(251,191,36,0.08)", text: "#fbbf24" },
+    2: { border: "#94a3b8", glow: "0 0 14px #94a3b844", bg: "rgba(148,163,184,0.08)", text: "#94a3b8" },
+    3: { border: "#cd7c45", glow: "0 0 14px #cd7c4544", bg: "rgba(205,124,69,0.08)", text: "#cd7c45" },
+  };
+  const rankerColor = { border: "#e879f9", glow: "0 0 14px #e879f944", bg: "rgba(232,121,249,0.08)", text: "#e879f9" };
+  const c = isMedal ? medalColors[position] : rankerColor;
+
+  return (
+    <div
+      className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full text-sm font-semibold"
+      style={{
+        border: `1.5px solid ${c.border}`,
+        background: c.bg,
+        boxShadow: c.glow,
+        color: c.text,
+      }}
+    >
+      <span className="text-xl leading-none">{POSITION_SYMBOLS[position]}</span>
+      <span className="font-mono font-black tracking-wide">{ordinal(position)}</span>
+      <span className="text-xs font-medium opacity-75">Global Rank</span>
+    </div>
+  );
+}
+
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
   return (
     <Card className="flex-1">
@@ -260,6 +306,16 @@ export default function Profile() {
     enabled: !!name,
   });
 
+  const { data: top10 } = useQuery({
+    queryKey: ["top10"],
+    queryFn: fetchTop10,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const globalRankEntry = top10?.find(
+    (e) => e.writerName.toLowerCase() === name.toLowerCase(),
+  );
+
   if (!name) {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground">No name provided.</div>;
   }
@@ -284,6 +340,11 @@ export default function Profile() {
           <>
             <div className="text-center space-y-3">
               <h1 className="text-3xl font-serif font-bold text-foreground">{data.writerName}</h1>
+              {globalRankEntry && (
+                <div className="flex justify-center">
+                  <GlobalRankBadge position={globalRankEntry.position} />
+                </div>
+              )}
               {data.sprintCount === 0 && (
                 <p className="text-muted-foreground text-sm mt-1">No sprints recorded yet.</p>
               )}

@@ -482,6 +482,18 @@ router.get("/users/by-name/:name/profile", async (req, res): Promise<void> => {
 // Public read — the page itself gates access by rank on the client, but
 // anyone who guesses the URL just gets a list of writer names + XP, which
 // is intentionally public leaderboard data.
+// Public endpoint — top 10 Rankers with their position (used by profile pages)
+router.get("/rankings/top10", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({ writerName: userProfilesTable.writerName, xp: userProfilesTable.xp })
+    .from(userProfilesTable)
+    .where(gte(userProfilesTable.xp, RANKER_MIN_XP))
+    .orderBy(desc(userProfilesTable.xp))
+    .limit(10);
+
+  res.json(rows.map((r, i) => ({ ...r, position: i + 1 })));
+});
+
 router.get("/rankings/global", async (_req, res): Promise<void> => {
   const rows = await db
     .select({
