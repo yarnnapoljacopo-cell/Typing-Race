@@ -405,51 +405,56 @@ router.post("/user/xp", async (req, res): Promise<void> => {
   const clerkUserId = auth?.userId;
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { wordCount, isFirstPlace, roomCode } = req.body ?? {};
-  if (typeof wordCount !== "number" || wordCount < 0) {
-    res.status(400).json({ error: "wordCount required" }); return;
+  const { isFirstPlace, roomCode } = req.body ?? {};
+
+  // roomCode is required — XP can only be awarded for a real sprint.
+  if (!roomCode || typeof roomCode !== "string") {
+    res.status(400).json({ error: "roomCode required" }); return;
   }
 
-  const base = Math.max(5, Math.ceil(wordCount / 5));
+  // Look up the sprint record owned by this Clerk user in this room.
+  // We use the DB-stored word count — never the client-supplied value —
+  // so a user cannot inflate their XP by submitting a fake number.
+  const sprintRows = await db
+    .select({ wordCount: sprintWritingTable.wordCount, xpAwarded: sprintWritingTable.xpAwarded })
+    .from(sprintWritingTable)
+    .where(and(
+      eq(sprintWritingTable.clerkUserId, clerkUserId),
+      eq(sprintWritingTable.roomCode, roomCode),
+    ))
+    .limit(1);
+
+  if (!sprintRows[0]) {
+    res.status(404).json({ error: "Sprint record not found" }); return;
+  }
+
+  const dbWordCount = sprintRows[0].wordCount;
+  const base = Math.max(5, Math.ceil(dbWordCount / 5));
   const xpGained = isFirstPlace === true ? base * 2 : base;
 
-  // If roomCode supplied, check whether the server already awarded XP so we
-  // don't double-award when the server finalizeSprintData ran first.
-  if (roomCode && typeof roomCode === "string") {
-    const sprintRows = await db
-      .select({ xpAwarded: sprintWritingTable.xpAwarded })
-      .from(sprintWritingTable)
-      .where(and(
-        eq(sprintWritingTable.clerkUserId, clerkUserId),
-        eq(sprintWritingTable.roomCode, roomCode),
-      ))
+  if (sprintRows[0].xpAwarded) {
+    // Server already handled it — return current XP without touching DB again.
+    const profileRows = await db
+      .select({ xp: userProfilesTable.xp })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.clerkUserId, clerkUserId))
       .limit(1);
-
-    if (sprintRows[0]?.xpAwarded) {
-      // Server already handled it — return the calculated XP so the UI still
-      // shows the correct amount, but don't touch the database again.
-      const profileRows = await db
-        .select({ xp: userProfilesTable.xp })
-        .from(userProfilesTable)
-        .where(eq(userProfilesTable.clerkUserId, clerkUserId))
-        .limit(1);
-      const newXp = profileRows[0]?.xp ?? 0;
-      res.json({ xpGained, newXp, alreadyAwarded: true });
-      return;
-    }
+    const newXp = profileRows[0]?.xp ?? 0;
+    res.json({ xpGained, newXp, alreadyAwarded: true });
+    return;
   }
 
-  const rows = await db
+  const profileRows = await db
     .select({ xp: userProfilesTable.xp })
     .from(userProfilesTable)
     .where(eq(userProfilesTable.clerkUserId, clerkUserId))
     .limit(1);
 
-  if (rows.length === 0) {
+  if (profileRows.length === 0) {
     res.status(404).json({ error: "Profile not found" }); return;
   }
 
-  const newXp = (rows[0].xp ?? 0) + xpGained;
+  const newXp = (profileRows[0].xp ?? 0) + xpGained;
   const now = new Date();
 
   await db
@@ -457,18 +462,14 @@ router.post("/user/xp", async (req, res): Promise<void> => {
     .set({ xp: newXp, lastSprintAt: now, decayCheckedAt: now, updatedAt: now })
     .where(eq(userProfilesTable.clerkUserId, clerkUserId));
 
-  // Mark XP as awarded in sprint_writing so the server-side path is also
-  // blocked from double-awarding (covers edge case of server restarting
-  // between endSprint and finalizeSprintData completing).
-  if (roomCode && typeof roomCode === "string") {
-    await db
-      .update(sprintWritingTable)
-      .set({ xpAwarded: true })
-      .where(and(
-        eq(sprintWritingTable.clerkUserId, clerkUserId),
-        eq(sprintWritingTable.roomCode, roomCode),
-      ));
-  }
+  // Mark XP as awarded so the server-side path cannot double-award.
+  await db
+    .update(sprintWritingTable)
+    .set({ xpAwarded: true })
+    .where(and(
+      eq(sprintWritingTable.clerkUserId, clerkUserId),
+      eq(sprintWritingTable.roomCode, roomCode),
+    ));
 
   res.json({ xpGained, newXp });
 });

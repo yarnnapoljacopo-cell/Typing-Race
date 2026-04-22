@@ -146,7 +146,23 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             break;
           }
         }
-        const resolvedClerkUserId = incomingClerkUserId ?? inheritedClerkUserId;
+        // ── Verify incoming clerkUserId actually belongs to this writer name ──
+        // Never trust a client-supplied Clerk ID without confirming the DB-stored
+        // writerName matches. This prevents a malicious client from claiming
+        // someone else's ID and having XP awarded into their account.
+        let verifiedClerkUserId: string | null = null;
+        if (incomingClerkUserId) {
+          const verifyRows = await db
+            .select({ writerName: userProfilesTable.writerName })
+            .from(userProfilesTable)
+            .where(eq(userProfilesTable.clerkUserId, incomingClerkUserId))
+            .limit(1);
+          if (verifyRows[0]?.writerName === name) {
+            verifiedClerkUserId = incomingClerkUserId;
+          }
+          // If writerName doesn't match, silently discard the supplied ID.
+        }
+        const resolvedClerkUserId = verifiedClerkUserId ?? inheritedClerkUserId;
 
         // ── Look up profile for nameplate, xp, and Grand Scribe spectating ──
         let userNameplate = "default";

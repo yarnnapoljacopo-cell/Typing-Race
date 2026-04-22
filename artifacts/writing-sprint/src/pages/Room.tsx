@@ -748,7 +748,7 @@ export default function Room() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ wordCount: myWc, isFirstPlace, roomCode: code }),
+      body: JSON.stringify({ isFirstPlace, roomCode: code }),
     })
       .then((r) => r.json())
       .then((data: { xpGained?: number }) => {
