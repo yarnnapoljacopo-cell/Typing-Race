@@ -23,7 +23,7 @@ module.exports = {
     target: [{ target: "nsis", arch: ["x64"] }],
   },
   mac: {
-    target: [{ target: "dmg", arch: ["universal"] }],
+    target: [{ target: "dmg", arch: ["x64"] }],
     category: "public.app-category.productivity",
   },
   linux: {
