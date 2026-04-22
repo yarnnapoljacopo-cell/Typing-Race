@@ -4,7 +4,6 @@ x64:
     - '!build{,/**/*}'
     - '!release{,/**/*}'
     - build/**/*
-    - resources/**/*
     - node_modules/**/*
     - package.json
     - '!**/*.{iml,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,suo,xproj,cc,d.ts,mk,a,o,forge-meta,pdb}'
@@ -17,6 +16,5 @@ x64:
   nodeModuleFilePatterns:
     - '**/*'
     - build/**/*
-    - resources/**/*
     - node_modules/**/*
     - package.json

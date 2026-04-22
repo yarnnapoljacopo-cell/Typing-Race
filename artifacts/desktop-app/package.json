@@ -2,6 +2,7 @@
   "name": "@workspace/desktop-app",
   "version": "1.0.1",
   "description": "Writing Sprint — Desktop App",
+  "author": "Writing Sprint",
   "main": "build/main.js",
   "private": true,
   "scripts": {
