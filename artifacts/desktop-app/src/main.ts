@@ -20,14 +20,19 @@ const CONFIG_FILE = path.join(CONFIG_DIR, "settings.json");
 const SPRINTS_FILE = path.join(CONFIG_DIR, "offline-sprints.json");
 
 const DEFAULT_SETTINGS = {
-  serverUrl: "https://d22a5c75-44c4-4fa4-b065-5daabd4c141e-00-1uzgmrqpol43r.riker.replit.dev/writing-sprint/",
+  serverUrl: "",
   theme: "system",
 };
 
 function loadSettings(): typeof DEFAULT_SETTINGS {
   try {
     if (fs.existsSync(CONFIG_FILE)) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8")) };
+      const saved = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));
+      // Migrate: clear any saved Replit dev-preview URL — those are not valid production URLs
+      if (saved.serverUrl && (saved.serverUrl.includes("replit.dev") || saved.serverUrl.includes("riker.replit.dev"))) {
+        saved.serverUrl = "";
+      }
+      return { ...DEFAULT_SETTINGS, ...saved };
     }
   } catch {}
   return { ...DEFAULT_SETTINGS };
@@ -70,6 +75,7 @@ function nextId(sprints: OfflineSprint[]): number {
 // ── Network check ─────────────────────────────────────────────────────────────
 
 function checkOnline(url: string): Promise<boolean> {
+  if (!url) return Promise.resolve(false);
   return new Promise((resolve) => {
     const parsed = new URL(url);
     const mod = parsed.protocol === "https:" ? https : http;
