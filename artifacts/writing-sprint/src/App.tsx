@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, useClerk, useAuth } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, Redirect, useLocation, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import Portal from "@/pages/Portal";
 import Room from "@/pages/Room";
 import MyFiles from "@/pages/MyFiles";
 import Profile from "@/pages/Profile";
+import { GuestProvider, useGuest } from "@/lib/guestContext";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,8 @@ function stripBase(path: string): string {
 if (!clerkPubKey) {
   throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
 }
+
+// ── Clerk appearance ───────────────────────────────────────────────────────
 
 const clerkAppearance = {
   theme: shadcn,
@@ -78,9 +81,9 @@ const clerkAppearance = {
   },
 };
 
+// ── Route pages ────────────────────────────────────────────────────────────
+
 function SignInPage() {
-  // To update login providers, app branding, or OAuth settings use the Auth
-  // pane in the workspace toolbar. More information can be found in the Replit docs.
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
       <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
@@ -89,8 +92,6 @@ function SignInPage() {
 }
 
 function SignUpPage() {
-  // To update login providers, app branding, or OAuth settings use the Auth
-  // pane in the workspace toolbar. More information can be found in the Replit docs.
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
       <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
@@ -98,57 +99,44 @@ function SignUpPage() {
   );
 }
 
+// ── Guards ─────────────────────────────────────────────────────────────────
+
 function HomeRedirect() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Redirect to="/portal" />
-      </Show>
-      <Show when="signed-out">
-        <Home />
-      </Show>
-    </>
-  );
+  const { isSignedIn, isLoaded } = useAuth();
+  const { guestName } = useGuest();
+
+  if (!isLoaded) return null;
+  if (isSignedIn || guestName) return <Redirect to="/portal" />;
+  return <Home />;
 }
 
 function PortalGuard() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Portal />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/" />
-      </Show>
-    </>
-  );
+  const { isSignedIn, isLoaded } = useAuth();
+  const { guestName } = useGuest();
+
+  if (!isLoaded) return null;
+  if (isSignedIn || guestName) return <Portal />;
+  return <Redirect to="/" />;
 }
 
 function RoomGuard() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Room />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/" />
-      </Show>
-    </>
-  );
+  const { isSignedIn, isLoaded } = useAuth();
+  const { guestName } = useGuest();
+
+  if (!isLoaded) return null;
+  if (isSignedIn || guestName) return <Room />;
+  return <Redirect to="/" />;
 }
 
 function MyFilesGuard() {
-  return (
-    <>
-      <Show when="signed-in">
-        <MyFiles />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/" />
-      </Show>
-    </>
-  );
+  const { isSignedIn, isLoaded } = useAuth();
+
+  if (!isLoaded) return null;
+  if (isSignedIn) return <MyFiles />;
+  return <Redirect to="/" />;
 }
+
+// ── Cache invalidator ──────────────────────────────────────────────────────
 
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
@@ -168,6 +156,8 @@ function ClerkQueryClientCacheInvalidator() {
 
   return null;
 }
+
+// ── Root ───────────────────────────────────────────────────────────────────
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
@@ -195,20 +185,22 @@ function ClerkProviderWithRoutes() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
-        <ClerkQueryClientCacheInvalidator />
-        <TooltipProvider>
-          <Switch>
-            <Route path="/" component={HomeRedirect} />
-            <Route path="/portal" component={PortalGuard} />
-            <Route path="/room" component={RoomGuard} />
-            <Route path="/my-files" component={MyFilesGuard} />
-            <Route path="/profile/:name" component={Profile} />
-            <Route path="/sign-in/*?" component={SignInPage} />
-            <Route path="/sign-up/*?" component={SignUpPage} />
-            <Route component={NotFound} />
-          </Switch>
-          <Toaster />
-        </TooltipProvider>
+        <GuestProvider>
+          <ClerkQueryClientCacheInvalidator />
+          <TooltipProvider>
+            <Switch>
+              <Route path="/" component={HomeRedirect} />
+              <Route path="/portal" component={PortalGuard} />
+              <Route path="/room" component={RoomGuard} />
+              <Route path="/my-files" component={MyFilesGuard} />
+              <Route path="/profile/:name" component={Profile} />
+              <Route path="/sign-in/*?" component={SignInPage} />
+              <Route path="/sign-up/*?" component={SignUpPage} />
+              <Route component={NotFound} />
+            </Switch>
+            <Toaster />
+          </TooltipProvider>
+        </GuestProvider>
       </QueryClientProvider>
     </ClerkProvider>
   );

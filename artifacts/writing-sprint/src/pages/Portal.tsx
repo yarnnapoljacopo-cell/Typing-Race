@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useUser, useClerk } from "@clerk/react";
+import { useUser, useClerk, useAuth, SignUpButton, SignInButton } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCreateRoom } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -16,11 +16,12 @@ import {
 } from "@/components/ui/dialog";
 import {
   PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
-  Clock, BookOpen, LogOut, Pencil, Radio, Skull,
+  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
 import ActiveRooms from "./ActiveRooms";
+import { useGuest } from "@/lib/guestContext";
 
 type RoomMode = "regular" | "open" | "goal";
 
@@ -51,7 +52,11 @@ export default function Portal() {
   const { toast } = useToast();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const { isSignedIn } = useAuth();
   const queryClient = useQueryClient();
+  const { guestName, updateGuestName, exitGuest } = useGuest();
+
+  const isGuest = !isSignedIn && !!guestName;
 
   const initialTab = new URLSearchParams(window.location.search).get("tab") ?? "sprint";
   const [activeTab, setActiveTab] = useState<string>(initialTab);
@@ -69,6 +74,7 @@ export default function Portal() {
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["user-profile"],
     queryFn: fetchProfile,
+    enabled: !isGuest,
   });
 
   const saveMutation = useMutation({
@@ -84,22 +90,19 @@ export default function Portal() {
   });
 
   useEffect(() => {
-    if (!profileLoading && profile?.writerName === null) {
+    if (!isGuest && !profileLoading && profile?.writerName === null) {
       const fallback = user?.firstName || user?.username || user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] || "";
       setNameInput(fallback);
       setNameDialogOpen(true);
     }
-  }, [profileLoading, profile?.writerName, user]);
+  }, [isGuest, profileLoading, profile?.writerName, user]);
 
-  const displayName =
-    profile?.writerName ||
-    user?.firstName ||
-    user?.username ||
-    user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] ||
-    "Writer";
+  const displayName = isGuest
+    ? (guestName ?? "Guest")
+    : (profile?.writerName || user?.firstName || user?.username || user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] || "Writer");
 
   const openEditDialog = () => {
-    setNameInput(profile?.writerName || displayName);
+    setNameInput(displayName);
     setNameDialogOpen(true);
   };
 
@@ -109,7 +112,13 @@ export default function Portal() {
       toast({ title: "Name too short", description: "Must be at least 2 characters.", variant: "destructive" });
       return;
     }
-    saveMutation.mutate(trimmed);
+    if (isGuest) {
+      updateGuestName(trimmed);
+      setNameDialogOpen(false);
+      toast({ title: "Name updated", description: `You'll appear as "${trimmed}" in sprints.` });
+    } else {
+      saveMutation.mutate(trimmed);
+    }
   };
 
   const createRoomMutation = useCreateRoom({
@@ -149,6 +158,11 @@ export default function Portal() {
     setLocation(`/room?code=${encodeURIComponent(joinCode.trim().toUpperCase())}&name=${encodeURIComponent(displayName)}`);
   };
 
+  const handleExitGuest = () => {
+    exitGuest();
+    setLocation("/");
+  };
+
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 selection:bg-primary/20">
 
@@ -166,10 +180,29 @@ export default function Portal() {
           <p className="text-lg text-muted-foreground font-medium">Race against fellow writers. Find your flow.</p>
         </div>
 
+        {/* Guest banner */}
+        {isGuest && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <UserRound size={15} className="text-amber-600 shrink-0" />
+              <p className="text-sm text-amber-800 leading-snug">
+                Guest mode — sprints won't be saved
+              </p>
+            </div>
+            <SignUpButton mode="modal">
+              <button className="text-xs font-semibold text-amber-700 hover:text-amber-900 whitespace-nowrap underline underline-offset-2 transition-colors shrink-0">
+                Create account
+              </button>
+            </SignUpButton>
+          </div>
+        )}
+
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 text-sm">
-              <span className="font-medium text-foreground">{profileLoading ? "…" : displayName}</span>
+              <span className="font-medium text-foreground">
+                {(!isGuest && profileLoading) ? "…" : displayName}
+              </span>
               <button
                 onClick={openEditDialog}
                 className="text-muted-foreground hover:text-primary transition-colors"
@@ -177,39 +210,64 @@ export default function Portal() {
               >
                 <Pencil size={13} />
               </button>
-              <button
-                onClick={() => setLocation("/my-files")}
-                className="text-muted-foreground hover:text-primary transition-colors"
-                title="My Files"
-              >
-                <BookOpen size={15} />
-              </button>
+              {!isGuest && (
+                <button
+                  onClick={() => setLocation("/my-files")}
+                  className="text-muted-foreground hover:text-primary transition-colors"
+                  title="My Files"
+                >
+                  <BookOpen size={15} />
+                </button>
+              )}
             </div>
           </div>
-          <button
-            onClick={() => signOut()}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <LogOut size={14} />
-            Sign out
-          </button>
+          {isGuest ? (
+            <button
+              onClick={handleExitGuest}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <LogOut size={14} />
+              Exit guest
+            </button>
+          ) : (
+            <button
+              onClick={() => signOut()}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <LogOut size={14} />
+              Sign out
+            </button>
+          )}
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-2">
-            <TabsTrigger value="sprint" className="flex items-center gap-1.5">
-              <Clock size={14} />
-              Sprint
-            </TabsTrigger>
-            <TabsTrigger value="rooms" className="flex items-center gap-1.5">
-              <Radio size={14} />
-              Active Rooms
-            </TabsTrigger>
-            <TabsTrigger value="past" className="flex items-center gap-1.5">
-              <BookOpen size={14} />
-              Past Sprints
-            </TabsTrigger>
-          </TabsList>
+          {isGuest ? (
+            <TabsList className="grid w-full grid-cols-2 mb-2">
+              <TabsTrigger value="sprint" className="flex items-center gap-1.5">
+                <Clock size={14} />
+                Sprint
+              </TabsTrigger>
+              <TabsTrigger value="rooms" className="flex items-center gap-1.5">
+                <Radio size={14} />
+                Active Rooms
+              </TabsTrigger>
+            </TabsList>
+          ) : (
+            <TabsList className="grid w-full grid-cols-3 mb-2">
+              <TabsTrigger value="sprint" className="flex items-center gap-1.5">
+                <Clock size={14} />
+                Sprint
+              </TabsTrigger>
+              <TabsTrigger value="rooms" className="flex items-center gap-1.5">
+                <Radio size={14} />
+                Active Rooms
+              </TabsTrigger>
+              <TabsTrigger value="past" className="flex items-center gap-1.5">
+                <BookOpen size={14} />
+                Past Sprints
+              </TabsTrigger>
+            </TabsList>
+          )}
 
           <TabsContent value="sprint">
             <Card className="border-border shadow-xl shadow-primary/5">
@@ -427,9 +485,11 @@ export default function Portal() {
             <ActiveRooms />
           </TabsContent>
 
-          <TabsContent value="past">
-            <PastSprints />
-          </TabsContent>
+          {!isGuest && (
+            <TabsContent value="past">
+              <PastSprints />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
@@ -437,7 +497,9 @@ export default function Portal() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">
-              {profile?.writerName ? "Change writer name" : "Choose your writer name"}
+              {isGuest
+                ? "Change guest name"
+                : (profile?.writerName ? "Change writer name" : "Choose your writer name")}
             </DialogTitle>
             <DialogDescription>
               This is how you'll appear to others in writing rooms.
@@ -454,7 +516,7 @@ export default function Portal() {
               maxLength={40}
             />
             <div className="flex gap-2">
-              {profile?.writerName && (
+              {(isGuest || profile?.writerName) && (
                 <Button
                   variant="outline"
                   className="flex-1"
@@ -467,12 +529,12 @@ export default function Portal() {
               <Button
                 className="flex-1"
                 onClick={handleSaveName}
-                disabled={saveMutation.isPending || nameInput.trim().length < 2}
+                disabled={(!isGuest && saveMutation.isPending) || nameInput.trim().length < 2}
               >
-                {saveMutation.isPending ? (
+                {(!isGuest && saveMutation.isPending) ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
                 ) : (
-                  profile?.writerName ? "Save" : "Set name"
+                  (isGuest || profile?.writerName) ? "Save" : "Set name"
                 )}
               </Button>
             </div>

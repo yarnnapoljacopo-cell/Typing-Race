@@ -1,8 +1,31 @@
+import { useState } from "react";
 import { SignInButton, SignUpButton } from "@clerk/react";
-import { PenTool, Feather, ArrowRight, Zap, Users, BookOpen } from "lucide-react";
+import { PenTool, Feather, ArrowRight, Zap, Users, BookOpen, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { setGuestName } from "@/lib/guest";
+import { useLocation } from "wouter";
 
 export default function Home() {
+  const [, setLocation] = useLocation();
+  const [guestStep, setGuestStep] = useState<"hidden" | "form">("hidden");
+  const [guestInput, setGuestInput] = useState("");
+  const [error, setError] = useState("");
+
+  const handleGuestContinue = () => {
+    const name = guestInput.trim();
+    if (name.length < 2) {
+      setError("Name must be at least 2 characters.");
+      return;
+    }
+    if (name.length > 32) {
+      setError("Name must be 32 characters or fewer.");
+      return;
+    }
+    setGuestName(name);
+    setLocation("/portal");
+  };
+
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 selection:bg-primary/20">
 
@@ -60,6 +83,51 @@ export default function Home() {
               Sign in
             </Button>
           </SignInButton>
+
+          <div className="relative flex items-center gap-3 py-1">
+            <div className="flex-1 border-t border-border" />
+            <span className="text-xs text-muted-foreground/60 shrink-0">or</span>
+            <div className="flex-1 border-t border-border" />
+          </div>
+
+          {guestStep === "hidden" ? (
+            <Button
+              variant="ghost"
+              className="w-full py-5 text-base text-muted-foreground hover:text-foreground"
+              onClick={() => setGuestStep("form")}
+            >
+              <UserRound className="mr-2 w-4 h-4" />
+              Continue as guest
+            </Button>
+          ) : (
+            <div className="space-y-2 text-left">
+              <p className="text-sm font-medium text-foreground text-center">Choose a display name</p>
+              <Input
+                autoFocus
+                placeholder="e.g. ScribbleKing"
+                value={guestInput}
+                maxLength={32}
+                onChange={(e) => { setGuestInput(e.target.value); setError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && handleGuestContinue()}
+                className="text-center text-base py-5 focus-visible:ring-primary"
+              />
+              {error && <p className="text-xs text-destructive text-center">{error}</p>}
+              <Button
+                className="w-full py-5 text-base hover-elevate group"
+                onClick={handleGuestContinue}
+                disabled={!guestInput.trim()}
+              >
+                Continue
+                <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Button>
+              <button
+                className="w-full text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors py-1"
+                onClick={() => { setGuestStep("hidden"); setGuestInput(""); setError(""); }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
 
         <p className="text-xs text-muted-foreground/60">
