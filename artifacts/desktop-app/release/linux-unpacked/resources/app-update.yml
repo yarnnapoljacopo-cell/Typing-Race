@@ -1,1 +1,4 @@
+owner: yarnnapoljacopo-cell
+repo: Typing-Race
+provider: github
 updaterCacheDirName: '@workspacedesktop-app-updater'

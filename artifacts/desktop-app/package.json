@@ -3,6 +3,10 @@
   "version": "1.0.2",
   "description": "Writing Sprint — Desktop App",
   "author": "Writing Sprint",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yarnnapoljacopo-cell/Typing-Race"
+  },
   "main": "build/main.js",
   "private": true,
   "scripts": {

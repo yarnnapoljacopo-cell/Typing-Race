@@ -1,16 +1,13 @@
 const path = require("path");
 
-const root = __dirname;
-
 module.exports = {
   appId: "com.writingsprint.app",
   productName: "Writing Sprint",
   copyright: "Writing Sprint",
   asar: false,
-  icon: path.resolve(root, "resources/icon.png"),
+  icon: path.resolve(__dirname, "resources/icon.png"),
   directories: {
-    output: path.resolve(root, "release"),
-    app: root,
+    output: "release",
   },
   files: [
     "build/**/*",
@@ -19,7 +16,7 @@ module.exports = {
   ],
   extraResources: [
     {
-      from: path.resolve(root, "src/offline.html"),
+      from: "src/offline.html",
       to: "offline.html",
     },
   ],
