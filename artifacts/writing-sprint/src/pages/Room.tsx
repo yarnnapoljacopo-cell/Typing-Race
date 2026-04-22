@@ -11,7 +11,7 @@ import { WritingToolbar, type WritingStyle, type FormatType } from "@/components
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 import { SpectatorView } from "@/components/SpectatorView";
 import { Button } from "@/components/ui/button";
-import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck, BookOpen, Maximize2, Minimize2 } from "lucide-react";
+import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck, BookOpen, Maximize2, Minimize2, LogOut } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -177,6 +177,7 @@ export default function Room() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [survivedSeconds, setSurvivedSeconds] = useState(0);
   const [xpGained, setXpGained] = useState<number | null>(null);
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const xpAwardedRef = useRef(false);
   const eliminationStartedRef = useRef(false);
   const sprintStartedAtRef = useRef<number | null>(null);
@@ -1000,6 +1001,22 @@ export default function Room() {
           <span className="text-sm text-muted-foreground ml-1">
             {room.participants.length} {room.participants.length === 1 ? "writer" : "writers"}
           </span>
+
+          {/* Leave Sprint — only shown while running, separated from the participant avatars */}
+          {isRunning && (
+            <>
+              <div className="w-px h-5 bg-border mx-1 hidden sm:block" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLeaveDialogOpen(true)}
+                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-1.5 text-xs px-2"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Leave</span>
+              </Button>
+            </>
+          )}
         </div>
       </header>}
 
@@ -1316,6 +1333,27 @@ export default function Room() {
             </AlertDialogCancel>
             <AlertDialogAction onClick={() => setGoalDialogOpen(false)}>
               Yes, keep writing!
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Leave sprint confirmation ────────────────────────────────── */}
+      <AlertDialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave the sprint?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The sprint will keep going without you. Your writing so far has been auto-saved and won't be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay in</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => setLocation("/")}
+            >
+              Leave Sprint
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
