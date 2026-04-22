@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { SignInButton, SignUpButton } from "@clerk/react";
-import { PenTool, Feather, ArrowRight, Zap, Users, BookOpen, UserRound } from "lucide-react";
+import { PenTool, Feather, ArrowRight, Zap, Users, BookOpen, UserRound, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useGuest } from "@/lib/guestContext";
@@ -129,6 +129,27 @@ export default function Home() {
               </button>
             </div>
           )}
+
+          <div className="relative flex items-center gap-3 py-1">
+            <div className="flex-1 border-t border-border" />
+            <span className="text-xs text-muted-foreground/60 shrink-0">or</span>
+            <div className="flex-1 border-t border-border" />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setLocation("/offline-sprint")}
+            className="w-full flex items-center gap-3 rounded-xl border-2 border-dashed border-border px-4 py-3.5 text-left hover:border-muted-foreground/40 hover:bg-muted/30 transition-all group"
+          >
+            <div className="rounded-lg bg-muted p-2 group-hover:bg-muted-foreground/10 transition-colors">
+              <WifiOff className="w-4 h-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-foreground">Sprint Offline</div>
+              <div className="text-xs text-muted-foreground">No account needed · saves locally</div>
+            </div>
+            <ArrowRight className="ml-auto w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+          </button>
         </div>
 
         <p className="text-xs text-muted-foreground/60">
