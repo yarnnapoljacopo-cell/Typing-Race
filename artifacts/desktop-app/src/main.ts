@@ -12,13 +12,12 @@ import path from "path";
 import fs from "fs";
 import https from "https";
 import http from "http";
-import Database from "better-sqlite3";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const CONFIG_DIR = path.join(app.getPath("userData"), "writing-sprint");
 const CONFIG_FILE = path.join(CONFIG_DIR, "settings.json");
-const DB_FILE = path.join(CONFIG_DIR, "offline.db");
+const SPRINTS_FILE = path.join(CONFIG_DIR, "offline-sprints.json");
 
 const DEFAULT_SETTINGS = {
   serverUrl: "https://d22a5c75-44c4-4fa4-b065-5daabd4c141e-00-1uzgmrqpol43r.riker.replit.dev/writing-sprint/",
@@ -39,28 +38,33 @@ function saveSettings(s: typeof DEFAULT_SETTINGS) {
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(s, null, 2));
 }
 
-// ── Offline SQLite DB ─────────────────────────────────────────────────────────
+// ── Offline Sprint Storage (JSON, no native deps) ─────────────────────────────
 
-function openDb(): Database.Database {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  const db = new Database(DB_FILE);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS offline_sprints (
-      id       INTEGER PRIMARY KEY AUTOINCREMENT,
-      duration INTEGER NOT NULL,
-      words    INTEGER NOT NULL,
-      text     TEXT    NOT NULL,
-      goal     INTEGER,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-  return db;
+interface OfflineSprint {
+  id: number;
+  duration: number;
+  words: number;
+  text: string;
+  goal: number | null;
+  created_at: string;
 }
 
-let _db: Database.Database | null = null;
-function getDb() {
-  if (!_db) _db = openDb();
-  return _db;
+function readSprints(): OfflineSprint[] {
+  try {
+    if (fs.existsSync(SPRINTS_FILE)) {
+      return JSON.parse(fs.readFileSync(SPRINTS_FILE, "utf-8")) as OfflineSprint[];
+    }
+  } catch {}
+  return [];
+}
+
+function writeSprints(sprints: OfflineSprint[]) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(SPRINTS_FILE, JSON.stringify(sprints, null, 2));
+}
+
+function nextId(sprints: OfflineSprint[]): number {
+  return sprints.length === 0 ? 1 : Math.max(...sprints.map((s) => s.id)) + 1;
 }
 
 // ── Network check ─────────────────────────────────────────────────────────────
@@ -129,7 +133,6 @@ async function createWindow() {
   buildMenu();
 }
 
-// Inject a small bridge into the live web app so it can call Electron APIs
 function injectElectronBridge(win: BrowserWindow) {
   win.webContents.on("did-finish-load", () => {
     win.webContents.executeJavaScript(`
@@ -141,7 +144,6 @@ function injectElectronBridge(win: BrowserWindow) {
 
 // ── IPC Handlers ──────────────────────────────────────────────────────────────
 
-// Save file to disk with native dialog
 ipcMain.handle("save-file", async (_e, { content, defaultName }: { content: string; defaultName: string }) => {
   if (!mainWindow) return { saved: false };
   const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
@@ -156,35 +158,36 @@ ipcMain.handle("save-file", async (_e, { content, defaultName }: { content: stri
   return { saved: true, path: filePath };
 });
 
-// Save offline sprint to local SQLite
 ipcMain.handle("save-offline-sprint", (_e, { duration, words, text, goal }: { duration: number; words: number; text: string; goal?: number }) => {
-  const db = getDb();
-  const result = db.prepare(
-    "INSERT INTO offline_sprints (duration, words, text, goal) VALUES (?, ?, ?, ?)"
-  ).run(duration, words, text, goal ?? null);
-  return { id: result.lastInsertRowid };
+  const sprints = readSprints();
+  const sprint: OfflineSprint = {
+    id: nextId(sprints),
+    duration,
+    words,
+    text,
+    goal: goal ?? null,
+    created_at: new Date().toISOString(),
+  };
+  sprints.push(sprint);
+  writeSprints(sprints);
+  return { id: sprint.id };
 });
 
-// Get all offline sprints
 ipcMain.handle("get-offline-sprints", () => {
-  const db = getDb();
-  return db.prepare("SELECT * FROM offline_sprints ORDER BY created_at DESC").all();
+  return readSprints().sort((a, b) => b.created_at.localeCompare(a.created_at));
 });
 
-// Delete an offline sprint
 ipcMain.handle("delete-offline-sprint", (_e, { id }: { id: number }) => {
-  const db = getDb();
-  db.prepare("DELETE FROM offline_sprints WHERE id = ?").run(id);
+  const sprints = readSprints().filter((s) => s.id !== id);
+  writeSprints(sprints);
   return { ok: true };
 });
 
-// Check network status
 ipcMain.handle("is-online", async () => {
   isOnline = await checkOnline(currentSettings.serverUrl);
   return isOnline;
 });
 
-// Load the live app (called from offline page when user goes online)
 ipcMain.handle("go-online", async () => {
   isOnline = await checkOnline(currentSettings.serverUrl);
   if (isOnline && mainWindow) {
@@ -196,7 +199,6 @@ ipcMain.handle("go-online", async () => {
   return { online: false };
 });
 
-// Load the offline page
 ipcMain.handle("go-offline", async () => {
   if (mainWindow) {
     await mainWindow.loadFile(getOfflinePath());
@@ -205,7 +207,6 @@ ipcMain.handle("go-offline", async () => {
   return { ok: true };
 });
 
-// Get and update settings
 ipcMain.handle("get-settings", () => loadSettings());
 ipcMain.handle("save-settings", (_e, settings: typeof DEFAULT_SETTINGS) => {
   saveSettings(settings);
@@ -337,7 +338,6 @@ function buildMenu() {
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
-  // Accept self-signed certs in dev
   if (process.env.NODE_ENV === "development") {
     session.defaultSession.setCertificateVerifyProc((_req, cb) => cb(0));
   }

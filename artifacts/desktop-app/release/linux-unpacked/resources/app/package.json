@@ -1,6 +1,6 @@
 {
   "name": "@workspace/desktop-app",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Writing Sprint — Desktop App",
   "author": "Writing Sprint",
   "repository": {
@@ -8,8 +8,5 @@
     "url": "https://github.com/yarnnapoljacopo-cell/Typing-Race"
   },
   "main": "build/main.js",
-  "private": true,
-  "dependencies": {
-    "better-sqlite3": "^9.4.3"
-  }
+  "private": true
 }

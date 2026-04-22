@@ -11,7 +11,6 @@ module.exports = {
   },
   files: [
     "build/**/*",
-    "node_modules/**/*",
     "package.json",
   ],
   extraResources: [
