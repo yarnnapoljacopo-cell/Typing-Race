@@ -352,10 +352,21 @@ export default function Profile() {
 
   const nameplateMutation = useMutation({
     mutationFn: saveNameplate,
-    onSuccess: (_data, nameplate) => {
+    onMutate: async (nameplate) => {
+      await queryClient.cancelQueries({ queryKey: ["own-prefs"] });
+      const previous = queryClient.getQueryData<{ nameplate: string; skin: string; writerName: string }>(["own-prefs"]);
       queryClient.setQueryData(["own-prefs"], (old: { nameplate: string; skin: string; writerName: string } | undefined) =>
         old ? { ...old, nameplate } : { nameplate, skin: "default", writerName: name }
       );
+      return { previous };
+    },
+    onError: (_err, _nameplate, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(["own-prefs"], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["own-prefs"] });
     },
   });
 
@@ -442,7 +453,7 @@ export default function Profile() {
                           key={np.key}
                           onClick={() => nameplateMutation.mutate(np.key)}
                           title={np.description}
-                          disabled={nameplateMutation.isPending}
+
                           className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all duration-200 ${
                             isActive
                               ? "border-current opacity-100 ring-2 ring-offset-1 ring-offset-card"
