@@ -148,6 +148,27 @@
     padding: 8px 18px; font-size: 13px; text-align: center; cursor: pointer;
   }
   #online-banner:hover { background: #1a6325; }
+
+  /* ── Connect modal ── */
+  #connect-modal {
+    display: none; position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,0.7); align-items: center; justify-content: center;
+  }
+  #connect-modal.open { display: flex; }
+  #connect-modal-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 28px 32px; width: 420px; max-width: 90vw;
+  }
+  #connect-modal-box h3 { margin: 0 0 8px; font-size: 16px; }
+  #connect-modal-box p  { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
+  #connect-url-input {
+    width: 100%; box-sizing: border-box; padding: 9px 12px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 14px; margin-bottom: 8px;
+  }
+  #connect-url-input:focus { outline: none; border-color: var(--accent); }
+  #connect-error { font-size: 12px; color: #f87171; min-height: 16px; margin-bottom: 12px; }
+  #connect-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 </style>
 </head>
 <body>
@@ -162,6 +183,11 @@
       <button class="btn-ghost" onclick="showView('history-view')">History</button>
       <button class="btn-ghost" onclick="tryGoOnline()">↑ Connect</button>
     </div>
+  </div>
+
+  <!-- Shown if page is opened in a regular browser (not the Electron app) -->
+  <div id="no-electron-msg" style="display:none;background:#7c1d1d;color:#fca5a5;padding:10px 18px;font-size:13px;text-align:center;">
+    This page is part of the Writing Sprint desktop app. <a href="https://github.com/yarnnapoljacopo-cell/Typing-Race/releases/latest" style="color:#fca5a5;font-weight:600;">Download the app</a> to use it.
   </div>
 
   <!-- Online available banner -->
@@ -259,6 +285,21 @@
     </div>
     <div class="history-list" id="history-list">
       <div class="empty-state">No offline sprints yet.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Connect modal -->
+<div id="connect-modal" role="dialog" aria-modal="true">
+  <div id="connect-modal-box">
+    <h3>Connect to Writing Sprint</h3>
+    <p>Enter your server URL (the deployed or Replit app address):<br>
+       e.g. <code style="font-size:12px">https://your-app.replit.app/writing-sprint/</code></p>
+    <input id="connect-url-input" type="url" placeholder="https://..." autocomplete="url" />
+    <div id="connect-error"></div>
+    <div id="connect-modal-actions">
+      <button class="btn-ghost" onclick="closeConnectModal()">Cancel</button>
+      <button class="btn-primary" onclick="submitConnectModal()">Connect</button>
     </div>
   </div>
 </div>
@@ -467,38 +508,75 @@ function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// ── Connect modal ─────────────────────────────────────────────────────────────
+function openConnectModal(currentUrl) {
+  const input = document.getElementById('connect-url-input');
+  const err   = document.getElementById('connect-error');
+  input.value = currentUrl || '';
+  err.textContent = '';
+  document.getElementById('connect-modal').classList.add('open');
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeConnectModal() {
+  document.getElementById('connect-modal').classList.remove('open');
+}
+
+// Close on backdrop click
+document.getElementById('connect-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeConnectModal();
+});
+
+// Submit on Enter key
+document.getElementById('connect-url-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') submitConnectModal();
+  if (e.key === 'Escape') closeConnectModal();
+});
+
+async function submitConnectModal() {
+  const input   = document.getElementById('connect-url-input');
+  const err     = document.getElementById('connect-error');
+  const btn     = document.querySelector('#connect-modal-actions .btn-primary');
+  let url = input.value.trim();
+  if (!url) { err.textContent = 'Please enter a URL.'; return; }
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url;
+    input.value = url;
+  }
+  if (!url.endsWith('/')) url += '/';
+
+  err.textContent = '';
+  btn.textContent = 'Connecting…';
+  btn.disabled = true;
+
+  try {
+    const settings = await window.electronAPI.getSettings();
+    await window.electronAPI.saveSettings({ ...settings, serverUrl: url });
+    const result = await window.electronAPI.goOnline();
+    if (result?.online) {
+      closeConnectModal();
+    } else {
+      err.textContent = 'Could not reach that server. Check the URL and try again.';
+      btn.textContent = 'Connect';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    err.textContent = 'Error: ' + (e?.message || 'unknown');
+    btn.textContent = 'Connect';
+    btn.disabled = false;
+  }
+}
+
 // ── Online detection ──────────────────────────────────────────────────────────
 async function tryGoOnline() {
-  if (!window.electronAPI) return;
-
-  // If no server URL is configured, prompt the user to enter one first
+  if (!window.electronAPI) {
+    // Not running inside the desktop app — show informative message
+    const msg = document.getElementById('no-electron-msg');
+    if (msg) { msg.style.display = 'block'; }
+    return;
+  }
   const settings = await window.electronAPI.getSettings();
-  if (!settings?.serverUrl) {
-    const url = prompt(
-      'Enter your Writing Sprint server URL to connect:\n(e.g. https://your-app.replit.app/writing-sprint/)',
-      ''
-    );
-    if (!url || !url.trim()) return;
-    const trimmed = url.trim().endsWith('/') ? url.trim() : url.trim() + '/';
-    await window.electronAPI.saveSettings({ ...settings, serverUrl: trimmed });
-  }
-
-  const result = await window.electronAPI.goOnline();
-  if (!result?.online) {
-    const retry = confirm(
-      'Could not reach the server. Check that the URL is correct and the server is running.\n\nWant to change the server URL?'
-    );
-    if (retry) {
-      const settings2 = await window.electronAPI.getSettings();
-      const url = prompt('Server URL:', settings2?.serverUrl || '');
-      if (url && url.trim()) {
-        const trimmed = url.trim().endsWith('/') ? url.trim() : url.trim() + '/';
-        await window.electronAPI.saveSettings({ ...settings2, serverUrl: trimmed });
-        const result2 = await window.electronAPI.goOnline();
-        if (!result2?.online) alert('Still could not connect. Check the URL and try again.');
-      }
-    }
-  }
+  openConnectModal(settings?.serverUrl || '');
 }
 
 async function checkOnlineStatus() {
