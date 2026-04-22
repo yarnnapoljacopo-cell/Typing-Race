@@ -15,14 +15,44 @@ export interface RoomState {
   status: "waiting" | "countdown" | "running" | "finished";
   durationMinutes: number;
   countdownDelayMinutes: number;
-  mode: "regular" | "open" | "goal" | "boss" | "kart";
+  mode: "regular" | "open" | "goal" | "boss" | "kart" | "gladiator";
   wordGoal: number | null;
   bossWordGoal: number | null;
   bossTotalWords: number | null;
   deathModeWpm: number | null;
+  gladiatorDeathGap: number | null;
   timeLeft: number | null;
   countdownTimeLeft: number | null;
   participants: Participant[];
+}
+
+export interface GladiatorResult {
+  outcome: "victory" | "defeat" | "draw";
+  myHp: number;
+  opponentHp: number;
+  myWordCount: number;
+  opponentWordCount: number;
+  stats: {
+    closestGap: number;
+    maxGap: number;
+    leadChanges: number;
+    timeInDangerMs: number;
+    endedByExecution: boolean;
+    totalHpHealed: Record<string, number>;
+  };
+}
+
+export interface GladiatorState {
+  myHp: number;
+  opponentHp: number;
+  myWordCount: number;
+  opponentWordCount: number;
+  gap: number;
+  iAhead: boolean;
+  deathGap: number;
+  myBuffs: string[];
+  opponentBuffs: string[];
+  executionResult: GladiatorResult | null;
 }
 
 export interface KartState {
@@ -59,6 +89,7 @@ const ROOM_STATE_DEFAULTS = {
   bossWordGoal: null,
   bossTotalWords: null,
   deathModeWpm: null,
+  gladiatorDeathGap: null,
 };
 
 // Exponential backoff: 500ms, 1s, 2s, 4s, 8s, capped at 10s
@@ -93,6 +124,19 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
   const boldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const starTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [gladiatorState, setGladiatorState] = useState<GladiatorState>({
+    myHp: 1000,
+    opponentHp: 1000,
+    myWordCount: 0,
+    opponentWordCount: 0,
+    gap: 0,
+    iAhead: false,
+    deathGap: 400,
+    myBuffs: [],
+    opponentBuffs: [],
+    executionResult: null,
+  });
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -295,6 +339,39 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
             break;
           }
 
+          case "gladiator_state": {
+            setGladiatorState((prev) => ({
+              ...prev,
+              myHp: (data.myHp as number) ?? prev.myHp,
+              opponentHp: (data.opponentHp as number) ?? prev.opponentHp,
+              myWordCount: (data.myWordCount as number) ?? prev.myWordCount,
+              opponentWordCount: (data.opponentWordCount as number) ?? prev.opponentWordCount,
+              gap: (data.gap as number) ?? prev.gap,
+              iAhead: (data.iAhead as boolean) ?? prev.iAhead,
+              deathGap: (data.deathGap as number) ?? prev.deathGap,
+              myBuffs: (data.myBuffs as string[]) ?? prev.myBuffs,
+              opponentBuffs: (data.opponentBuffs as string[]) ?? prev.opponentBuffs,
+            }));
+            break;
+          }
+
+          case "gladiator_execution": {
+            const result: GladiatorResult = {
+              outcome: data.outcome as "victory" | "defeat" | "draw",
+              myHp: data.myHp as number,
+              opponentHp: data.opponentHp as number,
+              myWordCount: data.myWordCount as number,
+              opponentWordCount: data.opponentWordCount as number,
+              stats: data.stats as GladiatorResult["stats"],
+            };
+            setGladiatorState((prev) => ({ ...prev, executionResult: result }));
+            break;
+          }
+
+          case "gladiator_buff":
+            // Individual buff events — already handled by gladiator_state state diffs
+            break;
+
           case "pong":
             break;
         }
@@ -413,5 +490,6 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
     endSprint,
     kartState,
     sendUseItem,
+    gladiatorState,
   };
 }

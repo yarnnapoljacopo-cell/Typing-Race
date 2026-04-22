@@ -86,6 +86,7 @@ export default function Portal() {
   const [goalWords, setGoalWords] = useState<string>("1000");
   const [bossGoalWords, setBossGoalWords] = useState<string>("5000");
   const [deathModeWpm, setDeathModeWpm] = useState<number | null>(null);
+  const [gladiatorDeathGap, setGladiatorDeathGap] = useState<number>(400);
   const [useRoomPassword, setUseRoomPassword] = useState(false);
   const [roomPassword, setRoomPassword] = useState("");
 
@@ -201,6 +202,7 @@ export default function Portal() {
         ...(deathModeWpm ? { deathModeWpm } : {}),
         ...(bossWordGoal ? { bossWordGoal } : {}),
         ...(pw ? { roomPassword: pw } : {}),
+        ...(roomMode === "gladiator" ? { gladiatorDeathGap } : {}),
       } as Parameters<typeof createRoomMutation.mutate>[0]["data"],
     });
   };
@@ -569,7 +571,57 @@ export default function Portal() {
                           <span className="text-xs font-semibold">Kart Mode</span>
                           <span className="text-[10px] text-center leading-tight opacity-70">Items &amp; chaos</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setRoomMode("gladiator")}
+                          className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
+                            roomMode === "gladiator"
+                              ? "border-red-600 bg-red-600/10 text-red-400"
+                              : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                          }`}
+                        >
+                          <span className="text-base leading-none">⚔️</span>
+                          <span className="text-xs font-semibold">Gladiator</span>
+                          <span className="text-[10px] text-center leading-tight opacity-70">1v1 HP combat</span>
+                        </button>
                       </div>
+
+                      {roomMode === "gladiator" && (
+                        <div className="mt-3 rounded-lg border border-red-600/30 bg-red-600/5 px-4 py-3 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">⚔️</span>
+                            <span className="text-sm font-medium text-foreground">Death Gap</span>
+                          </div>
+                          <p className="text-[11px] text-red-400/80 leading-relaxed">
+                            Both writers start with 1000 HP. Writing heals you. The word gap deals damage. First to fall loses instantly — or whoever has more HP when the timer ends.
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {([
+                              { gap: 200, label: "Brutal", desc: "200 words — fastest" },
+                              { gap: 400, label: "Aggressive", desc: "400 words" },
+                              { gap: 600, label: "Standard", desc: "600 words" },
+                              { gap: 800, label: "Epic", desc: "800 words — longest" },
+                            ] as const).map(({ gap, label, desc }) => (
+                              <button
+                                key={gap}
+                                type="button"
+                                onClick={() => setGladiatorDeathGap(gap)}
+                                className={`flex flex-col items-start rounded-lg border-2 px-3 py-2.5 text-left transition-all ${
+                                  gladiatorDeathGap === gap
+                                    ? "border-red-500 bg-red-500/15 text-red-300"
+                                    : "border-border text-muted-foreground hover:border-red-800/50"
+                                }`}
+                              >
+                                <span className="text-xs font-bold">{label}</span>
+                                <span className="text-[10px] opacity-60">{desc}</span>
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-[11px] text-white/30 text-center">
+                            ⚔️ Chosen death gap will be shown prominently before the sprint starts
+                          </p>
+                        </div>
+                      )}
 
                       {roomMode === "kart" && (
                         <div className="mt-3 rounded-lg border border-orange-500/30 bg-orange-500/5 px-4 py-3 space-y-1">

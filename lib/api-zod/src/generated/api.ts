@@ -21,7 +21,7 @@ export const HealthCheckResponse = zod.object({
 export const CreateRoomBody = zod.object({
   creatorName: zod.string(),
   durationMinutes: zod.number(),
-  mode: zod.enum(["regular", "open", "goal", "boss", "kart"]).default("regular"),
+  mode: zod.enum(["regular", "open", "goal", "boss", "kart", "gladiator"]).default("regular"),
 });
 
 /**

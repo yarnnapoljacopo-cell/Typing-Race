@@ -19,6 +19,13 @@ import {
 } from "./roomManager";
 import { getWriting } from "./writingStore";
 import { rollItem, rollMysteryItems, ITEM_EMOJIS } from "./kartItems";
+import {
+  initGladiatorParticipant,
+  processGladiatorUpdate,
+  broadcastGladiatorExecution,
+  broadcastGladiatorTimerEnd,
+  broadcastGladiatorState,
+} from "./gladiatorEngine";
 
 function countWords(text: string): number {
   return text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
@@ -86,6 +93,16 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         if (!room) {
           ws.send(JSON.stringify({ type: "error", message: "Room not found" }));
           return;
+        }
+
+        // ── Gladiator: max 2 fighters ─────────────────────────────────────────
+        if (room.mode === "gladiator") {
+          const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.name !== name);
+          if (fighters.length >= 2) {
+            ws.send(JSON.stringify({ type: "error", message: "The arena is full. Two gladiators have already entered.", code: "ARENA_FULL" }));
+            ws.close();
+            return;
+          }
         }
 
         // ── Password check ────────────────────────────────────────────────────
@@ -181,6 +198,15 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             kartItems: [],
             kartBonusWords: 0,
             kartNextItemAt: 250,
+            gladiatorHp: 1000,
+            gladiatorBuffs: [],
+            gladiatorFrenzyStartWc: restoredWordCount,
+            gladiatorFrenzyStartTime: Date.now(),
+            gladiatorAheadSince: null,
+            gladiatorMomentumSince: null,
+            gladiatorMomentumGapAtStart: null,
+            gladiatorWoundSince: null,
+            gladiatorWoundGapAtStart: null,
           };
           addParticipant(room, participant);
         }
@@ -215,6 +241,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
               bossWordGoal: room.bossWordGoal,
               bossTotalWords,
               deathModeWpm: room.deathModeWpm,
+              gladiatorDeathGap: room.gladiatorDeathGap,
               timeLeft:
                 room.status === "running" && room.endTime
                   ? Math.max(0, Math.floor((room.endTime - Date.now()) / 1000))
@@ -333,6 +360,21 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             });
             return false;
           });
+        }
+
+        // ── Gladiator mode: process combat ───────────────────────────────────
+        if (room.mode === "gladiator" && room.status === "running" && room.gladiatorMatchStats) {
+          // currentWc was captured before updateParticipantStats ran — use as prevWordCount
+          const result = processGladiatorUpdate(room, participant, netWordCount, currentWc);
+          if (result.executed && result.winnerId) {
+            const active = Array.from(room.participants.values()).filter((p) => !p.isSpectator);
+            const winner = active.find((p) => p.id === result.winnerId);
+            const loser = active.find((p) => p.id !== result.winnerId);
+            if (winner && loser) {
+              broadcastGladiatorExecution(room, winner, loser, room.gladiatorMatchStats);
+            }
+            endSprint(room);
+          }
         }
 
         return;

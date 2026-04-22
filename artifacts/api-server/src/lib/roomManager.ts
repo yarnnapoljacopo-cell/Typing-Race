@@ -3,6 +3,7 @@ import { logger } from "./logger";
 import { db, roomsTable, userProfilesTable, sprintWritingTable } from "@workspace/db";
 import { eq, gt, and, ne, sql } from "drizzle-orm";
 import { saveWriting } from "./writingStore";
+import { initGladiatorParticipant, broadcastGladiatorTimerEnd } from "./gladiatorEngine";
 
 export type RoomStatus = "waiting" | "countdown" | "running" | "finished";
 
@@ -22,9 +23,19 @@ export interface Participant {
   kartItems: string[];
   kartBonusWords: number;
   kartNextItemAt: number;
+  // Gladiator mode fields
+  gladiatorHp: number;
+  gladiatorBuffs: string[];
+  gladiatorFrenzyStartWc: number;
+  gladiatorFrenzyStartTime: number;
+  gladiatorAheadSince: number | null;
+  gladiatorMomentumSince: number | null;
+  gladiatorMomentumGapAtStart: number | null;
+  gladiatorWoundSince: number | null;
+  gladiatorWoundGapAtStart: number | null;
 }
 
-export type RoomMode = "regular" | "open" | "goal" | "boss" | "kart";
+export type RoomMode = "regular" | "open" | "goal" | "boss" | "kart" | "gladiator";
 
 export interface BananaTrap {
   id: string;
@@ -53,6 +64,18 @@ export interface Room {
   bananaTraps: BananaTrap[];
   goldenPenUsed: boolean;
   activeStars: Map<string, number>;
+  gladiatorDeathGap: number | null;
+  gladiatorMatchStats: GladiatorMatchStats | null;
+}
+
+export interface GladiatorMatchStats {
+  closestGap: number;
+  maxGap: number;
+  totalHpHealed: Record<string, number>;
+  leadChanges: number;
+  timeInDangerMs: number;
+  endedByExecution: boolean;
+  currentLeaderId: string | null;
 }
 
 const rooms = new Map<string, Room>();
@@ -143,6 +166,8 @@ export async function restoreRoomsFromDB(): Promise<void> {
         bananaTraps: [],
         goldenPenUsed: false,
         activeStars: new Map(),
+        gladiatorDeathGap: (row as Record<string, unknown>).gladiatorDeathGap as number | null ?? null,
+        gladiatorMatchStats: null,
       };
 
       if (row.status === "running") {
@@ -197,6 +222,8 @@ export async function restoreRoomsFromDB(): Promise<void> {
 
 // ── Room lifecycle ─────────────────────────────────────────────────────────
 
+const VALID_GLADIATOR_DEATH_GAPS = [200, 400, 600, 800] as const;
+
 export function createRoom(
   creatorName: string,
   durationMinutes: number,
@@ -205,7 +232,8 @@ export function createRoom(
   wordGoal: number | null = null,
   deathModeWpm: number | null = null,
   bossWordGoal: number | null = null,
-  passwordHash: string | null = null
+  passwordHash: string | null = null,
+  gladiatorDeathGap: number | null = null,
 ): Room {
   let code = generateRoomCode();
   while (rooms.has(code)) {
@@ -231,6 +259,8 @@ export function createRoom(
     bananaTraps: [],
     goldenPenUsed: false,
     activeStars: new Map(),
+    gladiatorDeathGap: mode === "gladiator" && gladiatorDeathGap && VALID_GLADIATOR_DEATH_GAPS.includes(gladiatorDeathGap as (typeof VALID_GLADIATOR_DEATH_GAPS)[number]) ? gladiatorDeathGap : (mode === "gladiator" ? 400 : null),
+    gladiatorMatchStats: null,
   };
 
   rooms.set(code, room);
@@ -338,6 +368,7 @@ export function broadcastRoomState(room: Room): void {
       bossWordGoal: room.bossWordGoal,
       bossTotalWords,
       deathModeWpm: room.deathModeWpm,
+      gladiatorDeathGap: room.gladiatorDeathGap,
       timeLeft,
       countdownTimeLeft,
       participants,
@@ -381,6 +412,22 @@ function _startRunning(room: Room): void {
   room.startTime = Date.now();
   room.endTime = room.startTime + room.durationMinutes * 60 * 1000;
   persistRoom(room);
+
+  // Initialize gladiator state for all current participants
+  if (room.mode === "gladiator") {
+    room.gladiatorMatchStats = {
+      closestGap: -1,
+      maxGap: 0,
+      totalHpHealed: {},
+      leadChanges: 0,
+      timeInDangerMs: 0,
+      endedByExecution: false,
+      currentLeaderId: null,
+    };
+    room.participants.forEach((p) => {
+      if (!p.isSpectator) initGladiatorParticipant(p);
+    });
+  }
 
   broadcastRoomState(room);
 
@@ -457,6 +504,14 @@ export function endSprint(room: Room): void {
   room.status = "finished";
   if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = null; }
   persistRoom(room);
+
+  // Gladiator timer end: broadcast HP-based outcome before the normal results
+  if (room.mode === "gladiator" && room.gladiatorMatchStats) {
+    const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator);
+    if (fighters.length === 2) {
+      broadcastGladiatorTimerEnd(room, fighters[0], fighters[1], room.gladiatorMatchStats);
+    }
+  }
 
   const participants = Array.from(room.participants.values())
     .filter((p) => !p.isSpectator)

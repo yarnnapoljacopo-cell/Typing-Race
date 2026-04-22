@@ -108,8 +108,10 @@ router.post("/rooms", async (req, res): Promise<void> => {
   const passwordHash = (typeof rawPassword === "string" && rawPassword.trim().length > 0)
     ? await bcrypt.hash(rawPassword.trim(), 10)
     : null;
+  const rawGladiatorGap = rawBody.gladiatorDeathGap;
+  const gladiatorDeathGap = typeof rawGladiatorGap === "number" ? rawGladiatorGap : null;
   const effectiveMode = bossWordGoal ? "boss" : (mode ?? "regular");
-  const room = createRoom(creatorName, durationMinutes, effectiveMode, countdownDelayMinutes, wordGoal, deathModeWpm, bossWordGoal, passwordHash);
+  const room = createRoom(creatorName, durationMinutes, effectiveMode, countdownDelayMinutes, wordGoal, deathModeWpm, bossWordGoal, passwordHash, gladiatorDeathGap);
 
   res.status(201).json({
     code: room.code,

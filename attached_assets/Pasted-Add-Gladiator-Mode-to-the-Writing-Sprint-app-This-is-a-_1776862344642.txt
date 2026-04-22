@@ -1,0 +1,80 @@
+Add Gladiator Mode to the Writing Sprint app. This is a new 1v1 room mode called "gladiator" where two writers fight by writing. Here's exactly how it works:
+Core mechanics:
+
+Two writers enter the arena. Both start with 1000 HP
+Writing heals you — every 10 words = +5 HP, capped at 1000
+The word gap between the two writers constantly deals damage to whoever is behind
+Gap damage scales with gap size:
+
+Word GapDamage Per Second0–25% of death gap0 HP/sec — safe25–50% of death gap1 HP/sec50–75% of death gap3 HP/sec75–99% of death gap6 HP/sec100% = death gapInstant death
+Death gap selection:
+When creating a Gladiator room, the creator must choose the death gap — the word difference that triggers instant execution:
+
+⚔️ 200 words — Brutal. Fastest and most unforgiving
+⚔️ 400 words — Aggressive. Punishes slow patches hard
+⚔️ 600 words — Standard. Balanced pressure throughout
+⚔️ 800 words — Epic. Long, grinding, dramatic comebacks possible
+
+The chosen death gap is displayed prominently in the room before the sprint starts so both writers know the stakes.
+Combat mechanics:
+
+Frenzy Heal — write 100 words in under 3 minutes, heal +50 HP instantly on top of regular healing
+Wound — if your opponent has been ahead for 5 consecutive minutes without you closing the gap at all, your healing rate drops 30% until you get within 25% of the death gap
+Last Stand — below 200 HP your healing rate doubles automatically
+Momentum — close the gap consistently for 2 minutes straight and gain 20% bonus healing until your opponent pulls away again
+
+Execution:
+
+When the gap hits the chosen death threshold, the losing writer's screen shows a dramatic execution screen — dark, minimal, just the words "You have fallen" and their final stats
+The sprint ends immediately, no waiting for the timer
+Winner's screen shows "Victory" with their HP remaining and words written
+
+If both survive the full sprint:
+
+Whoever has more HP wins
+If HP is within 50 points it's a Draw
+Final screen dramatically reveals both HP values before declaring the winner
+
+Crowd visual:
+
+A crowd silhouette bar sits at the bottom of the screen, like a stadium crowd
+The crowd is calm and still when the gap is in the safe zone
+As the gap grows the crowd starts visually reacting — silhouettes raise arms, sway, become more agitated
+When someone enters Last Stand the crowd erupts — arms up, chaotic movement, maximum energy
+When execution happens the crowd freezes dramatically for 2 seconds then erupts
+The crowd is purely visual, completely silent — no sound at all
+
+No split screen. Each writer only sees their own writing area, their own HP bar, the gap meter, and the crowd. They do not see their opponent's text.
+No announcer. No sound effects. No ambient noise. The experience is tense and silent except for the writer's own keyboard.
+UI elements visible during the sprint:
+
+Your HP bar at the top — thick, medieval style, draining in real time
+Gap meter in the corner — showing current gap vs death gap as a filling bar, turns red as it approaches the threshold
+Your word count and opponent's word count — numbers only, no text visible
+Any active debuffs (Wound) or buffs (Momentum, Last Stand) shown as small icons
+The crowd silhouette at the bottom reacting to the gap
+Death gap threshold always visible as a red marker on the gap meter
+
+Post match stats:
+
+Closest gap moment — tightest the race ever got
+Max gap reached — how close either writer came to execution
+Total HP healed through writing
+Number of times the lead changed hands
+Time spent in the danger zone
+Whether match ended by execution or timer
+
+Profile badges:
+
+"Executioner" — win 5 matches by hitting the death gap
+"Survivor" — come back from below 200 HP and win
+"Untouchable" — win without opponent ever getting within 25% of the death gap
+"Draw Master" — finish 3 matches as a Draw
+
+New WebSocket events needed:
+
+gladiator_state — broadcasts both writers' HP, word counts, current gap, and active buffs/debuffs every second
+gladiator_execution — fired when the death gap is reached, includes winner and loser IDs
+gladiator_buff — fired when Frenzy, Momentum, Last Stand, or Wound activates or deactivates
+
+Do not modify any existing modes. Gladiator mode is entirely additive. All existing behaviour stays exactly the same. Only two writers can be in a Gladiator room — if a third tries to join, show a message: "The arena is full. Two gladiators have already entered.

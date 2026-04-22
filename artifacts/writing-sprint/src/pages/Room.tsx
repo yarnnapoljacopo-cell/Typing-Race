@@ -4,6 +4,8 @@ import { useAuth } from "@clerk/react";
 import { useSprintRoom, type RoomState } from "@/hooks/useSprintRoom";
 import { RaceTrack } from "@/components/RaceTrack";
 import { KartHUD } from "@/components/KartHUD";
+import { GladiatorHUD } from "@/components/GladiatorHUD";
+import { GladiatorResults } from "@/components/GladiatorResults";
 import { BossTrack } from "@/components/BossTrack";
 import { Timer } from "@/components/Timer";
 import { ResultsScreen } from "@/components/ResultsScreen";
@@ -331,6 +333,7 @@ export default function Room() {
     endSprint,
     kartState,
     sendUseItem,
+    gladiatorState,
   } = useSprintRoom({ code, name, isCreator: isCreatorParams, password: roomPassword, clerkUserId: userId ?? null });
 
   useEffect(() => {
@@ -841,14 +844,15 @@ export default function Room() {
   if (error) {
     const isFinishedError = error.toLowerCase().includes("finished");
     const isRoomGone = error === "Room not found";
-    const canRejoin = !isFinishedError && !isRoomGone && code && name;
+    const isArenaFull = error.toLowerCase().includes("arena is full");
+    const canRejoin = !isFinishedError && !isRoomGone && !isArenaFull && code && name;
 
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <Alert variant="destructive" className="max-w-md">
+        <Alert variant="destructive" className={`max-w-md ${isArenaFull ? "border-red-700 bg-red-950/60 text-red-200" : ""}`}>
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>
-            {isFinishedError ? "Sprint Ended" : isRoomGone ? "Room No Longer Available" : "Connection Error"}
+            {isFinishedError ? "Sprint Ended" : isRoomGone ? "Room No Longer Available" : isArenaFull ? "⚔️ The Arena Is Full" : "Connection Error"}
           </AlertTitle>
           <AlertDescription className="space-y-4 mt-2">
             <p>
@@ -856,6 +860,8 @@ export default function Room() {
                 ? "This sprint has already finished. Your writing is safely saved."
                 : isRoomGone
                 ? "This room has expired or been closed. Rooms only last while the session is active — once everyone leaves or the server restarts, the room is gone. Your writing was saved and you can download it from home."
+                : isArenaFull
+                ? "Two gladiators have already entered this arena. Gladiator Mode is strictly 1v1 — only two fighters may compete at a time. Create your own arena from the home screen."
                 : error}
             </p>
             <div className="flex flex-col gap-2">
@@ -952,6 +958,11 @@ export default function Room() {
       : "min-h-screen w-full max-w-5xl mx-auto flex flex-col p-4 md:p-6 gap-4"
     }>
 
+      {/* Gladiator execution / victory / draw overlay */}
+      {room?.mode === "gladiator" && gladiatorState.executionResult && (
+        <GladiatorResults result={gladiatorState.executionResult} participantId={participantId} />
+      )}
+
       {/* Reconnecting banner */}
       {(!isConnected || isReconnecting) && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2 text-sm font-medium">
@@ -1042,7 +1053,33 @@ export default function Room() {
           {/* Race / boss track — hidden in distraction-free mode */}
           {!distractionFree && (
             <>
-              {room.mode === "boss" && room.bossWordGoal ? (
+              {room.mode === "gladiator" ? (
+                <>
+                  {/* Gladiator: show death gap prominently before sprint starts */}
+                  {(isWaiting || isCountdown) && room.gladiatorDeathGap && (
+                    <div
+                      className="rounded-xl border-2 border-red-700/50 px-5 py-4 text-center space-y-1"
+                      style={{ background: "rgba(127,29,29,0.18)" }}
+                    >
+                      <div className="text-2xl">⚔️</div>
+                      <div className="text-sm font-bold text-red-300">
+                        Death Gap: <span className="text-red-200 text-base">{room.gladiatorDeathGap} words</span>
+                      </div>
+                      <p className="text-[11px] text-red-400/70">
+                        Reach {room.gladiatorDeathGap} words ahead of your opponent and they fall instantly.
+                        Writing heals HP — the gap deals damage. Two enter, one leaves.
+                      </p>
+                    </div>
+                  )}
+                  {/* Gladiator HUD during sprint */}
+                  {isRunning && room.gladiatorDeathGap && (
+                    <GladiatorHUD
+                      state={gladiatorState}
+                      deathGap={room.gladiatorDeathGap}
+                    />
+                  )}
+                </>
+              ) : room.mode === "boss" && room.bossWordGoal ? (
                 <BossTrack
                   participants={room.participants}
                   currentParticipantId={participantId}
