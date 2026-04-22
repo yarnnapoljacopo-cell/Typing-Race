@@ -184,7 +184,7 @@ export function KartHUD({
           </div>
 
           {/* Item list */}
-          <div className="px-3 pb-3 pt-2 grid grid-cols-1 gap-1">
+          <div className="px-3 pb-3 pt-2 grid grid-cols-1 gap-1 overflow-y-auto" style={{ maxHeight: "260px" }}>
             {ITEM_KEYS.map((key) => {
               const def = ITEMS[key];
               return (
