@@ -136,7 +136,7 @@ export default function Room() {
   const [, setLocation] = useLocation();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, userId } = useAuth();
 
   const code = searchParams.get("code") || "";
   const name = searchParams.get("name") || "";
@@ -328,7 +328,7 @@ export default function Room() {
     startSprint,
     restartSprint,
     endSprint,
-  } = useSprintRoom({ code, name, isCreator: isCreatorParams, password: roomPassword });
+  } = useSprintRoom({ code, name, isCreator: isCreatorParams, password: roomPassword, clerkUserId: userId ?? null });
 
   useEffect(() => {
     if (!code || !name) setLocation("/");
@@ -739,7 +739,7 @@ export default function Room() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ wordCount: myWc, isFirstPlace }),
+      body: JSON.stringify({ wordCount: myWc, isFirstPlace, roomCode: code }),
     })
       .then((r) => r.json())
       .then((data: { xpGained?: number }) => {

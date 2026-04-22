@@ -74,9 +74,11 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         // If someone disconnects and quickly reconnects, they may still appear
         // in the room. Transfer their word count, text, AND id to the new
         // connection so client-side lane maps stay stable across reconnects.
+        const incomingClerkUserId = (message.clerkUserId as string | null | undefined) ?? null;
         let inheritedWordCount = 0;
         let inheritedText = "";
         let inheritedIsCreator = false;
+        let inheritedClerkUserId: string | null = null;
         let inheritedId: string | null = null;
         for (const [existingId, existingP] of room.participants) {
           if (existingP.name === name) {
@@ -88,10 +90,12 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             inheritedWordCount = existingP.wordCount;
             inheritedText = existingP.latestText;
             inheritedIsCreator = existingP.isCreator;
+            inheritedClerkUserId = existingP.clerkUserId;
             inheritedId = existingId;
             break;
           }
         }
+        const resolvedClerkUserId = incomingClerkUserId ?? inheritedClerkUserId;
 
         // ── Restore word count from DB if higher than in-memory value ────────
         const saved = await getWriting(code, name);
@@ -127,6 +131,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             isCreator,
             isSpectator,
             name,
+            resolvedClerkUserId,
           );
         } else {
           participant = {
@@ -140,6 +145,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             isCreator,
             isSpectator,
             latestText: restoredText,
+            clerkUserId: resolvedClerkUserId,
           };
           addParticipant(room, participant);
         }

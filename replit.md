@@ -35,10 +35,12 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Room modes: regular, open (no time limit), goal (word target), boss battle (collective HP boss)
 - Death Mode: typing speed floor — fall below WPM threshold and the sprint ends for you
 - Focus Mode: hides all UI chrome for distraction-free writing
-- XP/Levels system: 7 ranks (Blank Page → Eternal Quill), 1 XP per 5 words, 2× for 1st place
+- XP/Levels system: 8 ranks (Blank Page → Ranker 👑), 1 XP per 5 words, 2× for 1st place; XP decay after 5-day idle
 - Writer profiles at `/profile/:name` with rank badge, XP bar, and rank progression
 - My Files page: saved sprint writing capsules per user
 - Clerk auth + guest mode; XP only awarded to signed-in users
+- Global Ranking leaderboard (`/global-ranking`): locked to Ranker-tier users (200k+ XP)
+- **Data persistence**: server finalizes all writing + awards XP at `endSprint` (`finalizeSprintData`); `xpAwarded` flag on `sprint_writing` prevents double-award between server and client paths
 
 ### API Server (`artifacts/api-server`)
 - Express 5 server at `/api` and `/ws`

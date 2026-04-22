@@ -1,7 +1,8 @@
 import { WebSocket } from "ws";
 import { logger } from "./logger";
-import { db, roomsTable } from "@workspace/db";
-import { eq, gt, and, ne } from "drizzle-orm";
+import { db, roomsTable, userProfilesTable, sprintWritingTable } from "@workspace/db";
+import { eq, gt, and, ne, sql } from "drizzle-orm";
+import { saveWriting } from "./writingStore";
 
 export type RoomStatus = "waiting" | "countdown" | "running" | "finished";
 
@@ -16,6 +17,7 @@ export interface Participant {
   isCreator: boolean;
   isSpectator: boolean;
   latestText: string;
+  clerkUserId: string | null;
   disconnectTimer?: ReturnType<typeof setTimeout>;
 }
 
@@ -377,6 +379,59 @@ function _startRunning(room: Room): void {
 
 const POST_SPRINT_CLOSE_MS = 10 * 60 * 1000; // 10 minutes
 
+/**
+ * Idempotently award XP for a sprint and persist writing.
+ * Safe to call multiple times — the xpAwarded flag prevents double-award.
+ */
+async function finalizeSprintData(room: Room): Promise<void> {
+  const allParticipants = Array.from(room.participants.values()).filter((p) => !p.isSpectator);
+  if (allParticipants.length === 0) return;
+
+  const sorted = [...allParticipants].sort((a, b) => b.wordCount - a.wordCount);
+  const firstPlaceId = sorted[0]?.id;
+
+  await Promise.all(allParticipants.map(async (p) => {
+    // Always flush the server's in-memory copy to the DB so no text is lost
+    if (p.latestText || p.wordCount > 0) {
+      await saveWriting(room.code, p.name, p.latestText, p.wordCount, p.clerkUserId, room.mode, room.wordGoal);
+    }
+
+    // Award XP for signed-in users with non-zero words
+    if (!p.clerkUserId || p.wordCount <= 0) return;
+
+    // Check idempotency flag — if client already awarded XP, skip
+    const rows = await db
+      .select({ xpAwarded: sprintWritingTable.xpAwarded })
+      .from(sprintWritingTable)
+      .where(and(
+        eq(sprintWritingTable.roomCode, room.code),
+        eq(sprintWritingTable.participantName, p.name),
+      ))
+      .limit(1);
+
+    if (rows[0]?.xpAwarded) return;
+
+    const isFirstPlace = p.id === firstPlaceId;
+    const xpGained = isFirstPlace
+      ? Math.max(5, Math.ceil(p.wordCount / 5)) * 2
+      : Math.max(5, Math.ceil(p.wordCount / 5));
+
+    const now = new Date();
+    await db
+      .update(userProfilesTable)
+      .set({ xp: sql`${userProfilesTable.xp} + ${xpGained}`, lastSprintAt: now, decayCheckedAt: now, updatedAt: now })
+      .where(eq(userProfilesTable.clerkUserId, p.clerkUserId));
+
+    await db
+      .update(sprintWritingTable)
+      .set({ xpAwarded: true })
+      .where(and(
+        eq(sprintWritingTable.roomCode, room.code),
+        eq(sprintWritingTable.participantName, p.name),
+      ));
+  }));
+}
+
 export function endSprint(room: Room): void {
   if (room.status === "finished") return;
 
@@ -396,6 +451,12 @@ export function endSprint(room: Room): void {
     .sort((a, b) => b.wordCount - a.wordCount);
 
   broadcastToRoom(room, { type: "sprint_ended", results: participants });
+
+  // Persist writing and award XP server-side so data is never lost even if
+  // a client disconnects before reaching the results screen.
+  finalizeSprintData(room).catch((err) =>
+    logger.error({ err, code: room.code }, "Failed to finalize sprint data"),
+  );
 
   if (room.closeTimer) clearTimeout(room.closeTimer);
   room.closeTimer = setTimeout(() => {
@@ -436,6 +497,7 @@ export function reconnectParticipant(
   isCreator: boolean,
   isSpectator: boolean,
   name: string,
+  clerkUserId: string | null = null,
 ): Participant {
   const existing = room.participants.get(existingId);
 
@@ -453,6 +515,7 @@ export function reconnectParticipant(
       isCreator,
       isSpectator,
       latestText: text,
+      clerkUserId,
     };
     room.participants.set(existingId, participant);
     broadcastRoomState(room);
@@ -475,6 +538,8 @@ export function reconnectParticipant(
   existing.isCreator = isCreator;
   existing.isSpectator = isSpectator;
   existing.latestText = text;
+  // Prefer the freshly-supplied clerkUserId; fall back to whatever was stored.
+  existing.clerkUserId = clerkUserId ?? existing.clerkUserId;
 
   broadcastRoomState(room);
   return existing;
