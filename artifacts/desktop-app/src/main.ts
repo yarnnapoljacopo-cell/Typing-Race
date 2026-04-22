@@ -74,8 +74,14 @@ function checkOnline(url: string): Promise<boolean> {
     const parsed = new URL(url);
     const mod = parsed.protocol === "https:" ? https : http;
     const req = mod.request(
-      { hostname: parsed.hostname, port: parsed.port || (parsed.protocol === "https:" ? 443 : 80), path: "/", method: "HEAD", timeout: 4000 },
-      () => resolve(true),
+      {
+        hostname: parsed.hostname,
+        port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
+        path: parsed.pathname || "/",
+        method: "HEAD",
+        timeout: 4000,
+      },
+      (res) => resolve(res.statusCode !== undefined && res.statusCode < 400),
     );
     req.on("error", () => resolve(false));
     req.on("timeout", () => { req.destroy(); resolve(false); });
