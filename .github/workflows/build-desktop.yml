@@ -117,7 +117,7 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Publish draft release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: Writing Sprint ${{ github.ref_name }}
           body: |
