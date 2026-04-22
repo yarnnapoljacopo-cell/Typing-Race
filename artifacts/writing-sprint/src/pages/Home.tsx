@@ -1,10 +1,116 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SignInButton, SignUpButton } from "@clerk/react";
-import { PenTool, Feather, ArrowRight, Zap, Users, BookOpen, UserRound, WifiOff } from "lucide-react";
+import { PenTool, Feather, ArrowRight, Zap, Users, BookOpen, UserRound, WifiOff, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useGuest } from "@/lib/guestContext";
 import { useLocation } from "wouter";
+
+const RELEASES_URL = "https://api.github.com/repos/yarnnapoljacopo-cell/Typing-Race/releases/latest";
+const RELEASES_PAGE = "https://github.com/yarnnapoljacopo-cell/Typing-Race/releases/latest";
+
+function AppleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+    </svg>
+  );
+}
+
+function WindowsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3 12V6.75l6-1.32v6.57H3zm17 0V5l-9 1.68V12h9zm0 .75V19l-9-1.68V12.75h9zm-17 0V17.25l6 1.32v-5.82H3z" />
+    </svg>
+  );
+}
+
+type DownloadLinks = { mac: string | null; win: string | null; version: string | null };
+
+function DownloadSection() {
+  const [links, setLinks] = useState<DownloadLinks>({ mac: null, win: null, version: null });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(RELEASES_URL)
+      .then((r) => r.json())
+      .then((release) => {
+        const assets: { name: string; browser_download_url: string }[] = release.assets ?? [];
+        const mac = assets.find((a) => a.name.endsWith(".dmg"))?.browser_download_url ?? null;
+        const win = assets.find((a) => a.name.endsWith(".exe"))?.browser_download_url ?? null;
+        setLinks({ mac, win, version: release.tag_name ?? null });
+      })
+      .catch(() => setLinks({ mac: null, win: null, version: null }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleDownload = (url: string | null) => {
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      window.open(RELEASES_PAGE, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Desktop App</p>
+      <div className="grid grid-cols-2 gap-3">
+        {/* Mac */}
+        <button
+          type="button"
+          onClick={() => handleDownload(links.mac)}
+          disabled={loading}
+          className="flex flex-col items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-5 hover:border-primary/40 hover:bg-primary/5 transition-all group disabled:opacity-50 disabled:cursor-wait"
+        >
+          <AppleIcon className="w-8 h-8 text-foreground group-hover:text-primary transition-colors" />
+          <div className="text-center">
+            <div className="text-sm font-semibold text-foreground">macOS</div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {loading ? (
+                <span className="inline-flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Loading…</span>
+              ) : links.version ? (
+                <span>.dmg · {links.version}</span>
+              ) : (
+                <span>View releases</span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-xs text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+            <Download className="w-3 h-3" />
+            Download
+          </div>
+        </button>
+
+        {/* Windows */}
+        <button
+          type="button"
+          onClick={() => handleDownload(links.win)}
+          disabled={loading}
+          className="flex flex-col items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-5 hover:border-primary/40 hover:bg-primary/5 transition-all group disabled:opacity-50 disabled:cursor-wait"
+        >
+          <WindowsIcon className="w-8 h-8 text-foreground group-hover:text-primary transition-colors" />
+          <div className="text-center">
+            <div className="text-sm font-semibold text-foreground">Windows</div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {loading ? (
+                <span className="inline-flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Loading…</span>
+              ) : links.version ? (
+                <span>.exe · {links.version}</span>
+              ) : (
+                <span>View releases</span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-xs text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+            <Download className="w-3 h-3" />
+            Download
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -71,6 +177,8 @@ export default function Home() {
             <p className="text-xs text-muted-foreground leading-snug">All your sprints saved to your account</p>
           </div>
         </div>
+
+        <DownloadSection />
 
         <div className="space-y-3">
           <SignUpButton mode="modal">
