@@ -144,9 +144,18 @@ jobs:
           > **First time on Linux?** `chmod +x Writing-Sprint-*.AppImage && ./Writing-Sprint-*.AppImage`
           NOTES_EOF
 
-          gh release edit "$TAG" \
-            --repo "${{ github.repository }}" \
-            --title "Writing Sprint $TAG" \
-            --notes-file /tmp/notes.md \
-            --draft=false \
-            $PRERELEASE
+          # Create release if it doesn't exist yet; edit it if electron-builder already made a draft
+          if gh release view "$TAG" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --repo "${{ github.repository }}" \
+              --title "Writing Sprint $TAG" \
+              --notes-file /tmp/notes.md \
+              --draft=false \
+              $PRERELEASE
+          else
+            gh release create "$TAG" \
+              --repo "${{ github.repository }}" \
+              --title "Writing Sprint $TAG" \
+              --notes-file /tmp/notes.md \
+              $PRERELEASE
+          fi
