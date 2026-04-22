@@ -117,30 +117,36 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Publish draft release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Writing Sprint ${{ github.ref_name }}
-          body: |
-            ## What's Changed
-
-            ${{ steps.changelog.outputs.CHANGELOG }}
-
-            ---
-
-            ## Downloads
-
-            | Platform | File | Auto-updates |
-            |----------|------|-------------|
-            | Windows  | `.exe` — NSIS installer | ✅ Built in |
-            | macOS    | `.dmg` — drag to Applications | Manual |
-            | Linux    | `.AppImage` — `chmod +x` then run | ✅ Built in |
-
-            > **Windows & Linux:** The app checks for updates automatically on launch and prompts you to restart when one is ready.
-            >
-            > **First time on Linux?** `chmod +x Writing-Sprint-*.AppImage && ./Writing-Sprint-*.AppImage`
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          allow_updates: true
-          generate_release_notes: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          PRERELEASE=""
+          if echo "$TAG" | grep -q '-'; then PRERELEASE="--prerelease"; fi
+
+          cat > /tmp/notes.md << 'NOTES_EOF'
+          ## What's Changed
+
+          ${{ steps.changelog.outputs.CHANGELOG }}
+
+          ---
+
+          ## Downloads
+
+          | Platform | File | Auto-updates |
+          |----------|------|-------------|
+          | Windows  | `.exe` — NSIS installer | ✅ Built in |
+          | macOS    | `.dmg` — drag to Applications | Manual |
+          | Linux    | `.AppImage` — `chmod +x` then run | ✅ Built in |
+
+          > **Windows & Linux:** The app checks for updates automatically on launch and prompts you to restart when one is ready.
+          >
+          > **First time on Linux?** `chmod +x Writing-Sprint-*.AppImage && ./Writing-Sprint-*.AppImage`
+          NOTES_EOF
+
+          gh release edit "$TAG" \
+            --repo "${{ github.repository }}" \
+            --title "Writing Sprint $TAG" \
+            --notes-file /tmp/notes.md \
+            --draft=false \
+            $PRERELEASE
