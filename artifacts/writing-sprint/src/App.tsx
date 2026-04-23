@@ -327,9 +327,15 @@ function ClerkProviderWithRoutes() {
 // Detect domain mismatch before rendering Clerk — async Clerk errors aren't
 // catchable by error boundaries, so we prevent rendering Clerk entirely when
 // we know it will fail.
+// In dev mode (Replit preview, localhost) we always let the app through so
+// developers can use the preview pane normally.
 const expectedHosts = ["app.writingsprint.site", "writingsprint.site"];
+const replitHosts = ["repl.co", "replit.dev", "replit.app", "repl.it", "id.repl.co"];
 const onExpectedDomain =
+  import.meta.env.DEV ||
   !clerkProxyUrl ||
+  window.location.hostname === "localhost" ||
+  replitHosts.some((h) => window.location.hostname.endsWith(`.${h}`)) ||
   expectedHosts.some(
     (h) =>
       window.location.hostname === h ||
