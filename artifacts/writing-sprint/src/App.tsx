@@ -88,13 +88,21 @@ class ClerkErrorBoundary extends Component<
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-// Only use the proxy URL if it's a fully-qualified URL — an empty or
-// partial value causes Clerk to build a broken script URL like https:///npm/...
+// The proxy URL must be a fully-qualified https URL.
+// VITE_CLERK_PROXY_URL may not be baked into the static bundle if the secret
+// was not available at build time, so we fall back to the hardcoded production
+// URL. Only used when the key is a production key (pk_live_).
+const PROD_PROXY_URL = "https://app.writingsprint.site/api/__clerk";
 const rawProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
-const clerkProxyUrl =
-  rawProxyUrl && rawProxyUrl.startsWith("https://") && rawProxyUrl.length > 10
-    ? rawProxyUrl
-    : undefined;
+const clerkProxyUrl = (() => {
+  const candidate =
+    rawProxyUrl && rawProxyUrl.startsWith("https://") && rawProxyUrl.length > 10
+      ? rawProxyUrl
+      : clerkPubKey?.startsWith("pk_live_")
+      ? PROD_PROXY_URL
+      : undefined;
+  return candidate;
+})();
 
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
