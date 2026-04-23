@@ -21,6 +21,9 @@
 
 import { createProxyMiddleware } from "http-proxy-middleware";
 import type { RequestHandler } from "express";
+import { logger as _logger } from "../lib/logger";
+
+const log = _logger.child({ module: "clerk-proxy" });
 
 const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
@@ -65,6 +68,24 @@ export function clerkProxyMiddleware(): RequestHandler {
           "";
         if (clientIp) {
           proxyReq.setHeader("X-Forwarded-For", clientIp);
+        }
+      },
+      proxyRes: (proxyRes, req, res) => {
+        // Log all redirect Location headers so we can debug OAuth callback flow
+        const location = proxyRes.headers["location"];
+        if (location && proxyRes.statusCode && proxyRes.statusCode >= 300 && proxyRes.statusCode < 400) {
+          log.info({ method: req.method, url: req.url, status: proxyRes.statusCode, location }, "clerk-proxy redirect");
+
+          // If Clerk redirects back to the FAPI domain, rewrite it to stay on
+          // the proxy path so the browser never talks to frontend-api.clerk.dev directly
+          if (typeof location === "string" && location.includes("frontend-api.clerk.dev")) {
+            const rewritten = location.replace(
+              /https:\/\/frontend-api\.clerk\.dev/,
+              `https://${req.headers.host}${CLERK_PROXY_PATH}`
+            );
+            log.info({ original: location, rewritten }, "clerk-proxy location rewritten");
+            proxyRes.headers["location"] = rewritten;
+          }
         }
       },
     },
