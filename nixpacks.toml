@@ -1,5 +1,5 @@
 [phases.setup]
-cmds = ["npm install -g pnpm@10.26.1"]
+cmds = ["corepack enable", "corepack prepare pnpm@10.26.1 --activate"]
 
 [phases.install]
 cmds = ["echo 'install handled in build phase'"]
