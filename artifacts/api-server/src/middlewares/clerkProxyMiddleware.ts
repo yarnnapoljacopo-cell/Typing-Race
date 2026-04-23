@@ -70,14 +70,22 @@ export function clerkProxyMiddleware(): RequestHandler {
           proxyReq.setHeader("X-Forwarded-For", clientIp);
         }
       },
-      proxyRes: (proxyRes, req, res) => {
-        // Log all redirect Location headers so we can debug OAuth callback flow
+      proxyRes: (proxyRes, req, _res) => {
+        const isOAuthCallback = req.url?.includes("/oauth_callback");
         const location = proxyRes.headers["location"];
-        if (location && proxyRes.statusCode && proxyRes.statusCode >= 300 && proxyRes.statusCode < 400) {
-          log.info({ method: req.method, url: req.url, status: proxyRes.statusCode, location }, "clerk-proxy redirect");
 
-          // If Clerk redirects back to the FAPI domain, rewrite it to stay on
-          // the proxy path so the browser never talks to frontend-api.clerk.dev directly
+        // Log redirects
+        if (location && proxyRes.statusCode && proxyRes.statusCode >= 300 && proxyRes.statusCode < 400) {
+          const setCookieRaw = proxyRes.headers["set-cookie"];
+          const cookieNames = Array.isArray(setCookieRaw)
+            ? setCookieRaw.map((c) => c.split("=")[0])
+            : setCookieRaw ? [setCookieRaw.split("=")[0]] : [];
+          log.info(
+            { method: req.method, url: req.url, status: proxyRes.statusCode, location, cookieNames },
+            "clerk-proxy redirect"
+          );
+
+          // Rewrite Location if it points back to the raw FAPI domain
           if (typeof location === "string" && location.includes("frontend-api.clerk.dev")) {
             const rewritten = location.replace(
               /https:\/\/frontend-api\.clerk\.dev/,
@@ -86,6 +94,15 @@ export function clerkProxyMiddleware(): RequestHandler {
             log.info({ original: location, rewritten }, "clerk-proxy location rewritten");
             proxyRes.headers["location"] = rewritten;
           }
+        }
+
+        // Extra logging for oauth_callback so we can see all Set-Cookie headers
+        if (isOAuthCallback) {
+          const setCookieRaw = proxyRes.headers["set-cookie"];
+          log.info(
+            { status: proxyRes.statusCode, location, setCookie: setCookieRaw },
+            "clerk-proxy oauth_callback response"
+          );
         }
       },
     },
