@@ -36,8 +36,6 @@ const CLERK_FAPI =
 
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
-const CLERK_SESSION_COOKIES = ["__client", "__session", "__client_uat"];
-
 // Strip any Domain= attribute so the cookie becomes host-only for app.writingsprint.site.
 // Host-only cookies from the same host always overwrite each other (same name + path).
 function stripDomain(cookie: string): string {
@@ -190,48 +188,9 @@ export function clerkProxyMiddleware(): RequestHandler {
           );
 
           if (proxyRes.statusCode === 303) {
-            // Inject expiry Set-Cookie headers to clear any Clerk session cookies
-            // stored under older domain scopes. We send clearing cookies for every
-            // combination of (domain, SameSite) because Chrome tracks cookies with
-            // different SameSite attributes as separate slots — a SameSite=Lax
-            // clearing cookie will NOT evict a SameSite=None cookie of the same name.
-            const domains = [
-              "",                          // host-only (no Domain attr)
-              "; Domain=writingsprint.site",
-              "; Domain=app.writingsprint.site",
-              "; Domain=typingrace.autos",
-            ];
-            const sameSites = [
-              "; SameSite=Lax",
-              "; SameSite=None",
-              "; SameSite=Strict",
-              "",                          // no SameSite attr
-            ];
-
-            const clearingCookies: string[] = [];
-            for (const name of CLERK_SESSION_COOKIES) {
-              for (const domain of domains) {
-                for (const ss of sameSites) {
-                  clearingCookies.push(
-                    `${name}=; Max-Age=0; Path=/${domain}; Secure${ss}`
-                  );
-                }
-              }
-            }
-
-            const existing = Array.isArray(proxyRes.headers["set-cookie"])
-              ? proxyRes.headers["set-cookie"]
-              : proxyRes.headers["set-cookie"]
-              ? [proxyRes.headers["set-cookie"]]
-              : [];
-
-            // Clearing cookies first, then real cookies (browser processes in order)
-            proxyRes.headers["set-cookie"] = [...clearingCookies, ...existing];
-            log.info({ count: clearingCookies.length }, "clerk-proxy injected stale-cookie clearing headers");
-
             // Redirect to /portal instead of / so the user lands on a page that
-            // Clerk JS initialises on. GET /v1/client picks up the fresh session
-            // from the __client cookie and isSignedIn becomes true immediately.
+            // Clerk JS re-initialises on. GET /v1/client picks up the fresh
+            // __client cookie and __client_uat and sets isSignedIn = true.
             if (typeof location === "string") {
               try {
                 const url = new URL(location);
