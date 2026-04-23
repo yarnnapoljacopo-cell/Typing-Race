@@ -1,6 +1,5 @@
 [build]
 builder = "NIXPACKS"
-packageManager = "pnpm"
 buildCommand = "pnpm --filter @workspace/writing-sprint run build"
 
 [deploy]
