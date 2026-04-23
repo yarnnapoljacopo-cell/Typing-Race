@@ -1,0 +1,10 @@
+[build]
+builder = "NIXPACKS"
+# NODE_ENV=development ensures devDependencies (tsx) are installed
+# The Discord bot runs TypeScript directly via tsx — no compile step needed
+buildCommand = "npm install -g pnpm@10.26.1 && NODE_ENV=development pnpm install --frozen-lockfile"
+
+[deploy]
+startCommand = "pnpm --filter @workspace/discord-bot run start"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5

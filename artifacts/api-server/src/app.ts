@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import path from "path";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
@@ -8,7 +9,8 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
-// Trust Replit's reverse proxy so Express sees the correct protocol/IP
+// Trust reverse proxy headers (Replit, Railway, Cloudflare, etc.)
+// so Express sees the correct client IP and protocol.
 app.set("trust proxy", true);
 
 app.use(
@@ -60,5 +62,20 @@ const resolvedPublishableKey =
 app.use(clerkMiddleware({ publishableKey: resolvedPublishableKey, jwtKey: CLERK_JWT_KEY }));
 
 app.use("/api", router);
+
+// ── Production: serve the built React frontend ────────────────────────────
+// When NODE_ENV=production the Vite-built static files live at
+//   artifacts/writing-sprint/dist/public/
+// relative to the project root.  The API server dist is at
+//   artifacts/api-server/dist/
+// so __dirname resolves the path correctly at runtime.
+if (process.env.NODE_ENV === "production") {
+  const frontendDist = path.resolve(__dirname, "../../writing-sprint/dist/public");
+  app.use(express.static(frontendDist));
+  // SPA fallback — serve index.html for any non-API, non-WS route
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
 
 export default app;

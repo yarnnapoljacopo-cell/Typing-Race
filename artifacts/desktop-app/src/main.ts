@@ -21,7 +21,7 @@ const CONFIG_FILE = path.join(CONFIG_DIR, "settings.json");
 const SPRINTS_FILE = path.join(CONFIG_DIR, "offline-sprints.json");
 
 const DEFAULT_SETTINGS = {
-  serverUrl: "https://typing-race--yarnnapoljacopo.replit.app/",
+  serverUrl: "https://app.writingsprint.site/",
   theme: "system",
 };
 
