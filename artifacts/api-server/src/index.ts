@@ -18,7 +18,16 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-console.log("[startup-debug] NODE_ENV:", process.env.NODE_ENV, "| CLERK_SECRET_KEY set:", !!process.env.CLERK_SECRET_KEY, "| CLERK_PUBLISHABLE_KEY set:", !!process.env.CLERK_PUBLISHABLE_KEY, "| CLERK_PROXY_URL:", process.env.CLERK_PROXY_URL ?? "(not set)");
+function decodeFapiFromKey(pk: string): string {
+  try {
+    const b64 = pk.replace(/^pk_(live|test)_/, "");
+    const host = Buffer.from(b64, "base64").toString().replace(/\$$/, "").trim();
+    if (host && host.includes(".")) return `https://${host}`;
+  } catch { /* ignore */ }
+  return "https://frontend-api.clerk.dev";
+}
+const _pubKey = process.env.CLERK_PUBLISHABLE_KEY ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? "";
+console.log("[startup-debug] NODE_ENV:", process.env.NODE_ENV, "| CLERK_SECRET_KEY set:", !!process.env.CLERK_SECRET_KEY, "| CLERK_PUBLISHABLE_KEY set:", !!_pubKey, "| resolved FAPI:", decodeFapiFromKey(_pubKey), "| CLERK_PROXY_URL:", process.env.CLERK_PROXY_URL ?? "(not set)");
 
 const server = createServer(app);
 setupWebSocketServer(server);

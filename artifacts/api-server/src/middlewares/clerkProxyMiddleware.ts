@@ -12,7 +12,24 @@ import { logger as _logger } from "../lib/logger";
 
 const log = _logger.child({ module: "clerk-proxy" });
 
-const CLERK_FAPI = "https://frontend-api.clerk.dev";
+/**
+ * Derive the correct FAPI base URL from the publishable key.
+ * Clerk publishable keys are "pk_live_<base64(fapiHost + '$')>" or "pk_test_...".
+ * If we can't decode it we fall back to the generic frontend-api.clerk.dev.
+ */
+function fapiFromPublishableKey(pk: string): string {
+  try {
+    const b64 = pk.replace(/^pk_(live|test)_/, "");
+    const host = Buffer.from(b64, "base64").toString().replace(/\$$/, "").trim();
+    if (host && host.includes(".")) return `https://${host}`;
+  } catch { /* ignore */ }
+  return "https://frontend-api.clerk.dev";
+}
+
+const CLERK_FAPI = fapiFromPublishableKey(
+  process.env.CLERK_PUBLISHABLE_KEY ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? ""
+);
+
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
 const CLERK_SESSION_COOKIES = ["__client", "__session", "__client_uat"];
