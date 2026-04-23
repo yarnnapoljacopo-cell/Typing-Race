@@ -1,8 +1,0 @@
-[build]
-builder = "NIXPACKS"
-buildCommand = "pnpm --filter @workspace/mockup-sandbox build"
-
-[deploy]
-startCommand = "pnpm --filter @workspace/mockup-sandbox dev"
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3
