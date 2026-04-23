@@ -1,0 +1,8 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "pnpm --filter @workspace/writing-sprint run build"
+
+[deploy]
+startCommand = "NODE_ENV=production node --enable-source-maps artifacts/writing-sprint/dist/index.mjs"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
