@@ -1,4 +1,4 @@
-import { useEffect, useRef, Component } from "react";
+import { useEffect, useRef, useState, Component } from "react";
 import type { ReactNode } from "react";
 import { ClerkProvider, SignIn, SignUp, useClerk, useAuth } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
@@ -234,15 +234,84 @@ function AuthLoading() {
   );
 }
 
+function AuthDiagnostic() {
+  const { isSignedIn, isLoaded, userId, sessionId } = useAuth();
+  const { guestName } = useGuest();
+  const [debugData, setDebugData] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  function runDebug() {
+    setLoading(true);
+    const apiBase = import.meta.env.BASE_URL.replace(/\/$/, "");
+    fetch(`${apiBase}/api/debug-clerk-client`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { setDebugData(d); setLoading(false); })
+      .catch((e) => { setDebugData({ error: String(e) }); setLoading(false); });
+  }
+
+  useEffect(() => { if (isLoaded) runDebug(); }, [isLoaded]);
+
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background p-6">
+      <div className="w-full max-w-lg space-y-4">
+        <h1 className="text-xl font-bold">Auth Diagnostic</h1>
+        <div className="rounded-lg border bg-card p-4 font-mono text-sm space-y-1">
+          <div><span className="text-muted-foreground">isLoaded:</span> {String(isLoaded)}</div>
+          <div><span className="text-muted-foreground">isSignedIn:</span> <span className={isSignedIn ? "text-green-600" : "text-red-500"}>{String(isSignedIn)}</span></div>
+          <div><span className="text-muted-foreground">userId:</span> {userId ?? "null"}</div>
+          <div><span className="text-muted-foreground">sessionId:</span> {sessionId ?? "null"}</div>
+          <div><span className="text-muted-foreground">guestName:</span> {guestName ?? "null"}</div>
+        </div>
+
+        {debugData && (
+          <div className="rounded-lg border bg-card p-4 font-mono text-xs space-y-1 overflow-auto max-h-80">
+            <div className="font-bold text-sm mb-2">Server → Clerk FAPI response</div>
+            <div><span className="text-muted-foreground">httpStatus:</span> {String(debugData.httpStatus)}</div>
+            <div><span className="text-muted-foreground">clientCookieCount:</span> {String(debugData.clientCookieCount)}</div>
+            <div><span className="text-muted-foreground">lastActiveSessionId:</span> <span className={debugData.lastActiveSessionId ? "text-green-600" : "text-red-500"}>{String(debugData.lastActiveSessionId)}</span></div>
+            <div><span className="text-muted-foreground">sessionCount:</span> {String(debugData.sessionCount)}</div>
+            <div className="text-muted-foreground mt-2">sessions:</div>
+            <pre className="whitespace-pre-wrap">{JSON.stringify(debugData.sessions, null, 2)}</pre>
+            <div className="text-muted-foreground mt-2">cookieNames:</div>
+            <pre className="whitespace-pre-wrap">{JSON.stringify(debugData.cookieNames, null, 2)}</pre>
+          </div>
+        )}
+
+        {loading && <p className="text-sm text-muted-foreground">Fetching Clerk FAPI state…</p>}
+
+        <div className="flex gap-2">
+          <button
+            className="flex-1 rounded bg-primary px-4 py-2 text-sm text-primary-foreground"
+            onClick={runDebug}
+          >
+            Re-query Clerk FAPI
+          </button>
+          <button
+            className="flex-1 rounded border px-4 py-2 text-sm"
+            onClick={() => window.location.reload()}
+          >
+            Reload page
+          </button>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Also open DevTools → Application → Cookies → app.writingsprint.site and note how many <code>__client</code> cookies appear and what their Domain values are.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function PortalGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const { guestName } = useGuest();
 
-  // Show a friendly loading screen while Clerk initialises — never a blank
-  // page, which causes users to navigate away mid-session and break the flow.
   if (!isLoaded) return <AuthLoading />;
   if (isSignedIn || guestName) return <Portal />;
-  return <Redirect to="/" />;
+
+  // TEMPORARY: show diagnostic page instead of redirecting home,
+  // so we can see exactly what Clerk reports after the OAuth callback.
+  return <AuthDiagnostic />;
 }
 
 function RoomGuard() {
