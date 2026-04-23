@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 2yWVlAxSBLd9cNmDVkx56o6Nhiu6fFgZpuVJW6t03therA30oI9qqgPJJpfl8It
+\restrict 6PkG7MN3RAgHhUUgf6SMnKGBFj3rjYfmcEmGc2iDRy7NfKMj8JlThNw9ahKDCjr
 
 -- Dumped from database version 16.10
 -- Dumped by pg_dump version 16.10
@@ -18,26 +18,12 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
---
--- Name: public; Type: SCHEMA; Schema: -; Owner: -
---
-
-CREATE SCHEMA public;
-
-
---
--- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON SCHEMA public IS 'standard public schema';
-
-
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
 --
--- Name: friendships; Type: TABLE; Schema: public; Owner: -
+-- Name: friendships; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.friendships (
@@ -49,8 +35,10 @@ CREATE TABLE public.friendships (
 );
 
 
+ALTER TABLE public.friendships OWNER TO postgres;
+
 --
--- Name: friendships_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: friendships_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.friendships_id_seq
@@ -62,15 +50,17 @@ CREATE SEQUENCE public.friendships_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.friendships_id_seq OWNER TO postgres;
+
 --
--- Name: friendships_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: friendships_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.friendships_id_seq OWNED BY public.friendships.id;
 
 
 --
--- Name: rooms; Type: TABLE; Schema: public; Owner: -
+-- Name: rooms; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.rooms (
@@ -93,8 +83,10 @@ CREATE TABLE public.rooms (
 );
 
 
+ALTER TABLE public.rooms OWNER TO postgres;
+
 --
--- Name: sprint_writing; Type: TABLE; Schema: public; Owner: -
+-- Name: sprint_writing; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.sprint_writing (
@@ -112,8 +104,10 @@ CREATE TABLE public.sprint_writing (
 );
 
 
+ALTER TABLE public.sprint_writing OWNER TO postgres;
+
 --
--- Name: sprint_writing_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: sprint_writing_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.sprint_writing_id_seq
@@ -125,15 +119,17 @@ CREATE SEQUENCE public.sprint_writing_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.sprint_writing_id_seq OWNER TO postgres;
+
 --
--- Name: sprint_writing_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: sprint_writing_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.sprint_writing_id_seq OWNED BY public.sprint_writing.id;
 
 
 --
--- Name: user_profiles; Type: TABLE; Schema: public; Owner: -
+-- Name: user_profiles; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.user_profiles (
@@ -148,22 +144,24 @@ CREATE TABLE public.user_profiles (
 );
 
 
+ALTER TABLE public.user_profiles OWNER TO postgres;
+
 --
--- Name: friendships id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: friendships id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.friendships ALTER COLUMN id SET DEFAULT nextval('public.friendships_id_seq'::regclass);
 
 
 --
--- Name: sprint_writing id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: sprint_writing id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.sprint_writing ALTER COLUMN id SET DEFAULT nextval('public.sprint_writing_id_seq'::regclass);
 
 
 --
--- Data for Name: friendships; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: friendships; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.friendships (id, requester_id, addressee_id, status, created_at) FROM stdin;
@@ -171,7 +169,7 @@ COPY public.friendships (id, requester_id, addressee_id, status, created_at) FRO
 
 
 --
--- Data for Name: rooms; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: rooms; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.rooms (code, creator_name, duration_minutes, countdown_delay_minutes, mode, word_goal, death_mode_wpm, status, start_time, end_time, countdown_ends_at, created_at, updated_at, boss_word_goal, password_hash, gladiator_death_gap) FROM stdin;
@@ -192,7 +190,7 @@ SPRINT-7745	Testerrxp8	30	0	regular	\N	\N	finished	1776869950145	1776871750145	\
 
 
 --
--- Data for Name: sprint_writing; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: sprint_writing; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.sprint_writing (id, room_code, participant_name, text, word_count, updated_at, clerk_user_id, saved_to_files, room_mode, word_goal, xp_awarded) FROM stdin;
@@ -208,7 +206,7 @@ COPY public.sprint_writing (id, room_code, participant_name, text, word_count, u
 
 
 --
--- Data for Name: user_profiles; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: user_profiles; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.user_profiles (clerk_user_id, writer_name, updated_at, xp, last_sprint_at, decay_checked_at, active_nameplate, active_skin) FROM stdin;
@@ -219,21 +217,21 @@ user_3CjYoTjyaSSIxV27QqIKDwvUMnL	Entrail_JI	2026-04-22 23:35:14.345854	0	\N	\N	d
 
 
 --
--- Name: friendships_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: friendships_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.friendships_id_seq', 1, false);
 
 
 --
--- Name: sprint_writing_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: sprint_writing_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.sprint_writing_id_seq', 36, true);
 
 
 --
--- Name: friendships friendships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: friendships friendships_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.friendships
@@ -241,7 +239,7 @@ ALTER TABLE ONLY public.friendships
 
 
 --
--- Name: rooms rooms_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: rooms rooms_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.rooms
@@ -249,7 +247,7 @@ ALTER TABLE ONLY public.rooms
 
 
 --
--- Name: sprint_writing sprint_writing_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: sprint_writing sprint_writing_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.sprint_writing
@@ -257,7 +255,7 @@ ALTER TABLE ONLY public.sprint_writing
 
 
 --
--- Name: user_profiles user_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: user_profiles user_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.user_profiles
@@ -265,21 +263,21 @@ ALTER TABLE ONLY public.user_profiles
 
 
 --
--- Name: friendships_pair_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: friendships_pair_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE UNIQUE INDEX friendships_pair_idx ON public.friendships USING btree (requester_id, addressee_id);
 
 
 --
--- Name: sprint_writing_room_participant_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: sprint_writing_room_participant_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE UNIQUE INDEX sprint_writing_room_participant_idx ON public.sprint_writing USING btree (room_code, participant_name);
 
 
 --
--- Name: friendships friendships_addressee_id_user_profiles_clerk_user_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: friendships friendships_addressee_id_user_profiles_clerk_user_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.friendships
@@ -287,7 +285,7 @@ ALTER TABLE ONLY public.friendships
 
 
 --
--- Name: friendships friendships_requester_id_user_profiles_clerk_user_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: friendships friendships_requester_id_user_profiles_clerk_user_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.friendships
@@ -298,5 +296,5 @@ ALTER TABLE ONLY public.friendships
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 2yWVlAxSBLd9cNmDVkx56o6Nhiu6fFgZpuVJW6t03therA30oI9qqgPJJpfl8It
+\unrestrict 6PkG7MN3RAgHhUUgf6SMnKGBFj3rjYfmcEmGc2iDRy7NfKMj8JlThNw9ahKDCjr
 
