@@ -24,6 +24,7 @@ export interface Participant {
   disconnectTimer?: ReturnType<typeof setTimeout>;
   kartItems: string[];
   kartBonusWords: number;
+  kartCarOffset: number;
   kartNextItemAt: number;
   // Gladiator mode fields
   gladiatorHp: number;
@@ -539,8 +540,11 @@ export function endSprint(room: Room): void {
       wpm: p.wpm,
       isCreator: p.isCreator,
       kartBonusWords: room.mode === "kart" ? p.kartBonusWords : 0,
+      kartCarOffset: room.mode === "kart" ? p.kartCarOffset : 0,
     }))
-    .sort((a, b) => (b.wordCount + b.kartBonusWords) - (a.wordCount + a.kartBonusWords));
+    .sort((a, b) =>
+      (b.wordCount + b.kartCarOffset) - (a.wordCount + a.kartCarOffset)
+    );
 
   broadcastToRoom(room, { type: "sprint_ended", results: participants });
 
@@ -612,6 +616,7 @@ export function reconnectParticipant(
       xp: 0,
       kartItems: [],
       kartBonusWords: 0,
+      kartCarOffset: 0,
       kartNextItemAt: 250,
       gladiatorHp: 1000,
       gladiatorBuffs: [],

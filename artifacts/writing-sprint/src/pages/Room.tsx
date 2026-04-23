@@ -1112,6 +1112,7 @@ export default function Room() {
             capsules={capsules}
             xpGained={xpGained}
             isBossMode={room.mode === "boss"}
+            isKartMode={room.mode === "kart"}
           />
         </div>
       ) : (

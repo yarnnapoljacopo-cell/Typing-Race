@@ -259,7 +259,7 @@ export const RaceTrack = memo(function RaceTrack({
                           {eliminated ? "💀" : finished ? "🏁" : ""}{isMe ? "You" : p.name}
                         </span>
                         <span className="text-[10px] font-mono font-bold" style={{ color: eliminated ? "#f87171" : "#374151" }}>
-                          {displayWordCount}w
+                          {isKartMode ? effectiveWordCount : displayWordCount}w
                         </span>
                       </div>
 

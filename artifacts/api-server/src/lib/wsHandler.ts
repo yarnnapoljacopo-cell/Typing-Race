@@ -239,6 +239,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             xp: userXp,
             kartItems: [],
             kartBonusWords: 0,
+            kartCarOffset: 0,
             kartNextItemAt: 250,
             gladiatorHp: 1000,
             gladiatorBuffs: [],
@@ -505,6 +506,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
               if (!redirect) break;
               targetP = redirect;
             }
+            targetP.kartCarOffset -= 200;
             broadcastToRoom(room, {
               type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
               sourceId: participantId, sourceName: participant.name,
@@ -519,6 +521,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             for (const p of active) {
               if (p.id === participantId) continue;
               if (isStarActive(room, p.id)) continue;
+              p.kartCarOffset -= 300;
               hitIds.push(p.id);
               hitNames.push(p.name);
             }
@@ -531,6 +534,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             break;
           }
           case "mushroom": {
+            participant.kartCarOffset += 200;
             broadcastToRoom(room, {
               type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
               sourceId: participantId, sourceName: participant.name,

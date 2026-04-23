@@ -8,6 +8,7 @@ export interface Participant {
   wpm: number;
   isCreator: boolean;
   kartBonusWords?: number;
+  kartCarOffset?: number;
   nameplate?: string;
   xp?: number;
 }

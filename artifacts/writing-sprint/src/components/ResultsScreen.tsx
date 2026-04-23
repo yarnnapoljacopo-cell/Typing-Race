@@ -14,6 +14,7 @@ interface ResultsScreenProps {
   capsules: Capsule[];
   xpGained?: number | null;
   isBossMode?: boolean;
+  isKartMode?: boolean;
 }
 
 export function ResultsScreen({
@@ -25,9 +26,17 @@ export function ResultsScreen({
   capsules,
   xpGained,
   isBossMode = false,
+  isKartMode = false,
 }: ResultsScreenProps) {
   const [, setLocation] = useLocation();
-  const sorted = [...participants].sort((a, b) => b.wordCount - a.wordCount);
+  const sorted = [...participants].sort((a, b) => {
+    if (isKartMode) {
+      const aScore = a.wordCount + (a.kartCarOffset ?? 0);
+      const bScore = b.wordCount + (b.kartCarOffset ?? 0);
+      return bScore - aScore;
+    }
+    return b.wordCount - a.wordCount;
+  });
 
   const myIndex = sorted.findIndex((p) => p.id === currentParticipantId);
   const isFirstPlace = myIndex === 0;
@@ -130,13 +139,15 @@ export function ResultsScreen({
         <div className="grid grid-cols-12 gap-4 p-4 bg-muted/50 border-b text-sm font-medium text-muted-foreground">
           <div className="col-span-2 text-center">Rank</div>
           <div className="col-span-4">Writer</div>
-          <div className="col-span-3 text-right">Words</div>
+          <div className="col-span-3 text-right">{isKartMode ? "Race Score" : "Words"}</div>
           <div className="col-span-3 text-right">Speed</div>
         </div>
 
         <div className="divide-y">
           {sorted.map((p, i) => {
             const isMe = p.id === currentParticipantId;
+            const raceScore = isKartMode ? p.wordCount + (p.kartCarOffset ?? 0) : p.wordCount;
+            const hasOffset = isKartMode && (p.kartCarOffset ?? 0) !== 0;
             return (
               <motion.div
                 key={p.id}
@@ -155,7 +166,14 @@ export function ResultsScreen({
                   </button>
                   {isMe && <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded">You</span>}
                 </div>
-                <div className="col-span-3 text-right font-mono text-lg font-bold">{p.wordCount}</div>
+                <div className="col-span-3 text-right">
+                  <span className="font-mono text-lg font-bold">{raceScore}</span>
+                  {hasOffset && (
+                    <div className="text-xs text-muted-foreground font-mono">
+                      ({p.wordCount} real)
+                    </div>
+                  )}
+                </div>
                 <div className="col-span-3 text-right text-muted-foreground">
                   <span className="font-mono font-medium text-foreground">{p.wpm}</span> wpm
                 </div>
