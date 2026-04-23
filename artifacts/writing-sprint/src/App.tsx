@@ -264,16 +264,39 @@ function AuthDiagnostic() {
         </div>
 
         {debugData && (
-          <div className="rounded-lg border bg-card p-4 font-mono text-xs space-y-1 overflow-auto max-h-80">
-            <div className="font-bold text-sm mb-2">Server → Clerk FAPI response</div>
-            <div><span className="text-muted-foreground">httpStatus:</span> {String(debugData.httpStatus)}</div>
+          <div className="rounded-lg border bg-card p-4 font-mono text-xs space-y-2 overflow-auto max-h-[32rem]">
+            <div className="font-bold text-sm mb-2">Server → Clerk FAPI Diagnostic</div>
+
+            {/* FAPI routing */}
+            <div className="text-muted-foreground font-semibold">FAPI Routing</div>
+            <div><span className="text-muted-foreground">proxyTarget (hardcoded):</span> {String(debugData.proxyTarget)}</div>
+            <div><span className="text-muted-foreground">fapiUrlFromKey:</span> {String(debugData.fapiUrlFromKey)}</div>
+            <div><span className="text-muted-foreground">keysMatch:</span> <span className={(debugData.keysMatch as boolean) ? "text-green-600" : "text-red-500 font-bold"}>{String(debugData.keysMatch)}</span></div>
+
+            {/* Cookie summary */}
+            <div className="text-muted-foreground font-semibold mt-2">Cookies</div>
             <div><span className="text-muted-foreground">clientCookieCount:</span> {String(debugData.clientCookieCount)}</div>
-            <div><span className="text-muted-foreground">lastActiveSessionId:</span> <span className={debugData.lastActiveSessionId ? "text-green-600" : "text-red-500"}>{String(debugData.lastActiveSessionId)}</span></div>
-            <div><span className="text-muted-foreground">sessionCount:</span> {String(debugData.sessionCount)}</div>
-            <div className="text-muted-foreground mt-2">sessions:</div>
-            <pre className="whitespace-pre-wrap">{JSON.stringify(debugData.sessions, null, 2)}</pre>
-            <div className="text-muted-foreground mt-2">cookieNames:</div>
             <pre className="whitespace-pre-wrap">{JSON.stringify(debugData.cookieNames, null, 2)}</pre>
+
+            {/* Per-cookie FAPI results */}
+            {Array.isArray(debugData.perCookieResults) && (debugData.perCookieResults as Record<string,unknown>[]).map((r, i) => (
+              <div key={i} className="border rounded p-2 mt-2 space-y-1">
+                <div className="font-semibold">__client cookie #{i}</div>
+                <div><span className="text-muted-foreground">jwtPrefix:</span> {String(r.jwtPrefix)}…</div>
+                {r.viaHardcodedFapi && (
+                  <div>
+                    <div className="text-muted-foreground">via hardcoded FAPI:</div>
+                    <pre className="whitespace-pre-wrap">{JSON.stringify(r.viaHardcodedFapi, null, 2)}</pre>
+                  </div>
+                )}
+                {r.viaKeyFapi && (
+                  <div>
+                    <div className="text-muted-foreground">via key FAPI:</div>
+                    <pre className="whitespace-pre-wrap">{JSON.stringify(r.viaKeyFapi, null, 2)}</pre>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
 

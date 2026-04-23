@@ -2,9 +2,9 @@ import { Router } from "express";
 
 const router = Router();
 
-async function queryClerkFapi(cookieHeader: string, proxyUrl: string) {
+async function queryClerkFapi(cookieHeader: string, proxyUrl: string, fapiBase = "https://frontend-api.clerk.dev") {
   const res = await fetch(
-    "https://frontend-api.clerk.dev/v1/client?__clerk_api_version=2025-11-10&_clerk_js_version=6.7.5",
+    `${fapiBase}/v1/client?__clerk_api_version=2025-11-10&_clerk_js_version=6.7.5`,
     {
       headers: {
         Cookie: cookieHeader,
@@ -43,47 +43,54 @@ router.get("/debug-clerk-client", async (req, res) => {
   const host = req.headers.host || "app.writingsprint.site";
   const proxyUrl = `${protocol}://${host}/api/__clerk`;
 
+  // Decode the FAPI URL from the publishable key so we can verify the proxy target
+  const pubKey = process.env.CLERK_PUBLISHABLE_KEY ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? "";
+  let fapiUrlFromKey = "(could not decode)";
+  try {
+    const b64 = pubKey.replace(/^pk_(live|test)_/, "");
+    fapiUrlFromKey = `https://${Buffer.from(b64, "base64").toString().replace(/\$$/, "")}`;
+  } catch { /* ignore */ }
+
   const cookieParts = cookieHeader.split(";").map((c) => c.trim()).filter(Boolean);
   const cookieNames = cookieParts.map((c) => c.split("=")[0].trim());
   const clientCookies = cookieParts.filter((c) => c.split("=")[0].trim() === "__client");
-
   const otherCookies = cookieParts
     .filter((c) => c.split("=")[0].trim() !== "__client")
     .join("; ");
 
+  const proxyTarget = "https://frontend-api.clerk.dev";
+
   try {
-    // Test each __client cookie individually so we can see which has a session
     const perCookieResults = await Promise.all(
       clientCookies.map(async (cc, idx) => {
         const singleCookieStr = otherCookies ? `${otherCookies}; ${cc}` : cc;
-        const result = await queryClerkFapi(singleCookieStr, proxyUrl).catch((e) => ({
-          error: String(e),
-          httpStatus: 0,
-          lastActiveSessionId: null,
-          sessionCount: null,
-          sessions: [],
-        }));
+        // Try both the hardcoded proxy target AND the key's FAPI URL
+        const [resultDefault, resultFromKey] = await Promise.all([
+          queryClerkFapi(singleCookieStr, proxyUrl, proxyTarget).catch((e) => ({ error: String(e) })),
+          fapiUrlFromKey !== proxyTarget && fapiUrlFromKey !== "(could not decode)"
+            ? queryClerkFapi(singleCookieStr, proxyUrl, fapiUrlFromKey).catch((e) => ({ error: String(e) }))
+            : null,
+        ]);
         return {
           index: idx,
-          jwtPrefix: cc.split("=").slice(1).join("=").substring(0, 40),
-          ...result,
+          jwtPrefix: cc.split("=").slice(1).join("=").substring(0, 50),
+          viaHardcodedFapi: resultDefault,
+          viaKeyFapi: resultFromKey,
         };
       })
     );
 
     res.json({
       proxyUrl,
+      proxyTarget,
+      fapiUrlFromKey,
+      keysMatch: fapiUrlFromKey === proxyTarget,
       cookieNames,
       clientCookieCount: clientCookies.length,
       perCookieResults,
     });
   } catch (err) {
-    res.status(500).json({
-      error: String(err),
-      proxyUrl,
-      cookieNames,
-      clientCookieCount: clientCookies.length,
-    });
+    res.status(500).json({ error: String(err), proxyUrl, proxyTarget, fapiUrlFromKey, cookieNames });
   }
 });
 
