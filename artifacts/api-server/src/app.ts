@@ -73,7 +73,7 @@ if (process.env.NODE_ENV === "production") {
   const frontendDist = path.resolve(__dirname, "../../writing-sprint/dist/public");
   app.use(express.static(frontendDist));
   // SPA fallback — serve index.html for any non-API, non-WS route
-  app.get("*", (_req, res) => {
+  app.use((_req, res) => {
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
