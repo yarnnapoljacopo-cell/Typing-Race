@@ -453,12 +453,23 @@ function ClerkProviderWithRoutes() {
 // we know it will fail.
 // In dev mode (Replit preview, localhost) we always let the app through so
 // developers can use the preview pane normally.
+// But redirect the OLD production deployment URL to the canonical domain.
+const OLD_DEPLOYMENT_HOST = "typing-race--yarnnapoljacopo.replit.app";
+if (window.location.hostname === OLD_DEPLOYMENT_HOST) {
+  window.location.replace(
+    `https://app.writingsprint.site${window.location.pathname}${window.location.search}${window.location.hash}`
+  );
+}
+
 const expectedHosts = ["app.writingsprint.site", "writingsprint.site"];
-const replitHosts = ["repl.co", "replit.dev", "replit.app", "repl.it", "id.repl.co"];
+// Replit dev preview hosts (but NOT the old production .replit.app deployment)
+const replitDevHosts = ["repl.co", "replit.dev", "repl.it", "id.repl.co"];
 const onExpectedDomain =
   import.meta.env.DEV ||
   window.location.hostname === "localhost" ||
-  replitHosts.some((h) => window.location.hostname.endsWith(`.${h}`)) ||
+  replitDevHosts.some((h) => window.location.hostname.endsWith(`.${h}`)) ||
+  // Allow any replit.app host EXCEPT the old deployment (already redirected above)
+  (window.location.hostname.endsWith(".replit.app") && window.location.hostname !== OLD_DEPLOYMENT_HOST) ||
   expectedHosts.some(
     (h) =>
       window.location.hostname === h ||
