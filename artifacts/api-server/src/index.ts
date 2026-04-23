@@ -28,7 +28,8 @@ function decodeFapiFromKey(pk: string): string {
 }
 const _pubKey = process.env.VITE_CLERK_PK ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? "";
 const _resolvedFapi = process.env.CLERK_FAPI_URL?.trim() || decodeFapiFromKey(_pubKey);
-console.log("[startup-debug] NODE_ENV:", process.env.NODE_ENV, "| CLERK_SECRET_KEY set:", !!process.env.CLERK_SECRET_KEY, "| CLERK_PUBLISHABLE_KEY set:", !!_pubKey, "| resolved FAPI:", _resolvedFapi, "| CLERK_PROXY_URL:", process.env.CLERK_PROXY_URL ?? "(not set)");
+const _resolvedPkSource = process.env.VITE_CLERK_PK ? "VITE_CLERK_PK" : process.env.VITE_CLERK_PUBLISHABLE_KEY ? "VITE_CLERK_PUBLISHABLE_KEY" : process.env.CLERK_PUBLISHABLE_KEY ? "CLERK_PUBLISHABLE_KEY" : "(none)";
+console.log("[startup-debug] NODE_ENV:", process.env.NODE_ENV, "| CLERK_SECRET_KEY set:", !!process.env.CLERK_SECRET_KEY, "| resolved PK source:", _resolvedPkSource, "| PK prefix:", _pubKey.slice(0, 30), "| resolved FAPI:", _resolvedFapi);
 
 const server = createServer(app);
 setupWebSocketServer(server);

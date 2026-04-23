@@ -37,10 +37,15 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Clerk JS connects directly to clerk.writingsprint.site (custom FAPI domain
-// encoded in the publishable key). No proxy needed — clerkMiddleware verifies
-// session JWTs issued by that domain.
-app.use(clerkMiddleware());
+// Use the correct publishable key explicitly so the middleware fetches JWKS
+// from clerk.writingsprint.site regardless of what CLERK_PUBLISHABLE_KEY
+// secret may be set to (it may be from a different/older Clerk instance).
+const resolvedPublishableKey =
+  process.env.VITE_CLERK_PK ??
+  process.env.VITE_CLERK_PUBLISHABLE_KEY ??
+  process.env.CLERK_PUBLISHABLE_KEY;
+
+app.use(clerkMiddleware({ publishableKey: resolvedPublishableKey }));
 
 app.use("/api", router);
 
