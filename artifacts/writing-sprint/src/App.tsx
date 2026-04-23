@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, Component } from "react";
+import type { ReactNode } from "react";
 import { ClerkProvider, SignIn, SignUp, useClerk, useAuth } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, Redirect, useLocation, Router as WouterRouter } from "wouter";
@@ -19,6 +20,70 @@ import { VillainModeProvider } from "@/lib/villainModeContext";
 import { SkinProvider } from "@/lib/skinContext";
 
 const queryClient = new QueryClient();
+
+// ── Clerk error boundary ────────────────────────────────────────────────────
+
+const LIVE_URL = "https://app.writingsprint.site";
+
+class ClerkErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div
+          style={{
+            minHeight: "100dvh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "1rem",
+            fontFamily: "Inter, sans-serif",
+            background: "#FAF8F4",
+            color: "#2D3142",
+            padding: "2rem",
+            textAlign: "center",
+          }}
+        >
+          <img src={`${basePath}/logo.svg`} alt="Writing Sprint" style={{ width: 56, height: 56, borderRadius: 14 }} />
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
+            Writing Sprint
+          </h1>
+          <p style={{ margin: 0, color: "#68708A", maxWidth: 380 }}>
+            Authentication is configured for{" "}
+            <strong>app.writingsprint.site</strong>. Please visit the app at
+            its official address:
+          </p>
+          <a
+            href={LIVE_URL}
+            style={{
+              display: "inline-block",
+              marginTop: "0.5rem",
+              padding: "0.6rem 1.4rem",
+              background: "#1A6BC9",
+              color: "#fff",
+              borderRadius: "0.5rem",
+              textDecoration: "none",
+              fontWeight: 600,
+            }}
+          >
+            Open app.writingsprint.site
+          </a>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -247,11 +312,75 @@ function ClerkProviderWithRoutes() {
   );
 }
 
-function App() {
+// Detect domain mismatch before rendering Clerk — async Clerk errors aren't
+// catchable by error boundaries, so we prevent rendering Clerk entirely when
+// we know it will fail.
+const expectedHosts = ["app.writingsprint.site", "writingsprint.site"];
+const onExpectedDomain =
+  !clerkProxyUrl ||
+  expectedHosts.some(
+    (h) =>
+      window.location.hostname === h ||
+      window.location.hostname.endsWith(`.${h}`)
+  );
+
+function WrongDomainScreen() {
   return (
-    <WouterRouter base={basePath}>
-      <ClerkProviderWithRoutes />
-    </WouterRouter>
+    <div
+      style={{
+        minHeight: "100dvh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "1rem",
+        fontFamily: "Inter, sans-serif",
+        background: "#FAF8F4",
+        color: "#2D3142",
+        padding: "2rem",
+        textAlign: "center",
+      }}
+    >
+      <img
+        src={`${basePath}/logo.svg`}
+        alt="Writing Sprint"
+        style={{ width: 56, height: 56, borderRadius: 14 }}
+      />
+      <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
+        Writing Sprint
+      </h1>
+      <p style={{ margin: 0, color: "#68708A", maxWidth: 380 }}>
+        Authentication is configured for{" "}
+        <strong>app.writingsprint.site</strong>. Please visit the app at its
+        official address:
+      </p>
+      <a
+        href={LIVE_URL}
+        style={{
+          display: "inline-block",
+          marginTop: "0.5rem",
+          padding: "0.6rem 1.4rem",
+          background: "#1A6BC9",
+          color: "#fff",
+          borderRadius: "0.5rem",
+          textDecoration: "none",
+          fontWeight: 600,
+        }}
+      >
+        Open app.writingsprint.site
+      </a>
+    </div>
+  );
+}
+
+function App() {
+  if (!onExpectedDomain) return <WrongDomainScreen />;
+  return (
+    <ClerkErrorBoundary>
+      <WouterRouter base={basePath}>
+        <ClerkProviderWithRoutes />
+      </WouterRouter>
+    </ClerkErrorBoundary>
   );
 }
 
