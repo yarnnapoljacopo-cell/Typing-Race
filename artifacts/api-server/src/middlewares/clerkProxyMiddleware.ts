@@ -61,6 +61,37 @@ export function clerkProxyMiddleware(): RequestHandler {
         if (clientIp) {
           proxyReq.setHeader("X-Forwarded-For", clientIp);
         }
+
+        // Log the __client cookie being sent for /v1/client calls so we can
+        // verify which client the browser is presenting after the oauth redirect.
+        if (req.url?.includes("/v1/client") && !req.url?.includes("/sessions")) {
+          const rawCookie = req.headers["cookie"] || "";
+          const cookieNames = rawCookie
+            .split(";")
+            .map((c) => c.trim().split("=")[0]);
+          const clientJwt = rawCookie
+            .split(";")
+            .map((c) => c.trim())
+            .find((c) => c.startsWith("__client="))
+            ?.split("=")
+            .slice(1)
+            .join("=");
+          let clientId = "MISSING";
+          if (clientJwt) {
+            try {
+              const payload = JSON.parse(
+                Buffer.from(clientJwt.split(".")[1], "base64url").toString()
+              );
+              clientId = payload.id || "NO_ID";
+            } catch {
+              clientId = "PARSE_ERROR";
+            }
+          }
+          log.info(
+            { url: req.url, clientId, cookieNames },
+            "clerk-proxy GET /v1/client cookie"
+          );
+        }
       },
 
       proxyRes: (proxyRes, req, _res) => {

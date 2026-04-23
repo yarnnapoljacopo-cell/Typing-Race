@@ -169,6 +169,18 @@ const clerkAppearance = {
 // ── Route pages ────────────────────────────────────────────────────────────
 
 function SignInPage() {
+  const { isSignedIn, isLoaded } = useAuth();
+  const [, setLocation] = useLocation();
+
+  // If the user is already authenticated (e.g. they landed here after an OAuth
+  // callback that completed but then they navigated away from the loading portal),
+  // send them straight to the portal instead of showing the sign-in form.
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      setLocation(`${basePath}/portal`);
+    }
+  }, [isLoaded, isSignedIn, setLocation]);
+
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
       <SignIn
@@ -211,11 +223,24 @@ function HomeRedirect() {
   return <Home />;
 }
 
+function AuthLoading() {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3">
+        <img src={`${basePath}/logo.svg`} alt="Writing Sprint" className="h-12 w-12 rounded-xl animate-pulse" />
+        <p className="text-sm text-muted-foreground">Signing you in…</p>
+      </div>
+    </div>
+  );
+}
+
 function PortalGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const { guestName } = useGuest();
 
-  if (!isLoaded) return null;
+  // Show a friendly loading screen while Clerk initialises — never a blank
+  // page, which causes users to navigate away mid-session and break the flow.
+  if (!isLoaded) return <AuthLoading />;
   if (isSignedIn || guestName) return <Portal />;
   return <Redirect to="/" />;
 }
