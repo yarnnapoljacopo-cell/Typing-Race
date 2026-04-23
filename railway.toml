@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "PORT=3000 BASE_PATH=/ NODE_ENV=production pnpm --filter @workspace/writing-sprint run build && pnpm --filter @workspace/api-server run build"
+buildCommand = "pnpm --filter @workspace/writing-sprint run build"
 
 [deploy]
 startCommand = "NODE_ENV=production node --enable-source-maps artifacts/api-server/dist/index.mjs"
