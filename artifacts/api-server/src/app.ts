@@ -37,7 +37,18 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(clerkMiddleware());
+// When running behind a Clerk proxy the middleware must be told the full
+// proxy URL so it can validate tokens correctly. CLERK_PROXY_URL is set at
+// deploy time; fall back to the known production URL if not provided.
+const clerkProxyUrl =
+  process.env.CLERK_PROXY_URL &&
+  process.env.CLERK_PROXY_URL.startsWith("https://")
+    ? process.env.CLERK_PROXY_URL
+    : process.env.NODE_ENV === "production"
+    ? "https://app.writingsprint.site/api/__clerk"
+    : undefined;
+
+app.use(clerkMiddleware({ proxyUrl: clerkProxyUrl }));
 
 app.use("/api", router);
 
