@@ -73,27 +73,17 @@ export function clerkProxyMiddleware(): RequestHandler {
         );
 
         if (clientCookies.length > 1) {
-          let newestCookie = clientCookies[0];
-          let newestIat = 0;
-          for (const c of clientCookies) {
-            try {
-              const jwt = c.split("=").slice(1).join("=");
-              const payload = JSON.parse(
-                Buffer.from(jwt.split(".")[1], "base64url").toString()
-              );
-              if ((payload.iat ?? 0) > newestIat) {
-                newestIat = payload.iat ?? 0;
-                newestCookie = c;
-              }
-            } catch { /* not a JWT — skip */ }
-          }
+          // RFC 6265 §5.4: cookies with equal paths are ordered by creation time,
+          // oldest first. The newest __client (set by the oauth_callback) is therefore
+          // the LAST entry. Pick it so Clerk FAPI sees the authenticated client.
+          const chosenCookie = clientCookies[clientCookies.length - 1];
           const deduped = allCookies
             .filter((c) => c.split("=")[0].trim() !== "__client")
-            .concat([newestCookie]);
+            .concat([chosenCookie]);
           proxyReq.setHeader("Cookie", deduped.join("; "));
           log.info(
-            { count: clientCookies.length, newestIat },
-            "clerk-proxy deduped __client cookies"
+            { count: clientCookies.length },
+            "clerk-proxy deduped __client cookies (kept last)"
           );
         }
 
@@ -176,18 +166,32 @@ export function clerkProxyMiddleware(): RequestHandler {
 
           if (proxyRes.statusCode === 303) {
             // Inject expiry Set-Cookie headers to clear any Clerk session cookies
-            // stored under older domain scopes (from previous proxy configurations
-            // or the old typingrace.autos instance). Clearing cookies must be
-            // injected before the real cookies so the real cookies "win" last.
-            const expireSuffix = "; Max-Age=0; Path=/; Secure; SameSite=Lax";
+            // stored under older domain scopes. We send clearing cookies for every
+            // combination of (domain, SameSite) because Chrome tracks cookies with
+            // different SameSite attributes as separate slots — a SameSite=Lax
+            // clearing cookie will NOT evict a SameSite=None cookie of the same name.
+            const domains = [
+              "",                          // host-only (no Domain attr)
+              "; Domain=writingsprint.site",
+              "; Domain=app.writingsprint.site",
+              "; Domain=typingrace.autos",
+            ];
+            const sameSites = [
+              "; SameSite=Lax",
+              "; SameSite=None",
+              "; SameSite=Strict",
+              "",                          // no SameSite attr
+            ];
+
             const clearingCookies: string[] = [];
             for (const name of CLERK_SESSION_COOKIES) {
-              // host-only (no Domain)
-              clearingCookies.push(`${name}=${expireSuffix}`);
-              // explicit domain scopes that may have been set previously
-              clearingCookies.push(`${name}=${expireSuffix}; Domain=writingsprint.site`);
-              clearingCookies.push(`${name}=${expireSuffix}; Domain=app.writingsprint.site`);
-              clearingCookies.push(`${name}=${expireSuffix}; Domain=typingrace.autos`);
+              for (const domain of domains) {
+                for (const ss of sameSites) {
+                  clearingCookies.push(
+                    `${name}=; Max-Age=0; Path=/${domain}; Secure${ss}`
+                  );
+                }
+              }
             }
 
             const existing = Array.isArray(proxyRes.headers["set-cookie"])
