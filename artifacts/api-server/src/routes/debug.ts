@@ -44,7 +44,7 @@ router.get("/debug-clerk-client", async (req, res) => {
   const proxyUrl = `${protocol}://${host}/api/__clerk`;
 
   // Decode the FAPI URL from the publishable key so we can verify the proxy target
-  const pubKey = process.env.CLERK_PUBLISHABLE_KEY ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? "";
+  const pubKey = process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? "";
   let fapiUrlFromKey = "(could not decode)";
   try {
     const b64 = pubKey.replace(/^pk_(live|test)_/, "");
