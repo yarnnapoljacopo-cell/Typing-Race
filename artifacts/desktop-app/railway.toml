@@ -1,8 +1,0 @@
-[build]
-builder = "NIXPACKS"
-buildCommand = "pnpm --filter @workspace/desktop-app build"
-
-[deploy]
-startCommand = "pnpm --filter @workspace/desktop-app dev"
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3
