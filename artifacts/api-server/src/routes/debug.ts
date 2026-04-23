@@ -43,8 +43,8 @@ router.get("/debug-clerk-client", async (req, res) => {
   const host = req.headers.host || "app.writingsprint.site";
   const proxyUrl = `${protocol}://${host}/api/__clerk`;
 
-  // Decode the FAPI URL from the publishable key so we can verify the proxy target
-  const pubKey = process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? "";
+  // Derive the FAPI URL: explicit env var takes priority, then decode from publishable key.
+  const pubKey = process.env.VITE_CLERK_PK ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? "";
   let fapiUrlFromKey = "(could not decode)";
   try {
     const b64 = pubKey.replace(/^pk_(live|test)_/, "");
@@ -58,7 +58,9 @@ router.get("/debug-clerk-client", async (req, res) => {
     .filter((c) => c.split("=")[0].trim() !== "__client")
     .join("; ");
 
-  const proxyTarget = "https://frontend-api.clerk.dev";
+  // Use the explicit CLERK_FAPI_URL env var if set, otherwise fall back to key-derived URL.
+  const proxyTarget = process.env.CLERK_FAPI_URL?.trim() ||
+    (fapiUrlFromKey !== "(could not decode)" ? fapiUrlFromKey : "https://frontend-api.clerk.dev");
 
   try {
     const perCookieResults = await Promise.all(

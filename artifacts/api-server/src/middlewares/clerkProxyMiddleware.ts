@@ -163,12 +163,16 @@ export function clerkProxyMiddleware(): RequestHandler {
             "clerk-proxy redirect"
           );
 
-          // Rewrite Location if it points to the raw FAPI domain
-          if (typeof location === "string" && location.includes("frontend-api.clerk.dev")) {
-            const rewritten = location.replace(
-              /https:\/\/frontend-api\.clerk\.dev/,
-              `https://${req.headers.host}${CLERK_PROXY_PATH}`
-            );
+          // Rewrite Location if it points to the raw FAPI domain (either the generic
+          // frontend-api.clerk.dev or the custom FAPI host like clerk.writingsprint.site).
+          const fapiHost = (() => {
+            try { return new URL(CLERK_FAPI).host; } catch { return "frontend-api.clerk.dev"; }
+          })();
+          if (typeof location === "string" &&
+            (location.includes("frontend-api.clerk.dev") || location.includes(fapiHost))) {
+            const rewritten = location
+              .replace(/https:\/\/frontend-api\.clerk\.dev/, `https://${req.headers.host}${CLERK_PROXY_PATH}`)
+              .replace(new RegExp(`https://${fapiHost.replace(".", "\\.")}`, "g"), `https://${req.headers.host}${CLERK_PROXY_PATH}`);
             log.info({ original: location, rewritten }, "clerk-proxy location rewritten");
             proxyRes.headers["location"] = rewritten;
           }

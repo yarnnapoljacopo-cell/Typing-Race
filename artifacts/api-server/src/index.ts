@@ -26,7 +26,7 @@ function decodeFapiFromKey(pk: string): string {
   } catch { /* ignore */ }
   return "https://frontend-api.clerk.dev";
 }
-const _pubKey = process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? "";
+const _pubKey = process.env.VITE_CLERK_PK ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? "";
 const _resolvedFapi = process.env.CLERK_FAPI_URL?.trim() || decodeFapiFromKey(_pubKey);
 console.log("[startup-debug] NODE_ENV:", process.env.NODE_ENV, "| CLERK_SECRET_KEY set:", !!process.env.CLERK_SECRET_KEY, "| CLERK_PUBLISHABLE_KEY set:", !!_pubKey, "| resolved FAPI:", _resolvedFapi, "| CLERK_PROXY_URL:", process.env.CLERK_PROXY_URL ?? "(not set)");
 
