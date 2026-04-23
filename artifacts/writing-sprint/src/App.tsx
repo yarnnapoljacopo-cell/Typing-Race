@@ -1,3 +1,6 @@
+// eslint-disable-next-line no-console
+console.log("[clerk-key] VITE_CLERK_PUBLISHABLE_KEY =", import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+
 import { useEffect, useRef, useState, Component } from "react";
 import type { ReactNode } from "react";
 import { ClerkProvider, SignIn, SignUp, useClerk, useAuth } from "@clerk/react";
@@ -256,6 +259,7 @@ function AuthDiagnostic() {
       <div className="w-full max-w-lg space-y-4">
         <h1 className="text-xl font-bold">Auth Diagnostic</h1>
         <div className="rounded-lg border bg-card p-4 font-mono text-sm space-y-1">
+          <div><span className="text-muted-foreground">frontendKey (first 40 chars):</span> {(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string)?.substring(0, 40) ?? "(not set)"}</div>
           <div><span className="text-muted-foreground">isLoaded:</span> {String(isLoaded)}</div>
           <div><span className="text-muted-foreground">isSignedIn:</span> <span className={isSignedIn ? "text-green-600" : "text-red-500"}>{String(isSignedIn)}</span></div>
           <div><span className="text-muted-foreground">userId:</span> {userId ?? "null"}</div>
