@@ -26,11 +26,13 @@ function fapiFromPublishableKey(pk: string): string {
   return "https://frontend-api.clerk.dev";
 }
 
-// VITE_CLERK_PUBLISHABLE_KEY is confirmed correct (same secret used by frontend).
-// CLERK_PUBLISHABLE_KEY is checked second as a fallback.
-const CLERK_FAPI = fapiFromPublishableKey(
-  process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? ""
-);
+// CLERK_FAPI_URL is an explicit env var set to the correct Clerk FAPI base URL.
+// Falls back to deriving the URL from the publishable key, then to the generic FAPI.
+const CLERK_FAPI =
+  process.env.CLERK_FAPI_URL?.trim() ||
+  fapiFromPublishableKey(
+    process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? ""
+  );
 
 export const CLERK_PROXY_PATH = "/api/__clerk";
 

@@ -65,3 +65,4 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
+CLERK_FAPI_URL = "https://clerk.writingsprint.site"
