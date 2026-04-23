@@ -62,17 +62,49 @@ export function clerkProxyMiddleware(): RequestHandler {
           proxyReq.setHeader("X-Forwarded-For", clientIp);
         }
 
+        // Deduplicate __client cookies — when the browser has both a stale
+        // host-only __client and a newer domain-scoped one it sends both,
+        // and Clerk FAPI uses whichever comes first (usually the stale one),
+        // leaving isSignedIn = false. Keep only the JWT with the highest iat.
+        const rawCookie = req.headers["cookie"] || "";
+        const allCookies = rawCookie.split(";").map((c) => c.trim()).filter(Boolean);
+        const clientCookies = allCookies.filter(
+          (c) => c.split("=")[0].trim() === "__client"
+        );
+
+        if (clientCookies.length > 1) {
+          let newestCookie = clientCookies[0];
+          let newestIat = 0;
+          for (const c of clientCookies) {
+            try {
+              const jwt = c.split("=").slice(1).join("=");
+              const payload = JSON.parse(
+                Buffer.from(jwt.split(".")[1], "base64url").toString()
+              );
+              if ((payload.iat ?? 0) > newestIat) {
+                newestIat = payload.iat ?? 0;
+                newestCookie = c;
+              }
+            } catch { /* not a JWT — skip */ }
+          }
+          const deduped = allCookies
+            .filter((c) => c.split("=")[0].trim() !== "__client")
+            .concat([newestCookie]);
+          proxyReq.setHeader("Cookie", deduped.join("; "));
+          log.info(
+            { count: clientCookies.length, newestIat },
+            "clerk-proxy deduped __client cookies"
+          );
+        }
+
         // Log the __client cookie being sent for /v1/client calls so we can
         // verify which client the browser is presenting after the oauth redirect.
         if (req.url?.includes("/v1/client") && !req.url?.includes("/sessions")) {
-          const rawCookie = req.headers["cookie"] || "";
-          const cookieNames = rawCookie
-            .split(";")
-            .map((c) => c.trim().split("=")[0]);
-          const clientJwt = rawCookie
+          const cookieHeader = (proxyReq.getHeader("Cookie") as string) || rawCookie;
+          const clientJwt = cookieHeader
             .split(";")
             .map((c) => c.trim())
-            .find((c) => c.startsWith("__client="))
+            .find((c) => c.split("=")[0].trim() === "__client")
             ?.split("=")
             .slice(1)
             .join("=");
@@ -88,7 +120,7 @@ export function clerkProxyMiddleware(): RequestHandler {
             }
           }
           log.info(
-            { url: req.url, clientId, cookieNames },
+            { url: req.url, clientId },
             "clerk-proxy GET /v1/client cookie"
           );
         }
