@@ -85,6 +85,57 @@ router.get("/rooms", async (_req, res): Promise<void> => {
   res.json(getActiveRooms());
 });
 
+// ── Discord webhook helper ────────────────────────────────────────────────────
+
+const DISCORD_WEBHOOK_RE =
+  /^https:\/\/(?:discord(?:app)?\.com|ptb\.discord\.com|canary\.discord\.com)\/api\/webhooks\/\d+\/[\w-]+$/i;
+
+function isValidDiscordWebhookUrl(url: string): boolean {
+  return DISCORD_WEBHOOK_RE.test(url.trim());
+}
+
+async function postDiscordAnnouncement(webhookUrl: string, message: string): Promise<boolean> {
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: message }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function buildSprintAnnouncement(opts: {
+  writerName: string;
+  durationMinutes: number;
+  mode: string;
+  wordGoal: number | null;
+  roomCode: string;
+  countdownDelayMinutes: number;
+}): string {
+  const { writerName, durationMinutes, mode, wordGoal, roomCode, countdownDelayMinutes } = opts;
+  const appBase = (process.env.APP_BASE_URL ?? "https://app.writingsprint.site").replace(/\/$/, "");
+  const joinUrl = `${appBase}/room?code=${roomCode}`;
+
+  const modeLabel =
+    mode === "goal" && wordGoal ? ` · Goal: ${wordGoal} words` :
+    mode === "open" ? " · Open mode (text visible)" :
+    mode === "kart" ? " · Kart mode" :
+    mode === "gladiator" ? " · Gladiator mode" :
+    "";
+  const delayLabel = countdownDelayMinutes === 0 ? "starting now" :
+    countdownDelayMinutes === 1 ? "starting in 1 minute" :
+    `starting in ${countdownDelayMinutes} minutes`;
+
+  return (
+    `📝 **${writerName} just kicked off a ${durationMinutes}-minute writing sprint** — ${delayLabel}!${modeLabel}\n` +
+    `Room code: \`${roomCode}\`\n` +
+    `Join on the web: ${joinUrl}`
+  );
+}
+
 router.post("/rooms", async (req, res): Promise<void> => {
   const parsed = CreateRoomBody.safeParse(req.body);
   if (!parsed.success) {
@@ -120,6 +171,34 @@ router.post("/rooms", async (req, res): Promise<void> => {
     status: room.status,
     participantCount: room.participants.size,
   });
+
+  // Auto-announce to Discord if the authenticated user has a webhook configured
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (clerkUserId) {
+    try {
+      const profileRows = await db
+        .select({ discordWebhookUrl: userProfilesTable.discordWebhookUrl, writerName: userProfilesTable.writerName })
+        .from(userProfilesTable)
+        .where(eq(userProfilesTable.clerkUserId, clerkUserId))
+        .limit(1);
+      const webhookUrl = profileRows[0]?.discordWebhookUrl;
+      const writerName = profileRows[0]?.writerName ?? creatorName;
+      if (webhookUrl && isValidDiscordWebhookUrl(webhookUrl)) {
+        const message = buildSprintAnnouncement({
+          writerName,
+          durationMinutes: room.durationMinutes,
+          mode: effectiveMode,
+          wordGoal,
+          roomCode: room.code,
+          countdownDelayMinutes,
+        });
+        void postDiscordAnnouncement(webhookUrl, message);
+      }
+    } catch {
+      // Non-critical — don't fail the room creation if Discord post fails
+    }
+  }
 });
 
 router.get("/rooms/:code", async (req, res): Promise<void> => {
@@ -701,6 +780,81 @@ router.delete("/friends/:id", async (req, res): Promise<void> => {
     ));
 
   res.json({ ok: true });
+});
+
+// ── Discord Integration endpoints ─────────────────────────────────────────────
+
+router.get("/user/discord", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rows = await db
+    .select({ discordWebhookUrl: userProfilesTable.discordWebhookUrl })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.clerkUserId, clerkUserId))
+    .limit(1);
+
+  const webhookUrl = rows[0]?.discordWebhookUrl ?? null;
+  res.json({ webhookUrl });
+});
+
+router.put("/user/discord", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { webhookUrl } = req.body ?? {};
+
+  if (webhookUrl !== null && webhookUrl !== "" && webhookUrl !== undefined) {
+    if (typeof webhookUrl !== "string" || !isValidDiscordWebhookUrl(webhookUrl)) {
+      res.status(400).json({ error: "Invalid Discord webhook URL. It must be a discord.com/api/webhooks/… URL." });
+      return;
+    }
+  }
+
+  const normalised = (typeof webhookUrl === "string" && webhookUrl.trim()) ? webhookUrl.trim() : null;
+
+  await db
+    .insert(userProfilesTable)
+    .values({ clerkUserId, writerName: "", discordWebhookUrl: normalised })
+    .onConflictDoUpdate({
+      target: [userProfilesTable.clerkUserId],
+      set: { discordWebhookUrl: normalised, updatedAt: new Date() },
+    });
+
+  res.json({ ok: true });
+});
+
+router.post("/user/discord/test", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rows = await db
+    .select({ discordWebhookUrl: userProfilesTable.discordWebhookUrl, writerName: userProfilesTable.writerName })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.clerkUserId, clerkUserId))
+    .limit(1);
+
+  const webhookUrl = rows[0]?.discordWebhookUrl;
+  const writerName = rows[0]?.writerName ?? "Writer";
+
+  if (!webhookUrl || !isValidDiscordWebhookUrl(webhookUrl)) {
+    res.status(400).json({ error: "No valid webhook URL saved." });
+    return;
+  }
+
+  const ok = await postDiscordAnnouncement(
+    webhookUrl,
+    `✅ **${writerName}'s Writing Sprint Discord integration is working!**\nYou'll see sprint announcements here when you start a sprint from the web app.`
+  );
+
+  if (ok) {
+    res.json({ ok: true });
+  } else {
+    res.status(502).json({ error: "Discord returned an error. Check that the webhook URL is correct and the channel still exists." });
+  }
 });
 
 export default router;

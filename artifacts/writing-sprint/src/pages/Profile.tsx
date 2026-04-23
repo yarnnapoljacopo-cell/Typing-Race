@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
-import { ArrowLeft, Pen, TrendingUp, Hash, Check } from "lucide-react";
+import { ArrowLeft, Pen, TrendingUp, Hash, Check, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { RANKS, getRankFromXp, getNextRank, xpProgressPercent, type Rank } from "@/lib/ranks";
 import { NAMEPLATES, getUnlockedNameplates, type NameplateKey } from "@/lib/nameplates";
@@ -43,6 +45,36 @@ async function saveNameplate(nameplate: string): Promise<void> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error ?? "Failed to save");
+  }
+}
+
+async function fetchDiscordSettings(): Promise<{ webhookUrl: string | null }> {
+  const res = await fetch(`${basePath}/api/user/discord`, { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to load Discord settings");
+  return res.json();
+}
+
+async function saveDiscordWebhook(webhookUrl: string | null): Promise<void> {
+  const res = await fetch(`${basePath}/api/user/discord`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ webhookUrl }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? "Failed to save");
+  }
+}
+
+async function testDiscordWebhook(): Promise<void> {
+  const res = await fetch(`${basePath}/api/user/discord/test`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? "Test failed");
   }
 }
 
@@ -323,6 +355,8 @@ export default function Profile() {
   const name = decodeURIComponent(params?.name ?? "");
   const { user } = useUser();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [webhookInput, setWebhookInput] = useState("");
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["profile", name],
@@ -341,6 +375,45 @@ export default function Profile() {
     queryFn: fetchOwnPrefs,
     enabled: !!user,
     staleTime: 30_000,
+  });
+
+  const { data: discordSettings } = useQuery({
+    queryKey: ["discord-settings"],
+    queryFn: fetchDiscordSettings,
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (discordSettings?.webhookUrl != null) {
+      setWebhookInput(discordSettings.webhookUrl);
+    }
+  }, [discordSettings?.webhookUrl]);
+
+  const saveWebhookMutation = useMutation({
+    mutationFn: (url: string | null) => saveDiscordWebhook(url),
+    onSuccess: (_data, url) => {
+      queryClient.setQueryData(["discord-settings"], { webhookUrl: url || null });
+      toast({
+        title: url ? "Discord webhook saved" : "Discord webhook removed",
+        description: url
+          ? "Sprints you create will be announced in your Discord channel."
+          : "Discord integration disconnected.",
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Couldn't save webhook", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const testWebhookMutation = useMutation({
+    mutationFn: testDiscordWebhook,
+    onSuccess: () => {
+      toast({ title: "Test message sent!", description: "Check your Discord channel." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Test failed", description: err.message, variant: "destructive" });
+    },
   });
 
   const isOwnProfile = !!user && (
@@ -473,6 +546,83 @@ export default function Profile() {
                   </div>
                   {data.xp < 25000 && (
                     <p className="text-[11px] text-muted-foreground mt-2">More nameplates unlock at higher ranks.</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Discord Integration — only visible on own profile */}
+            {isOwnProfile && (
+              <Card>
+                <CardContent className="pt-5 pb-5 px-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#5865F2]" aria-hidden="true">
+                        <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.033.056a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+                      </svg>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Discord Integration</p>
+                    </div>
+                    {discordSettings?.webhookUrl && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">Connected</span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Paste a Discord channel webhook URL below. When you start a sprint from the web app, an announcement will automatically be posted to that channel.
+                  </p>
+
+                  <a
+                    href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    How to create a webhook in Discord <ExternalLink className="w-3 h-3" />
+                  </a>
+
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="https://discord.com/api/webhooks/…"
+                      value={webhookInput}
+                      onChange={(e) => setWebhookInput(e.target.value)}
+                      className="font-mono text-xs h-9"
+                    />
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="shrink-0 h-9"
+                      disabled={saveWebhookMutation.isPending}
+                      onClick={() => saveWebhookMutation.mutate(webhookInput.trim() || null)}
+                    >
+                      {saveWebhookMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
+                    </Button>
+                  </div>
+
+                  {discordSettings?.webhookUrl && (
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        disabled={testWebhookMutation.isPending}
+                        onClick={() => testWebhookMutation.mutate()}
+                      >
+                        {testWebhookMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                        Send test message
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                        disabled={saveWebhookMutation.isPending}
+                        onClick={() => {
+                          setWebhookInput("");
+                          saveWebhookMutation.mutate(null);
+                        }}
+                      >
+                        Disconnect
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>

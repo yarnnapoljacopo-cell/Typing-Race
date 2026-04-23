@@ -9,6 +9,7 @@ export const userProfilesTable = pgTable("user_profiles", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   activeNameplate: varchar("active_nameplate", { length: 20 }).notNull().default("default"),
   activeSkin: varchar("active_skin", { length: 20 }).notNull().default("default"),
+  discordWebhookUrl: varchar("discord_webhook_url", { length: 500 }),
 });
 
 export type UserProfile = typeof userProfilesTable.$inferSelect;
