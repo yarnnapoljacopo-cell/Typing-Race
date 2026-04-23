@@ -44,7 +44,12 @@ export function clerkProxyMiddleware(): RequestHandler {
     changeOrigin: true,
     // Rewrite Set-Cookie domain from Clerk's domain to the current host so
     // the browser stores session cookies for the app's own domain.
-    cookieDomainRewrite: { "*": "" },
+    // Rewrite the Domain on all Clerk-issued cookies to writingsprint.site so
+    // the browser stores them for app.writingsprint.site (and the apex domain).
+    // The old Clerk instance was configured for typingrace.autos; stripping the
+    // domain entirely (empty string) leaves cookies host-only, which breaks
+    // cross-path sharing — use the real domain instead.
+    cookieDomainRewrite: { "*": "writingsprint.site" },
     pathRewrite: (path: string) =>
       path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
@@ -96,13 +101,39 @@ export function clerkProxyMiddleware(): RequestHandler {
           }
         }
 
-        // Extra logging for oauth_callback so we can see all Set-Cookie headers
+        // Extra logging + redirect fix for oauth_callback
         if (isOAuthCallback) {
           const setCookieRaw = proxyRes.headers["set-cookie"];
+          const cookieNames = Array.isArray(setCookieRaw)
+            ? setCookieRaw.map((c) => c.split("=")[0])
+            : setCookieRaw ? [setCookieRaw.split("=")[0]] : [];
           log.info(
-            { status: proxyRes.statusCode, location, setCookie: setCookieRaw },
+            { status: proxyRes.statusCode, location, cookieNames },
             "clerk-proxy oauth_callback response"
           );
+
+          // Clerk's "ret_obj_type=redirect" sends the browser straight to "/" which
+          // has no <SignIn> component to complete the session handshake.
+          // Rewrite the Location to /sign-in so Clerk's SignIn component can
+          // process the session and then redirect to /portal via forceRedirectUrl.
+          if (proxyRes.statusCode === 303 && typeof location === "string") {
+            try {
+              const url = new URL(location);
+              const isOurDomain =
+                url.hostname === "app.writingsprint.site" ||
+                url.hostname === "writingsprint.site";
+              if (isOurDomain && url.pathname === "/") {
+                const newLocation = `${url.origin}/sign-in`;
+                proxyRes.headers["location"] = newLocation;
+                log.info(
+                  { original: location, newLocation },
+                  "clerk-proxy oauth_callback location rewritten to /sign-in"
+                );
+              }
+            } catch {
+              // not a valid URL — leave as-is
+            }
+          }
         }
       },
     },
