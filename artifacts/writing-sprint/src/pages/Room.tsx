@@ -631,7 +631,11 @@ export default function Room() {
     if (!raceThrottleRef.current) {
       raceThrottleRef.current = window.setTimeout(() => {
         raceThrottleRef.current = null;
-        if (participantId) updateLocalWordCount(participantId, pendingNetWcRef.current);
+        // Only push optimistic update while the sprint is actively running —
+        // firing after sprint_ended would overwrite the server's final results.
+        if (participantId && roomRef.current?.status === "running") {
+          updateLocalWordCount(participantId, pendingNetWcRef.current);
+        }
       }, 200);
     }
 
@@ -1144,6 +1148,7 @@ export default function Room() {
                   carOffsets={room.mode === "kart" ? kartState.carOffsets : undefined}
                   starActiveIds={room.mode === "kart" ? kartState.starActiveIds : undefined}
                   isKartMode={room.mode === "kart"}
+                  localWordCount={isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : undefined}
                 />
               )}
               {/* Death Mode: grace-period countdown banner */}

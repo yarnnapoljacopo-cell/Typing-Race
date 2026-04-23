@@ -151,6 +151,10 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
   // Tracks when we first lost connection (for the "Room not found" retry window)
   const disconnectedAtRef = useRef<number | null>(null);
   const unmountedRef = useRef(false);
+  // Zombie-connection detection: track when we last received ANY WS message
+  const lastMessageAtRef = useRef<number>(Date.now());
+  // When the most recent ping was sent — used to detect pong timeouts
+  const lastPingSentAtRef = useRef<number>(0);
 
   const connect = useCallback(() => {
     if (!code || !name || unmountedRef.current) return;
@@ -175,6 +179,7 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
 
     ws.onmessage = (event) => {
       if (unmountedRef.current) return;
+      lastMessageAtRef.current = Date.now();
       try {
         const data = JSON.parse(event.data);
 
@@ -411,9 +416,23 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
     connect();
 
     const pingInterval = setInterval(() => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: "ping" }));
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+      // Zombie-connection detection: if we sent a ping previously and haven't
+      // received ANY message since then, the connection is a dead-send — pings
+      // go out but nothing comes back. Force-close so onclose fires and the
+      // exponential-backoff reconnect logic kicks in.
+      if (
+        lastPingSentAtRef.current > 0 &&
+        lastMessageAtRef.current < lastPingSentAtRef.current
+      ) {
+        ws.close();
+        return;
       }
+
+      lastPingSentAtRef.current = Date.now();
+      ws.send(JSON.stringify({ type: "ping" }));
     }, 15000);
 
     return () => {

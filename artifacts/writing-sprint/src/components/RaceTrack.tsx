@@ -11,6 +11,9 @@ interface RaceTrackProps {
   carOffsets?: Record<string, number>;
   starActiveIds?: string[];
   isKartMode?: boolean;
+  /** Optimistic local net-word-count for the current participant during a sprint.
+   *  Used as a floor so the car never appears to stall due to server-side lag. */
+  localWordCount?: number;
 }
 
 const LANE_COLORS: { car: string; text: string }[] = [
@@ -56,6 +59,7 @@ export const RaceTrack = memo(function RaceTrack({
   carOffsets,
   starActiveIds,
   isKartMode,
+  localWordCount,
 }: RaceTrackProps) {
   // ── Stable lane assignments ───────────────────────────────────────────
   // We lock each participant to a lane index the first time we see them.
@@ -166,10 +170,16 @@ export const RaceTrack = memo(function RaceTrack({
               const colors = LANE_COLORS[laneIndex % LANE_COLORS.length];
               const isMe = p.id === currentParticipantId;
 
-              const effectiveWordCount = Math.max(0, p.wordCount + (carOffsets?.[p.id] ?? 0));
+              // For the current participant, use the locally tracked word count as a
+              // floor so the car never stalls when server state lags (e.g. zombie WS).
+              const displayWordCount =
+                isMe && localWordCount !== undefined
+                  ? Math.max(p.wordCount, localWordCount)
+                  : p.wordCount;
+              const effectiveWordCount = Math.max(0, displayWordCount + (carOffsets?.[p.id] ?? 0));
               const fraction = Math.min(effectiveWordCount / target, 1);
               const finished = effectiveWordCount >= target;
-              const eliminated = reaperWordCount != null && p.wordCount < reaperWordCount && !finished;
+              const eliminated = reaperWordCount != null && displayWordCount < reaperWordCount && !finished;
               const hasStarActive = starActiveIds?.includes(p.id) ?? false;
               const isFirstPlace = firstPlaceId === p.id;
 
@@ -249,7 +259,7 @@ export const RaceTrack = memo(function RaceTrack({
                           {eliminated ? "💀" : finished ? "🏁" : ""}{isMe ? "You" : p.name}
                         </span>
                         <span className="text-[10px] font-mono font-bold" style={{ color: eliminated ? "#f87171" : "#374151" }}>
-                          {p.wordCount}w
+                          {displayWordCount}w
                         </span>
                       </div>
 
