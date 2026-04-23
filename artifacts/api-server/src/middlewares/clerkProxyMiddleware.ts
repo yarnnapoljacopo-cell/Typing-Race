@@ -4,19 +4,6 @@
  * Proxies Clerk Frontend API requests through your domain, enabling Clerk
  * authentication on custom domains and .replit.app deployments without
  * requiring CNAME DNS configuration.
- *
- * AUTH CONFIGURATION: To manage users, enable/disable login providers
- * (Google, GitHub, etc.), change app branding, or configure OAuth credentials,
- * use the Auth pane in the workspace toolbar. There is no external Clerk
- * dashboard — all auth configuration is done through the Auth pane.
- *
- * IMPORTANT:
- * - Only active in production (Clerk proxying doesn't work for dev instances)
- * - Must be mounted BEFORE express.json() middleware
- *
- * Usage in app.ts:
- *   import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
- *   app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
  */
 
 import { createProxyMiddleware } from "http-proxy-middleware";
@@ -28,8 +15,15 @@ const log = _logger.child({ module: "clerk-proxy" });
 const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
+const CLERK_SESSION_COOKIES = ["__client", "__session", "__client_uat"];
+
+// Strip any Domain= attribute so the cookie becomes host-only for app.writingsprint.site.
+// Host-only cookies from the same host always overwrite each other (same name + path).
+function stripDomain(cookie: string): string {
+  return cookie.replace(/;\s*Domain=[^;,]*/gi, "");
+}
+
 export function clerkProxyMiddleware(): RequestHandler {
-  // Only run proxy in production — Clerk proxying doesn't work for dev instances
   if (process.env.NODE_ENV !== "production") {
     return (_req, _res, next) => next();
   }
@@ -42,20 +36,13 @@ export function clerkProxyMiddleware(): RequestHandler {
   return createProxyMiddleware({
     target: CLERK_FAPI,
     changeOrigin: true,
-    // Rewrite Set-Cookie domain from Clerk's domain to the current host so
-    // the browser stores session cookies for the app's own domain.
-    // Rewrite the Domain on all Clerk-issued cookies to writingsprint.site so
-    // the browser stores them for app.writingsprint.site (and the apex domain).
-    // The old Clerk instance was configured for typingrace.autos; stripping the
-    // domain entirely (empty string) leaves cookies host-only, which breaks
-    // cross-path sharing — use the real domain instead.
-    cookieDomainRewrite: { "*": "writingsprint.site" },
+    // We do all cookie domain manipulation manually in proxyRes so we have
+    // full control (cookieDomainRewrite would also strip domains from our
+    // explicit clearing cookies, defeating the purpose).
     pathRewrite: (path: string) =>
       path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
       proxyReq: (proxyReq, req) => {
-        // Prefer x-forwarded-proto so we get "https" even when Replit's
-        // mTLS proxy speaks plain HTTP to us internally.
         const protocol =
           (Array.isArray(req.headers["x-forwarded-proto"])
             ? req.headers["x-forwarded-proto"][0]
@@ -75,11 +62,23 @@ export function clerkProxyMiddleware(): RequestHandler {
           proxyReq.setHeader("X-Forwarded-For", clientIp);
         }
       },
+
       proxyRes: (proxyRes, req, _res) => {
         const isOAuthCallback = req.url?.includes("/oauth_callback");
         const location = proxyRes.headers["location"];
 
-        // Log redirects
+        // ── Step 1: Rewrite all Set-Cookie Domain attributes ──────────────
+        // Strip Domain so cookies become host-only for app.writingsprint.site.
+        // This ensures new cookies always overwrite old host-only cookies with
+        // the same name+path (browsers treat same-name host-only cookies as
+        // a single slot).
+        const rawCookies = proxyRes.headers["set-cookie"];
+        if (rawCookies) {
+          const list = Array.isArray(rawCookies) ? rawCookies : [rawCookies];
+          proxyRes.headers["set-cookie"] = list.map(stripDomain);
+        }
+
+        // ── Step 2: Log redirects ──────────────────────────────────────────
         if (location && proxyRes.statusCode && proxyRes.statusCode >= 300 && proxyRes.statusCode < 400) {
           const setCookieRaw = proxyRes.headers["set-cookie"];
           const cookieNames = Array.isArray(setCookieRaw)
@@ -90,7 +89,7 @@ export function clerkProxyMiddleware(): RequestHandler {
             "clerk-proxy redirect"
           );
 
-          // Rewrite Location if it points back to the raw FAPI domain
+          // Rewrite Location if it points to the raw FAPI domain
           if (typeof location === "string" && location.includes("frontend-api.clerk.dev")) {
             const rewritten = location.replace(
               /https:\/\/frontend-api\.clerk\.dev/,
@@ -101,7 +100,7 @@ export function clerkProxyMiddleware(): RequestHandler {
           }
         }
 
-        // Extra logging + redirect fix for oauth_callback
+        // ── Step 3: oauth_callback special handling ────────────────────────
         if (isOAuthCallback) {
           const setCookieRaw = proxyRes.headers["set-cookie"];
           const cookieNames = Array.isArray(setCookieRaw)
@@ -112,26 +111,52 @@ export function clerkProxyMiddleware(): RequestHandler {
             "clerk-proxy oauth_callback response"
           );
 
-          // Clerk's "ret_obj_type=redirect" sends the browser straight to "/" which
-          // has no <SignIn> component to complete the session handshake.
-          // Rewrite the Location to /sign-in so Clerk's SignIn component can
-          // process the session and then redirect to /portal via forceRedirectUrl.
-          if (proxyRes.statusCode === 303 && typeof location === "string") {
-            try {
-              const url = new URL(location);
-              const isOurDomain =
-                url.hostname === "app.writingsprint.site" ||
-                url.hostname === "writingsprint.site";
-              if (isOurDomain && url.pathname === "/") {
-                const newLocation = `${url.origin}/sign-in`;
-                proxyRes.headers["location"] = newLocation;
-                log.info(
-                  { original: location, newLocation },
-                  "clerk-proxy oauth_callback location rewritten to /sign-in"
-                );
+          if (proxyRes.statusCode === 303) {
+            // Inject expiry Set-Cookie headers to clear any Clerk session cookies
+            // stored under older domain scopes (from previous proxy configurations
+            // or the old typingrace.autos instance). Clearing cookies must be
+            // injected before the real cookies so the real cookies "win" last.
+            const expireSuffix = "; Max-Age=0; Path=/; Secure; SameSite=Lax";
+            const clearingCookies: string[] = [];
+            for (const name of CLERK_SESSION_COOKIES) {
+              // host-only (no Domain)
+              clearingCookies.push(`${name}=${expireSuffix}`);
+              // explicit domain scopes that may have been set previously
+              clearingCookies.push(`${name}=${expireSuffix}; Domain=writingsprint.site`);
+              clearingCookies.push(`${name}=${expireSuffix}; Domain=app.writingsprint.site`);
+              clearingCookies.push(`${name}=${expireSuffix}; Domain=typingrace.autos`);
+            }
+
+            const existing = Array.isArray(proxyRes.headers["set-cookie"])
+              ? proxyRes.headers["set-cookie"]
+              : proxyRes.headers["set-cookie"]
+              ? [proxyRes.headers["set-cookie"]]
+              : [];
+
+            // Clearing cookies first, then real cookies (browser processes in order)
+            proxyRes.headers["set-cookie"] = [...clearingCookies, ...existing];
+            log.info({ count: clearingCookies.length }, "clerk-proxy injected stale-cookie clearing headers");
+
+            // Redirect to /portal instead of / so the user lands on a page that
+            // Clerk JS initialises on. GET /v1/client picks up the fresh session
+            // from the __client cookie and isSignedIn becomes true immediately.
+            if (typeof location === "string") {
+              try {
+                const url = new URL(location);
+                const isOurDomain =
+                  url.hostname === "app.writingsprint.site" ||
+                  url.hostname === "writingsprint.site";
+                if (isOurDomain && url.pathname === "/") {
+                  const newLocation = `${url.origin}/portal`;
+                  proxyRes.headers["location"] = newLocation;
+                  log.info(
+                    { original: location, newLocation },
+                    "clerk-proxy oauth_callback location rewritten to /portal"
+                  );
+                }
+              } catch {
+                // not a valid URL — leave as-is
               }
-            } catch {
-              // not a valid URL — leave as-is
             }
           }
         }
