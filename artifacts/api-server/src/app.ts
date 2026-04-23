@@ -37,15 +37,27 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Use the correct publishable key explicitly so the middleware fetches JWKS
-// from clerk.writingsprint.site regardless of what CLERK_PUBLISHABLE_KEY
-// secret may be set to (it may be from a different/older Clerk instance).
+// Provide the RSA public key directly for JWT verification.
+// This bypasses the CLERK_SECRET_KEY entirely for token validation, so
+// mismatched secrets from old Clerk instances can't interfere.
+// Key is fetched from https://clerk.writingsprint.site/.well-known/jwks.json
+// (kid: ins_3CkebRzuovnqLClfMK7X03qRfIk)
+const CLERK_JWT_KEY = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1rmkjnmJSzTNYozqYtT9
+ZgGTGhf51VBPrF6bnU8Wy1ztTd0mb3bxXAzt8GVCqur6yOG2z14p1/+QDY8XKEbL
++AtKU8+OXmxVWgprC3N3rE/H0kTx47F5LWcnI4MNT2sttbrPIXVXmHfC7lYIb2KX
+oUd8UkacviE8pim8a9rnq34IrNMNrYlAuPzAdGw+aN9UZCGeEv5qADJ8UMAQQ7yb
+RTgpYun6deQRGbOE+FZ8ZYGbkfQIs18y4dYRTCQoxXQ0Hi7jCNay7KmNHQALceGe
+zrGYM66rkGVomzpnw9YU+q4si/BRbqPbSjZmgmq4VOaYpKwJOPrYtW++oM/6I+YP
+bQIDAQAB
+-----END PUBLIC KEY-----`;
+
 const resolvedPublishableKey =
   process.env.VITE_CLERK_PK ??
   process.env.VITE_CLERK_PUBLISHABLE_KEY ??
   process.env.CLERK_PUBLISHABLE_KEY;
 
-app.use(clerkMiddleware({ publishableKey: resolvedPublishableKey }));
+app.use(clerkMiddleware({ publishableKey: resolvedPublishableKey, jwtKey: CLERK_JWT_KEY }));
 
 app.use("/api", router);
 
