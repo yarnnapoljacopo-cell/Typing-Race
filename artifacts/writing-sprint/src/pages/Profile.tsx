@@ -27,7 +27,7 @@ async function fetchProfile(name: string): Promise<PublicProfile> {
 }
 
 async function fetchOwnPrefs(): Promise<{ nameplate: string; skin: string; writerName: string }> {
-  const res = await fetch(`${basePath}/api/user/profile`);
+  const res = await fetch(`${basePath}/api/user/profile`, { credentials: "include" });
   if (!res.ok) throw new Error("Not authenticated");
   const data = await res.json();
   return { nameplate: data.activeNameplate ?? "default", skin: data.activeSkin ?? "default", writerName: data.writerName ?? "" };

@@ -250,6 +250,7 @@ export default function Room() {
     fetch(`/api/rooms/${encodeURIComponent(code)}/writing`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ participantName: name, text: textToSave, wordCount: wc }),
     })
       .then((r) => { if (r.ok) setSaveStatus("cloud"); })

@@ -102,6 +102,14 @@ const isProductionDomain =
   window.location.hostname === "writingsprint.site" ||
   window.location.hostname.endsWith(".writingsprint.site");
 
+// Route Clerk FAPI through the server-side proxy on production so cookies are
+// always set for app.writingsprint.site regardless of clerk.writingsprint.site DNS.
+// VITE_CLERK_PROXY_URL should be set to "https://app.writingsprint.site/api/__clerk"
+// in the Railway environment variables.
+const clerkProxyUrl = isProductionDomain
+  ? (import.meta.env.VITE_CLERK_PROXY_URL as string | undefined)
+  : undefined;
+
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
     ? path.slice(basePath.length) || "/"
@@ -400,6 +408,7 @@ function ClerkProviderWithRoutes() {
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
+      proxyUrl={clerkProxyUrl}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       afterSignInUrl={`${basePath}/portal`}
