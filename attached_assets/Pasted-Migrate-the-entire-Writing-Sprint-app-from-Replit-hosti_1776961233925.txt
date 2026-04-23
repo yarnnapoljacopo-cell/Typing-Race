@@ -1,0 +1,119 @@
+Migrate the entire Writing Sprint app from Replit hosting to Railway. I want to keep using Replit Agent to edit code, but have Railway run the actual app. Here's exactly what needs to happen:
+Step 1 — Prepare the codebase for Railway:
+
+Add a railway.json or railway.toml configuration file at the root
+Make sure the start command correctly starts both the API server (artifacts/api-server) and the frontend (artifacts/writing-sprint)
+Add a Procfile or nixpacks.toml if needed for Railway to detect the correct build and start commands
+Make sure all environment variables are read from process.env and not hardcoded anywhere
+Remove any Replit-specific configuration that would break on Railway
+
+Step 2 — Database migration preparation:
+
+Generate a full PostgreSQL dump of the current database using pg_dump
+Save it as database-backup.sql in the project root so I can import it to Railway's PostgreSQL
+Make sure Drizzle ORM schema is up to date and drizzle.config.ts is properly configured
+
+Step 3 — Environment variables needed on Railway:
+List every single environment variable the app needs so I can add them to Railway's dashboard. Include:
+
+All Clerk keys
+Database URL format
+Session secrets
+Discord bot token
+Any other required variables
+
+Step 4 — Update Clerk configuration:
+
+Remove all Replit-specific Clerk proxy middleware
+Set up Clerk to work directly with writingsprint.site as the domain
+No proxy needed on Railway since we'll own the domain completely
+Make sure both frontend and backend Clerk configuration is clean and straightforward
+
+Step 5 — Discord bot:
+
+Make sure the Discord bot can run as a separate Railway service
+Add a separate railway.json for the Discord bot in artifacts/discord-bot/
+
+Step 6 — Desktop app:
+
+Update the default server URL in the Electron app from the Replit URL to https://writingsprint.site
+Update API_BASE_URL and WS_URL to point to Railway
+
+Step 7 — Health check:
+
+Make sure the /api/health endpoint returns 200 so Railway knows the app is running
+
+Do not delete any existing code. Just add Railway configuration alongside existing files. Keep everything working on Replit while we prepare for migration.
+After completing all steps, show me:
+
+The complete list of environment variables I need to add to Railway
+The Railway deployment URL format I should expect
+Step by step instructions for what I need to do on the Railway website to complete the migration
+
+
+
+Paste that into Replit Agent and let it prepare everything. Once it's done come back and I'll walk you through the Railway website steps! 🎉You said: Will everything look the same?Will everything look the same?18:17Claude responded: Yes!Yes! Everything will look exactly the same for your users. Here's what stays identical:
+
+What users see — no change at all:
+
+✅ Same app design and UI
+✅ Same features — Gladiator mode, Mario Kart, all modes
+✅ Same sprint rooms and real time battles
+✅ Same Discord bot
+✅ Same desktop app
+✅ Same writing history and past sprints
+✅ Same ranks and achievements
+✅ All existing user accounts preserved
+
+
+What changes behind the scenes:
+
+The app runs on Railway servers instead of Replit servers
+URL changes from typing-race--yarnnapoljacopo.replit.app to writingsprint.site
+Google and Discord login finally work properly
+
+
+What gets better:
+
+✅ Faster loading
+✅ More reliable — less downtime
+✅ Google login works
+✅ Cleaner URL — writingsprint.site instead of the long Replit URL
+
+
+Think of it like moving house:
+Everything you own comes with you — furniture, clothes, everything. The house just looks nicer and is in a better location. Nobody visiting you notices anything different except maybe things feel faster and smoother.
+Your users won't notice anything changed except Google login suddenly works! 🎉
+Go ahead and paste the prompt into Replit Agent!You said: it becomes faster?it becomes faster?18:17Claude responded: Yes, generally faster!Yes, generally faster! Here's why:
+
+Why Railway is faster than Replit:
+No cold starts:
+
+Replit's autoscale deployment goes to sleep when nobody is using it
+First person to visit after a quiet period waits 5-15 seconds for it to wake up
+Railway keeps your app always running — instant response every time
+
+Better infrastructure:
+
+Railway runs on Google Cloud which has faster servers and better network routing
+Replit's servers are shared with thousands of other projects competing for resources
+Railway gives your app dedicated resources
+
+No overhead:
+
+Replit runs a lot of extra stuff alongside your app (the IDE, the Agent, preview tools)
+Railway just runs your app and nothing else — cleaner and leaner
+
+
+What users will notice:
+
+App loads instantly instead of sometimes having a slow first load
+Sprint rooms connect faster
+WebSocket connections more stable — less lag in Gladiator mode
+Login faster
+Overall snappier feel
+
+
+How much faster?
+For a small app like yours probably 2-3x faster on initial load and noticeably more responsive overall. Not dramatic but users will feel the difference especially on that first visit.
+Ready to paste the migration prompt into Agent? 🎉
