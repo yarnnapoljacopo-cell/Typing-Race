@@ -2,6 +2,8 @@ import { Router } from "express";
 
 const router = Router();
 
+const CLERK_BAPI = "https://api.clerk.com/v1";
+
 async function queryClerkFapi(cookieHeader: string, proxyUrl: string, fapiBase = "https://frontend-api.clerk.dev") {
   const res = await fetch(
     `${fapiBase}/v1/client?__clerk_api_version=2025-11-10&_clerk_js_version=6.7.5`,
@@ -30,6 +32,115 @@ async function queryClerkFapi(cookieHeader: string, proxyUrl: string, fapiBase =
       : [],
   };
 }
+
+/** Decode which Clerk instance the secret key belongs to (via BAPI /whoami if available,
+ *  or by inspecting the key prefix). sk_live_ = production, sk_test_ = development. */
+async function identifySecretKeyInstance(sk: string): Promise<Record<string, unknown>> {
+  try {
+    const res = await fetch(`${CLERK_BAPI}/clients`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${sk}`,
+        Accept: "application/json",
+      },
+    });
+    return { httpStatus: res.status, ok: res.ok };
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
+
+/**
+ * Queries the Clerk Backend (Management) API for users and recent sessions.
+ * This tells us whether sign-ins are landing on the writingsprint.site instance
+ * or the old typingrace.autos instance.
+ */
+router.get("/debug-clerk-instance", async (_req, res) => {
+  const sk = process.env.CLERK_SECRET_KEY ?? "";
+  if (!sk) {
+    res.status(500).json({ error: "CLERK_SECRET_KEY not set on server" });
+    return;
+  }
+
+  // Derive which instance this secret key is for from the key itself.
+  // sk_live_... = production, sk_test_... = development.
+  // The instance domain is embedded in the key after base64 decoding the suffix.
+  let instanceDomain = "(unknown)";
+  try {
+    const b64 = sk.replace(/^sk_(live|test)_/, "");
+    const decoded = Buffer.from(b64, "base64").toString().replace(/\$$/, "").trim();
+    if (decoded && decoded.includes(".")) instanceDomain = decoded;
+  } catch { /* ignore */ }
+
+  // Also derive from the publishable key for cross-check.
+  const pk = process.env.VITE_CLERK_PK ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? "";
+  let pkDomain = "(unknown)";
+  try {
+    const b64 = pk.replace(/^pk_(live|test)_/, "");
+    pkDomain = Buffer.from(b64, "base64").toString().replace(/\$$/, "").trim();
+  } catch { /* ignore */ }
+
+  try {
+    // Fetch the 10 most recently created users
+    const usersRes = await fetch(`${CLERK_BAPI}/users?limit=10&order_by=-created_at`, {
+      headers: {
+        Authorization: `Bearer ${sk}`,
+        Accept: "application/json",
+      },
+    });
+    const usersBody = await usersRes.json() as unknown;
+
+    // Fetch recent sessions (last 10)
+    const sessionsRes = await fetch(`${CLERK_BAPI}/sessions?limit=10&status=active`, {
+      headers: {
+        Authorization: `Bearer ${sk}`,
+        Accept: "application/json",
+      },
+    });
+    const sessionsBody = await sessionsRes.json() as unknown;
+
+    // Count total users
+    const totalUsersRes = await fetch(`${CLERK_BAPI}/users/count`, {
+      headers: {
+        Authorization: `Bearer ${sk}`,
+        Accept: "application/json",
+      },
+    });
+    const totalUsersBody = await totalUsersRes.json() as Record<string, unknown>;
+
+    const users = Array.isArray(usersBody)
+      ? (usersBody as Record<string, unknown>[]).map((u) => ({
+          id: u.id,
+          email: (u.email_addresses as Record<string, unknown>[])?.[0]?.email_address ?? null,
+          createdAt: u.created_at,
+          lastSignIn: u.last_sign_in_at,
+        }))
+      : usersBody;
+
+    const sessions = Array.isArray(sessionsBody)
+      ? (sessionsBody as Record<string, unknown>[]).map((s) => ({
+          id: s.id,
+          userId: s.user_id,
+          status: s.status,
+          lastActivity: s.last_active_at,
+        }))
+      : sessionsBody;
+
+    res.json({
+      secretKeyPrefix: sk.substring(0, 12) + "...",
+      secretKeyEnv: instanceDomain,
+      publishableKeyEnv: pkDomain,
+      instanceMatch: instanceDomain === pkDomain,
+      totalUsers: totalUsersBody,
+      recentUsers: users,
+      activeSessions: sessions,
+      usersHttpStatus: usersRes.status,
+      sessionsHttpStatus: sessionsRes.status,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err), instanceDomain, pkDomain });
+  }
+});
 
 /**
  * Temporary diagnostic route. Tests each __client cookie against Clerk FAPI
@@ -66,7 +177,6 @@ router.get("/debug-clerk-client", async (req, res) => {
     const perCookieResults = await Promise.all(
       clientCookies.map(async (cc, idx) => {
         const singleCookieStr = otherCookies ? `${otherCookies}; ${cc}` : cc;
-        // Try both the hardcoded proxy target AND the key's FAPI URL
         const [resultDefault, resultFromKey] = await Promise.all([
           queryClerkFapi(singleCookieStr, proxyUrl, proxyTarget).catch((e) => ({ error: String(e) })),
           fapiUrlFromKey !== proxyTarget && fapiUrlFromKey !== "(could not decode)"
