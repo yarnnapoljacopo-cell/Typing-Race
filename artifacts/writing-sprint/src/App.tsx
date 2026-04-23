@@ -310,6 +310,8 @@ function ClerkProviderWithRoutes() {
       proxyUrl={clerkProxyUrl}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
+      afterSignInUrl={`${basePath}/portal`}
+      afterSignUpUrl={`${basePath}/portal`}
       appearance={clerkAppearance}
       localization={{
         signIn: {
