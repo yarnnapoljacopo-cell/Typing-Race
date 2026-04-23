@@ -1231,6 +1231,7 @@ export default function Room() {
                       ? "Write here — the clock is ticking!"
                       : "Warm up here while you wait for the sprint to start…"
                   }
+                  data-has-content={text.trim().length > 0 ? "true" : undefined}
                   className={`writing-editor flex-1 w-full border shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground overflow-auto min-h-[380px]${
                     readMode
                       ? " bg-card/60 cursor-default select-text"

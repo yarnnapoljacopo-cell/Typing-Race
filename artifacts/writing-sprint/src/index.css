@@ -266,12 +266,16 @@
 }
 
 /* ── Writing editor (contenteditable) ───────────────────────────────────── */
-.writing-editor:empty::before,
-.writing-editor:not(:focus):has(br:only-child)::before {
+.writing-editor:empty:not([data-has-content="true"])::before,
+.writing-editor:not(:focus):has(br:only-child):not([data-has-content="true"])::before {
   content: attr(data-placeholder);
   color: hsl(var(--muted-foreground));
   opacity: 0.5;
   pointer-events: none;
+}
+/* Never show placeholder when content is present, regardless of focus/structure */
+.writing-editor[data-has-content="true"]::before {
+  content: none !important;
 }
 
 .writing-editor:focus {
