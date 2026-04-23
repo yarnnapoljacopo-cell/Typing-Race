@@ -95,21 +95,9 @@ const clerkPubKey = (import.meta.env.VITE_CLERK_PK as string | undefined) ||
   (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined);
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-// The proxy URL must be a fully-qualified https URL.
-// VITE_CLERK_PROXY_URL may not be baked into the static bundle if the secret
-// was not available at build time, so we fall back to the hardcoded production
-// URL. Only used when the key is a production key (pk_live_).
-const PROD_PROXY_URL = "https://app.writingsprint.site/api/__clerk";
-const rawProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
-const clerkProxyUrl = (() => {
-  const candidate =
-    rawProxyUrl && rawProxyUrl.startsWith("https://") && rawProxyUrl.length > 10
-      ? rawProxyUrl
-      : clerkPubKey?.startsWith("pk_live_")
-      ? PROD_PROXY_URL
-      : undefined;
-  return candidate;
-})();
+// No proxy — Clerk JS connects directly to clerk.writingsprint.site which is
+// encoded in the publishable key. This is cleaner and avoids the client→session
+// binding issues that arise from layering a proxy over a custom FAPI domain.
 
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
@@ -409,7 +397,6 @@ function ClerkProviderWithRoutes() {
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
-      proxyUrl={clerkProxyUrl}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       afterSignInUrl={`${basePath}/portal`}
@@ -470,7 +457,6 @@ const expectedHosts = ["app.writingsprint.site", "writingsprint.site"];
 const replitHosts = ["repl.co", "replit.dev", "replit.app", "repl.it", "id.repl.co"];
 const onExpectedDomain =
   import.meta.env.DEV ||
-  !clerkProxyUrl ||
   window.location.hostname === "localhost" ||
   replitHosts.some((h) => window.location.hostname.endsWith(`.${h}`)) ||
   expectedHosts.some(
