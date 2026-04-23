@@ -95,9 +95,12 @@ const clerkPubKey = (import.meta.env.VITE_CLERK_PK as string | undefined) ||
   (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined);
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-// No proxy — Clerk JS connects directly to clerk.writingsprint.site which is
-// encoded in the publishable key. This is cleaner and avoids the client→session
-// binding issues that arise from layering a proxy over a custom FAPI domain.
+// Clerk production keys only work on writingsprint.site origins.
+// In dev/non-production, we skip ClerkProvider entirely and show a placeholder.
+const isProductionDomain =
+  window.location.hostname === "app.writingsprint.site" ||
+  window.location.hostname === "writingsprint.site" ||
+  window.location.hostname.endsWith(".writingsprint.site");
 
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
@@ -525,8 +528,53 @@ function WrongDomainScreen() {
   );
 }
 
+function DevPreviewScreen() {
+  return (
+    <div
+      style={{
+        minHeight: "100dvh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "1.5rem",
+        background: "#F7F6F2",
+        fontFamily: "system-ui, sans-serif",
+        padding: "2rem",
+        textAlign: "center",
+      }}
+    >
+      <div style={{ fontSize: "3rem" }}>✍️</div>
+      <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1A1A1A", margin: 0 }}>
+        Writing Sprint — Dev Preview
+      </h1>
+      <p style={{ color: "#555", maxWidth: "28rem", margin: 0, lineHeight: 1.6 }}>
+        Authentication requires the production domain. Open the live app to sign in and test all features.
+      </p>
+      <a
+        href="https://app.writingsprint.site"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          padding: "0.75rem 1.5rem",
+          background: "#1A6BC9",
+          color: "#fff",
+          borderRadius: "0.5rem",
+          textDecoration: "none",
+          fontWeight: 600,
+        }}
+      >
+        Open app.writingsprint.site
+      </a>
+    </div>
+  );
+}
+
 function App() {
   if (!onExpectedDomain) return <WrongDomainScreen />;
+  // Production Clerk keys reject non-writingsprint.site origins.
+  // In dev/preview, skip Clerk to avoid a fatal load error and show a placeholder.
+  if (!isProductionDomain) return <DevPreviewScreen />;
   return (
     <ClerkErrorBoundary>
       <WouterRouter base={basePath}>
