@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ShoppingBag, Loader2, Info } from "lucide-react";
+import { ArrowLeft, ShoppingBag, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,9 +32,6 @@ interface ShopData {
 
 interface CoinData {
   balance: number;
-  daily_coins_earned: number;
-  daily_cap: number;
-  resets_at: string;
   last_20_transactions: Array<{
     id: string;
     amount: number;
@@ -379,18 +376,6 @@ export default function Shop() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Daily cap info */}
-        {coinData && (
-          <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
-            <Info size={15} className="mt-0.5 shrink-0" />
-            <span>
-              You've earned <strong className="text-foreground">{coinData.daily_coins_earned}</strong>/{coinData.daily_cap} coins today from chests and item sales.
-              Shop purchases are unlimited and don't count toward the cap.
-              Daily cap resets at midnight UTC.
-            </span>
-          </div>
-        )}
-
         {/* Listings */}
         {isLoading && (
           <div className="flex justify-center py-12">

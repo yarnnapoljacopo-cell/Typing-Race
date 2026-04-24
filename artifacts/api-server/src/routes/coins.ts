@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { pool } from "@workspace/db";
-import { ensureUserCoins, dailyResetCheck, creditCoins, DAILY_EARN_CAP } from "../lib/coinHelper";
+import { ensureUserCoins, dailyResetCheck, creditCoins } from "../lib/coinHelper";
 
 const router: IRouter = Router();
 
@@ -40,9 +40,6 @@ router.get("/coins", async (req, res): Promise<void> => {
 
     res.json({
       balance: coin.balance,
-      daily_coins_earned: coin.daily_coins_earned,
-      daily_cap: DAILY_EARN_CAP,
-      resets_at: new Date(coin.daily_reset_at.getTime() + 24 * 60 * 60 * 1000).toISOString(),
       last_20_transactions: txRows,
     });
   } finally {

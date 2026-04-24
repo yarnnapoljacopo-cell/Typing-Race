@@ -5,8 +5,6 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface CoinData {
   balance: number;
-  daily_coins_earned: number;
-  daily_cap: number;
 }
 
 async function fetchCoins(): Promise<CoinData> {
@@ -17,10 +15,9 @@ async function fetchCoins(): Promise<CoinData> {
 
 interface CoinBalanceProps {
   className?: string;
-  showDailyCap?: boolean;
 }
 
-export function CoinBalance({ className = "", showDailyCap = false }: CoinBalanceProps) {
+export function CoinBalance({ className = "" }: CoinBalanceProps) {
   const { isSignedIn } = useAuth();
 
   const { data } = useQuery<CoinData>({
@@ -35,14 +32,9 @@ export function CoinBalance({ className = "", showDailyCap = false }: CoinBalanc
   return (
     <span
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 font-semibold text-sm ${className}`}
-      title={showDailyCap ? `${data.daily_coins_earned}/${data.daily_cap} earned today` : "Spirit Coins"}
+      title="Spirit Coins"
     >
       🪙 {data.balance.toLocaleString()}
-      {showDailyCap && (
-        <span className="text-xs opacity-70">
-          ({data.daily_coins_earned}/{data.daily_cap})
-        </span>
-      )}
     </span>
   );
 }

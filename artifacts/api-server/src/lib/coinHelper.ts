@@ -1,7 +1,5 @@
 import type { PoolClient } from "pg";
 
-const DAILY_EARN_CAP = 80;
-
 /**
  * Ensures a user_coins row exists for this user, creating it if needed.
  * Returns the current row (after creation).
@@ -68,8 +66,7 @@ export async function creditCoins(
     daily_coins_earned: number;
   };
 
-  const remaining = DAILY_EARN_CAP - daily_coins_earned;
-  const credited = Math.max(0, Math.min(amount, remaining));
+  const credited = amount;
 
   if (credited > 0) {
     await client.query(
@@ -130,4 +127,3 @@ export async function deductCoins(
   return { newBalance: (updated[0] as { balance: number }).balance };
 }
 
-export { DAILY_EARN_CAP };
