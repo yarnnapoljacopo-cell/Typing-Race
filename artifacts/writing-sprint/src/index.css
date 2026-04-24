@@ -308,6 +308,13 @@
   content: none !important;
 }
 
+.writing-editor {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-width: 100%;
+}
+
 .writing-editor:focus {
   outline: none;
 }
