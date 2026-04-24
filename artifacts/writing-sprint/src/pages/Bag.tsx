@@ -415,6 +415,18 @@ export default function Bag() {
             )}
           </div>
         )}
+
+        {/* Back button */}
+        {!loading && (
+          <div className="mt-10 pt-6 border-t border-white/10 flex justify-center">
+            <button
+              onClick={() => setLocation("/portal")}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-all text-sm font-medium"
+            >
+              ← Back to Portal
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Item Detail Dialog */}
