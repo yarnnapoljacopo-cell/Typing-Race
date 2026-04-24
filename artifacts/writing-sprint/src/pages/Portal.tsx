@@ -117,10 +117,11 @@ export default function Portal() {
   // stored in sessionStorage before the creator is navigated into the room.
   const pendingRoomPasswordRef = useRef<string | null>(null);
 
-  const { data: profile, isLoading: profileLoading } = useQuery({
+  const { data: profile, isLoading: profileLoading, isError: profileError } = useQuery({
     queryKey: ["user-profile"],
     queryFn: fetchProfile,
     enabled: !isGuest,
+    retry: 2,
   });
 
   const saveMutation = useMutation({
@@ -136,12 +137,19 @@ export default function Portal() {
   });
 
   useEffect(() => {
-    if (!isGuest && !profileLoading && profile?.writerName === null) {
+    if (isGuest || profileLoading) return;
+    // Open name dialog automatically:
+    //   • on first sign-in (writerName is explicitly null from the DB)
+    //   • when the profile fetch failed entirely (writerName is undefined)
+    //     so the user still has a way to set / confirm their name
+    // Open if: new user (writerName null in DB) OR profile fetch failed entirely
+    if (profile?.writerName === null || profileError) {
       const fallback = user?.firstName || user?.username || user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] || "";
-      setNameInput(fallback);
+      setNameInput(prev => prev || fallback);
       setNameDialogOpen(true);
     }
-  }, [isGuest, profileLoading, profile?.writerName, user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGuest, profileLoading, profileError]);
 
   // Toast when XP was just lost to Writing Deviation
   useEffect(() => {

@@ -60,10 +60,14 @@ zrGYM66rkGVomzpnw9YU+q4si/BRbqPbSjZmgmq4VOaYpKwJOPrYtW++oM/6I+YP
 bQIDAQAB
 -----END PUBLIC KEY-----`;
 
+// Hardcode the production PK as final fallback so the middleware always
+// initialises correctly even if Railway doesn't have the env var set.
+const HARDCODED_PK = "pk_live_Y2xlcmsud3JpdGluZ3NwcmludC5zaXRlJA";
 const resolvedPublishableKey =
   process.env.VITE_CLERK_PK ??
   process.env.VITE_CLERK_PUBLISHABLE_KEY ??
-  process.env.CLERK_PUBLISHABLE_KEY;
+  process.env.CLERK_PUBLISHABLE_KEY ??
+  HARDCODED_PK;
 
 app.use(clerkMiddleware({ publishableKey: resolvedPublishableKey, jwtKey: CLERK_JWT_KEY }));
 

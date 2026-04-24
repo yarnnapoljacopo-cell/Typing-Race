@@ -347,10 +347,7 @@ function PortalGuard() {
 
   if (!isLoaded) return <AuthLoading />;
   if (isSignedIn || guestName) return <Portal />;
-
-  // TEMPORARY: show diagnostic page instead of redirecting home,
-  // so we can see exactly what Clerk reports after the OAuth callback.
-  return <AuthDiagnostic />;
+  return <Redirect to="/" />;
 }
 
 function RoomGuard() {
