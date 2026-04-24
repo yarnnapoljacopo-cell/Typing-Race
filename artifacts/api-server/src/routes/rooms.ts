@@ -15,6 +15,11 @@ const router: IRouter = Router();
 const RANK_THRESHOLDS = [0, 250, 1000, 3500, 10000, 25000, 75000, 200000];
 // XP lost per day after 5 days idle, indexed by rank (0–2 = no decay, 3–7 = decay)
 const DECAY_RATE_PER_DAY = [0, 0, 0, 15, 40, 100, 250, 500];
+
+// In-memory cache for applyXpDecay — skip the DB round-trip if we ran it
+// recently for the same user. Decay is a once-per-day operation so 60 s is fine.
+const decayCache = new Map<string, { result: DecayResult | null; at: number }>();
+const DECAY_CACHE_TTL_MS = 60_000;
 const RANKER_MIN_XP = 200000;
 const DECAY_GRACE_DAYS = 5;
 
@@ -31,6 +36,9 @@ interface DecayResult {
 }
 
 async function applyXpDecay(clerkUserId: string): Promise<DecayResult | null> {
+  const cached = decayCache.get(clerkUserId);
+  if (cached && Date.now() - cached.at < DECAY_CACHE_TTL_MS) return cached.result;
+
   const rows = await db
     .select({
       xp: userProfilesTable.xp,
@@ -41,12 +49,17 @@ async function applyXpDecay(clerkUserId: string): Promise<DecayResult | null> {
     .where(eq(userProfilesTable.clerkUserId, clerkUserId))
     .limit(1);
 
-  if (rows.length === 0) return null;
+  const cache = (result: DecayResult | null) => {
+    decayCache.set(clerkUserId, { result, at: Date.now() });
+    return result;
+  };
+
+  if (rows.length === 0) return cache(null);
   const { xp, lastSprintAt, decayCheckedAt } = rows[0];
   const now = new Date();
 
   // No sprint ever recorded → nothing to decay against
-  if (!lastSprintAt) return null;
+  if (!lastSprintAt) return cache(null);
 
   const rankIndex = getRankIndex(xp);
   if (rankIndex < 3) {
@@ -55,7 +68,7 @@ async function applyXpDecay(clerkUserId: string): Promise<DecayResult | null> {
       .update(userProfilesTable)
       .set({ decayCheckedAt: now })
       .where(eq(userProfilesTable.clerkUserId, clerkUserId));
-    return null;
+    return cache(null);
   }
 
   // Decay window opens DECAY_GRACE_DAYS after last sprint
@@ -65,10 +78,10 @@ async function applyXpDecay(clerkUserId: string): Promise<DecayResult | null> {
   const chargeFrom =
     decayCheckedAt && decayCheckedAt > decayWindowStart ? decayCheckedAt : decayWindowStart;
 
-  if (now <= chargeFrom) return null; // Grace period still active
+  if (now <= chargeFrom) return cache(null); // Grace period still active
 
   const decayDays = Math.floor((now.getTime() - chargeFrom.getTime()) / 86_400_000);
-  if (decayDays <= 0) return null;
+  if (decayDays <= 0) return cache(null);
 
   const decayPerDay = DECAY_RATE_PER_DAY[rankIndex];
   const totalDecay = decayDays * decayPerDay;
@@ -79,7 +92,7 @@ async function applyXpDecay(clerkUserId: string): Promise<DecayResult | null> {
     .set({ xp: newXp, decayCheckedAt: now, updatedAt: now })
     .where(eq(userProfilesTable.clerkUserId, clerkUserId));
 
-  return { xpLost: xp - newXp, newXp };
+  return cache({ xpLost: xp - newXp, newXp });
 }
 
 router.get("/rooms", async (_req, res): Promise<void> => {

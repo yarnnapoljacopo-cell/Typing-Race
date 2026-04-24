@@ -19,9 +19,28 @@ function getPool(): pg.Pool {
     }
     _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      max: 10,
+      max: 15,
       idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 5_000,
+      connectionTimeoutMillis: 10_000,
+      allowExitOnIdle: false,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10_000,
+      query_timeout: 20_000,
+      statement_timeout: 20_000,
+    });
+
+    // Swallow idle-client errors — pg-pool removes the dead client and creates
+    // a fresh one on the next acquire, so the pool self-heals.
+    _pool.on("error", (err) => {
+      console.error("[db-pool] idle client error — will be replaced:", err.message);
+    });
+
+    // Set statement_timeout on every new connection so the DB kills any query
+    // that hangs longer than 20 s, freeing the pool slot automatically.
+    _pool.on("connect", (client) => {
+      client.query("SET statement_timeout = 20000").catch((err) => {
+        console.error("[db-pool] could not set statement_timeout:", err.message);
+      });
     });
   }
   return _pool;
