@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
-import { ArrowLeft, Pen, TrendingUp, Hash, Check, ExternalLink, Loader2, Package, Gift, FlaskConical, ChevronRight } from "lucide-react";
+import { ArrowLeft, Pen, TrendingUp, Hash, Check, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -76,6 +76,27 @@ async function testDiscordWebhook(): Promise<void> {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error ?? "Test failed");
   }
+}
+
+async function fetchBagCount(): Promise<number> {
+  const res = await fetch(`${basePath}/api/user/bag`, { credentials: "include" });
+  if (!res.ok) return 0;
+  const data = await res.json();
+  return (data.inventory as unknown[])?.length ?? 0;
+}
+
+async function fetchChestCount(): Promise<number> {
+  const res = await fetch(`${basePath}/api/user/chests`, { credentials: "include" });
+  if (!res.ok) return 0;
+  const data = await res.json() as Record<string, number>;
+  return ["mortal", "iron", "crystal", "inferno", "immortal"].reduce((s, k) => s + (data[k] ?? 0), 0);
+}
+
+async function fetchRecipeCount(): Promise<number> {
+  const res = await fetch(`${basePath}/api/user/crafting/all-recipes`, { credentials: "include" });
+  if (!res.ok) return 0;
+  const data = await res.json();
+  return Array.isArray(data) ? data.length : 0;
 }
 
 interface Top10Entry { writerName: string; xp: number; position: number; }
@@ -423,6 +444,27 @@ export default function Profile() {
     ((user.publicMetadata?.writerName as string | undefined)?.toLowerCase() === name.toLowerCase())
   );
 
+  const { data: bagCount = 0 } = useQuery({
+    queryKey: ["profile-bag-count"],
+    queryFn: fetchBagCount,
+    enabled: isOwnProfile,
+    staleTime: 60_000,
+  });
+
+  const { data: chestCount = 0 } = useQuery({
+    queryKey: ["profile-chest-count"],
+    queryFn: fetchChestCount,
+    enabled: isOwnProfile,
+    staleTime: 60_000,
+  });
+
+  const { data: recipeCount = 0 } = useQuery({
+    queryKey: ["profile-recipe-count"],
+    queryFn: fetchRecipeCount,
+    enabled: isOwnProfile,
+    staleTime: 60_000,
+  });
+
   const nameplateMutation = useMutation({
     mutationFn: saveNameplate,
     onMutate: async (nameplate) => {
@@ -518,42 +560,48 @@ export default function Profile() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 px-1">Cultivation</p>
                 <div className="grid grid-cols-3 gap-3">
-                  <button
-                    onClick={() => setLocation("/bag")}
-                    className="group flex flex-col items-center gap-2.5 p-4 rounded-xl border border-border bg-card hover:bg-muted hover:border-primary/30 transition-all text-center"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
-                      <Package className="w-5 h-5 text-primary/70" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-foreground leading-tight">Bag</div>
-                      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">Items &amp; effects</div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setLocation("/chests")}
-                    className="group flex flex-col items-center gap-2.5 p-4 rounded-xl border border-border bg-card hover:bg-muted hover:border-primary/30 transition-all text-center"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
-                      <Gift className="w-5 h-5 text-primary/70" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-foreground leading-tight">Chests</div>
-                      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">Sprint rewards</div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setLocation("/crafting")}
-                    className="group flex flex-col items-center gap-2.5 p-4 rounded-xl border border-border bg-card hover:bg-muted hover:border-primary/30 transition-all text-center"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
-                      <FlaskConical className="w-5 h-5 text-primary/70" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-foreground leading-tight">Crafting</div>
-                      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">Fuse &amp; brew</div>
-                    </div>
-                  </button>
+                  {[
+                    {
+                      emoji: "🎒",
+                      label: "Bag",
+                      description: "Items, effects & inventory",
+                      statLabel: "items",
+                      statValue: bagCount,
+                      href: "/bag",
+                    },
+                    {
+                      emoji: "🎁",
+                      label: "Chests",
+                      description: "Open rewards from sprinting",
+                      statLabel: "to open",
+                      statValue: chestCount,
+                      href: "/chests",
+                    },
+                    {
+                      emoji: "⚗️",
+                      label: "Crafting",
+                      description: "Fusion, alchemy & tribulation",
+                      statLabel: "recipes",
+                      statValue: recipeCount,
+                      href: "/crafting",
+                    },
+                  ].map(({ emoji, label, description, statLabel, statValue, href }) => (
+                    <button
+                      key={href}
+                      onClick={() => setLocation(href)}
+                      className="group flex flex-col rounded-xl border border-border bg-card hover:bg-muted hover:border-primary/20 transition-all text-left overflow-hidden"
+                    >
+                      <div className="p-4 flex-1">
+                        <div className="text-3xl mb-3 leading-none">{emoji}</div>
+                        <div className="text-sm font-bold text-foreground leading-tight">{label}</div>
+                        <div className="text-xs text-muted-foreground mt-1 leading-snug">{description}</div>
+                      </div>
+                      <div className="border-t border-border px-4 py-2.5 flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">{statLabel}</span>
+                        <span className="text-xs font-semibold text-foreground">{statValue}</span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
