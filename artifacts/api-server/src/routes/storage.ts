@@ -101,22 +101,27 @@ router.post("/storage/equip", async (req, res): Promise<void> => {
 
     // Step 3: Compute total slots (base bag + ring bonus, additive)
     const newSlots = DEFAULT_BAG_SLOTS + inv.storage_slot_count;
-    const { rows: countRows } = await client.query(
-      `SELECT COUNT(*) AS cnt FROM user_inventory WHERE user_id = $1`,
-      [userId],
-    );
-    const currentItemCount = Number((countRows[0] as { cnt: string }).cnt);
+    const currentSlots = equipped.slot_count;
 
-    // The new item will leave inventory (freeing 1 slot), but the old item may come back (+1).
-    // Net: current_item_count - 1 (removing new item) + (equipped.item_id != null ? 1 : 0) (returning old).
-    const netAfterSwap = currentItemCount - 1 + (equipped.item_id !== null ? 1 : 0);
-
-    if (netAfterSwap > newSlots) {
-      await client.query("ROLLBACK");
-      res.status(400).json({
-        error: `You have ${netAfterSwap} items but ${inv.name} only holds ${newSlots} slots. Clear ${netAfterSwap - newSlots} item(s) before equipping.`,
-      });
-      return;
+    // Only block the equip if it would make the overflow situation WORSE:
+    // i.e. the new ring provides FEWER slots than whatever is equipped now.
+    // Upgrading or staying even is always allowed — the overflow warning system
+    // handles excess items independently.
+    if (newSlots < currentSlots) {
+      const { rows: countRows } = await client.query(
+        `SELECT COUNT(*) AS cnt FROM user_inventory WHERE user_id = $1`,
+        [userId],
+      );
+      const currentItemCount = Number((countRows[0] as { cnt: string }).cnt);
+      // Net items after swap: remove new ring (-1), return old ring (+1).
+      const netAfterSwap = currentItemCount - 1 + (equipped.item_id !== null ? 1 : 0);
+      if (netAfterSwap > newSlots) {
+        await client.query("ROLLBACK");
+        res.status(400).json({
+          error: `Swapping to ${inv.name} would reduce your slots to ${newSlots} but you have ${netAfterSwap} items. Clear ${netAfterSwap - newSlots} item(s) first.`,
+        });
+        return;
+      }
     }
 
     // Step 4: Return currently equipped item to bag (if not default)
