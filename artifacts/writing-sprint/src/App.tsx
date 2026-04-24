@@ -25,6 +25,7 @@ import Crafting from "@/pages/Crafting";
 import { GuestProvider, useGuest } from "@/lib/guestContext";
 import { VillainModeProvider } from "@/lib/villainModeContext";
 import { SkinProvider } from "@/lib/skinContext";
+import { DarkModeProvider } from "@/lib/darkModeContext";
 
 const queryClient = new QueryClient();
 
@@ -539,6 +540,7 @@ function ClerkProviderWithRoutes() {
       <TimedClerkLoaded timedOut={clerkTimedOut}>
       <QueryClientProvider client={queryClient}>
         <GuestProvider>
+          <DarkModeProvider>
           <SkinProvider>
           <VillainModeProvider>
           <ClerkQueryClientCacheInvalidator />
@@ -564,6 +566,7 @@ function ClerkProviderWithRoutes() {
           </TooltipProvider>
           </VillainModeProvider>
           </SkinProvider>
+          </DarkModeProvider>
         </GuestProvider>
       </QueryClientProvider>
       </TimedClerkLoaded>

@@ -978,10 +978,10 @@ export default function Room() {
     <>
     {/* Fixed background layers — only shown in normal (non-distraction-free) mode */}
     {!distractionFree && <>
-      <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "#F5F2EC" }} />
-      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(107,143,212,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(107,143,212,0.04) 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
-      <div style={{ position: "fixed", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(107,143,212,0.12) 0%, transparent 70%)", filter: "blur(90px)", top: -80, right: -80, pointerEvents: "none", zIndex: 0 }} />
-      <div style={{ position: "fixed", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(232,168,56,0.07) 0%, transparent 70%)", filter: "blur(90px)", bottom: 0, left: 0, pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "var(--bg-solid)" }} />
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", backgroundImage: "linear-gradient(var(--bg-grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--bg-grid-color) 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
+      <div style={{ position: "fixed", width: 400, height: 400, borderRadius: "50%", background: "var(--bg-orb1)", filter: "blur(90px)", top: -80, right: -80, pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "fixed", width: 300, height: 300, borderRadius: "50%", background: "var(--bg-orb2)", filter: "blur(90px)", bottom: 0, left: 0, pointerEvents: "none", zIndex: 0 }} />
     </>}
     <div className={distractionFree
       ? "fixed inset-0 z-50 bg-background flex flex-col overflow-auto"
@@ -1149,7 +1149,7 @@ export default function Room() {
           {!distractionFree && (
             <div
               className="sticky z-20 pb-2"
-              style={{ top: 56, background: "#F5F2EC", maxWidth: 1100, margin: "0 auto", width: "100%" }}
+              style={{ top: 56, background: "var(--bg-solid)", maxWidth: 1100, margin: "0 auto", width: "100%" }}
               onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
             ><>
               {room.mode === "gladiator" ? (
@@ -1380,7 +1380,7 @@ export default function Room() {
                 triggerLabel="My Writing"
                 triggerVariant="outline"
                 triggerClassName="w-full"
-                triggerStyle={{ background: "white", border: "1.5px solid rgba(107,143,212,0.18)", borderRadius: 12, padding: "13px 16px", fontFamily: "'DM Sans', sans-serif", fontSize: "0.88rem", fontWeight: 600, color: "#1a1a2e", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", cursor: "pointer", transition: "all 0.18s" }}
+                triggerStyle={{ background: "var(--color-card)", border: "1.5px solid var(--color-border)", borderRadius: 12, padding: "13px 16px", fontFamily: "'DM Sans', sans-serif", fontSize: "0.88rem", fontWeight: 600, color: "var(--color-foreground)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", cursor: "pointer", transition: "all 0.18s" }}
               />
 
               {/* Chapter Finished — downloads chapter, clears box, keeps car position */}
@@ -1536,7 +1536,7 @@ export default function Room() {
               fontSize: "0.85rem", fontWeight: 600, cursor: "pointer",
               display: "flex", alignItems: "center", gap: 7,
               transition: "all 0.18s",
-              background: "white", border: "1.5px solid rgba(107,143,212,0.15)", color: "#7a7a92",
+              background: "var(--color-card)", border: "1.5px solid var(--color-border)", color: "var(--color-muted-foreground)",
             }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#6B8FD4"; (e.currentTarget as HTMLElement).style.color = "#1a1a2e"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(107,143,212,0.15)"; (e.currentTarget as HTMLElement).style.color = "#7a7a92"; }}

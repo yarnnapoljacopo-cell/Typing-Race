@@ -448,20 +448,20 @@ export default function Profile() {
   );
 
   if (!name) {
-    return <div className="min-h-screen flex items-center justify-center" style={{ background: "#F5F2EC", color: "#7a7a92" }}>No name provided.</div>;
+    return <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-solid)", color: "var(--color-muted-foreground)" }}>No name provided.</div>;
   }
 
   return (
     <>
       {/* Fixed background layers */}
-      <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "#F5F2EC" }} />
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "var(--bg-solid)" }} />
       <div style={{
         position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
-        backgroundImage: "linear-gradient(rgba(107,143,212,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(107,143,212,0.05) 1px, transparent 1px)",
+        backgroundImage: "linear-gradient(var(--bg-grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--bg-grid-color) 1px, transparent 1px)",
         backgroundSize: "48px 48px",
       }} />
-      <div style={{ position: "fixed", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(107,143,212,0.15) 0%, transparent 70%)", filter: "blur(90px)", top: -120, right: -100, pointerEvents: "none", zIndex: 0 }} />
-      <div style={{ position: "fixed", width: 350, height: 350, borderRadius: "50%", background: "radial-gradient(circle, rgba(232,168,56,0.09) 0%, transparent 70%)", filter: "blur(90px)", bottom: 0, left: -80, pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "fixed", width: 500, height: 500, borderRadius: "50%", background: "var(--bg-orb1)", filter: "blur(90px)", top: -120, right: -100, pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "fixed", width: 350, height: 350, borderRadius: "50%", background: "var(--bg-orb2)", filter: "blur(90px)", bottom: 0, left: -80, pointerEvents: "none", zIndex: 0 }} />
       <div style={{ position: "fixed", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(168,85,247,0.07) 0%, transparent 70%)", filter: "blur(90px)", top: "40%", left: "30%", pointerEvents: "none", zIndex: 0 }} />
 
       {/* Scrollable content */}

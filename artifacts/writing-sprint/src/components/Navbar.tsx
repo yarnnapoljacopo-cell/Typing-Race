@@ -1,6 +1,11 @@
+import { Moon, Sun } from "lucide-react";
+import { useDarkMode } from "@/lib/darkModeContext";
+
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export function Navbar() {
+  const { isDark, toggleDarkMode } = useDarkMode();
+
   return (
     <nav
       style={{
@@ -12,12 +17,15 @@ export function Navbar() {
         height: 60,
         display: "flex",
         alignItems: "center",
+        justifyContent: "space-between",
         padding: "0 24px",
-        background: "rgba(245,242,236,0.82)",
+        background: "var(--navbar-bg)",
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
-        borderBottom: "1px solid rgba(107,143,212,0.12)",
-        boxShadow: "0 1px 12px rgba(107,143,212,0.07)",
+        borderBottom: "1px solid var(--navbar-border)",
+        boxShadow: isDark
+          ? "0 1px 12px rgba(0,0,0,0.3)"
+          : "0 1px 12px rgba(107,143,212,0.07)",
       }}
     >
       <div
@@ -45,7 +53,7 @@ export function Navbar() {
             fontFamily: "'Playfair Display', Georgia, serif",
             fontWeight: 700,
             fontSize: "1.15rem",
-            color: "#1a1a2e",
+            color: isDark ? "rgba(255,255,255,0.92)" : "#1a1a2e",
             letterSpacing: "-0.01em",
             whiteSpace: "nowrap",
           }}
@@ -53,6 +61,31 @@ export function Navbar() {
           Writing Sprint
         </span>
       </div>
+
+      <button
+        onClick={toggleDarkMode}
+        title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          border: isDark
+            ? "1px solid rgba(255,255,255,0.12)"
+            : "1px solid rgba(107,143,212,0.18)",
+          background: isDark
+            ? "rgba(255,255,255,0.07)"
+            : "rgba(107,143,212,0.07)",
+          cursor: "pointer",
+          color: isDark ? "rgba(255,255,255,0.75)" : "#6B8FD4",
+          transition: "all 0.2s",
+          flexShrink: 0,
+        }}
+      >
+        {isDark ? <Sun size={16} /> : <Moon size={16} />}
+      </button>
     </nav>
   );
 }

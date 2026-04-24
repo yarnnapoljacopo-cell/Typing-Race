@@ -36,16 +36,16 @@ type RoomMode = "regular" | "open" | "goal" | "boss" | "kart" | "gladiator";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-// ── Design tokens ──────────────────────────────────────────────────────────
+// ── Design tokens — use CSS variables so dark mode is automatic ────────────
 const C = {
-  cream: "#F5F2EC",
-  ink: "#1a1a2e",
+  cream: "var(--bg-solid)",
+  ink: "var(--color-foreground)",
   blueSoft: "#6B8FD4",
   blueLight: "#dce6f7",
   gold: "#E8A838",
-  muted: "#7a7a92",
-  border: "rgba(107,143,212,0.18)",
-  cardBg: "rgba(255,255,255,0.85)",
+  muted: "var(--color-muted-foreground)",
+  border: "var(--color-border)",
+  cardBg: "var(--color-card)",
 };
 
 interface ProfileData {
@@ -292,23 +292,23 @@ export default function Portal() {
       <Navbar />
 
       {/* ── Fixed background ── */}
-      <div style={{ position: "fixed", inset: 0, zIndex: 0, background: C.cream }} />
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "var(--bg-solid)" }} />
 
       {/* grid */}
       <div style={{
         position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
-        backgroundImage: "linear-gradient(rgba(107,143,212,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(107,143,212,0.05) 1px, transparent 1px)",
+        backgroundImage: "linear-gradient(var(--bg-grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--bg-grid-color) 1px, transparent 1px)",
         backgroundSize: "48px 48px",
       }} />
 
       {/* orbs */}
-      <div style={{ position: "fixed", width: 520, height: 520, borderRadius: "50%", filter: "blur(80px)", background: "radial-gradient(circle, rgba(107,143,212,0.18) 0%, transparent 70%)", top: -100, right: -80, zIndex: 0, pointerEvents: "none" }} />
-      <div style={{ position: "fixed", width: 380, height: 380, borderRadius: "50%", filter: "blur(80px)", background: "radial-gradient(circle, rgba(232,168,56,0.10) 0%, transparent 70%)", bottom: -80, left: -60, zIndex: 0, pointerEvents: "none" }} />
-      <div style={{ position: "fixed", width: 280, height: 280, borderRadius: "50%", filter: "blur(80px)", background: "radial-gradient(circle, rgba(107,143,212,0.12) 0%, transparent 70%)", bottom: 100, right: 60, zIndex: 0, pointerEvents: "none" }} />
+      <div style={{ position: "fixed", width: 520, height: 520, borderRadius: "50%", filter: "blur(80px)", background: "var(--bg-orb1)", top: -100, right: -80, zIndex: 0, pointerEvents: "none" }} />
+      <div style={{ position: "fixed", width: 380, height: 380, borderRadius: "50%", filter: "blur(80px)", background: "var(--bg-orb2)", bottom: -80, left: -60, zIndex: 0, pointerEvents: "none" }} />
+      <div style={{ position: "fixed", width: 280, height: 280, borderRadius: "50%", filter: "blur(80px)", background: "var(--bg-orb3)", bottom: 100, right: 60, zIndex: 0, pointerEvents: "none" }} />
 
       {/* rings */}
-      <div style={{ position: "fixed", width: 700, height: 700, borderRadius: "50%", border: "1.5px solid rgba(107,143,212,0.10)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 0, pointerEvents: "none" }} />
-      <div style={{ position: "fixed", width: 500, height: 500, borderRadius: "50%", border: "1.5px solid rgba(107,143,212,0.07)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 0, pointerEvents: "none" }} />
+      <div style={{ position: "fixed", width: 700, height: 700, borderRadius: "50%", border: "1.5px solid var(--bg-ring1)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 0, pointerEvents: "none" }} />
+      <div style={{ position: "fixed", width: 500, height: 500, borderRadius: "50%", border: "1.5px solid var(--bg-ring2)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 0, pointerEvents: "none" }} />
 
       {/* ── Scrollable content ── */}
       <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto", paddingTop: 80, paddingBottom: 32 }}>
@@ -329,10 +329,10 @@ export default function Portal() {
 
           {/* Headline */}
           <div style={{ textAlign: "center", marginBottom: 6 }}>
-            <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "3rem", fontWeight: 900, color: C.ink, letterSpacing: "-0.02em", lineHeight: 1.05 }}>
+            <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "3rem", fontWeight: 900, color: "var(--color-foreground)", letterSpacing: "-0.02em", lineHeight: 1.05 }}>
               Writing Sprint
             </h1>
-            <p style={{ fontSize: "0.97rem", color: C.muted, fontWeight: 300, letterSpacing: "0.02em", marginTop: 8 }}>
+            <p style={{ fontSize: "0.97rem", color: "var(--color-muted-foreground)", fontWeight: 300, letterSpacing: "0.02em", marginTop: 8 }}>
               Race against fellow writers. Find your flow.
             </p>
           </div>
@@ -884,7 +884,7 @@ export default function Portal() {
           {modesOpen && (
             <div style={{
               position: "absolute", bottom: 56, right: 0,
-              background: "white", border: `1px solid ${C.border}`, borderRadius: 14,
+              background: "var(--color-popover)", border: `1px solid ${C.border}`, borderRadius: 14,
               boxShadow: "0 20px 60px rgba(30,30,80,0.14)",
               padding: 8, minWidth: 190, zIndex: 100,
             }}>
@@ -925,7 +925,7 @@ export default function Portal() {
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 18, cursor: "pointer",
               border: `2px solid ${modesOpen ? C.ink : isVillainMode ? "#dc2626" : activeSkin !== "default" ? (activeSkin === "final" ? "#daa520" : "#60a5fa") : C.border}`,
-              background: modesOpen ? C.ink : isVillainMode ? "#450a0a" : activeSkin === "final" ? "#120e04" : activeSkin === "eternal" ? "#07102a" : "white",
+              background: modesOpen ? C.ink : isVillainMode ? "#450a0a" : activeSkin === "final" ? "#120e04" : activeSkin === "eternal" ? "#07102a" : "var(--color-card)",
               boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
               transition: "all 0.2s",
             }}
