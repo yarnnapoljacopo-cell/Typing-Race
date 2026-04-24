@@ -166,7 +166,7 @@ export default function Chests() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => history.back()}
+            onClick={() => setLocation("/portal")}
             className="gap-1.5 text-muted-foreground -ml-2 h-8"
           >
             <ArrowLeft className="w-4 h-4" /> Back

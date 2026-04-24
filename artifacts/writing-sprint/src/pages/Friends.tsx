@@ -142,7 +142,7 @@ export default function Friends() {
     <div className="min-h-screen bg-background flex flex-col items-center py-12 px-4">
       <div className="w-full max-w-lg space-y-8">
 
-        <Button variant="ghost" size="sm" onClick={() => history.back()} className="gap-2 text-muted-foreground -ml-2">
+        <Button variant="ghost" size="sm" onClick={() => setLocation("/portal")} className="gap-2 text-muted-foreground -ml-2">
           <ArrowLeft className="w-4 h-4" /> Back
         </Button>
 
