@@ -630,7 +630,7 @@ export default function Bag() {
               )}
               {selectedItem.is_storage_item && selectedItem.storage_slot_count && (
                 <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                  💾 Expands bag to {selectedItem.storage_slot_count} slots when equipped
+                  💾 Adds {selectedItem.storage_slot_count} extra bag slots when equipped (total: {20 + selectedItem.storage_slot_count})
                 </div>
               )}
 

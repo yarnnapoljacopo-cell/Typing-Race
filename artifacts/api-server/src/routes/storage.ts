@@ -4,6 +4,8 @@ import { pool } from "@workspace/db";
 
 const router: IRouter = Router();
 
+const DEFAULT_BAG_SLOTS = 20;
+
 /**
  * Ensures an equipped_storage row exists for the user.
  * Returns the current row (item_id may be null = Cloth Bag).
@@ -97,8 +99,8 @@ router.post("/storage/equip", async (req, res): Promise<void> => {
       return;
     }
 
-    // Step 3: Check if equipping smaller storage
-    const newSlots = inv.storage_slot_count;
+    // Step 3: Compute total slots (base bag + ring bonus, additive)
+    const newSlots = DEFAULT_BAG_SLOTS + inv.storage_slot_count;
     const { rows: countRows } = await client.query(
       `SELECT COUNT(*) AS cnt FROM user_inventory WHERE user_id = $1`,
       [userId],
