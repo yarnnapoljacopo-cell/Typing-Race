@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { ChestAwardModal } from "@/components/ChestAwardModal";
 
 const CAPSULE_INTERVAL = 200;
 
@@ -333,6 +334,7 @@ export default function Room() {
     participantTexts,
     restoredWordCount,
     chestAwarded,
+    setChestAwarded,
     setLatestText,
     sendTextUpdate,
     updateLocalWordCount,
@@ -357,21 +359,6 @@ export default function Room() {
     });
   }, [restoredWordCount, toast]);
 
-  // ── Toast when a chest is awarded after sprint end ────────────────────
-  const CHEST_LABELS: Record<string, string> = {
-    mortal: "📦 Mortal Chest",
-    iron: "⚙️ Iron Chest",
-    crystal: "💎 Crystal Chest",
-    inferno: "🔥 Inferno Chest",
-    immortal: "⭐ Immortal Chest",
-  };
-  useEffect(() => {
-    if (!chestAwarded) return;
-    toast({
-      title: "Chest earned!",
-      description: `You received a ${CHEST_LABELS[chestAwarded] ?? chestAwarded} for completing the sprint.`,
-    });
-  }, [chestAwarded, toast]);
 
   // ── Seed contenteditable with localStorage content once the div is in the DOM
   // The component does an early return when !room, so textareaRef is null on the
@@ -992,6 +979,11 @@ export default function Room() {
       ? "fixed inset-0 z-50 bg-background flex flex-col overflow-auto"
       : "min-h-screen w-full max-w-5xl mx-auto flex flex-col p-4 md:p-6 gap-4"
     }>
+
+      {/* Chest award modal — shown when timer ends naturally */}
+      {chestAwarded && (
+        <ChestAwardModal chestType={chestAwarded} onClose={() => setChestAwarded(null)} />
+      )}
 
       {/* Gladiator execution / victory / draw overlay */}
       {room?.mode === "gladiator" && gladiatorState.executionResult && (

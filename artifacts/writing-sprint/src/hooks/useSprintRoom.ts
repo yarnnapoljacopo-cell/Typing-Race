@@ -549,6 +549,7 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
     participantTexts,
     restoredWordCount,
     chestAwarded,
+    setChestAwarded,
     setLatestText,
     sendTextUpdate,
     updateLocalWordCount,

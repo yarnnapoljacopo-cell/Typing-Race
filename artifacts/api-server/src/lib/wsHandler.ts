@@ -609,7 +609,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           ws.send(JSON.stringify({ type: "error", message: "Only the creator can end the sprint" }));
           return;
         }
-        endSprint(room);
+        endSprint(room, false);
         return;
       }
 

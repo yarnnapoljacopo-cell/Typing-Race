@@ -498,7 +498,7 @@ const POST_SPRINT_CLOSE_MS = 10 * 60 * 1000; // 10 minutes
  * Idempotently award XP for a sprint and persist writing.
  * Safe to call multiple times — the xpAwarded flag prevents double-award.
  */
-async function finalizeSprintData(room: Room): Promise<void> {
+async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void> {
   const allParticipants = Array.from(room.participants.values()).filter((p) => !p.isSpectator);
   if (allParticipants.length === 0) return;
 
@@ -545,21 +545,23 @@ async function finalizeSprintData(room: Room): Promise<void> {
         eq(sprintWritingTable.participantName, p.name),
       ));
 
-    // ── Award a random chest for completing the sprint ────────────────────
-    const chestType = rollSprintChest();
-    try {
-      await grantSprintChest(p.clerkUserId, chestType);
-      if (p.ws.readyState === WebSocket.OPEN) {
-        p.ws.send(JSON.stringify({ type: "chest_awarded", chestType }));
+    // ── Award a random chest only when the sprint timer ran out naturally ──
+    if (naturalEnd) {
+      const chestType = rollSprintChest();
+      try {
+        await grantSprintChest(p.clerkUserId, chestType);
+        if (p.ws.readyState === WebSocket.OPEN) {
+          p.ws.send(JSON.stringify({ type: "chest_awarded", chestType }));
+        }
+        logger.info({ code: room.code, userId: p.clerkUserId, chestType }, "Sprint chest awarded");
+      } catch (err) {
+        logger.error({ err, code: room.code }, "Failed to grant sprint chest");
       }
-      logger.info({ code: room.code, userId: p.clerkUserId, chestType }, "Sprint chest awarded");
-    } catch (err) {
-      logger.error({ err, code: room.code }, "Failed to grant sprint chest");
     }
   }));
 }
 
-export function endSprint(room: Room): void {
+export function endSprint(room: Room, naturalEnd = true): void {
   if (room.status === "finished") return;
 
   room.status = "finished";
@@ -593,7 +595,7 @@ export function endSprint(room: Room): void {
 
   // Persist writing and award XP server-side so data is never lost even if
   // a client disconnects before reaching the results screen.
-  finalizeSprintData(room).catch((err) =>
+  finalizeSprintData(room, naturalEnd).catch((err) =>
     logger.error({ err, code: room.code }, "Failed to finalize sprint data"),
   );
 
