@@ -1,6 +1,7 @@
 [build]
-builder = "NIXPACKS"
+builder = "RAILPACK"
 buildCommand = "bash scripts/build.sh"
+corepackEnabled = false
 
 [deploy]
 startCommand = "node --enable-source-maps artifacts/api-server/dist/index.mjs"
