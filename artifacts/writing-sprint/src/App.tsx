@@ -88,17 +88,7 @@ class ClerkErrorBoundary extends Component<
   }
 }
 
-// Clerk publishable keys are intentionally public — they are embedded in every
-// page's source and are not secrets. We hardcode the production key here as the
-// final fallback so Railway builds never fail even if VITE_CLERK_PUBLISHABLE_KEY
-// is not set as a Railway env var.
-// Key encodes: clerk.writingsprint.site (custom Clerk FAPI domain)
-const HARDCODED_PK = "pk_live_Y2xlcmsud3JpdGluZ3NwcmludC5zaXRlJA";
-
-const clerkPubKey =
-  (import.meta.env.VITE_CLERK_PK as string | undefined) ||
-  (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined) ||
-  HARDCODED_PK;
+const clerkPubKey = import.meta.env.VITE_CLERK_PK as string | undefined;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 // In development builds (NODE_ENV=development), skip the domain restriction so
