@@ -4,8 +4,6 @@ import { useAuth } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ShoppingBag, Loader2, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -80,20 +78,74 @@ const ITEM_TYPE_LABELS: Record<string, string> = {
   immortal_chest: "Immortal Chest",
 };
 
-const CHEST_RARITY_COLOR: Record<string, string> = {
-  mortal_chest: "bg-zinc-100 text-zinc-600 border-zinc-200",
-  iron_chest: "bg-slate-100 text-slate-600 border-slate-300",
-  crystal_chest: "bg-blue-100 text-blue-700 border-blue-200",
-  inferno_chest: "bg-orange-100 text-orange-700 border-orange-200",
-  immortal_chest: "bg-yellow-100 text-yellow-800 border-yellow-200",
-};
+interface ChestStyle {
+  card: string;
+  badge: string;
+  badgeText: string;
+  glow: string;
+  iconRing: string;
+  priceText: string;
+  buyBtn: string;
+  label: string;
+  stars: number;
+}
 
-const CHEST_CARD_BORDER: Record<string, string> = {
-  mortal_chest: "border-l-zinc-400",
-  iron_chest: "border-l-slate-400",
-  crystal_chest: "border-l-blue-500",
-  inferno_chest: "border-l-orange-500",
-  immortal_chest: "border-l-yellow-500",
+const CHEST_STYLES: Record<string, ChestStyle> = {
+  mortal_chest: {
+    card: "bg-gradient-to-br from-stone-50 to-zinc-100 dark:from-zinc-800/60 dark:to-zinc-900/80 border-zinc-200 dark:border-zinc-700",
+    badge: "bg-zinc-200/80 dark:bg-zinc-700/80 text-zinc-600 dark:text-zinc-300",
+    badgeText: "Common",
+    glow: "",
+    iconRing: "bg-zinc-200/70 dark:bg-zinc-700/60",
+    priceText: "text-zinc-600 dark:text-zinc-300",
+    buyBtn: "bg-zinc-600 hover:bg-zinc-700 text-white dark:bg-zinc-500 dark:hover:bg-zinc-400",
+    label: "Mortal",
+    stars: 1,
+  },
+  iron_chest: {
+    card: "bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/60 dark:to-slate-900/80 border-slate-300 dark:border-slate-600",
+    badge: "bg-slate-200/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300",
+    badgeText: "Uncommon",
+    glow: "",
+    iconRing: "bg-slate-200/70 dark:bg-slate-700/60",
+    priceText: "text-slate-600 dark:text-slate-300",
+    buyBtn: "bg-slate-500 hover:bg-slate-600 text-white",
+    label: "Iron",
+    stars: 2,
+  },
+  crystal_chest: {
+    card: "bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 border-blue-300 dark:border-blue-600",
+    badge: "bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-300",
+    badgeText: "Rare",
+    glow: "shadow-blue-200/60 dark:shadow-blue-900/40",
+    iconRing: "bg-blue-100/80 dark:bg-blue-800/50",
+    priceText: "text-blue-700 dark:text-blue-300",
+    buyBtn: "bg-blue-600 hover:bg-blue-700 text-white",
+    label: "Crystal",
+    stars: 3,
+  },
+  inferno_chest: {
+    card: "bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-900/30 dark:to-red-900/30 border-orange-400 dark:border-orange-600",
+    badge: "bg-orange-100 dark:bg-orange-800/60 text-orange-700 dark:text-orange-300",
+    badgeText: "Epic",
+    glow: "shadow-orange-200/70 dark:shadow-orange-900/50",
+    iconRing: "bg-orange-100/80 dark:bg-orange-800/50",
+    priceText: "text-orange-700 dark:text-orange-300",
+    buyBtn: "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white",
+    label: "Inferno",
+    stars: 4,
+  },
+  immortal_chest: {
+    card: "bg-gradient-to-br from-yellow-50 via-amber-50 to-yellow-100 dark:from-yellow-900/30 dark:via-amber-900/30 dark:to-yellow-900/30 border-yellow-400 dark:border-yellow-600",
+    badge: "bg-yellow-100 dark:bg-yellow-800/60 text-yellow-800 dark:text-yellow-300",
+    badgeText: "Mythic",
+    glow: "shadow-yellow-300/60 dark:shadow-yellow-900/50",
+    iconRing: "bg-yellow-100/80 dark:bg-yellow-800/50",
+    priceText: "text-yellow-700 dark:text-yellow-400",
+    buyBtn: "bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white font-bold",
+    label: "Immortal",
+    stars: 5,
+  },
 };
 
 export default function Shop() {
@@ -188,42 +240,65 @@ export default function Shop() {
           <p className="text-center text-destructive py-8">Failed to load shop. Please try again.</p>
         )}
         {shopData && (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {shopData.listings.map((listing) => {
+              const style = CHEST_STYLES[listing.item_type] ?? CHEST_STYLES.mortal_chest;
               const canAfford = shopData.balance >= listing.price;
+              const isBundle = listing.quantity > 1;
               return (
-                <Card
+                <div
                   key={listing.id}
-                  className={`border-l-4 transition-shadow hover:shadow-md ${CHEST_CARD_BORDER[listing.item_type] ?? "border-l-border"}`}
+                  className={`relative rounded-2xl border-2 p-5 flex flex-col gap-4 transition-all hover:scale-[1.02] hover:shadow-xl ${style.card} ${style.glow ? `shadow-lg ${style.glow}` : "shadow-sm"}`}
                 >
-                  <CardContent className="p-4 flex items-center gap-4">
-                    <span className="text-3xl">{listing.icon}</span>
+                  {/* Tier badge */}
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[11px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full ${style.badge}`}>
+                      {style.badgeText}
+                    </span>
+                    {/* Stars */}
+                    <span className="text-xs tracking-tight opacity-60">
+                      {"★".repeat(style.stars)}{"☆".repeat(5 - style.stars)}
+                    </span>
+                  </div>
+
+                  {/* Icon + title */}
+                  <div className="flex items-center gap-4">
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-4xl shrink-0 ${style.iconRing}`}>
+                      {listing.icon}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="font-semibold">{listing.name}</span>
-                        <Badge variant="outline" className={`text-xs ${CHEST_RARITY_COLOR[listing.item_type] ?? ""}`}>
-                          {ITEM_TYPE_LABELS[listing.item_type] ?? listing.item_type}
-                        </Badge>
-                        {listing.quantity > 1 && (
-                          <Badge variant="secondary" className="text-xs">×{listing.quantity}</Badge>
+                      <h3 className="font-bold text-base leading-tight">
+                        {isBundle ? (
+                          <>
+                            {ITEM_TYPE_LABELS[listing.item_type] ?? style.label}
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-foreground/10 text-foreground">
+                              ×{listing.quantity}
+                            </span>
+                          </>
+                        ) : (
+                          ITEM_TYPE_LABELS[listing.item_type] ?? listing.name
                         )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">{listing.description}</p>
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed line-clamp-2">
+                        {listing.description}
+                      </p>
                     </div>
-                    <div className="flex flex-col items-end gap-2 shrink-0">
-                      <span className="font-bold text-yellow-600 dark:text-yellow-400">
-                        🪙 {listing.price.toLocaleString()}
-                      </span>
-                      <Button
-                        size="sm"
-                        disabled={!canAfford || buyMutation.isPending}
-                        onClick={() => setConfirmListing(listing)}
-                      >
-                        {!canAfford ? "Can't Afford" : "Buy"}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                  </div>
+
+                  {/* Price + Buy */}
+                  <div className="flex items-center justify-between mt-auto pt-1 border-t border-black/5 dark:border-white/5">
+                    <span className={`text-xl font-black tabular-nums ${style.priceText}`}>
+                      🪙 {listing.price.toLocaleString()}
+                    </span>
+                    <button
+                      disabled={!canAfford || buyMutation.isPending}
+                      onClick={() => setConfirmListing(listing)}
+                      className={`px-5 py-1.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${style.buyBtn}`}
+                    >
+                      {!canAfford ? "Can't Afford" : isBundle ? `Buy ×${listing.quantity}` : "Buy"}
+                    </button>
+                  </div>
+                </div>
               );
             })}
           </div>
