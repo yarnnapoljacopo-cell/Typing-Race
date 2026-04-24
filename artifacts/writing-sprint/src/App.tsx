@@ -116,9 +116,10 @@ function stripBase(path: string): string {
     : path;
 }
 
-if (!clerkPubKey) {
-  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
-}
+// NOTE: clerkPubKey may be undefined if VITE_CLERK_PUBLISHABLE_KEY was not set
+// at build time. We handle this gracefully inside ClerkProviderWithRoutes so
+// that we never throw at module level (which would blank the page before any
+// error boundary or domain-check UI can render).
 
 // ── Clerk appearance ───────────────────────────────────────────────────────
 
@@ -402,8 +403,51 @@ function ClerkQueryClientCacheInvalidator() {
 
 // ── Root ───────────────────────────────────────────────────────────────────
 
+function MissingKeyScreen() {
+  return (
+    <div
+      style={{
+        minHeight: "100dvh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "1rem",
+        fontFamily: "Inter, sans-serif",
+        background: "#FAF8F4",
+        color: "#2D3142",
+        padding: "2rem",
+        textAlign: "center",
+      }}
+    >
+      <img src={`${basePath}/logo.svg`} alt="Writing Sprint" style={{ width: 56, height: 56, borderRadius: 14 }} />
+      <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>Writing Sprint</h1>
+      <p style={{ margin: 0, color: "#68708A", maxWidth: 380 }}>
+        The app is not fully configured yet. Please visit the app at its official address:
+      </p>
+      <a
+        href={LIVE_URL}
+        style={{
+          display: "inline-block",
+          marginTop: "0.5rem",
+          padding: "0.6rem 1.4rem",
+          background: "#1A6BC9",
+          color: "#fff",
+          borderRadius: "0.5rem",
+          textDecoration: "none",
+          fontWeight: 600,
+        }}
+      >
+        Open app.writingsprint.site
+      </a>
+    </div>
+  );
+}
+
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
+
+  if (!clerkPubKey) return <MissingKeyScreen />;
 
   return (
     <ClerkProvider

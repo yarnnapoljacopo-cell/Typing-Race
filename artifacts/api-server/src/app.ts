@@ -70,13 +70,13 @@ app.use(clerkMiddleware({ publishableKey: resolvedPublishableKey, jwtKey: CLERK_
 app.use("/api", router);
 
 // ── Production: serve the built React frontend ────────────────────────────
-// When NODE_ENV=production the Vite-built static files live at
-//   artifacts/writing-sprint/dist/public/
-// relative to the project root.  The API server dist is at
-//   artifacts/api-server/dist/
-// so __dirname resolves the path correctly at runtime.
+// Vite builds the writing-sprint app to artifacts/writing-sprint/dist/public/
+// relative to the project root (process.cwd()).  Using process.cwd() here is
+// more reliable than __dirname because Railway always starts the process from
+// the repo root, and it makes the resolved path clearly visible in startup logs.
 if (process.env.NODE_ENV === "production") {
-  const frontendDist = path.resolve(__dirname, "../../writing-sprint/dist/public");
+  const frontendDist = path.join(process.cwd(), "artifacts/writing-sprint/dist/public");
+  logger.info({ frontendDist }, "Production: serving frontend static files from");
   app.use(express.static(frontendDist));
   // SPA fallback — serve index.html for any non-API, non-WS route
   app.use((_req, res) => {
