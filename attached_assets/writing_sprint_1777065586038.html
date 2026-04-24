@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Writing Sprint</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #F5F2EC;
+    --ink: #1a1a2e;
+    --blue-soft: #6B8FD4;
+    --blue-light: #dce6f7;
+    --blue-mid: #8AAAE0;
+    --gold: #E8A838;
+    --muted: #7a7a92;
+    --white: #ffffff;
+    --card-bg: rgba(255,255,255,0.85);
+    --border: rgba(107,143,212,0.18);
+  }
+
+  body {
+    background: var(--cream);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bg-orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .orb1 {
+    width: 520px; height: 520px;
+    background: radial-gradient(circle, rgba(107,143,212,0.18) 0%, transparent 70%);
+    top: -100px; right: -80px;
+  }
+  .orb2 {
+    width: 380px; height: 380px;
+    background: radial-gradient(circle, rgba(232,168,56,0.10) 0%, transparent 70%);
+    bottom: -80px; left: -60px;
+  }
+  .orb3 {
+    width: 280px; height: 280px;
+    background: radial-gradient(circle, rgba(107,143,212,0.12) 0%, transparent 70%);
+    bottom: 100px; right: 60px;
+  }
+
+  .bg-grid {
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(107,143,212,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(107,143,212,0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .bg-ring {
+    position: fixed;
+    width: 700px; height: 700px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(107,143,212,0.10);
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    z-index: 0;
+  }
+  .bg-ring2 { width: 500px; height: 500px; border-color: rgba(107,143,212,0.07); }
+
+  .app-wrapper {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 460px;
+    padding: 24px 20px;
+    animation: fadeUp 0.7s cubic-bezier(.22,1,.36,1) both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(28px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .logo-wrap { display: flex; justify-content: center; margin-bottom: 20px; }
+  .logo-icon {
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, #dce6f7 0%, #c5d8f5 100%);
+    border-radius: 18px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 24px rgba(107,143,212,0.22), 0 1px 0 rgba(255,255,255,0.9) inset;
+    animation: logoFloat 4s ease-in-out infinite;
+  }
+  @keyframes logoFloat {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+  .logo-icon svg { width: 30px; height: 30px; color: var(--blue-soft); }
+
+  .headline { text-align: center; margin-bottom: 6px; }
+  .headline h1 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 3rem; font-weight: 900;
+    color: var(--ink); letter-spacing: -0.02em; line-height: 1.05;
+  }
+  .headline p {
+    font-size: 0.97rem; color: var(--muted);
+    font-weight: 300; letter-spacing: 0.02em; margin-top: 8px;
+  }
+
+  .top-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 22px 0 18px; padding: 0 2px;
+  }
+
+  .coins {
+    display: flex; align-items: center; gap: 7px;
+    background: rgba(255,255,255,0.7);
+    border: 1px solid rgba(232,168,56,0.25);
+    border-radius: 999px; padding: 5px 13px 5px 8px;
+    font-weight: 600; font-size: 0.88rem; color: var(--ink);
+    box-shadow: 0 2px 8px rgba(232,168,56,0.10);
+  }
+  .coin-icon {
+    width: 22px; height: 22px;
+    background: linear-gradient(135deg, #f5c542 0%, #e8933a 100%);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    box-shadow: 0 2px 6px rgba(232,168,56,0.35);
+  }
+
+  .username-wrap { position: relative; }
+  .username-btn {
+    background: rgba(255,255,255,0.9);
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 14px 6px 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; font-weight: 600; color: var(--ink);
+    cursor: pointer;
+    display: flex; align-items: center; gap: 7px;
+    box-shadow: 0 2px 12px rgba(107,143,212,0.10);
+    transition: all 0.2s;
+  }
+  .username-btn:hover { background: white; box-shadow: 0 4px 18px rgba(107,143,212,0.18); }
+
+  .signout-btn {
+    background: none; border: none;
+    display: flex; align-items: center; gap: 6px;
+    color: var(--muted); font-size: 0.85rem;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: color 0.2s;
+  }
+  .signout-btn:hover { color: var(--ink); }
+
+  .tab-nav {
+    display: flex;
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(107,143,212,0.13);
+    border-radius: 14px; padding: 4px;
+    margin-bottom: 18px;
+    backdrop-filter: blur(12px);
+  }
+  .tab-btn {
+    flex: 1; background: none; border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.84rem; font-weight: 500; color: var(--muted);
+    padding: 9px 6px; border-radius: 10px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: all 0.22s;
+  }
+  .tab-btn.active {
+    background: white; color: var(--ink); font-weight: 600;
+    box-shadow: 0 2px 12px rgba(107,143,212,0.14);
+  }
+  .tab-btn:hover:not(.active) { color: var(--ink); }
+
+  .card {
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 22px; padding: 28px 26px;
+    box-shadow: 0 8px 40px rgba(107,143,212,0.12), 0 1px 0 rgba(255,255,255,0.8) inset;
+  }
+
+  .sprint-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: linear-gradient(135deg, #e8f0fc, #d4e3fa);
+    border: 1px solid rgba(107,143,212,0.2);
+    border-radius: 999px; padding: 4px 12px;
+    font-size: 0.75rem; font-weight: 600; color: var(--blue-soft);
+    letter-spacing: 0.04em; margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+  .badge-dot {
+    width: 6px; height: 6px;
+    background: var(--blue-soft); border-radius: 50%;
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .card-title { font-size: 1.05rem; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
+  .card-sub { font-size: 0.84rem; color: var(--muted); margin-bottom: 22px; }
+  .card-sub strong { color: var(--ink); }
+
+  .mode-toggle {
+    display: flex;
+    background: #f0f0f5; border-radius: 12px;
+    padding: 3px; margin-bottom: 22px;
+  }
+  .mode-btn {
+    flex: 1; border: none; background: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; font-weight: 500; color: var(--muted);
+    padding: 10px; border-radius: 9px; cursor: pointer; transition: all 0.22s;
+  }
+  .mode-btn.active {
+    background: white; color: var(--ink); font-weight: 700;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  }
+
+  .input-label {
+    font-size: 0.78rem; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;
+  }
+  .code-input {
+    width: 100%;
+    background: rgba(255,255,255,0.7);
+    border: 1.5px solid var(--border);
+    border-radius: 13px; padding: 14px 18px;
+    font-family: 'DM Sans', monospace;
+    font-size: 1rem; letter-spacing: 0.1em;
+    color: var(--ink); text-align: center; outline: none;
+    transition: all 0.22s; margin-bottom: 20px; display: block;
+  }
+  .code-input::placeholder { color: #bbb; letter-spacing: 0.12em; }
+  .code-input:focus {
+    border-color: var(--blue-soft); background: white;
+    box-shadow: 0 0 0 4px rgba(107,143,212,0.12);
+  }
+
+  .cta-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #7fa4e0 0%, #5a82d0 100%);
+    border: none; border-radius: 14px; padding: 16px;
+    color: white; font-family: 'DM Sans', sans-serif;
+    font-size: 1rem; font-weight: 700; letter-spacing: 0.01em;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    box-shadow: 0 6px 24px rgba(90,130,208,0.35), 0 1px 0 rgba(255,255,255,0.25) inset;
+    transition: all 0.22s; position: relative; overflow: hidden;
+  }
+  .cta-btn::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.1), transparent);
+    pointer-events: none;
+  }
+  .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(90,130,208,0.45), 0 1px 0 rgba(255,255,255,0.25) inset; }
+  .cta-btn:active { transform: translateY(0); }
+
+  /* Dropdown */
+  .dropdown {
+    position: absolute;
+    top: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+    background: white; border-radius: 16px;
+    border: 1px solid rgba(107,143,212,0.12);
+    box-shadow: 0 20px 60px rgba(30,30,80,0.14), 0 2px 8px rgba(107,143,212,0.10);
+    padding: 8px; min-width: 220px; z-index: 100;
+    display: none; animation: dropIn 0.18s cubic-bezier(.22,1,.36,1) both;
+  }
+  @keyframes dropIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.97); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  }
+  .dropdown.open { display: block; }
+  .dropdown-divider { height: 1px; background: rgba(107,143,212,0.10); margin: 6px 4px; }
+  .dropdown-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 10px 12px; border-radius: 10px;
+    font-size: 0.88rem; font-weight: 500; color: var(--ink);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .dropdown-item:hover { background: var(--blue-light); }
+  .dropdown-item svg { color: var(--muted); flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-orb orb1"></div>
+<div class="bg-orb orb2"></div>
+<div class="bg-orb orb3"></div>
+<div class="bg-ring"></div>
+<div class="bg-ring bg-ring2"></div>
+
+<div class="app-wrapper">
+
+  <div class="logo-wrap">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+        <path d="M2 2l7.586 7.586"/>
+        <circle cx="11" cy="11" r="2"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="headline">
+    <h1>Writing Sprint</h1>
+    <p>Race against fellow writers. Find your flow.</p>
+  </div>
+
+  <div class="top-bar">
+    <div class="coins">
+      <div class="coin-icon">✦</div>
+      0
+    </div>
+
+    <div class="username-wrap">
+      <button class="username-btn" id="userBtn" onclick="toggleDropdown()">
+        Entrail
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="dropdown" id="dropdown">
+        <div class="dropdown-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit writer name
+        </div>
+        <div class="dropdown-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          My Files
+        </div>
+        <div class="dropdown-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Friends
+        </div>
+        <div class="dropdown-divider"></div>
+        <div class="dropdown-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          Shop
+        </div>
+        <div class="dropdown-item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          My Profile
+        </div>
+      </div>
+    </div>
+
+    <button class="signout-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign out
+    </button>
+  </div>
+
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="setTab(this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Sprint
+    </button>
+    <button class="tab-btn" onclick="setTab(this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8" stroke-dasharray="3 2"/></svg>
+      Active Rooms
+    </button>
+    <button class="tab-btn" onclick="setTab(this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      Past Sprints
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="sprint-badge">
+      <div class="badge-dot"></div>
+      Session open
+    </div>
+    <div class="card-title">Join the session</div>
+    <div class="card-sub">Writing as <strong>Entrail</strong></div>
+
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="joinBtn" onclick="setMode('join')">Join Room</button>
+      <button class="mode-btn" id="createBtn" onclick="setMode('create')">Create Room</button>
+    </div>
+
+    <div class="input-label" id="inputLabel">Room Code</div>
+    <input class="code-input" id="codeInput" type="text" placeholder="SPRINT-XXXX" maxlength="12" oninput="this.value=this.value.toUpperCase()">
+
+    <button class="cta-btn" id="ctaBtn">
+      Enter Room &nbsp;→
+    </button>
+  </div>
+
+</div>
+
+<script>
+  function toggleDropdown() {
+    const d = document.getElementById('dropdown');
+    d.classList.toggle('open');
+    setTimeout(() => {
+      document.addEventListener('click', function handler(e) {
+        if (!document.getElementById('userBtn').contains(e.target)) {
+          d.classList.remove('open');
+          document.removeEventListener('click', handler);
+        }
+      });
+    }, 10);
+  }
+
+  function setTab(el) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  function setMode(mode) {
+    document.getElementById('joinBtn').classList.toggle('active', mode === 'join');
+    document.getElementById('createBtn').classList.toggle('active', mode === 'create');
+    const input = document.getElementById('codeInput');
+    const label = document.getElementById('inputLabel');
+    const btn = document.getElementById('ctaBtn');
+    if (mode === 'create') {
+      input.placeholder = 'Room name...';
+      input.style.letterSpacing = '0.02em';
+      label.textContent = 'Room Name';
+      btn.textContent = 'Create Room  ✦';
+    } else {
+      input.placeholder = 'SPRINT-XXXX';
+      input.style.letterSpacing = '0.1em';
+      label.textContent = 'Room Code';
+      btn.textContent = 'Enter Room  →';
+    }
+  }
+</script>
+</body>
+</html>

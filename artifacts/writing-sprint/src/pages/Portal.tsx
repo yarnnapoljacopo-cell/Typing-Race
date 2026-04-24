@@ -1,12 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useUser, useClerk, useAuth, SignUpButton, SignInButton } from "@clerk/react";
+import { useUser, useClerk, useAuth, SignUpButton } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCreateRoom } from "@workspace/api-client-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,9 +19,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
-  Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User, Users, ChevronDown, KeyRound, Crown,
-  ShoppingBag,
+  ArrowRight, Loader2, Eye, Lock, Timer, Target,
+  BookOpen, LogOut, Pencil, Skull, Swords, User, Users, ChevronDown, KeyRound, Crown,
+  ShoppingBag, Clock, Radio, UserRound,
 } from "lucide-react";
 import { CoinBalance } from "@/components/CoinBalance";
 import { useToast } from "@/hooks/use-toast";
@@ -33,11 +30,22 @@ import ActiveRooms from "./ActiveRooms";
 import { useGuest } from "@/lib/guestContext";
 import { useVillainMode } from "@/lib/villainModeContext";
 import { useSkin } from "@/lib/skinContext";
-import { SKINS, type SkinKey } from "@/lib/nameplates";
 
 type RoomMode = "regular" | "open" | "goal" | "boss" | "kart" | "gladiator";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+// ── Design tokens ──────────────────────────────────────────────────────────
+const C = {
+  cream: "#F5F2EC",
+  ink: "#1a1a2e",
+  blueSoft: "#6B8FD4",
+  blueLight: "#dce6f7",
+  gold: "#E8A838",
+  muted: "#7a7a92",
+  border: "rgba(107,143,212,0.18)",
+  cardBg: "rgba(255,255,255,0.85)",
+};
 
 interface ProfileData {
   writerName: string | null;
@@ -68,6 +76,21 @@ async function saveProfile(writerName: string): Promise<{ writerName: string }> 
   return res.json();
 }
 
+// ── Sub-components ──────────────────────────────────────────────────────────
+
+function PenIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 30, height: 30, color: C.blueSoft }}>
+      <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+      <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+      <path d="M2 2l7.586 7.586"/>
+      <circle cx="11" cy="11" r="2"/>
+    </svg>
+  );
+}
+
+// ── Main component ──────────────────────────────────────────────────────────
+
 export default function Portal() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -96,6 +119,7 @@ export default function Portal() {
 
   const initialTab = new URLSearchParams(window.location.search).get("tab") ?? "sprint";
   const [activeTab, setActiveTab] = useState<string>(initialTab);
+  const [joinMode, setJoinMode] = useState<"join" | "create">("join");
 
   const [joinCode, setJoinCode] = useState("");
   const [duration, setDuration] = useState<number>(30);
@@ -115,8 +139,6 @@ export default function Portal() {
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [nameInput, setNameInput] = useState("");
 
-  // Holds the password between handleCreate() and onSuccess() so it can be
-  // stored in sessionStorage before the creator is navigated into the room.
   const pendingRoomPasswordRef = useRef<string | null>(null);
 
   const { data: profile, isLoading: profileLoading, isError: profileError } = useQuery({
@@ -140,11 +162,6 @@ export default function Portal() {
 
   useEffect(() => {
     if (isGuest || profileLoading) return;
-    // Open name dialog automatically:
-    //   • on first sign-in (writerName is explicitly null from the DB)
-    //   • when the profile fetch failed entirely (writerName is undefined)
-    //     so the user still has a way to set / confirm their name
-    // Open if: new user (writerName null in DB) OR profile fetch failed entirely
     if (profile?.writerName === null || profileError) {
       const fallback = user?.firstName || user?.username || user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] || "";
       setNameInput(prev => prev || fallback);
@@ -153,7 +170,6 @@ export default function Portal() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGuest, profileLoading, profileError]);
 
-  // Toast when XP was just lost to Writing Deviation
   useEffect(() => {
     if (!isGuest && !profileLoading && profile?.xpDecayed && profile.xpDecayed > 0) {
       toast({
@@ -162,7 +178,6 @@ export default function Portal() {
         variant: "destructive",
       });
     }
-  // Only fire once on first load (profile reference changes when data arrives)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.xpDecayed]);
 
@@ -193,8 +208,6 @@ export default function Portal() {
   const createRoomMutation = useCreateRoom({
     mutation: {
       onSuccess: (data) => {
-        // If the creator set a password, stash it so the Room page can pass it
-        // in the join_room WS message (same flow as any other joiner).
         const pw = pendingRoomPasswordRef.current;
         if (pw) {
           sessionStorage.setItem(`room_password_${data.code}`, pw);
@@ -216,7 +229,6 @@ export default function Portal() {
     const wordGoal = roomMode === "goal" ? (parseInt(goalWords, 10) || 1000) : undefined;
     const bossWordGoal = roomMode === "boss" ? (parseInt(bossGoalWords, 10) || 5000) : undefined;
     const pw = useRoomPassword && roomPassword.trim() ? roomPassword.trim() : undefined;
-    // Stash password so onSuccess can write it to sessionStorage for the creator's own join
     pendingRoomPasswordRef.current = pw ?? null;
     createRoomMutation.mutate({
       data: {
@@ -273,621 +285,654 @@ export default function Portal() {
     setLocation("/");
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 selection:bg-primary/20">
+    <>
+      {/* ── Fixed background ── */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, background: C.cream }} />
 
-      <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center opacity-[0.03]">
-        <Feather className="w-full h-full max-w-4xl text-primary" strokeWidth={0.5} />
-      </div>
+      {/* grid */}
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
+        backgroundImage: "linear-gradient(rgba(107,143,212,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(107,143,212,0.05) 1px, transparent 1px)",
+        backgroundSize: "48px 48px",
+      }} />
 
-      <div className="w-full max-w-md space-y-6 relative z-10">
+      {/* orbs */}
+      <div style={{ position: "fixed", width: 520, height: 520, borderRadius: "50%", filter: "blur(80px)", background: "radial-gradient(circle, rgba(107,143,212,0.18) 0%, transparent 70%)", top: -100, right: -80, zIndex: 0, pointerEvents: "none" }} />
+      <div style={{ position: "fixed", width: 380, height: 380, borderRadius: "50%", filter: "blur(80px)", background: "radial-gradient(circle, rgba(232,168,56,0.10) 0%, transparent 70%)", bottom: -80, left: -60, zIndex: 0, pointerEvents: "none" }} />
+      <div style={{ position: "fixed", width: 280, height: 280, borderRadius: "50%", filter: "blur(80px)", background: "radial-gradient(circle, rgba(107,143,212,0.12) 0%, transparent 70%)", bottom: 100, right: 60, zIndex: 0, pointerEvents: "none" }} />
 
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-4 shadow-inner">
-            <PenTool size={32} />
-          </div>
-          <h1 className="text-4xl md:text-5xl font-serif font-bold text-foreground tracking-tight">Writing Sprint</h1>
-          <p className="text-lg text-muted-foreground font-medium">Race against fellow writers. Find your flow.</p>
-        </div>
+      {/* rings */}
+      <div style={{ position: "fixed", width: 700, height: 700, borderRadius: "50%", border: "1.5px solid rgba(107,143,212,0.10)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 0, pointerEvents: "none" }} />
+      <div style={{ position: "fixed", width: 500, height: 500, borderRadius: "50%", border: "1.5px solid rgba(107,143,212,0.07)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 0, pointerEvents: "none" }} />
 
-        {/* Guest banner */}
-        {isGuest && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
-              <UserRound size={15} className="text-amber-600 shrink-0" />
-              <p className="text-sm text-amber-800 leading-snug">
-                Guest mode — sprints won't be saved
-              </p>
+      {/* ── Scrollable content ── */}
+      <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", overflowY: "auto", padding: "32px 0" }}>
+        <div className="portal-fade-up" style={{ width: "100%", maxWidth: 460, padding: "0 20px", fontFamily: "'DM Sans', sans-serif" }}>
+
+          {/* Logo */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+            <div className="portal-logo-float" style={{
+              width: 64, height: 64,
+              background: "linear-gradient(135deg, #dce6f7 0%, #c5d8f5 100%)",
+              borderRadius: 18,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 4px 24px rgba(107,143,212,0.22), 0 1px 0 rgba(255,255,255,0.9) inset",
+            }}>
+              <PenIcon />
             </div>
-            <SignUpButton mode="modal">
-              <button className="text-xs font-semibold text-amber-700 hover:text-amber-900 whitespace-nowrap underline underline-offset-2 transition-colors shrink-0">
-                Create account
-              </button>
-            </SignUpButton>
           </div>
-        )}
 
-        <div className="flex items-center justify-between px-1">
-          {/* Single modes button — unlocked at Ink Reaper (10k XP) */}
-          {!isGuest && (profile?.xp ?? 0) >= 10000 && (
-            <div ref={modesPanelRef} className="fixed bottom-5 right-5 z-50">
-              {/* Popup panel */}
-              {modesOpen && (
-                <div className="absolute bottom-14 right-0 bg-card border border-border rounded-xl shadow-xl p-2 flex flex-col gap-0.5 min-w-[185px]">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-2 pt-1 pb-1">Skin</p>
+          {/* Headline */}
+          <div style={{ textAlign: "center", marginBottom: 6 }}>
+            <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "3rem", fontWeight: 900, color: C.ink, letterSpacing: "-0.02em", lineHeight: 1.05 }}>
+              Writing Sprint
+            </h1>
+            <p style={{ fontSize: "0.97rem", color: C.muted, fontWeight: 300, letterSpacing: "0.02em", marginTop: 8 }}>
+              Race against fellow writers. Find your flow.
+            </p>
+          </div>
 
-                  <button
-                    type="button"
-                    onClick={() => { setActiveSkin("default"); if (isVillainMode) toggleVillainMode(); }}
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full text-left ${
-                      activeSkin === "default" && !isVillainMode ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"
-                    }`}
-                  >
-                    <span className="text-base leading-none">🖋</span>
-                    <span className="flex-1">Default</span>
-                    {activeSkin === "default" && !isVillainMode && <span className="text-[10px] text-primary ml-auto">✓</span>}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => { if (!isVillainMode) toggleVillainMode(); if (activeSkin !== "default") setActiveSkin("default"); }}
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full text-left ${
-                      isVillainMode ? "bg-red-950/70 text-red-300" : "hover:bg-muted text-foreground"
-                    }`}
-                  >
-                    <span className="text-base leading-none">🩸</span>
-                    <span className="flex-1">Villain Mode</span>
-                    {isVillainMode && <span className="text-[10px] text-red-400 ml-auto">✓</span>}
-                  </button>
-
-                  {(profile?.xp ?? 0) >= 75000 && (
-                    <button
-                      type="button"
-                      onClick={() => { setActiveSkin("eternal"); if (isVillainMode) toggleVillainMode(); }}
-                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full text-left ${
-                        activeSkin === "eternal" && !isVillainMode ? "bg-[#07102a] text-[#60a5fa]" : "hover:bg-muted text-foreground"
-                      }`}
-                    >
-                      <span className="text-base leading-none">✨</span>
-                      <span className="flex-1">Eternal Skin</span>
-                      {activeSkin === "eternal" && !isVillainMode && <span className="text-[10px] text-[#60a5fa] ml-auto">✓</span>}
-                    </button>
-                  )}
-
-                  {(profile?.xp ?? 0) >= 200000 && (
-                    <button
-                      type="button"
-                      onClick={() => { setActiveSkin("final"); if (isVillainMode) toggleVillainMode(); }}
-                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full text-left ${
-                        activeSkin === "final" && !isVillainMode ? "bg-[#120e04] text-[#daa520]" : "hover:bg-muted text-foreground"
-                      }`}
-                    >
-                      <span className="text-base leading-none">⚜️</span>
-                      <span className="flex-1">Final Skin</span>
-                      {activeSkin === "final" && !isVillainMode && <span className="text-[10px] text-[#daa520] ml-auto">✓</span>}
-                    </button>
-                  )}
-                </div>
-              )}
-              {/* The single trigger button */}
-              <button
-                type="button"
-                onClick={() => setModesOpen((v) => !v)}
-                title="Modes"
-                className={`w-11 h-11 rounded-full flex items-center justify-center text-lg shadow-lg border-2 transition-all duration-200 hover:scale-110 active:scale-95 ${
-                  modesOpen
-                    ? "bg-foreground border-foreground text-background"
-                    : isVillainMode
-                    ? "bg-red-950 border-red-600"
-                    : activeSkin !== "default"
-                    ? activeSkin === "final" ? "bg-[#120e04] border-[#daa520]" : "bg-[#07102a] border-[#60a5fa]"
-                    : "bg-card border-border hover:border-primary"
-                }`}
-              >
-                {modesOpen ? "✕" : isVillainMode ? "🩸" : activeSkin === "final" ? "⚜️" : activeSkin === "eternal" ? "✨" : "✦"}
-              </button>
+          {/* Guest banner */}
+          {isGuest && (
+            <div style={{ margin: "16px 0", borderRadius: 12, border: "1px solid rgba(232,168,56,0.3)", background: "rgba(255,248,230,0.8)", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <UserRound size={14} style={{ color: "#b45309", flexShrink: 0 }} />
+                <p style={{ fontSize: "0.85rem", color: "#92400e", lineHeight: 1.4 }}>Guest mode — sprints won't be saved</p>
+              </div>
+              <SignUpButton mode="modal">
+                <button style={{ fontSize: "0.8rem", fontWeight: 700, color: "#92400e", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2, flexShrink: 0 }}>
+                  Create account
+                </button>
+              </SignUpButton>
             </div>
           )}
-          <CoinBalance />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1 text-sm text-foreground hover:text-primary transition-colors">
-                <span className="font-medium">
+
+          {/* Top bar */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 0 18px", padding: "0 2px" }}>
+
+            {/* Coins */}
+            {isSignedIn ? (
+              <CoinBalance />
+            ) : (
+              <div style={{ width: 10 }} />
+            )}
+
+            {/* Username dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button style={{
+                  background: "rgba(255,255,255,0.9)",
+                  border: `1.5px solid ${C.border}`,
+                  borderRadius: 999,
+                  padding: "6px 14px 6px 12px",
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "0.9rem", fontWeight: 600, color: C.ink,
+                  cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 7,
+                  boxShadow: "0 2px 12px rgba(107,143,212,0.10)",
+                  transition: "all 0.2s",
+                }}>
                   {(!isGuest && profileLoading) ? "…" : displayName}
-                </span>
-                <ChevronDown size={13} className="text-muted-foreground mt-px" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[180px]">
-              <DropdownMenuItem onClick={openEditDialog} className="gap-2">
-                <Pencil size={14} className="text-muted-foreground" />
-                Edit writer name
-              </DropdownMenuItem>
-              {!isGuest && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setLocation("/my-files")} className="gap-2">
-                    <BookOpen size={14} className="text-muted-foreground" />
-                    My Files
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setLocation("/friends")} className="gap-2">
-                    <Users size={14} className="text-muted-foreground" />
-                    Friends
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setLocation("/shop")} className="gap-2">
-                    <ShoppingBag size={14} className="text-muted-foreground" />
-                    Shop
-                  </DropdownMenuItem>
-                  {profile?.writerName && (
-                    <DropdownMenuItem
-                      onClick={() => setLocation(`/profile/${encodeURIComponent(profile.writerName!)}`)}
-                      className="gap-2"
-                    >
-                      <User size={14} className="text-muted-foreground" />
-                      My Profile
+                  <ChevronDown size={14} style={{ color: C.muted }} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" style={{ minWidth: 200 }}>
+                <DropdownMenuItem onClick={openEditDialog} className="gap-2">
+                  <Pencil size={14} className="text-muted-foreground" />
+                  Edit writer name
+                </DropdownMenuItem>
+                {!isGuest && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setLocation("/my-files")} className="gap-2">
+                      <BookOpen size={14} className="text-muted-foreground" />
+                      My Files
                     </DropdownMenuItem>
-                  )}
-                  {(profile?.xp ?? 0) >= 200000 && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => setLocation("/global-ranking")}
-                        className="gap-2 text-fuchsia-500 focus:text-fuchsia-500 focus:bg-fuchsia-500/10"
-                      >
-                        <Crown size={14} />
-                        Global Ranking
+                    <DropdownMenuItem onClick={() => setLocation("/friends")} className="gap-2">
+                      <Users size={14} className="text-muted-foreground" />
+                      Friends
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setLocation("/shop")} className="gap-2">
+                      <ShoppingBag size={14} className="text-muted-foreground" />
+                      Shop
+                    </DropdownMenuItem>
+                    {profile?.writerName && (
+                      <DropdownMenuItem onClick={() => setLocation(`/profile/${encodeURIComponent(profile.writerName!)}`)} className="gap-2">
+                        <User size={14} className="text-muted-foreground" />
+                        My Profile
                       </DropdownMenuItem>
-                    </>
-                  )}
+                    )}
+                    {(profile?.xp ?? 0) >= 200000 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setLocation("/global-ranking")} className="gap-2 text-fuchsia-500 focus:text-fuchsia-500 focus:bg-fuchsia-500/10">
+                          <Crown size={14} />
+                          Global Ranking
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Sign out */}
+            <button
+              onClick={isGuest ? handleExitGuest : () => signOut()}
+              style={{
+                background: "none", border: "none",
+                display: "flex", alignItems: "center", gap: 6,
+                color: C.muted, fontSize: "0.85rem",
+                fontFamily: "'DM Sans', sans-serif",
+                cursor: "pointer", transition: "color 0.2s",
+                flexShrink: 0,
+              }}
+            >
+              <LogOut size={14} />
+              {isGuest ? "Exit guest" : "Sign out"}
+            </button>
+          </div>
+
+          {/* Writing Deviation banners */}
+          {!isGuest && !profileLoading && profile && (
+            <>
+              {profile.inDecay && profile.decayRatePerDay > 0 && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, borderRadius: 10, border: "1px solid rgba(239,68,68,0.35)", background: "rgba(127,29,29,0.18)", padding: "10px 14px", marginBottom: 14, fontSize: "0.85rem", color: "#fca5a5" }}>
+                  <span style={{ marginTop: 1, flexShrink: 0 }}>⚠️</span>
+                  <div style={{ lineHeight: 1.5 }}>
+                    <span style={{ fontWeight: 600, color: "#fecaca" }}>Writing Deviation active</span>
+                    <span style={{ color: "rgba(252,165,165,0.8)" }}> — you're bleeding </span>
+                    <span style={{ fontWeight: 600, color: "#fecaca" }}>{profile.decayRatePerDay} XP/day</span>
+                    <span style={{ color: "rgba(252,165,165,0.8)" }}> until you sprint again.</span>
+                  </div>
+                </div>
+              )}
+              {!profile.inDecay && profile.daysUntilDecay !== null && profile.daysUntilDecay <= 2 && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, borderRadius: 10, border: "1px solid rgba(245,158,11,0.35)", background: "rgba(120,53,15,0.15)", padding: "10px 14px", marginBottom: 14, fontSize: "0.85rem", color: "#fcd34d" }}>
+                  <span style={{ flexShrink: 0 }}>🕰️</span>
+                  <div style={{ lineHeight: 1.5 }}>
+                    <span style={{ fontWeight: 600, color: "#fde68a" }}>Writing Deviation in {profile.daysUntilDecay} day{profile.daysUntilDecay !== 1 ? "s" : ""}</span>
+                    <span style={{ color: "rgba(252,211,77,0.8)" }}> — sprint now to reset the clock and protect your XP.</span>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Tab nav ── */}
+          <div style={{
+            display: "flex",
+            background: "rgba(255,255,255,0.6)",
+            border: "1px solid rgba(107,143,212,0.13)",
+            borderRadius: 14, padding: 4,
+            marginBottom: 18,
+            backdropFilter: "blur(12px)",
+          }}>
+            {[
+              { key: "sprint", label: "Sprint", icon: <Clock size={14} /> },
+              { key: "rooms", label: "Active Rooms", icon: <Radio size={14} /> },
+              ...(!isGuest ? [{ key: "past", label: "Past Sprints", icon: <BookOpen size={14} /> }] : []),
+            ].map(({ key, label, icon }) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                style={{
+                  flex: 1, background: activeTab === key ? "white" : "none",
+                  border: "none",
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "0.84rem", fontWeight: activeTab === key ? 600 : 500,
+                  color: activeTab === key ? C.ink : C.muted,
+                  padding: "9px 6px", borderRadius: 10,
+                  cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  transition: "all 0.22s",
+                  boxShadow: activeTab === key ? "0 2px 12px rgba(107,143,212,0.14)" : "none",
+                }}
+              >
+                {icon}
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Sprint tab ── */}
+          {activeTab === "sprint" && (
+            <div style={{
+              background: C.cardBg,
+              backdropFilter: "blur(20px)",
+              border: "1px solid rgba(255,255,255,0.9)",
+              borderRadius: 22, padding: "28px 26px",
+              boxShadow: "0 8px 40px rgba(107,143,212,0.12), 0 1px 0 rgba(255,255,255,0.8) inset",
+            }}>
+              {/* Badge */}
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                background: "linear-gradient(135deg, #e8f0fc, #d4e3fa)",
+                border: "1px solid rgba(107,143,212,0.2)",
+                borderRadius: 999, padding: "4px 12px",
+                fontSize: "0.75rem", fontWeight: 600, color: C.blueSoft,
+                letterSpacing: "0.04em", marginBottom: 16,
+                textTransform: "uppercase" as const,
+              }}>
+                <div className="portal-badge-dot" />
+                Session open
+              </div>
+
+              <div style={{ fontSize: "1.05rem", fontWeight: 700, color: C.ink, marginBottom: 3 }}>Join the session</div>
+              <div style={{ fontSize: "0.84rem", color: C.muted, marginBottom: 22 }}>
+                Writing as <strong style={{ color: C.ink }}>{displayName}</strong>
+              </div>
+
+              {/* Mode toggle */}
+              <div style={{ display: "flex", background: "#f0f0f5", borderRadius: 12, padding: 3, marginBottom: 22 }}>
+                {(["join", "create"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setJoinMode(m)}
+                    style={{
+                      flex: 1, border: "none",
+                      background: joinMode === m ? "white" : "none",
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "0.9rem", fontWeight: joinMode === m ? 700 : 500,
+                      color: joinMode === m ? C.ink : C.muted,
+                      padding: 10, borderRadius: 9,
+                      cursor: "pointer", transition: "all 0.22s",
+                      boxShadow: joinMode === m ? "0 2px 10px rgba(0,0,0,0.08)" : "none",
+                    }}
+                  >
+                    {m === "join" ? "Join Room" : "Create Room"}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Join flow ── */}
+              {joinMode === "join" && (
+                <>
+                  <div style={{ fontSize: "0.78rem", fontWeight: 600, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 8 }}>
+                    Room Code
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="SPRINT-XXXX"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    maxLength={12}
+                    autoComplete="off"
+                    onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+                    style={{
+                      width: "100%",
+                      background: "rgba(255,255,255,0.7)",
+                      border: `1.5px solid ${C.border}`,
+                      borderRadius: 13, padding: "14px 18px",
+                      fontFamily: "'DM Sans', monospace",
+                      fontSize: "1rem", letterSpacing: "0.1em",
+                      color: C.ink, textAlign: "center",
+                      outline: "none",
+                      transition: "all 0.22s", marginBottom: 20, display: "block",
+                      boxSizing: "border-box",
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = C.blueSoft;
+                      e.target.style.background = "white";
+                      e.target.style.boxShadow = "0 0 0 4px rgba(107,143,212,0.12)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = C.border;
+                      e.target.style.background = "rgba(255,255,255,0.7)";
+                      e.target.style.boxShadow = "none";
+                    }}
+                  />
+                  <button
+                    onClick={handleJoin}
+                    disabled={!joinCode.trim()}
+                    style={{
+                      width: "100%",
+                      background: joinCode.trim() ? "linear-gradient(135deg, #7fa4e0 0%, #5a82d0 100%)" : "#c8d4e8",
+                      border: "none", borderRadius: 14, padding: 16,
+                      color: "white",
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "1rem", fontWeight: 700,
+                      cursor: joinCode.trim() ? "pointer" : "not-allowed",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                      boxShadow: joinCode.trim() ? "0 6px 24px rgba(90,130,208,0.35), 0 1px 0 rgba(255,255,255,0.25) inset" : "none",
+                      transition: "all 0.22s",
+                      position: "relative", overflow: "hidden",
+                    }}
+                  >
+                    Enter Room
+                    <ArrowRight size={18} />
+                  </button>
                 </>
               )}
-            </DropdownMenuContent>
-          </DropdownMenu>
 
-          <button
-            onClick={isGuest ? handleExitGuest : () => signOut()}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <LogOut size={14} />
-            {isGuest ? "Exit guest" : "Sign out"}
-          </button>
-        </div>
+              {/* ── Create flow ── */}
+              {joinMode === "create" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
 
-        {/* Writing Deviation warning banner */}
-        {!isGuest && !profileLoading && profile && (
-          <>
-            {profile.inDecay && profile.decayRatePerDay > 0 && (
-              <div className="flex items-start gap-2.5 rounded-md border border-red-500/40 bg-red-950/30 px-3 py-2 text-sm text-red-300">
-                <span className="mt-0.5 text-red-400 shrink-0">⚠️</span>
-                <div className="leading-snug">
-                  <span className="font-semibold text-red-200">Writing Deviation active</span>
-                  <span className="text-red-300/80"> — you're bleeding </span>
-                  <span className="font-semibold text-red-200">{profile.decayRatePerDay} XP/day</span>
-                  <span className="text-red-300/80"> until you sprint again.</span>
-                </div>
-              </div>
-            )}
-            {!profile.inDecay && profile.daysUntilDecay !== null && profile.daysUntilDecay <= 2 && (
-              <div className="flex items-start gap-2.5 rounded-md border border-amber-500/40 bg-amber-950/20 px-3 py-2 text-sm text-amber-300">
-                <span className="mt-0.5 shrink-0">🕰️</span>
-                <div className="leading-snug">
-                  <span className="font-semibold text-amber-200">Writing Deviation in {profile.daysUntilDecay} day{profile.daysUntilDecay !== 1 ? "s" : ""}</span>
-                  <span className="text-amber-300/80"> — sprint now to reset the clock and protect your XP.</span>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          {isGuest ? (
-            <TabsList className="grid w-full grid-cols-2 mb-2">
-              <TabsTrigger value="sprint" className="flex items-center gap-1.5">
-                <Clock size={14} />
-                Sprint
-              </TabsTrigger>
-              <TabsTrigger value="rooms" className="flex items-center gap-1.5">
-                <Radio size={14} />
-                Active Rooms
-              </TabsTrigger>
-            </TabsList>
-          ) : (
-            <TabsList className="grid w-full grid-cols-3 mb-2">
-              <TabsTrigger value="sprint" className="flex items-center gap-1.5">
-                <Clock size={14} />
-                Sprint
-              </TabsTrigger>
-              <TabsTrigger value="rooms" className="flex items-center gap-1.5">
-                <Radio size={14} />
-                Active Rooms
-              </TabsTrigger>
-              <TabsTrigger value="past" className="flex items-center gap-1.5">
-                <BookOpen size={14} />
-                Past Sprints
-              </TabsTrigger>
-            </TabsList>
-          )}
-
-          <TabsContent value="sprint">
-            <Card className="border-border shadow-xl shadow-primary/5">
-              <CardHeader className="pb-4">
-                <CardTitle>Join the session</CardTitle>
-                <CardDescription>
-                  Writing as <span className="font-semibold text-foreground">{displayName}</span>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <Tabs defaultValue="join" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 mb-4">
-                    <TabsTrigger value="join">Join Room</TabsTrigger>
-                    <TabsTrigger value="create">Create Room</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="join" className="space-y-4">
-                    <div className="space-y-2">
-                      <label htmlFor="code" className="text-sm font-medium text-foreground">Room Code</label>
-                      <Input
-                        id="code"
-                        placeholder="SPRINT-XXXX"
-                        value={joinCode}
-                        onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                        className="font-mono text-center tracking-widest text-lg py-6 focus-visible:ring-primary"
-                        autoComplete="off"
-                        onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-                      />
+                  {/* Duration */}
+                  <div>
+                    <div style={{ fontSize: "0.78rem", fontWeight: 600, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 10 }}>
+                      Sprint Duration
                     </div>
-                    <Button
-                      onClick={handleJoin}
-                      className="w-full py-6 text-lg hover-elevate group"
-                      disabled={!joinCode.trim()}
-                    >
-                      Enter Room
-                      <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                    </Button>
-                  </TabsContent>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                      {[30, 45, 60].map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setDuration(d)}
+                          style={{
+                            border: duration === d ? `2px solid ${C.blueSoft}` : `2px solid ${C.border}`,
+                            borderRadius: 12, padding: "12px 0",
+                            background: duration === d ? "rgba(107,143,212,0.08)" : "rgba(255,255,255,0.5)",
+                            color: duration === d ? C.blueSoft : C.ink,
+                            fontFamily: "'DM Sans', sans-serif",
+                            fontSize: "0.9rem", fontWeight: duration === d ? 700 : 500,
+                            cursor: "pointer", transition: "all 0.18s",
+                          }}
+                        >
+                          {d} min
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                  <TabsContent value="create" className="space-y-4">
-                    <div className="space-y-3">
-                      <label className="text-sm font-medium text-foreground">Sprint Duration</label>
-                      <div className="grid grid-cols-3 gap-3">
-                        {[30, 45, 60].map((d) => (
-                          <Button
-                            key={d}
-                            type="button"
-                            variant={duration === d ? "default" : "outline"}
-                            className="py-6"
-                            onClick={() => setDuration(d)}
-                          >
-                            {d} min
-                          </Button>
-                        ))}
+                  {/* Pre-sprint timer */}
+                  <div>
+                    <div style={{ fontSize: "0.78rem", fontWeight: 600, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                      <Timer size={13} style={{ color: C.muted }} />
+                      Pre-sprint Timer
+                      <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "0.75rem" }}>(auto-starts after)</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 8 }}>
+                      {[0, 5, 10, 15].map((d) => (
+                        <button key={d} onClick={() => setCountdownDelay(d)} style={timerBtnStyle(countdownDelay === d)}>
+                          {d === 0 ? "Off" : `${d}m`}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                      {[20, 25, 30].map((d) => (
+                        <button key={d} onClick={() => setCountdownDelay(d)} style={timerBtnStyle(countdownDelay === d)}>
+                          {d}m
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Sprint Mode */}
+                  <div>
+                    <div style={{ fontSize: "0.78rem", fontWeight: 600, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 10 }}>
+                      Sprint Mode
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <ModeCard mode="regular" active={roomMode === "regular"} icon={<Lock size={16} />} label="Regular" desc="Private writing" onClick={() => setRoomMode("regular")} />
+                      <ModeCard mode="open" active={roomMode === "open"} icon={<Eye size={16} />} label="Spectator" desc="See each other live" onClick={() => setRoomMode("open")} />
+                      <ModeCard mode="goal" active={roomMode === "goal"} icon={<Target size={16} />} label="Goal" desc="Hit a word target" onClick={() => setRoomMode("goal")} />
+                      <ModeCard mode="boss" active={roomMode === "boss"} icon={<Swords size={16} />} label="Boss Battle" desc="Defeat the monster" onClick={() => setRoomMode("boss")} color="purple" />
+                      <ModeCard mode="kart" active={roomMode === "kart"} icon={<span style={{ fontSize: 16, lineHeight: 1 }}>🏎️</span>} label="Kart Mode" desc="Items & chaos" onClick={() => setRoomMode("kart")} color="orange" />
+                      <ModeCard mode="gladiator" active={roomMode === "gladiator"} icon={<span style={{ fontSize: 16, lineHeight: 1 }}>⚔️</span>} label="Gladiator" desc="1v1 HP combat" onClick={() => setRoomMode("gladiator")} color="red" />
+                    </div>
+
+                    {roomMode === "gladiator" && (
+                      <div style={{ marginTop: 12, borderRadius: 12, border: "1px solid rgba(220,38,38,0.3)", background: "rgba(220,38,38,0.05)", padding: "14px 16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                          <span>⚔️</span>
+                          <span style={{ fontSize: "0.88rem", fontWeight: 600, color: C.ink }}>Death Gap</span>
+                        </div>
+                        <p style={{ fontSize: "0.75rem", color: "rgba(252,165,165,0.9)", lineHeight: 1.5, marginBottom: 10 }}>
+                          Both writers start with 1000 HP. Writing heals you. The word gap deals damage. First to fall loses instantly.
+                        </p>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                          {([
+                            { gap: 200, label: "Brutal", desc: "200 words — fastest" },
+                            { gap: 400, label: "Aggressive", desc: "400 words" },
+                            { gap: 600, label: "Standard", desc: "600 words" },
+                            { gap: 800, label: "Epic", desc: "800 words — longest" },
+                          ] as const).map(({ gap, label, desc }) => (
+                            <button key={gap} onClick={() => setGladiatorDeathGap(gap)} style={{
+                              display: "flex", flexDirection: "column", alignItems: "flex-start",
+                              borderRadius: 10, border: gladiatorDeathGap === gap ? "2px solid #ef4444" : `2px solid ${C.border}`,
+                              padding: "8px 12px", textAlign: "left", cursor: "pointer", transition: "all 0.18s",
+                              background: gladiatorDeathGap === gap ? "rgba(239,68,68,0.12)" : "transparent",
+                            }}>
+                              <span style={{ fontSize: "0.8rem", fontWeight: 700, color: gladiatorDeathGap === gap ? "#f87171" : C.ink }}>{label}</span>
+                              <span style={{ fontSize: "0.7rem", color: C.muted }}>{desc}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                        <Timer className="w-3.5 h-3.5 text-muted-foreground" />
-                        Pre-sprint Timer
-                        <span className="text-xs text-muted-foreground font-normal ml-1">(auto-starts after)</span>
+                    {roomMode === "kart" && (
+                      <div style={{ marginTop: 12, borderRadius: 12, border: "1px solid rgba(249,115,22,0.3)", background: "rgba(249,115,22,0.05)", padding: "14px 16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                          <span>🏎️</span>
+                          <span style={{ fontSize: "0.88rem", fontWeight: 600, color: C.ink }}>Kart Mode</span>
+                        </div>
+                        <p style={{ fontSize: "0.75rem", color: "rgba(251,146,60,0.9)", lineHeight: 1.5 }}>
+                          Earn items every 250 words — Red Shells, Blue Shells, Stars, and the legendary Golden Pen (+400 real bonus words). May the chaos begin!
+                        </p>
+                      </div>
+                    )}
+
+                    {roomMode === "goal" && (
+                      <div style={{ marginTop: 12, borderRadius: 12, border: `1px solid rgba(107,143,212,0.25)`, background: "rgba(107,143,212,0.05)", padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+                        <Target size={16} style={{ color: C.blueSoft, flexShrink: 0 }} />
+                        <label style={{ fontSize: "0.88rem", fontWeight: 600, color: C.ink, flexShrink: 0 }}>Word target:</label>
+                        <Input type="number" min={50} max={50000} step={50} value={goalWords} onChange={(e) => setGoalWords(e.target.value)} className="h-8 w-24 text-center font-mono focus-visible:ring-primary" />
+                        <span style={{ fontSize: "0.85rem", color: C.muted }}>words</span>
+                      </div>
+                    )}
+
+                    {roomMode === "boss" && (
+                      <div style={{ marginTop: 12, borderRadius: 12, border: "1px solid rgba(168,85,247,0.3)", background: "rgba(168,85,247,0.05)", padding: "14px 16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                          <Swords size={15} style={{ color: "#c084fc", flexShrink: 0 }} />
+                          <span style={{ fontSize: "0.88rem", fontWeight: 600, color: C.ink }}>Boss HP (words to defeat)</span>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, marginBottom: 10 }}>
+                          {[2500, 5000, 10000, 25000].map((w) => (
+                            <button key={w} onClick={() => setBossGoalWords(String(w))} style={{
+                              borderRadius: 10, border: bossGoalWords === String(w) ? "2px solid #a855f7" : `2px solid ${C.border}`,
+                              padding: "8px 0", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer", transition: "all 0.18s",
+                              background: bossGoalWords === String(w) ? "rgba(168,85,247,0.15)" : "transparent",
+                              color: bossGoalWords === String(w) ? "#c084fc" : C.muted,
+                            }}>
+                              {w >= 1000 ? `${w / 1000}k` : w}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <Input type="number" min={500} max={200000} step={500} value={bossGoalWords} onChange={(e) => setBossGoalWords(e.target.value)} className="h-8 w-28 text-center font-mono" />
+                          <span style={{ fontSize: "0.85rem", color: C.muted }}>custom words</span>
+                        </div>
+                        <p style={{ fontSize: "0.72rem", color: "rgba(192,132,252,0.7)", marginTop: 8 }}>Everyone writes together to defeat the boss.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Death Mode */}
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: deathModeWpm ? 10 : 0 }}>
+                      <label style={{ fontSize: "0.84rem", fontWeight: 600, color: C.ink, display: "flex", alignItems: "center", gap: 6 }}>
+                        <Skull size={14} style={{ color: C.muted }} />
+                        Death Mode
+                        <span style={{ fontSize: "0.75rem", color: C.muted, fontWeight: 400 }}>(reaper line)</span>
                       </label>
-                      <div className="grid grid-cols-4 gap-2">
-                        {[0, 5, 10, 15].map((d) => (
-                          <Button
-                            key={d}
-                            type="button"
-                            variant={countdownDelay === d ? "default" : "outline"}
-                            className="py-5 text-sm"
-                            onClick={() => setCountdownDelay(d)}
-                          >
-                            {d === 0 ? "Off" : `${d}m`}
-                          </Button>
-                        ))}
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[20, 25, 30].map((d) => (
-                          <Button
-                            key={d}
-                            type="button"
-                            variant={countdownDelay === d ? "default" : "outline"}
-                            className="py-5 text-sm"
-                            onClick={() => setCountdownDelay(d)}
-                          >
-                            {d}m
-                          </Button>
-                        ))}
-                      </div>
+                      <button
+                        onClick={() => setDeathModeWpm(deathModeWpm ? null : 20)}
+                        style={{
+                          position: "relative", display: "inline-flex", height: 20, width: 36,
+                          borderRadius: 999, border: "none", cursor: "pointer", flexShrink: 0,
+                          background: deathModeWpm ? "#ef4444" : "#d1d5db", transition: "background 0.2s",
+                        }}
+                      >
+                        <span style={{
+                          position: "absolute", top: 2,
+                          left: deathModeWpm ? "calc(100% - 18px)" : 2,
+                          width: 16, height: 16, borderRadius: "50%",
+                          background: "white", boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+                          transition: "left 0.2s",
+                        }} />
+                      </button>
                     </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">Sprint Mode</label>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        <button
-                          type="button"
-                          onClick={() => setRoomMode("regular")}
-                          className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
-                            roomMode === "regular"
-                              ? "border-primary bg-primary/5 text-primary"
-                              : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                          }`}
-                        >
-                          <Lock className="w-4 h-4" />
-                          <span className="text-xs font-semibold">Regular</span>
-                          <span className="text-[10px] text-center leading-tight opacity-70">Private writing</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRoomMode("open")}
-                          className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
-                            roomMode === "open"
-                              ? "border-primary bg-primary/5 text-primary"
-                              : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                          }`}
-                        >
-                          <Eye className="w-4 h-4" />
-                          <span className="text-xs font-semibold">Spectator</span>
-                          <span className="text-[10px] text-center leading-tight opacity-70">See each other live</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRoomMode("goal")}
-                          className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
-                            roomMode === "goal"
-                              ? "border-primary bg-primary/5 text-primary"
-                              : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                          }`}
-                        >
-                          <Target className="w-4 h-4" />
-                          <span className="text-xs font-semibold">Goal</span>
-                          <span className="text-[10px] text-center leading-tight opacity-70">Hit a word target</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRoomMode("boss")}
-                          className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
-                            roomMode === "boss"
-                              ? "border-purple-500 bg-purple-500/10 text-purple-400"
-                              : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                          }`}
-                        >
-                          <Swords className="w-4 h-4" />
-                          <span className="text-xs font-semibold">Boss Battle</span>
-                          <span className="text-[10px] text-center leading-tight opacity-70">Defeat the monster</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRoomMode("kart")}
-                          className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
-                            roomMode === "kart"
-                              ? "border-orange-500 bg-orange-500/10 text-orange-400"
-                              : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                          }`}
-                        >
-                          <span className="text-base leading-none">🏎️</span>
-                          <span className="text-xs font-semibold">Kart Mode</span>
-                          <span className="text-[10px] text-center leading-tight opacity-70">Items &amp; chaos</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRoomMode("gladiator")}
-                          className={`flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 transition-all ${
-                            roomMode === "gladiator"
-                              ? "border-red-600 bg-red-600/10 text-red-400"
-                              : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                          }`}
-                        >
-                          <span className="text-base leading-none">⚔️</span>
-                          <span className="text-xs font-semibold">Gladiator</span>
-                          <span className="text-[10px] text-center leading-tight opacity-70">1v1 HP combat</span>
-                        </button>
+                    {deathModeWpm && (
+                      <div>
+                        <p style={{ fontSize: "0.76rem", color: C.muted, marginBottom: 8 }}>Reaper speed — fall behind this pace and you're out:</p>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
+                          {[10, 20, 30, 40, 50].map((wpm) => (
+                            <button key={wpm} onClick={() => setDeathModeWpm(wpm)} style={{
+                              display: "flex", flexDirection: "column", alignItems: "center",
+                              borderRadius: 10, border: deathModeWpm === wpm ? "2px solid #ef4444" : `2px solid ${C.border}`,
+                              padding: "8px 0", cursor: "pointer", transition: "all 0.18s",
+                              background: deathModeWpm === wpm ? "rgba(239,68,68,0.08)" : "transparent",
+                              color: deathModeWpm === wpm ? "#ef4444" : C.muted,
+                              fontSize: "0.8rem", fontWeight: 700,
+                            }}>
+                              <span>{wpm}</span>
+                              <span style={{ fontSize: "0.65rem", fontWeight: 400, opacity: 0.7 }}>wpm</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
+                    )}
+                  </div>
 
-                      {roomMode === "gladiator" && (
-                        <div className="mt-3 rounded-lg border border-red-600/30 bg-red-600/5 px-4 py-3 space-y-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">⚔️</span>
-                            <span className="text-sm font-medium text-foreground">Death Gap</span>
-                          </div>
-                          <p className="text-[11px] text-red-400/80 leading-relaxed">
-                            Both writers start with 1000 HP. Writing heals you. The word gap deals damage. First to fall loses instantly — or whoever has more HP when the timer ends.
-                          </p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {([
-                              { gap: 200, label: "Brutal", desc: "200 words — fastest" },
-                              { gap: 400, label: "Aggressive", desc: "400 words" },
-                              { gap: 600, label: "Standard", desc: "600 words" },
-                              { gap: 800, label: "Epic", desc: "800 words — longest" },
-                            ] as const).map(({ gap, label, desc }) => (
-                              <button
-                                key={gap}
-                                type="button"
-                                onClick={() => setGladiatorDeathGap(gap)}
-                                className={`flex flex-col items-start rounded-lg border-2 px-3 py-2.5 text-left transition-all ${
-                                  gladiatorDeathGap === gap
-                                    ? "border-red-500 bg-red-500/15 text-red-300"
-                                    : "border-border text-muted-foreground hover:border-red-800/50"
-                                }`}
-                              >
-                                <span className="text-xs font-bold">{label}</span>
-                                <span className="text-[10px] opacity-60">{desc}</span>
-                              </button>
-                            ))}
-                          </div>
-                          <p className="text-[11px] text-white/30 text-center">
-                            ⚔️ Chosen death gap will be shown prominently before the sprint starts
-                          </p>
-                        </div>
-                      )}
-
-                      {roomMode === "kart" && (
-                        <div className="mt-3 rounded-lg border border-orange-500/30 bg-orange-500/5 px-4 py-3 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">🏎️</span>
-                            <span className="text-sm font-medium text-foreground">Kart Mode</span>
-                          </div>
-                          <p className="text-[11px] text-orange-400/80 leading-relaxed">
-                            Earn items every 250 words — Red Shells, Blue Shells, Stars, and the legendary Golden Pen (+400 real bonus words). Last place gets the best items. May the chaos begin!
-                          </p>
-                        </div>
-                      )}
-
-                      {roomMode === "goal" && (
-                        <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
-                          <Target className="w-4 h-4 text-primary shrink-0" />
-                          <label className="text-sm font-medium text-foreground shrink-0">Word target:</label>
-                          <Input
-                            type="number"
-                            min={50}
-                            max={50000}
-                            step={50}
-                            value={goalWords}
-                            onChange={(e) => setGoalWords(e.target.value)}
-                            className="h-8 w-24 text-center font-mono focus-visible:ring-primary"
-                          />
-                          <span className="text-sm text-muted-foreground">words</span>
-                        </div>
-                      )}
-
-                      {roomMode === "boss" && (
-                        <div className="mt-3 rounded-lg border border-purple-500/30 bg-purple-500/5 px-4 py-3 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Swords className="w-4 h-4 text-purple-400 shrink-0" />
-                            <label className="text-sm font-medium text-foreground shrink-0">Boss HP (words to defeat):</label>
-                          </div>
-                          <div className="grid grid-cols-4 gap-1.5">
-                            {[2500, 5000, 10000, 25000].map((w) => (
-                              <button
-                                key={w}
-                                type="button"
-                                onClick={() => setBossGoalWords(String(w))}
-                                className={`flex flex-col items-center rounded-lg border-2 py-2 text-xs font-semibold transition-all ${
-                                  bossGoalWords === String(w)
-                                    ? "border-purple-500 bg-purple-500/20 text-purple-300"
-                                    : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                                }`}
-                              >
-                                {w >= 1000 ? `${w / 1000}k` : w}
-                              </button>
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number"
-                              min={500}
-                              max={200000}
-                              step={500}
-                              value={bossGoalWords}
-                              onChange={(e) => setBossGoalWords(e.target.value)}
-                              className="h-8 w-28 text-center font-mono focus-visible:ring-purple-500"
-                            />
-                            <span className="text-sm text-muted-foreground">custom words</span>
-                          </div>
-                          <p className="text-[10px] text-purple-400/70">Everyone writes together to defeat the boss. Cars are replaced by fighters!</p>
-                        </div>
-                      )}
+                  {/* Room Password */}
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: useRoomPassword ? 10 : 0 }}>
+                      <label style={{ fontSize: "0.84rem", fontWeight: 600, color: C.ink, display: "flex", alignItems: "center", gap: 6 }}>
+                        <KeyRound size={14} style={{ color: C.muted }} />
+                        Room Password
+                        <span style={{ fontSize: "0.75rem", color: C.muted, fontWeight: 400 }}>(optional)</span>
+                      </label>
+                      <button
+                        onClick={() => { setUseRoomPassword(!useRoomPassword); setRoomPassword(""); }}
+                        style={{
+                          position: "relative", display: "inline-flex", height: 20, width: 36,
+                          borderRadius: 999, border: "none", cursor: "pointer", flexShrink: 0,
+                          background: useRoomPassword ? C.blueSoft : "#d1d5db", transition: "background 0.2s",
+                        }}
+                      >
+                        <span style={{
+                          position: "absolute", top: 2,
+                          left: useRoomPassword ? "calc(100% - 18px)" : 2,
+                          width: 16, height: 16, borderRadius: "50%",
+                          background: "white", boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+                          transition: "left 0.2s",
+                        }} />
+                      </button>
                     </div>
+                    {useRoomPassword && (
+                      <Input
+                        type="text"
+                        placeholder="Enter a room password"
+                        value={roomPassword}
+                        onChange={(e) => setRoomPassword(e.target.value)}
+                        className="font-mono tracking-wide focus-visible:ring-primary"
+                        autoComplete="off"
+                      />
+                    )}
+                  </div>
 
-                    {/* Death Mode */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                          <Skull className="w-3.5 h-3.5 text-muted-foreground" />
-                          Death Mode
-                          <span className="text-xs text-muted-foreground font-normal ml-1">(reaper line)</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setDeathModeWpm(deathModeWpm ? null : 20)}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${deathModeWpm ? "bg-red-500" : "bg-input"}`}
-                        >
-                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${deathModeWpm ? "translate-x-4" : "translate-x-0"}`} />
-                        </button>
-                      </div>
-                      {deathModeWpm && (
-                        <div className="space-y-1.5">
-                          <p className="text-[11px] text-muted-foreground">Reaper speed — fall behind this pace and you're out:</p>
-                          <div className="grid grid-cols-5 gap-1.5">
-                            {[10, 20, 30, 40, 50].map((wpm) => (
-                              <button
-                                key={wpm}
-                                type="button"
-                                onClick={() => setDeathModeWpm(wpm)}
-                                className={`flex flex-col items-center rounded-lg border-2 py-2 text-xs font-semibold transition-all ${
-                                  deathModeWpm === wpm
-                                    ? "border-red-500 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400"
-                                    : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                                }`}
-                              >
-                                <span>{wpm}</span>
-                                <span className="text-[9px] font-normal opacity-70">wpm</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Room Password */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                          <KeyRound className="w-3.5 h-3.5 text-muted-foreground" />
-                          Room Password
-                          <span className="text-xs text-muted-foreground font-normal ml-1">(optional)</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => { setUseRoomPassword(!useRoomPassword); setRoomPassword(""); }}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${useRoomPassword ? "bg-primary" : "bg-input"}`}
-                        >
-                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${useRoomPassword ? "translate-x-4" : "translate-x-0"}`} />
-                        </button>
-                      </div>
-                      {useRoomPassword && (
-                        <Input
-                          type="text"
-                          placeholder="Enter a room password"
-                          value={roomPassword}
-                          onChange={(e) => setRoomPassword(e.target.value)}
-                          className="focus-visible:ring-primary font-mono tracking-wide"
-                          autoComplete="off"
-                        />
-                      )}
-                    </div>
-
-                    <Button
-                      onClick={handleCreate}
-                      className="w-full py-6 text-lg hover-elevate group"
-                      disabled={createRoomMutation.isPending}
-                    >
-                      {createRoomMutation.isPending ? (
-                        <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Creating…</>
-                      ) : (
-                        <>
-                          Start New Session
-                          <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                        </>
-                      )}
-                    </Button>
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="rooms">
-            <ActiveRooms />
-          </TabsContent>
-
-          {!isGuest && (
-            <TabsContent value="past">
-              <PastSprints />
-            </TabsContent>
+                  {/* Create CTA */}
+                  <button
+                    onClick={handleCreate}
+                    disabled={createRoomMutation.isPending}
+                    style={{
+                      width: "100%",
+                      background: "linear-gradient(135deg, #7fa4e0 0%, #5a82d0 100%)",
+                      border: "none", borderRadius: 14, padding: 16,
+                      color: "white",
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "1rem", fontWeight: 700,
+                      cursor: createRoomMutation.isPending ? "not-allowed" : "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                      boxShadow: "0 6px 24px rgba(90,130,208,0.35), 0 1px 0 rgba(255,255,255,0.25) inset",
+                      transition: "all 0.22s",
+                      opacity: createRoomMutation.isPending ? 0.7 : 1,
+                    }}
+                  >
+                    {createRoomMutation.isPending ? (
+                      <><Loader2 className="animate-spin" size={18} /> Creating…</>
+                    ) : (
+                      <>Start New Session <span style={{ fontSize: "1.1rem" }}>✦</span></>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
-        </Tabs>
+
+          {/* ── Active Rooms tab ── */}
+          {activeTab === "rooms" && <ActiveRooms />}
+
+          {/* ── Past Sprints tab ── */}
+          {activeTab === "past" && !isGuest && <PastSprints />}
+
+        </div>
       </div>
 
-      {/* Password prompt when joining a protected room */}
+      {/* ── Villain / skin mode button (fixed) ── */}
+      {!isGuest && (profile?.xp ?? 0) >= 10000 && (
+        <div ref={modesPanelRef} style={{ position: "fixed", bottom: 20, right: 20, zIndex: 50 }}>
+          {modesOpen && (
+            <div style={{
+              position: "absolute", bottom: 56, right: 0,
+              background: "white", border: `1px solid ${C.border}`, borderRadius: 14,
+              boxShadow: "0 20px 60px rgba(30,30,80,0.14)",
+              padding: 8, minWidth: 190, zIndex: 100,
+            }}>
+              <p style={{ fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: C.muted, padding: "4px 8px 6px" }}>Skin</p>
+              {[
+                { id: "default", label: "Default", icon: "🖋", condition: true, activeWhen: activeSkin === "default" && !isVillainMode },
+                { id: "villain", label: "Villain Mode", icon: "🩸", condition: true, activeWhen: isVillainMode },
+                { id: "eternal", label: "Eternal Skin", icon: "✨", condition: (profile?.xp ?? 0) >= 75000, activeWhen: activeSkin === "eternal" && !isVillainMode },
+                { id: "final", label: "Final Skin", icon: "⚜️", condition: (profile?.xp ?? 0) >= 200000, activeWhen: activeSkin === "final" && !isVillainMode },
+              ].filter(s => s.condition).map(({ id, label, icon, activeWhen }) => (
+                <button
+                  key={id}
+                  onClick={() => {
+                    if (id === "villain") { if (!isVillainMode) toggleVillainMode(); if (activeSkin !== "default") setActiveSkin("default"); }
+                    else { if (isVillainMode) toggleVillainMode(); setActiveSkin(id as "default" | "eternal" | "final"); }
+                  }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, width: "100%",
+                    padding: "9px 12px", borderRadius: 10, border: "none", cursor: "pointer",
+                    background: activeWhen ? (id === "villain" ? "rgba(127,29,29,0.6)" : "rgba(107,143,212,0.1)") : "transparent",
+                    color: activeWhen ? (id === "villain" ? "#fca5a5" : C.blueSoft) : C.ink,
+                    fontSize: "0.88rem", fontWeight: 500, textAlign: "left",
+                    transition: "background 0.15s",
+                  }}
+                >
+                  <span style={{ fontSize: 15 }}>{icon}</span>
+                  <span style={{ flex: 1 }}>{label}</span>
+                  {activeWhen && <span style={{ fontSize: "0.65rem", opacity: 0.8 }}>✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={() => setModesOpen((v) => !v)}
+            title="Modes"
+            style={{
+              width: 44, height: 44, borderRadius: "50%",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 18, cursor: "pointer",
+              border: `2px solid ${modesOpen ? C.ink : isVillainMode ? "#dc2626" : activeSkin !== "default" ? (activeSkin === "final" ? "#daa520" : "#60a5fa") : C.border}`,
+              background: modesOpen ? C.ink : isVillainMode ? "#450a0a" : activeSkin === "final" ? "#120e04" : activeSkin === "eternal" ? "#07102a" : "white",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+              transition: "all 0.2s",
+            }}
+          >
+            {modesOpen ? "✕" : isVillainMode ? "🩸" : activeSkin === "final" ? "⚜️" : activeSkin === "eternal" ? "✨" : "✦"}
+          </button>
+        </div>
+      )}
+
+      {/* ── Password join dialog ── */}
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -895,9 +940,7 @@ export default function Portal() {
               <KeyRound size={18} className="text-primary" />
               Room password
             </DialogTitle>
-            <DialogDescription>
-              This room is protected. Enter the password to join.
-            </DialogDescription>
+            <DialogDescription>This room is protected. Enter the password to join.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-1">
             <Input
@@ -909,66 +952,111 @@ export default function Portal() {
               onKeyDown={(e) => e.key === "Enter" && handlePasswordJoinConfirm()}
             />
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setPasswordDialogOpen(false)}>
+              <button
+                onClick={() => setPasswordDialogOpen(false)}
+                style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", cursor: "pointer", fontSize: "0.9rem", color: C.muted }}
+              >
                 Cancel
-              </Button>
-              <Button onClick={handlePasswordJoinConfirm} disabled={!joinPasswordInput.trim()}>
-                Enter Room
-              </Button>
+              </button>
+              <button
+                onClick={handlePasswordJoinConfirm}
+                style={{ padding: "8px 20px", borderRadius: 10, border: "none", background: `linear-gradient(135deg, #7fa4e0 0%, #5a82d0 100%)`, color: "white", cursor: "pointer", fontSize: "0.9rem", fontWeight: 600 }}
+              >
+                Join Room
+              </button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={nameDialogOpen} onOpenChange={setNameDialogOpen}>
+      {/* ── Edit name dialog ── */}
+      <Dialog open={nameDialogOpen} onOpenChange={(open) => { if (!open && profile?.writerName) setNameDialogOpen(false); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle className="font-serif text-xl">
-              {isGuest
-                ? "Change guest name"
-                : (profile?.writerName ? "Change writer name" : "Choose your writer name")}
-            </DialogTitle>
-            <DialogDescription>
-              This is how you'll appear to others in writing rooms.
-            </DialogDescription>
+            <DialogTitle className="font-serif text-xl">Your writer name</DialogTitle>
+            <DialogDescription>This is how you'll appear in sprints.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-1">
             <Input
-              placeholder="e.g. Virginia Woolf"
+              placeholder="e.g. QuantumScribe"
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
-              className="text-lg py-5 focus-visible:ring-primary"
               autoFocus
-              maxLength={40}
+              maxLength={32}
+              onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
             />
-            <div className="flex gap-2">
-              {(isGuest || profile?.writerName) && (
-                <Button
-                  variant="outline"
-                  className="flex-1"
+            <div className="flex gap-2 justify-end">
+              {profile?.writerName && (
+                <button
                   onClick={() => setNameDialogOpen(false)}
-                  disabled={saveMutation.isPending}
+                  style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", cursor: "pointer", fontSize: "0.9rem", color: C.muted }}
                 >
                   Cancel
-                </Button>
+                </button>
               )}
-              <Button
-                className="flex-1"
+              <button
                 onClick={handleSaveName}
-                disabled={(!isGuest && saveMutation.isPending) || nameInput.trim().length < 2}
+                disabled={saveMutation.isPending}
+                style={{ padding: "8px 20px", borderRadius: 10, border: "none", background: `linear-gradient(135deg, #7fa4e0 0%, #5a82d0 100%)`, color: "white", cursor: "pointer", fontSize: "0.9rem", fontWeight: 600, opacity: saveMutation.isPending ? 0.7 : 1 }}
               >
-                {(!isGuest && saveMutation.isPending) ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
-                ) : (
-                  (isGuest || profile?.writerName) ? "Save" : "Set name"
-                )}
-              </Button>
+                {saveMutation.isPending ? "Saving…" : "Save name"}
+              </button>
             </div>
-            <p className="text-xs text-muted-foreground text-center">2–40 characters</p>
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
+  );
+}
+
+// ── Helper components & styles ─────────────────────────────────────────────
+
+function timerBtnStyle(active: boolean): React.CSSProperties {
+  return {
+    border: active ? `2px solid ${C.blueSoft}` : `2px solid ${C.border}`,
+    borderRadius: 10, padding: "9px 0",
+    background: active ? "rgba(107,143,212,0.08)" : "rgba(255,255,255,0.5)",
+    color: active ? C.blueSoft : C.muted,
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: "0.84rem", fontWeight: active ? 700 : 500,
+    cursor: "pointer", transition: "all 0.18s",
+  };
+}
+
+type ModeColor = "blue" | "purple" | "orange" | "red";
+
+function ModeCard({
+  active, icon, label, desc, onClick, color = "blue",
+}: {
+  mode: string;
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+  desc: string;
+  onClick: () => void;
+  color?: ModeColor;
+}) {
+  const palette: Record<ModeColor, { border: string; bg: string; text: string }> = {
+    blue:   { border: C.blueSoft, bg: "rgba(107,143,212,0.08)", text: C.blueSoft },
+    purple: { border: "#a855f7",  bg: "rgba(168,85,247,0.08)",  text: "#a855f7"  },
+    orange: { border: "#f97316",  bg: "rgba(249,115,22,0.08)",  text: "#f97316"  },
+    red:    { border: "#ef4444",  bg: "rgba(239,68,68,0.08)",   text: "#ef4444"  },
+  };
+  const p = palette[color];
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+        borderRadius: 12, border: active ? `2px solid ${p.border}` : `2px solid ${C.border}`,
+        padding: "12px 8px", cursor: "pointer", transition: "all 0.18s",
+        background: active ? p.bg : "rgba(255,255,255,0.4)",
+        color: active ? p.text : C.muted,
+      }}
+    >
+      {icon}
+      <span style={{ fontSize: "0.78rem", fontWeight: 700 }}>{label}</span>
+      <span style={{ fontSize: "0.68rem", textAlign: "center", opacity: 0.75, lineHeight: 1.3 }}>{desc}</span>
+    </button>
   );
 }

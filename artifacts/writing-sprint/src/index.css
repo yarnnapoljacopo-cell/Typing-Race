@@ -124,8 +124,8 @@
   --chart-4: 43 74% 66%;
   --chart-5: 27 87% 67%;
 
-  --app-font-sans: 'Inter', sans-serif;
-  --app-font-serif: Georgia, serif;
+  --app-font-sans: 'DM Sans', 'Inter', sans-serif;
+  --app-font-serif: 'Playfair Display', Georgia, serif;
   --app-font-mono: Menlo, monospace;
   
   --radius: .5rem; 
@@ -447,4 +447,26 @@ html.villain h1, html.villain h2 {
 [data-skin="final"] .font-serif {
   font-family: "Georgia", "Times New Roman", serif !important;
   letter-spacing: 0.02em;
+}
+
+/* ── Portal page animations ─────────────────────────────────────────────── */
+@keyframes portalFadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes portalLogoFloat {
+  0%,100% { transform: translateY(0); }
+  50%     { transform: translateY(-5px); }
+}
+@keyframes portalBadgePulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%     { opacity: 0.4; transform: scale(0.7); }
+}
+
+.portal-fade-up  { animation: portalFadeUp 0.7s cubic-bezier(.22,1,.36,1) both; }
+.portal-logo-float { animation: portalLogoFloat 4s ease-in-out infinite; }
+.portal-badge-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #6B8FD4;
+  animation: portalBadgePulse 1.8s ease-in-out infinite;
 }

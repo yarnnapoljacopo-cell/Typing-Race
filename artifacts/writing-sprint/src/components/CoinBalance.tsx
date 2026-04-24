@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@clerk/react";
+import type React from "react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -15,9 +16,10 @@ async function fetchCoins(): Promise<CoinData> {
 
 interface CoinBalanceProps {
   className?: string;
+  style?: React.CSSProperties;
 }
 
-export function CoinBalance({ className = "" }: CoinBalanceProps) {
+export function CoinBalance({ className = "", style }: CoinBalanceProps) {
   const { isSignedIn } = useAuth();
 
   const { data } = useQuery<CoinData>({
@@ -31,10 +33,41 @@ export function CoinBalance({ className = "" }: CoinBalanceProps) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 font-semibold text-sm ${className}`}
+      className={className}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 7,
+        background: "rgba(255,255,255,0.7)",
+        border: "1px solid rgba(232,168,56,0.25)",
+        borderRadius: 999,
+        padding: "5px 13px 5px 8px",
+        fontWeight: 600,
+        fontSize: "0.88rem",
+        color: "#1a1a2e",
+        boxShadow: "0 2px 8px rgba(232,168,56,0.10)",
+        flexShrink: 0,
+        ...style,
+      }}
       title="Spirit Coins"
     >
-      🪙 {data.balance.toLocaleString()}
+      <span
+        style={{
+          width: 22,
+          height: 22,
+          background: "linear-gradient(135deg, #f5c542 0%, #e8933a 100%)",
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 11,
+          boxShadow: "0 2px 6px rgba(232,168,56,0.35)",
+          flexShrink: 0,
+        }}
+      >
+        ✦
+      </span>
+      {data.balance.toLocaleString()}
     </span>
   );
 }
