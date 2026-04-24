@@ -384,19 +384,6 @@ export const RaceTrack = memo(function RaceTrack({
                   <div className="absolute left-2 top-1/2 -translate-y-1/2 text-white/30 text-xs font-bold font-mono" style={{ width: "20px", textAlign: "center" }}>{laneIndex + 1}</div>
 
                   <div className="absolute top-0 bottom-0" style={{ left: "59px", right: `${16 + CAR_W}px` }}>
-                    {!eliminated && !finished && (() => {
-                      const nextBox = (Math.floor(displayWordCount / ITEM_BOX_INTERVAL) + 1) * ITEM_BOX_INTERVAL;
-                      const boxes: ReactNode[] = [];
-                      for (let box = nextBox; box < target && boxes.length < 3; box += ITEM_BOX_INTERVAL) {
-                        const boxFraction = Math.min(box / target, 1);
-                        boxes.push(
-                          <div key={box} className="absolute top-1/2 z-10 pointer-events-none" style={{ left: `${boxFraction * 100}%`, transform: "translate(-50%, -50%)" }}>
-                            <div className="w-5 h-5 rounded-sm flex items-center justify-center text-[9px] font-black leading-none" style={{ background: "linear-gradient(135deg, #fbbf24, #f59e0b)", border: "1.5px solid #fde68a", color: "#78350f", boxShadow: "0 0 5px rgba(251,191,36,0.6)" }}>?</div>
-                          </div>
-                        );
-                      }
-                      return boxes;
-                    })()}
 
                     <motion.div className="absolute top-0 bottom-0 flex flex-col items-center justify-center" animate={{ left: `${fraction * 100}%` }} transition={{ type: "tween", ease: "easeOut", duration: 0.6 }} style={{ willChange: "left" }}>
                       <div className="flex items-center gap-1 mb-0.5 whitespace-nowrap" style={{ background: eliminated ? "rgba(60,60,60,0.85)" : isMe ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.75)", borderRadius: "4px", padding: "1px 6px", boxShadow: eliminated ? "0 0 0 2px #ef4444" : finished ? "0 0 0 2px #fbbf24" : isMe ? `0 0 0 2px ${colors.car}` : "none" }}>
