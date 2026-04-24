@@ -5,6 +5,7 @@ import { setupWebSocketServer } from "./lib/wsHandler";
 import { restoreRoomsFromDB } from "./lib/roomManager";
 import { ensureSchema } from "./lib/ensureSchema";
 import { seedItems } from "./lib/seedItems";
+import { seedCraftingRecipes } from "./lib/seedCraftingRecipes";
 
 const rawPort = process.env["PORT"];
 
@@ -47,6 +48,7 @@ server.listen(port, () => {
   // build phase, so drizzle-kit push in the build command is a no-op there.
   ensureSchema()
     .then(() => seedItems())
+    .then(() => seedCraftingRecipes())
     .then(() => restoreRoomsFromDB())
     .then(() => {
       logger.info("Rooms restored from DB");

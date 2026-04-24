@@ -83,16 +83,25 @@ router.post("/coins/sell", async (req, res): Promise<void> => {
       name: string; is_tradeable: boolean; sell_value: number; is_storage_item: boolean;
     };
 
-    // Step 2: Check if currently equipped
+    // Step 2: Check if currently equipped — only block if this is the LAST copy
     if (inv.is_storage_item) {
       const { rows: eqRows } = await client.query(
         `SELECT item_id FROM equipped_storage WHERE user_id = $1 AND item_id = $2`,
         [userId, inv.item_id],
       );
       if (eqRows.length > 0) {
-        await client.query("ROLLBACK");
-        res.status(400).json({ error: "Unequip this item before selling" });
-        return;
+        const { rows: cntRows } = await client.query(
+          `SELECT COALESCE(SUM(quantity), 0)::int AS total
+             FROM user_inventory
+            WHERE user_id = $1 AND item_id = $2`,
+          [userId, inv.item_id],
+        );
+        const totalQty = (cntRows[0] as { total: number }).total;
+        if (totalQty <= 1) {
+          await client.query("ROLLBACK");
+          res.status(400).json({ error: "Unequip this item before selling" });
+          return;
+        }
       }
     }
 

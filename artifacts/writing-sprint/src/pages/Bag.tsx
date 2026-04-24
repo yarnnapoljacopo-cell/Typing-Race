@@ -555,7 +555,7 @@ export default function Bag() {
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs">
                         <div className="font-semibold mb-1">{item.name}</div>
-                        <div className="text-xs text-muted-foreground">{item.description}</div>
+                        <div className="text-xs text-foreground/80">{item.description}</div>
                         {item.overflow_since && (
                           <div className="text-xs text-red-500 font-semibold mt-1.5 flex items-center gap-1">
                             <AlertTriangle className="w-3 h-3" />

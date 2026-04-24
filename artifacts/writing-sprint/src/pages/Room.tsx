@@ -1140,8 +1140,7 @@ export default function Room() {
           {/* Race / boss track — hidden in distraction-free mode */}
           {!distractionFree && (
             <div
-              className="sticky top-0 z-20 bg-background pb-2 transition-opacity duration-500"
-              style={{ opacity: isTyping && isRunning ? 0.3 : 1 }}
+              className="sticky top-0 z-20 bg-background pb-2"
               onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
             ><>
               {room.mode === "gladiator" ? (
