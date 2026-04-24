@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "s7T4knWCkhrbiLJyQ4KWq"
@@ -24,3 +23,9 @@ id = "IA6djW54Lju2RchsvuZEP"
 uri = "file://artifacts/desktop-app/resources/icon_dark_raw.png"
 type = "image"
 title = "dark gold pen nib icon"
+
+[[outputs]]
+id = "lRLCi6r1h4ae00Cb2Qb_K"
+uri = "file://SPRINT-1639_Streak.txt"
+type = "text"
+title = "SPRINT-1639 — Your 394-word writing sprint"
