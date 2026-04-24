@@ -210,28 +210,33 @@ export function KartHUD({
         </div>
       )}
 
-      {/* Personal hit notification — shown only to the player who was hit */}
+      {/* Personal hit notification — below items, full-width loud alert */}
       {hitNotification && (
         <div
-          className="absolute -top-14 left-0 right-0 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold shadow-2xl z-50 animate-in slide-in-from-top-2 duration-200"
+          className="mt-3 flex items-center gap-3 rounded-xl px-4 py-3 font-bold animate-in slide-in-from-bottom-2 duration-200"
           style={{
-            background: "rgba(239,68,68,0.25)",
-            border: "1px solid rgba(239,68,68,0.7)",
+            background: "rgba(239,68,68,0.18)",
+            border: "2px solid rgba(239,68,68,0.75)",
             color: "#fca5a5",
-            boxShadow: "0 0 18px rgba(239,68,68,0.35)",
+            boxShadow: "0 0 24px rgba(239,68,68,0.35), inset 0 0 16px rgba(239,68,68,0.08)",
+            animation: "hitPulse 0.5s ease-out",
           }}
         >
-          <span className="text-xl">{hitNotification.emoji}</span>
-          <span>
-            You were hit by <strong className="text-red-300">{hitNotification.sourceName}</strong>!
-          </span>
+          <span className="text-3xl shrink-0">{hitNotification.emoji}</span>
+          <div className="flex-1 min-w-0">
+            <div className="text-base font-black tracking-wide text-red-400 uppercase">You were hit!</div>
+            <div className="text-sm text-red-300/80 font-semibold mt-0.5">
+              by <span className="text-red-200 font-black">{hitNotification.sourceName}</span>
+            </div>
+          </div>
+          <span className="text-2xl shrink-0 animate-bounce">💥</span>
         </div>
       )}
 
       {/* Flash event toast — broadcast to all (only shown when not personally hit) */}
       {flashEvent && !hitNotification && (
         <div
-          className="absolute -top-14 left-0 right-0 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold shadow-xl z-50 animate-in slide-in-from-top-2 duration-300"
+          className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold shadow-xl animate-in slide-in-from-bottom-2 duration-300"
           style={{ background: `${flashEvent.color}22`, border: `1px solid ${flashEvent.color}60`, color: "#fff" }}
         >
           <span className="text-lg">{flashEvent.emoji}</span>

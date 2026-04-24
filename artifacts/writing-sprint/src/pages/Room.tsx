@@ -1192,7 +1192,23 @@ export default function Room() {
                   <span className="text-xl">💀</span>
                 </div>
               )}
-            </></div>
+            </>
+            {/* Compact timer — always visible in the sticky area while scrolling */}
+            {(isCountdown || isRunning) && (() => {
+              const secs = isCountdown ? (room.countdownTimeLeft ?? 0) : (room.timeLeft ?? 0);
+              const mm = Math.floor(secs / 60);
+              const ss = String(secs % 60).padStart(2, "0");
+              const isLow = isRunning && secs > 0 && secs <= 60;
+              return (
+                <div className="flex items-center justify-center gap-2 pt-1.5 pb-0.5">
+                  <span className={`text-sm font-mono font-bold tabular-nums ${isLow ? "text-destructive" : "text-muted-foreground"}`}>
+                    {isCountdown ? `Starting in ${mm}:${ss}` : `${mm}:${ss} remaining`}
+                  </span>
+                  {isLow && <span className="text-xs animate-pulse">⏰</span>}
+                </div>
+              );
+            })()}
+          </div>
           )}
 
           <div className={distractionFree
