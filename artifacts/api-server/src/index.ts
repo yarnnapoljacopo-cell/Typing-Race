@@ -34,19 +34,20 @@ console.log("[startup-debug] NODE_ENV:", process.env.NODE_ENV, "| CLERK_SECRET_K
 const server = createServer(app);
 setupWebSocketServer(server);
 
-// Restore any rooms that were active before the last server restart
-restoreRoomsFromDB()
-  .then(() => {
-    server.listen(port, () => {
-      logger.info({ port }, "Server listening");
+// Start listening immediately so Railway's healthcheck passes right away.
+// Room restore runs in the background — a slow DB cold-start won't delay
+// the server becoming ready.
+server.listen(port, () => {
+  logger.info({ port }, "Server listening");
+
+  restoreRoomsFromDB()
+    .then(() => {
+      logger.info("Rooms restored from DB");
+    })
+    .catch((err) => {
+      logger.error({ err }, "Room restore failed — continuing without restored rooms");
     });
-  })
-  .catch((err) => {
-    logger.error({ err }, "Room restore failed — starting anyway");
-    server.listen(port, () => {
-      logger.info({ port }, "Server listening");
-    });
-  });
+});
 
 server.on("error", (err) => {
   logger.error({ err }, "Server error");
