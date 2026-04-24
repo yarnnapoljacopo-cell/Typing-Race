@@ -415,7 +415,7 @@ export default function Portal() {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setLocation("/bag")} className="gap-2">
                     <Package size={14} className="text-muted-foreground" />
-                    Cultivation Bag
+                    Bag
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setLocation("/chests")} className="gap-2">
                     <Gift size={14} className="text-muted-foreground" />

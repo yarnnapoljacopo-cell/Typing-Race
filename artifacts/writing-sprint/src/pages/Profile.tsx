@@ -515,46 +515,47 @@ export default function Profile() {
 
             {/* Cultivation — only visible on own profile */}
             {isOwnProfile && (
-              <Card>
-                <CardContent className="pt-5 pb-3 px-5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Cultivation</p>
-                  <div className="space-y-1">
-                    <button
-                      onClick={() => setLocation("/bag")}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-left group"
-                    >
-                      <Package className="w-4 h-4 text-primary/60 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-foreground">Cultivation Bag</div>
-                        <div className="text-xs text-muted-foreground">Items, effects and inventory</div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
-                    </button>
-                    <button
-                      onClick={() => setLocation("/chests")}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-left group"
-                    >
-                      <Gift className="w-4 h-4 text-primary/60 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-foreground">Chests</div>
-                        <div className="text-xs text-muted-foreground">Open rewards earned from sprinting</div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
-                    </button>
-                    <button
-                      onClick={() => setLocation("/crafting")}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-left group"
-                    >
-                      <FlaskConical className="w-4 h-4 text-primary/60 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-foreground">Crafting Lab</div>
-                        <div className="text-xs text-muted-foreground">Fusion, Alchemy and Tribulation</div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
-                    </button>
-                  </div>
-                </CardContent>
-              </Card>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 px-1">Cultivation</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => setLocation("/bag")}
+                    className="group flex flex-col items-center gap-2.5 p-4 rounded-xl border border-border bg-card hover:bg-muted hover:border-primary/30 transition-all text-center"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+                      <Package className="w-5 h-5 text-primary/70" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-foreground leading-tight">Bag</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">Items &amp; effects</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setLocation("/chests")}
+                    className="group flex flex-col items-center gap-2.5 p-4 rounded-xl border border-border bg-card hover:bg-muted hover:border-primary/30 transition-all text-center"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+                      <Gift className="w-5 h-5 text-primary/70" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-foreground leading-tight">Chests</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">Sprint rewards</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setLocation("/crafting")}
+                    className="group flex flex-col items-center gap-2.5 p-4 rounded-xl border border-border bg-card hover:bg-muted hover:border-primary/30 transition-all text-center"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+                      <FlaskConical className="w-5 h-5 text-primary/70" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-foreground leading-tight">Crafting</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">Fuse &amp; brew</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
             )}
 
             {/* Nameplate Picker — only visible on own profile */}

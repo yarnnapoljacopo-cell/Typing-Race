@@ -210,7 +210,7 @@ export default function Bag() {
 
           <div className="flex items-center gap-2">
             <Package className="w-4 h-4 text-primary/70" />
-            <h1 className="font-semibold text-base text-foreground">Cultivation Bag</h1>
+            <h1 className="font-semibold text-base text-foreground">Bag</h1>
           </div>
 
           {bagData && (
