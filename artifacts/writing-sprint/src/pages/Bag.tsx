@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, Package, Gift, FlaskConical, Sparkles, Flame, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -19,31 +21,31 @@ import {
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-const RARITY_COLORS: Record<string, string> = {
-  common: "border-gray-400 bg-gray-900/40 text-gray-300",
-  uncommon: "border-green-500 bg-green-900/30 text-green-300",
-  rare: "border-blue-400 bg-blue-900/30 text-blue-300",
-  epic: "border-purple-400 bg-purple-900/30 text-purple-300",
-  mythic: "border-orange-400 bg-orange-900/30 text-orange-300",
-  legendary: "border-yellow-400 bg-yellow-900/20 text-yellow-300",
+const RARITY_BORDER_LEFT: Record<string, string> = {
+  common: "border-l-zinc-400",
+  uncommon: "border-l-green-500",
+  rare: "border-l-blue-500",
+  epic: "border-l-purple-500",
+  mythic: "border-l-orange-500",
+  legendary: "border-l-yellow-500",
 };
 
 const RARITY_BADGE: Record<string, string> = {
-  common: "bg-gray-700 text-gray-300",
-  uncommon: "bg-green-800 text-green-200",
-  rare: "bg-blue-800 text-blue-200",
-  epic: "bg-purple-800 text-purple-200",
-  mythic: "bg-orange-800 text-orange-200",
-  legendary: "bg-yellow-700 text-yellow-100",
+  common: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+  uncommon: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",
+  rare: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400",
+  epic: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400",
+  mythic: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400",
+  legendary: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300",
 };
 
-const RARITY_GLOW: Record<string, string> = {
-  legendary: "shadow-yellow-500/40 shadow-lg",
-  mythic: "shadow-orange-500/30 shadow-md",
-  epic: "shadow-purple-500/20 shadow-sm",
-  rare: "",
-  uncommon: "",
-  common: "",
+const RARITY_DIALOG_BADGE: Record<string, string> = {
+  common: "bg-zinc-100 text-zinc-700 border-zinc-200",
+  uncommon: "bg-green-50 text-green-700 border-green-200",
+  rare: "bg-blue-50 text-blue-700 border-blue-200",
+  epic: "bg-purple-50 text-purple-700 border-purple-200",
+  mythic: "bg-orange-50 text-orange-700 border-orange-200",
+  legendary: "bg-yellow-50 text-yellow-700 border-yellow-200",
 };
 
 interface InventoryItem {
@@ -90,9 +92,9 @@ function formatDuration(ms: number): string {
 }
 
 function formatExpiry(isoDate: string | null): string {
-  if (!isoDate) return "∞";
+  if (!isoDate) return "permanent";
   const d = new Date(isoDate);
-  if (d.getFullYear() > new Date().getFullYear() + 10) return "∞";
+  if (d.getFullYear() > new Date().getFullYear() + 10) return "permanent";
   const diff = d.getTime() - Date.now();
   if (diff <= 0) return "expired";
   return formatDuration(diff);
@@ -117,7 +119,7 @@ export default function Bag() {
       if (!res.ok) throw new Error("Failed to load bag");
       const data = await res.json();
       setBagData(data);
-    } catch (e) {
+    } catch {
       toast({ title: "Error", description: "Failed to load bag", variant: "destructive" });
     } finally {
       setLoading(false);
@@ -145,11 +147,11 @@ export default function Bag() {
       if (!res.ok || data.ok === false) {
         toast({ title: "Cannot use item", description: data.message ?? data.error, variant: "destructive" });
       } else {
-        toast({ title: `✨ ${item.name}`, description: data.message });
+        toast({ title: item.name, description: data.message });
         setSelectedItem(null);
         fetchBag();
       }
-    } catch (e) {
+    } catch {
       toast({ title: "Error", description: "Failed to use item", variant: "destructive" });
     } finally {
       setUsingItem(false);
@@ -168,13 +170,13 @@ export default function Bag() {
       toast({ title: "Item discarded", description: `${item.name} removed from bag.` });
       setSelectedItem(null);
       fetchBag();
-    } catch (e) {
+    } catch {
       toast({ title: "Error", description: "Failed to discard item", variant: "destructive" });
     }
   };
 
   const categories = bagData
-    ? ["all", ...new Set(bagData.inventory.map(i => i.category))]
+    ? ["all", ...Array.from(new Set(bagData.inventory.map(i => i.category))).sort()]
     : ["all"];
 
   const rarities = ["all", "common", "uncommon", "rare", "epic", "mythic", "legendary"];
@@ -190,109 +192,128 @@ export default function Bag() {
   const slotPct = Math.min(100, (usedSlots / totalSlots) * 100);
 
   return (
-    <div className="min-h-screen bg-[#0F1117] text-white">
-      {/* Header */}
-      <div className="border-b border-white/10 bg-[#15181F] sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button
-            onClick={() => setLocation("/portal")}
-            className="text-white/60 hover:text-white transition-colors text-sm flex items-center gap-1"
-          >
-            ← Portal
-          </button>
-          <div className="w-px h-4 bg-white/20" />
-          <h1 className="font-bold text-lg">🎒 Cultivation Bag</h1>
+    <div className="min-h-screen bg-background">
 
-          {/* Slot meter */}
-          <div className="ml-auto flex items-center gap-2">
-            {bagData && (
-              <>
-                <span className="text-xs text-white/50">
-                  {usedSlots} / {totalSlots} slots
-                </span>
-                <div className="w-24 h-2 bg-white/10 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${
-                      slotPct > 90 ? "bg-red-500" : slotPct > 70 ? "bg-orange-500" : "bg-emerald-500"
-                    }`}
-                    style={{ width: `${slotPct}%` }}
-                  />
-                </div>
-              </>
-            )}
-            <button
-              onClick={() => setLocation("/chests")}
-              className="ml-2 text-sm bg-amber-600 hover:bg-amber-500 px-3 py-1 rounded-lg font-medium transition-colors"
-            >
-              🎁 Chests
-            </button>
-            <button
-              onClick={() => setLocation("/crafting")}
-              className="text-sm bg-indigo-700 hover:bg-indigo-600 px-3 py-1 rounded-lg font-medium transition-colors"
-            >
-              ⚗️ Crafting
-            </button>
+      {/* Sticky header */}
+      <div className="border-b border-border bg-card sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => history.back()}
+            className="gap-1.5 text-muted-foreground -ml-2 h-8"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back
+          </Button>
+
+          <div className="w-px h-5 bg-border" />
+
+          <div className="flex items-center gap-2">
+            <Package className="w-4 h-4 text-primary/70" />
+            <h1 className="font-semibold text-base text-foreground">Cultivation Bag</h1>
+          </div>
+
+          {bagData && (
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-mono hidden sm:block">
+                {usedSlots} / {totalSlots} slots
+              </span>
+              <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden hidden sm:block">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    slotPct > 90 ? "bg-red-500" : slotPct > 70 ? "bg-orange-400" : "bg-primary"
+                  }`}
+                  style={{ width: `${slotPct}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5 ml-2">
+            <Button variant="outline" size="sm" onClick={() => setLocation("/chests")} className="h-8 gap-1.5 text-xs">
+              <Gift className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Chests</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setLocation("/crafting")} className="h-8 gap-1.5 text-xs">
+              <FlaskConical className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Crafting</span>
+            </Button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="max-w-6xl mx-auto px-4 pb-0 flex gap-0 border-t border-white/5">
+        <div className="max-w-6xl mx-auto px-4 flex items-center border-t border-border/50">
           {(["items", "effects"] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2 text-sm font-medium border-b-2 transition-colors capitalize ${
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab
-                  ? "border-indigo-400 text-indigo-300"
-                  : "border-transparent text-white/50 hover:text-white/80"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              {tab === "items" ? `Items (${bagData?.inventory.length ?? 0})` : `Active Effects (${bagData?.activeEffects.length ?? 0})`}
+              {tab === "items"
+                ? `Items${bagData ? ` (${bagData.inventory.length})` : ""}`
+                : `Active Effects${bagData ? ` (${bagData.activeEffects.length})` : ""}`}
             </button>
           ))}
           {bagData && bagData.failureAshes > 0 && (
-            <div className="ml-auto flex items-center gap-1 px-4 text-xs text-orange-400/80">
-              🔥 {bagData.failureAshes} Failure Ash{bagData.failureAshes !== 1 ? "es" : ""}
+            <div className="ml-auto flex items-center gap-1.5 px-4 text-xs text-orange-500">
+              <Flame className="w-3 h-3" />
+              {bagData.failureAshes} Failure {bagData.failureAshes !== 1 ? "Ashes" : "Ash"}
             </div>
           )}
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-6">
+
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <div className="text-white/40 text-sm">Loading bag…</div>
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
         )}
 
+        {/* ── Items tab ─────────────────────────────────────────────────── */}
         {!loading && activeTab === "items" && (
           <>
-            {/* Filters */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              <div className="flex gap-1">
-                {categories.map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => setFilterCategory(cat)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors ${
-                      filterCategory === cat
-                        ? "bg-indigo-600 text-white"
-                        : "bg-white/5 text-white/50 hover:bg-white/10"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
+            {/* Category filter */}
+            <div className="space-y-2 mb-5">
+              <div className="flex flex-wrap gap-1.5">
+                {categories.map(cat => {
+                  const count = cat === "all"
+                    ? (bagData?.inventory.length ?? 0)
+                    : (bagData?.inventory.filter(i => i.category === cat).length ?? 0);
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => { setFilterCategory(cat); setFilterRarity("all"); }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors capitalize ${
+                        filterCategory === cat
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      {cat === "all" ? "All items" : cat}
+                      <span className={`text-[10px] font-bold tabular-nums ${filterCategory === cat ? "opacity-70" : "opacity-50"}`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-              <div className="flex gap-1 ml-auto">
+
+              {/* Rarity filter */}
+              <div className="flex flex-wrap gap-1">
                 {rarities.map(rar => (
                   <button
                     key={rar}
                     onClick={() => setFilterRarity(rar)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors ${
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium capitalize transition-colors ${
                       filterRarity === rar
-                        ? "bg-indigo-600 text-white"
-                        : "bg-white/5 text-white/50 hover:bg-white/10"
+                        ? "bg-foreground text-background"
+                        : "bg-muted/60 text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {rar}
@@ -304,54 +325,55 @@ export default function Bag() {
             {/* Item grid */}
             {filteredItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <div className="text-5xl opacity-30">🎒</div>
-                <p className="text-white/40 text-sm">
+                <Package className="w-12 h-12 text-muted-foreground/20" />
+                <p className="text-muted-foreground text-sm text-center">
                   {bagData?.inventory.length === 0
                     ? "Your bag is empty. Complete sprints to earn chests!"
                     : "No items match these filters."}
                 </p>
-                <button
-                  onClick={() => setLocation("/chests")}
-                  className="text-sm text-amber-400 hover:text-amber-300 transition-colors"
-                >
-                  Open Chests →
-                </button>
+                {bagData?.inventory.length === 0 && (
+                  <Button variant="outline" size="sm" onClick={() => setLocation("/chests")}>
+                    Open Chests
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 {filteredItems.map(item => {
                   const cooldownEnd = bagData?.cooldowns[item.item_id];
-                  const onCooldown = cooldownEnd && new Date(cooldownEnd) > new Date();
+                  const onCooldown = !!(cooldownEnd && new Date(cooldownEnd) > new Date());
                   return (
                     <Tooltip key={item.id}>
                       <TooltipTrigger asChild>
                         <button
                           onClick={() => setSelectedItem(item)}
-                          className={`relative flex flex-col items-center gap-1 p-3 rounded-xl border transition-all hover:scale-105 text-center ${
-                            RARITY_COLORS[item.rarity] ?? "border-white/20 bg-white/5"
-                          } ${RARITY_GLOW[item.rarity] ?? ""}`}
+                          className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border border-l-4 transition-all hover:scale-[1.03] hover:shadow-sm text-center bg-card ${
+                            RARITY_BORDER_LEFT[item.rarity] ?? "border-l-border"
+                          }`}
                         >
-                          <span className="text-3xl">{item.icon}</span>
-                          <span className="text-xs font-medium leading-tight line-clamp-2">{item.name}</span>
+                          <span className="text-3xl leading-none">{item.icon}</span>
+                          <span className="text-xs font-medium leading-tight line-clamp-2 text-foreground">
+                            {item.name}
+                          </span>
                           {item.quantity > 1 && (
-                            <span className="absolute top-1.5 right-1.5 text-[10px] bg-black/60 px-1.5 py-0.5 rounded-full font-bold">
+                            <span className="absolute top-1.5 right-1.5 text-[10px] bg-foreground/10 text-foreground px-1.5 py-0.5 rounded-full font-bold">
                               ×{item.quantity}
                             </span>
                           )}
                           {onCooldown && (
-                            <span className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60 text-xs text-white/70 font-mono">
-                              ⏱ {formatDuration(new Date(cooldownEnd!).getTime() - Date.now())}
+                            <span className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/85 text-xs text-muted-foreground font-mono">
+                              {formatDuration(new Date(cooldownEnd!).getTime() - Date.now())}
                             </span>
                           )}
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold capitalize ${RARITY_BADGE[item.rarity] ?? "bg-white/10"}`}>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold capitalize ${RARITY_BADGE[item.rarity] ?? "bg-muted text-muted-foreground"}`}>
                             {item.rarity}
                           </span>
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-xs bg-gray-900 border-white/20 text-white">
+                      <TooltipContent side="top" className="max-w-xs">
                         <div className="font-semibold mb-1">{item.name}</div>
-                        <div className="text-xs text-white/70">{item.description}</div>
-                        <div className="text-xs text-white/40 mt-1 capitalize">{item.category}</div>
+                        <div className="text-xs text-muted-foreground">{item.description}</div>
+                        <div className="text-xs text-muted-foreground/60 mt-1 capitalize">{item.category}</div>
                       </TooltipContent>
                     </Tooltip>
                   );
@@ -361,9 +383,9 @@ export default function Bag() {
                 {Array.from({ length: Math.max(0, Math.min(10, totalSlots - filteredItems.length)) }).map((_, i) => (
                   <div
                     key={`empty-${i}`}
-                    className="flex items-center justify-center h-24 rounded-xl border border-dashed border-white/10 bg-white/2"
+                    className="flex items-center justify-center h-24 rounded-xl border border-dashed border-border text-muted-foreground/25 text-xs"
                   >
-                    <span className="text-white/15 text-xs">empty</span>
+                    empty
                   </div>
                 ))}
               </div>
@@ -371,12 +393,15 @@ export default function Bag() {
           </>
         )}
 
+        {/* ── Active Effects tab ─────────────────────────────────────────── */}
         {!loading && activeTab === "effects" && (
           <div>
             {bagData?.activeEffects.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <div className="text-4xl opacity-30">✨</div>
-                <p className="text-white/40 text-sm">No active effects. Use items from your bag to activate effects!</p>
+                <Sparkles className="w-12 h-12 text-muted-foreground/20" />
+                <p className="text-muted-foreground text-sm text-center">
+                  No active effects.<br />Use items from your bag to activate them.
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -384,79 +409,68 @@ export default function Bag() {
                   let meta: Record<string, unknown> = {};
                   try { meta = JSON.parse(eff.metadata ?? "{}"); } catch { /* ignore */ }
                   return (
-                    <div
-                      key={eff.id}
-                      className={`flex gap-3 p-4 rounded-xl border ${RARITY_COLORS[eff.rarity] ?? "border-white/20 bg-white/5"}`}
-                    >
-                      <span className="text-3xl shrink-0 mt-0.5">{eff.icon}</span>
-                      <div className="min-w-0">
-                        <div className="font-semibold text-sm leading-tight">{eff.item_name}</div>
-                        <div className="text-xs text-white/50 capitalize mt-0.5">
-                          {eff.effect_type.replace(/_/g, " ")}
-                          {eff.effect_value ? ` · ${eff.effect_value}` : ""}
-                        </div>
-                        {meta.sprints_remaining && (
-                          <div className="text-xs text-indigo-400 mt-1">
-                            {String(meta.sprints_remaining)} sprint{Number(meta.sprints_remaining) !== 1 ? "s" : ""} remaining
+                    <Card key={eff.id} className={`border-l-4 ${RARITY_BORDER_LEFT[eff.rarity] ?? ""}`}>
+                      <CardContent className="pt-4 pb-4 px-4 flex gap-3">
+                        <span className="text-2xl shrink-0 mt-0.5 leading-none">{eff.icon}</span>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm leading-tight text-foreground">{eff.item_name}</div>
+                          <div className="text-xs text-muted-foreground capitalize mt-0.5">
+                            {eff.effect_type.replace(/_/g, " ")}
+                            {eff.effect_value ? ` · ${eff.effect_value}` : ""}
                           </div>
-                        )}
-                        <div className="text-xs text-white/40 mt-1">
-                          {eff.expires_at
-                            ? (new Date(eff.expires_at).getFullYear() > new Date().getFullYear() + 10
-                              ? "∞ permanent"
-                              : `Expires in ${formatExpiry(eff.expires_at)}`)
-                            : "∞ permanent"}
+                          {meta.sprints_remaining && (
+                            <div className="text-xs text-primary mt-1">
+                              {String(meta.sprints_remaining)} sprint{Number(meta.sprints_remaining) !== 1 ? "s" : ""} remaining
+                            </div>
+                          )}
+                          <div className="text-xs text-muted-foreground/60 mt-1">
+                            {eff.expires_at
+                              ? (new Date(eff.expires_at).getFullYear() > new Date().getFullYear() + 10
+                                ? "Permanent"
+                                : `Expires in ${formatExpiry(eff.expires_at)}`)
+                              : "Permanent"}
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      </CardContent>
+                    </Card>
                   );
                 })}
               </div>
             )}
           </div>
         )}
-
-        {/* Back button */}
-        {!loading && (
-          <div className="mt-10 pt-6 border-t border-white/10 flex justify-center">
-            <button
-              onClick={() => setLocation("/portal")}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-all text-sm font-medium"
-            >
-              ← Back to Portal
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Item Detail Dialog */}
       <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
-        <DialogContent className="bg-[#1A1D26] border-white/10 text-white max-w-sm">
+        <DialogContent className="max-w-sm">
           {selectedItem && (
             <>
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-xl">
-                  <span className="text-3xl">{selectedItem.icon}</span>
+                <DialogTitle className="flex items-center gap-2.5 text-lg">
+                  <span className="text-3xl leading-none">{selectedItem.icon}</span>
                   {selectedItem.name}
                 </DialogTitle>
                 <DialogDescription asChild>
                   <div>
-                    <Badge className={`mb-3 capitalize ${RARITY_BADGE[selectedItem.rarity] ?? ""}`}>
-                      {selectedItem.rarity}
-                    </Badge>
-                    {selectedItem.quantity > 1 && (
-                      <Badge variant="outline" className="ml-2 border-white/20 text-white/70">
-                        ×{selectedItem.quantity}
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge className={`capitalize text-xs ${RARITY_DIALOG_BADGE[selectedItem.rarity] ?? ""}`}>
+                        {selectedItem.rarity}
                       </Badge>
-                    )}
-                    <p className="text-sm text-white/80 mt-2">{selectedItem.description}</p>
-                    <div className="text-xs text-white/40 mt-2 capitalize">
-                      Category: {selectedItem.category}
+                      {selectedItem.quantity > 1 && (
+                        <Badge variant="outline" className="text-xs">
+                          ×{selectedItem.quantity}
+                        </Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground capitalize">{selectedItem.category}</span>
                     </div>
+                    <p className="text-sm text-foreground mt-3 leading-relaxed">{selectedItem.description}</p>
                     {selectedItem.effect_value && (
-                      <div className="text-xs text-indigo-300 mt-1">
-                        Effect value: {selectedItem.effect_value}
-                        {selectedItem.effect_duration ? ` · Duration: ${selectedItem.effect_duration >= 1440 ? `${Math.round(selectedItem.effect_duration / 1440)}d` : `${Math.round(selectedItem.effect_duration / 60)}h`}` : ""}
+                      <div className="text-xs text-primary/80 mt-2 font-medium">
+                        Effect: {selectedItem.effect_value}
+                        {selectedItem.effect_duration
+                          ? ` · ${selectedItem.effect_duration >= 1440 ? `${Math.round(selectedItem.effect_duration / 1440)}d` : `${Math.round(selectedItem.effect_duration / 60)}h`}`
+                          : ""}
                       </div>
                     )}
                   </div>
@@ -464,15 +478,15 @@ export default function Bag() {
               </DialogHeader>
               <div className="flex gap-2 mt-2">
                 <Button
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-500"
+                  className="flex-1"
                   disabled={usingItem}
                   onClick={() => useItem(selectedItem)}
                 >
-                  {usingItem ? "Using…" : "Use Item"}
+                  {usingItem ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Using…</> : "Use Item"}
                 </Button>
                 <Button
                   variant="outline"
-                  className="border-red-800 text-red-400 hover:bg-red-900/30"
+                  className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => {
                     if (confirm(`Discard ${selectedItem.name}? This cannot be undone.`)) {
                       discardItem(selectedItem);

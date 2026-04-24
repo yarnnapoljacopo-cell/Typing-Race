@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
-import { ArrowLeft, Pen, TrendingUp, Hash, Check, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowLeft, Pen, TrendingUp, Hash, Check, ExternalLink, Loader2, Package, Gift, FlaskConical, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -511,6 +511,50 @@ export default function Profile() {
                   {Math.round(data.totalWords / data.sprintCount).toLocaleString()}
                 </span> words per sprint
               </p>
+            )}
+
+            {/* Cultivation — only visible on own profile */}
+            {isOwnProfile && (
+              <Card>
+                <CardContent className="pt-5 pb-3 px-5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Cultivation</p>
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => setLocation("/bag")}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-left group"
+                    >
+                      <Package className="w-4 h-4 text-primary/60 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground">Cultivation Bag</div>
+                        <div className="text-xs text-muted-foreground">Items, effects and inventory</div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                    </button>
+                    <button
+                      onClick={() => setLocation("/chests")}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-left group"
+                    >
+                      <Gift className="w-4 h-4 text-primary/60 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground">Chests</div>
+                        <div className="text-xs text-muted-foreground">Open rewards earned from sprinting</div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                    </button>
+                    <button
+                      onClick={() => setLocation("/crafting")}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-left group"
+                    >
+                      <FlaskConical className="w-4 h-4 text-primary/60 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground">Crafting Lab</div>
+                        <div className="text-xs text-muted-foreground">Fusion, Alchemy and Tribulation</div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Nameplate Picker — only visible on own profile */}
