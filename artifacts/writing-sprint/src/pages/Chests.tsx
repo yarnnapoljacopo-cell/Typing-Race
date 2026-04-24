@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ChestIcon } from "@/components/ChestIcon";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -38,110 +39,77 @@ interface Chests {
   immortal: number;
 }
 
-const CHEST_INFO: Record<string, {
-  label: string;
-  emoji: string;
-  bg: string;
-  border: string;
-  badgeBg: string;
+interface ChestStyle {
+  card: string;
+  badge: string;
   badgeText: string;
-  titleColor: string;
-  descColor: string;
-  oddsColor: string;
-  bonusColor: string;
-  btnBg: string;
-  btnText: string;
-  btnHover: string;
-  glow?: string;
-  dropTable: string;
+  glow: string;
+  iconRing: string;
+  openBtn: string;
+  stars: number;
+  label: string;
   description: string;
-}> = {
+  dropTable: string;
+}
+
+const CHEST_STYLES: Record<string, ChestStyle> = {
   mortal: {
+    card: "bg-gradient-to-br from-stone-50 to-zinc-100 dark:from-zinc-800/60 dark:to-zinc-900/80 border-zinc-200 dark:border-zinc-700",
+    badge: "bg-zinc-200/80 dark:bg-zinc-700/80 text-zinc-600 dark:text-zinc-300",
+    badgeText: "Common",
+    glow: "",
+    iconRing: "bg-zinc-200/70 dark:bg-zinc-700/60",
+    openBtn: "bg-zinc-600 hover:bg-zinc-700 text-white dark:bg-zinc-500 dark:hover:bg-zinc-400",
+    stars: 1,
     label: "Mortal Chest",
-    emoji: "📦",
-    bg: "linear-gradient(135deg, #1c1c20 0%, #2a2a30 100%)",
-    border: "rgba(148,163,184,0.2)",
-    badgeBg: "rgba(148,163,184,0.12)",
-    badgeText: "#94a3b8",
-    titleColor: "#e2e8f0",
-    descColor: "#94a3b8",
-    oddsColor: "#64748b",
-    bonusColor: "#94a3b8",
-    btnBg: "#334155",
-    btnText: "#e2e8f0",
-    btnHover: "#475569",
     description: "Earned every sprint. Contains Common–Epic items. Tiny legendary chance.",
     dropTable: "55% Common · 30% Uncommon · 10% Rare · 5% Epic · 0.05% Legendary",
   },
   iron: {
+    card: "bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/60 dark:to-slate-900/80 border-slate-300 dark:border-slate-600",
+    badge: "bg-slate-200/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300",
+    badgeText: "Uncommon",
+    glow: "",
+    iconRing: "bg-slate-200/70 dark:bg-slate-700/60",
+    openBtn: "bg-slate-500 hover:bg-slate-600 text-white",
+    stars: 2,
     label: "Iron Chest",
-    emoji: "⚙️",
-    bg: "linear-gradient(135deg, #0f1a24 0%, #1e3448 100%)",
-    border: "rgba(100,181,246,0.25)",
-    badgeBg: "rgba(100,181,246,0.12)",
-    badgeText: "#64b5f6",
-    titleColor: "#e2e8f0",
-    descColor: "#90caf9",
-    oddsColor: "#4a8db5",
-    bonusColor: "#64b5f6",
-    btnBg: "#1565c0",
-    btnText: "#ffffff",
-    btnHover: "#1976d2",
-    glow: "0 0 20px rgba(100,181,246,0.12)",
     description: "Awarded for winning a sprint. Contains Uncommon–Mythic items. Rare legendary chance.",
     dropTable: "10% Uncommon · 50% Rare · 30% Epic · 10% Mythic · 0.3% Legendary",
   },
   crystal: {
+    card: "bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 border-blue-300 dark:border-blue-600",
+    badge: "bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-300",
+    badgeText: "Rare",
+    glow: "shadow-blue-200/60 dark:shadow-blue-900/40",
+    iconRing: "bg-blue-100/80 dark:bg-blue-800/50",
+    openBtn: "bg-blue-600 hover:bg-blue-700 text-white",
+    stars: 3,
     label: "Crystal Chest",
-    emoji: "💎",
-    bg: "linear-gradient(135deg, #0a1628 0%, #0d2845 50%, #0e2038 100%)",
-    border: "rgba(56,189,248,0.35)",
-    badgeBg: "rgba(56,189,248,0.12)",
-    badgeText: "#38bdf8",
-    titleColor: "#bae6fd",
-    descColor: "#7dd3fc",
-    oddsColor: "#0e7490",
-    bonusColor: "#38bdf8",
-    btnBg: "#0284c7",
-    btnText: "#ffffff",
-    btnHover: "#0369a1",
-    glow: "0 0 24px rgba(56,189,248,0.18)",
     description: "Rare reward. Contains Rare–Legendary items and Artifacts.",
     dropTable: "20% Rare · 45% Epic · 30% Mythic · 5% Legendary",
   },
   inferno: {
+    card: "bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-900/30 dark:to-red-900/30 border-orange-400 dark:border-orange-600",
+    badge: "bg-orange-100 dark:bg-orange-800/60 text-orange-700 dark:text-orange-300",
+    badgeText: "Epic",
+    glow: "shadow-orange-200/70 dark:shadow-orange-900/50",
+    iconRing: "bg-orange-100/80 dark:bg-orange-800/50",
+    openBtn: "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white",
+    stars: 4,
     label: "Inferno Chest",
-    emoji: "🔥",
-    bg: "linear-gradient(135deg, #1a0800 0%, #3d1200 50%, #2a0a00 100%)",
-    border: "rgba(251,146,60,0.4)",
-    badgeBg: "rgba(251,146,60,0.12)",
-    badgeText: "#fb923c",
-    titleColor: "#fed7aa",
-    descColor: "#fdba74",
-    oddsColor: "#9a3412",
-    bonusColor: "#fb923c",
-    btnBg: "#ea580c",
-    btnText: "#ffffff",
-    btnHover: "#c2410c",
-    glow: "0 0 28px rgba(251,146,60,0.22)",
     description: "Prestigious chest. Contains Epic–Legendary items and high-tier Recipes.",
     dropTable: "10% Epic · 55% Mythic · 35% Legendary",
   },
   immortal: {
+    card: "bg-gradient-to-br from-yellow-50 via-amber-50 to-yellow-100 dark:from-yellow-900/30 dark:via-amber-900/30 dark:to-yellow-900/30 border-yellow-400 dark:border-yellow-600",
+    badge: "bg-yellow-100 dark:bg-yellow-800/60 text-yellow-800 dark:text-yellow-300",
+    badgeText: "Mythic",
+    glow: "shadow-yellow-300/60 dark:shadow-yellow-900/50",
+    iconRing: "bg-yellow-100/80 dark:bg-yellow-800/50",
+    openBtn: "bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white font-bold",
+    stars: 5,
     label: "Immortal Chest",
-    emoji: "⭐",
-    bg: "linear-gradient(135deg, #1a1200 0%, #3d2e00 40%, #2a1e00 100%)",
-    border: "rgba(250,204,21,0.5)",
-    badgeBg: "rgba(250,204,21,0.12)",
-    badgeText: "#facc15",
-    titleColor: "#fef08a",
-    descColor: "#fde047",
-    oddsColor: "#854d0e",
-    bonusColor: "#fbbf24",
-    btnBg: "#ca8a04",
-    btnText: "#000000",
-    btnHover: "#eab308",
-    glow: "0 0 32px rgba(250,204,21,0.25)",
     description: "Supreme chest. Guaranteed 2 items. 40% legendary per roll.",
     dropTable: "60% Mythic · 40% Legendary",
   },
@@ -175,7 +143,6 @@ export default function Chests() {
   const [opening, setOpening] = useState(false);
   const [openResult, setOpenResult] = useState<OpenResult | null>(null);
   const [selectedChest, setSelectedChest] = useState<string | null>(null);
-  const [animating, setAnimating] = useState(false);
 
   const fetchChests = useCallback(async () => {
     try {
@@ -197,7 +164,7 @@ export default function Chests() {
 
   const openChest = async (chestType: string) => {
     setOpening(true);
-    setAnimating(true);
+    setSelectedChest(chestType);
     try {
       const res = await fetch(`${basePath}/api/user/chests/open`, {
         method: "POST",
@@ -208,23 +175,20 @@ export default function Chests() {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         toast({ title: "Cannot open chest", description: data.error ?? "Unknown error", variant: "destructive" });
-        setAnimating(false);
         return;
       }
-      await new Promise(r => setTimeout(r, 900));
+      await new Promise(r => setTimeout(r, 700));
       setOpenResult({
         items: data.items as ChestItem[],
         coins_awarded: data.coins_awarded ?? 0,
         new_coin_balance: data.new_coin_balance ?? null,
       });
-      setSelectedChest(chestType);
       fetchChests();
       void queryClient.invalidateQueries({ queryKey: ["coinBalance"] });
     } catch {
       toast({ title: "Error", description: "Failed to open chest", variant: "destructive" });
     } finally {
       setOpening(false);
-      setAnimating(false);
     }
   };
 
@@ -278,118 +242,101 @@ export default function Chests() {
         )}
 
         {!loading && (
-          <div className="space-y-3">
+          <>
             <p className="text-muted-foreground text-sm mb-6 text-center">
               You earn a <strong className="text-foreground">Mortal Chest</strong> every sprint, and an{" "}
               <strong className="text-foreground">Iron Chest</strong> when you win. Higher-tier chests are obtained through crafting and events.
             </p>
 
-            {CHEST_ORDER.map(chestType => {
-              const qty = chests?.[chestType] ?? 0;
-              const info = CHEST_INFO[chestType];
-              const [b2, b3] = BONUS_CHANCES[chestType] ?? [0, 0];
-              const bonusLabel = b2 === 1.0
-                ? `Guaranteed 2 items · ${Math.round(b3 * 100)}% chance of 3rd`
-                : b2 > 0
-                ? `${Math.round(b2 * 100)}% chance of 2nd item${b3 > 0 ? ` · ${Math.round(b3 * 100)}% chance of 3rd` : ""}`
-                : "";
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {CHEST_ORDER.map(chestType => {
+                const qty = chests?.[chestType] ?? 0;
+                const style = CHEST_STYLES[chestType];
+                const [b2, b3] = BONUS_CHANCES[chestType] ?? [0, 0];
+                const bonusLabel = b2 === 1.0
+                  ? `Guaranteed 2 items · ${Math.round(b3 * 100)}% chance of 3rd`
+                  : b2 > 0
+                  ? `${Math.round(b2 * 100)}% chance of 2nd item${b3 > 0 ? ` · ${Math.round(b3 * 100)}% chance of 3rd` : ""}`
+                  : "";
+                const isOpening = opening && selectedChest === chestType;
 
-              const isOpening = opening && selectedChest === chestType;
-
-              return (
-                <div
-                  key={chestType}
-                  className="rounded-2xl overflow-hidden"
-                  style={{
-                    background: info.bg,
-                    border: `1px solid ${info.border}`,
-                    boxShadow: info.glow ?? "none",
-                  }}
-                >
-                  <div className="flex items-center gap-4 px-5 py-4">
-                    {/* Chest icon */}
-                    <div
-                      className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 text-3xl select-none"
-                      style={{
-                        background: info.badgeBg,
-                        border: `1px solid ${info.border}`,
-                      }}
-                    >
-                      {info.emoji}
+                return (
+                  <div
+                    key={chestType}
+                    className={`relative rounded-2xl border-2 p-5 flex flex-col gap-4 transition-all hover:scale-[1.02] hover:shadow-xl ${style.card} ${style.glow ? `shadow-lg ${style.glow}` : "shadow-sm"}`}
+                  >
+                    {/* Tier badge + stars */}
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[11px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full ${style.badge}`}>
+                        {style.badgeText}
+                      </span>
+                      <span className="text-xs tracking-tight opacity-50">
+                        {"★".repeat(style.stars)}{"☆".repeat(5 - style.stars)}
+                      </span>
                     </div>
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="font-bold text-[15px]" style={{ color: info.titleColor }}>
-                          {info.label}
-                        </span>
-                        <span
-                          className="text-xs font-bold px-2 py-0.5 rounded-full"
-                          style={{ background: info.badgeBg, color: info.badgeText }}
-                        >
-                          ×{qty}
-                        </span>
+                    {/* Icon + title row */}
+                    <div className="flex items-center gap-4">
+                      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 p-1.5 ${style.iconRing}`}>
+                        <ChestIcon type={chestType} />
                       </div>
-                      <p className="text-xs leading-relaxed mb-1.5" style={{ color: info.descColor }}>
-                        {info.description}
-                      </p>
-                      <p className="text-[11px] font-mono" style={{ color: info.oddsColor }}>
-                        {info.dropTable}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <h3 className="font-bold text-base leading-tight">{style.label}</h3>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${style.badge}`}>
+                            ×{qty}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                          {style.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Drop odds + bonus */}
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-mono text-muted-foreground/70">
+                        {style.dropTable}
                       </p>
                       {bonusLabel && (
-                        <p className="text-[11px] font-semibold mt-1 flex items-center gap-1" style={{ color: info.bonusColor }}>
+                        <p className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
                           <span>✦</span>
                           <span>{bonusLabel}</span>
                         </p>
                       )}
                     </div>
 
-                    {/* Open button */}
-                    <button
-                      disabled={qty === 0 || opening}
-                      onClick={() => openChest(chestType)}
-                      className="shrink-0 h-9 px-4 rounded-lg text-sm font-bold transition-all duration-150 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={qty > 0 ? {
-                        background: info.btnBg,
-                        color: info.btnText,
-                      } : {
-                        background: "rgba(255,255,255,0.06)",
-                        color: "rgba(255,255,255,0.3)",
-                      }}
-                      onMouseEnter={e => {
-                        if (qty > 0 && !opening) {
-                          (e.currentTarget as HTMLButtonElement).style.background = info.btnHover;
-                        }
-                      }}
-                      onMouseLeave={e => {
-                        if (qty > 0 && !opening) {
-                          (e.currentTarget as HTMLButtonElement).style.background = info.btnBg;
-                        }
-                      }}
-                    >
-                      {isOpening ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          Opening…
-                        </>
-                      ) : qty > 0 ? "Open" : "None"}
-                    </button>
+                    {/* Open button (with divider like shop's price row) */}
+                    <div className="flex items-center justify-between mt-auto pt-1 border-t border-black/5 dark:border-white/5">
+                      <span className="text-sm text-muted-foreground">
+                        {qty > 0 ? `${qty} available` : "None owned"}
+                      </span>
+                      <button
+                        disabled={qty === 0 || opening}
+                        onClick={() => openChest(chestType)}
+                        className={`px-5 py-1.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 ${style.openBtn}`}
+                      >
+                        {isOpening ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Opening…
+                          </>
+                        ) : qty > 0 ? "Open" : "None"}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
 
-        {/* Info footer */}
-        {!loading && (
-          <div className="mt-10 p-4 rounded-xl border border-border bg-muted/40 text-xs text-muted-foreground space-y-1.5">
-            <div className="font-semibold text-foreground mb-2">Item Effects Guide</div>
-            <div>Use items from your Bag to activate effects that boost sprint XP, guarantee rare drops, or enhance crafting.</div>
-            <div>Recipe Scrolls from Iron+ chests unlock Alchemy recipes in the Crafting lab.</div>
-            <div>Failure Ashes from failed crafting can be refined (×5 → 1 Common pill) using the Refining Furnace.</div>
-          </div>
+            {/* Info footer */}
+            <div className="mt-10 p-4 rounded-xl border border-border bg-muted/40 text-xs text-muted-foreground space-y-1.5">
+              <div className="font-semibold text-foreground mb-2">Item Effects Guide</div>
+              <div>Use items from your Bag to activate effects that boost sprint XP, guarantee rare drops, or enhance crafting.</div>
+              <div>Recipe Scrolls from Iron+ chests unlock Alchemy recipes in the Crafting lab.</div>
+              <div>Failure Ashes from failed crafting can be refined (×5 → 1 Common pill) using the Refining Furnace.</div>
+            </div>
+          </>
         )}
       </div>
 
@@ -398,7 +345,7 @@ export default function Chests() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-center text-xl">
-              {selectedChest && CHEST_INFO[selectedChest]?.label} Opened!
+              {selectedChest && CHEST_STYLES[selectedChest]?.label} Opened!
             </DialogTitle>
             <DialogDescription className="text-center text-sm">
               {openResult && openResult.items.length > 1
@@ -422,7 +369,6 @@ export default function Chests() {
             ))}
           </div>
 
-          {/* Coin drop display */}
           {openResult && openResult.coins_awarded > 0 && (
             <div className="mt-3 flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-yellow-900/20 border border-yellow-500/30">
               <span className="text-xl">🪙</span>
