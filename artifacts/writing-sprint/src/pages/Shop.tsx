@@ -25,8 +25,6 @@ interface ShopListing {
   quantity: number;
   price: number;
   icon: string;
-  daily_purchase_limit: number;
-  purchases_today: number;
 }
 
 interface ShopData {
@@ -192,12 +190,11 @@ export default function Shop() {
         {shopData && (
           <div className="space-y-3">
             {shopData.listings.map((listing) => {
-              const soldOut = listing.purchases_today >= listing.daily_purchase_limit;
               const canAfford = shopData.balance >= listing.price;
               return (
                 <Card
                   key={listing.id}
-                  className={`border-l-4 transition-shadow hover:shadow-md ${CHEST_CARD_BORDER[listing.item_type] ?? "border-l-border"} ${soldOut ? "opacity-60" : ""}`}
+                  className={`border-l-4 transition-shadow hover:shadow-md ${CHEST_CARD_BORDER[listing.item_type] ?? "border-l-border"}`}
                 >
                   <CardContent className="p-4 flex items-center gap-4">
                     <span className="text-3xl">{listing.icon}</span>
@@ -212,11 +209,6 @@ export default function Shop() {
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground">{listing.description}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {soldOut
-                          ? `Daily limit reached (${listing.daily_purchase_limit}×/day)`
-                          : `${listing.purchases_today}/${listing.daily_purchase_limit} bought today`}
-                      </p>
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">
                       <span className="font-bold text-yellow-600 dark:text-yellow-400">
@@ -224,10 +216,10 @@ export default function Shop() {
                       </span>
                       <Button
                         size="sm"
-                        disabled={soldOut || !canAfford || buyMutation.isPending}
+                        disabled={!canAfford || buyMutation.isPending}
                         onClick={() => setConfirmListing(listing)}
                       >
-                        {soldOut ? "Sold Out" : !canAfford ? "Can't Afford" : "Buy"}
+                        {!canAfford ? "Can't Afford" : "Buy"}
                       </Button>
                     </div>
                   </CardContent>

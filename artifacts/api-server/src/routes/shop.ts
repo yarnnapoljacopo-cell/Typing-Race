@@ -99,23 +99,6 @@ router.post("/shop/buy", async (req, res): Promise<void> => {
       price: number; daily_purchase_limit: number; is_available: boolean;
     };
 
-    // Step 2: Check daily purchase limit
-    const { rows: countRows } = await client.query(
-      `SELECT COUNT(*) AS cnt
-       FROM coin_transactions
-       WHERE user_id = $1
-         AND transaction_type = 'shop_purchase'
-         AND reference_id = $2
-         AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')`,
-      [userId, String(listing.id)],
-    );
-    const purchasesToday = Number((countRows[0] as { cnt: string }).cnt);
-    if (purchasesToday >= listing.daily_purchase_limit) {
-      await client.query("ROLLBACK");
-      res.status(400).json({ error: "Daily purchase limit reached for this item" });
-      return;
-    }
-
     // Step 3: Deduct coins (validates balance)
     await ensureUserCoins(client, userId);
     await dailyResetCheck(client, userId);

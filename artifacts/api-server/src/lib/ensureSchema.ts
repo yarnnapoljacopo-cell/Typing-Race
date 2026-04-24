@@ -279,12 +279,12 @@ export async function ensureSchema(): Promise<void> {
       INSERT INTO shop_listings
         (name, description, item_type, quantity, price, icon, is_available, display_order, daily_purchase_limit)
       VALUES
-        ('Mortal Chest',    'A basic chest of common cultivation resources.',       'mortal_chest',   1, 50,   '📦', TRUE, 1, 5),
-        ('Iron Chest',      'Improved rewards with higher rarity drops.',           'iron_chest',     1, 300,  '🗃️', TRUE, 2, 3),
-        ('Iron Chest ×3',   'Three Iron Chests for a bulk discount.',               'iron_chest',     3, 800,  '🗃️', TRUE, 3, 1),
-        ('Crystal Chest',   'Crystalline chest with rare cultivation treasures.',   'crystal_chest',  1, 800,  '💎', TRUE, 4, 2),
-        ('Inferno Chest',   'Forged in heavenly flames. Exceptional rewards.',      'inferno_chest',  1, 2500, '🔥', TRUE, 5, 1),
-        ('Immortal Chest',  'The pinnacle chest. Mythic power within.',             'immortal_chest', 1, 7000, '👑', TRUE, 6, 1)
+        ('Mortal Chest',    'A basic chest of common cultivation resources.',       'mortal_chest',   1, 50,   '📦', TRUE, 1, 999999),
+        ('Iron Chest',      'Improved rewards with higher rarity drops.',           'iron_chest',     1, 300,  '🗃️', TRUE, 2, 999999),
+        ('Iron Chest ×3',   'Three Iron Chests for a bulk discount.',               'iron_chest',     3, 800,  '🗃️', TRUE, 3, 999999),
+        ('Crystal Chest',   'Crystalline chest with rare cultivation treasures.',   'crystal_chest',  1, 800,  '💎', TRUE, 4, 999999),
+        ('Inferno Chest',   'Forged in heavenly flames. Exceptional rewards.',      'inferno_chest',  1, 2500, '🔥', TRUE, 5, 999999),
+        ('Immortal Chest',  'The pinnacle chest. Mythic power within.',             'immortal_chest', 1, 7000, '👑', TRUE, 6, 999999)
       ON CONFLICT (display_order) DO NOTHING
     `);
 
