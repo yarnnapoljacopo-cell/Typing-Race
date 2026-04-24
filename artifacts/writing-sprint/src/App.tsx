@@ -1,7 +1,7 @@
 // eslint-disable-next-line no-console
 console.log("[clerk-key] VITE_CLERK_PK =", import.meta.env.VITE_CLERK_PK, "| VITE_CLERK_PUBLISHABLE_KEY =", import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
-import { useEffect, useRef, useState, Component } from "react";
+import { useEffect, useRef, useState, Component, createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, ClerkLoading, ClerkLoaded } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
@@ -218,8 +218,9 @@ function SignUpPage() {
 function HomeRedirect() {
   const { isSignedIn, isLoaded } = useAuth();
   const { guestName } = useGuest();
+  const clerkTimedOut = useDevTimeout();
 
-  if (!isLoaded) return null;
+  if (!isLoaded && !clerkTimedOut) return null;
 
   // In the desktop app, go straight to offline sprint if there's no connection
   if (!!(window as any).electronAPI && !navigator.onLine) {
@@ -338,8 +339,9 @@ function AuthDiagnostic() {
 function PortalGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const { guestName } = useGuest();
+  const clerkTimedOut = useDevTimeout();
 
-  if (!isLoaded) return <AuthLoading />;
+  if (!isLoaded && !clerkTimedOut) return <AuthLoading />;
   if (isSignedIn || guestName) return <Portal />;
   return <Redirect to="/" />;
 }
@@ -347,32 +349,36 @@ function PortalGuard() {
 function RoomGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const { guestName } = useGuest();
+  const clerkTimedOut = useDevTimeout();
 
-  if (!isLoaded) return null;
+  if (!isLoaded && !clerkTimedOut) return null;
   if (isSignedIn || guestName) return <Room />;
   return <Redirect to="/" />;
 }
 
 function MyFilesGuard() {
   const { isSignedIn, isLoaded } = useAuth();
+  const clerkTimedOut = useDevTimeout();
 
-  if (!isLoaded) return null;
+  if (!isLoaded && !clerkTimedOut) return null;
   if (isSignedIn) return <MyFiles />;
   return <Redirect to="/" />;
 }
 
 function FriendsGuard() {
   const { isSignedIn, isLoaded } = useAuth();
+  const clerkTimedOut = useDevTimeout();
 
-  if (!isLoaded) return null;
+  if (!isLoaded && !clerkTimedOut) return null;
   if (isSignedIn) return <Friends />;
   return <Redirect to="/" />;
 }
 
 function GlobalRankingGuard() {
   const { isSignedIn, isLoaded } = useAuth();
+  const clerkTimedOut = useDevTimeout();
 
-  if (!isLoaded) return null;
+  if (!isLoaded && !clerkTimedOut) return null;
   if (isSignedIn) return <GlobalRanking />;
   return <Redirect to="/" />;
 }
@@ -380,11 +386,13 @@ function GlobalRankingGuard() {
 // ── Cache invalidator ──────────────────────────────────────────────────────
 
 function ClerkQueryClientCacheInvalidator() {
+  const { isLoaded } = useAuth();
   const { addListener } = useClerk();
   const qc = useQueryClient();
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
+    if (!isLoaded) return; // Clerk timed out / not initialized — skip listener
     const unsubscribe = addListener(({ user }) => {
       const userId = user?.id ?? null;
       if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) {
@@ -393,7 +401,7 @@ function ClerkQueryClientCacheInvalidator() {
       prevUserIdRef.current = userId;
     });
     return unsubscribe;
-  }, [addListener, qc]);
+  }, [isLoaded, addListener, qc]);
 
   return null;
 }
@@ -441,12 +449,56 @@ function MissingKeyScreen() {
   );
 }
 
+// ── Dev-mode Clerk timeout ──────────────────────────────────────────────────
+// When Clerk's live key rejects the localhost/Replit origin, it silently hangs.
+// We detect this via a 6-second timeout and render the app in guest mode instead.
+const DevTimeoutContext = createContext(false);
+function useDevTimeout() { return useContext(DevTimeoutContext); }
+
+// Renders children when Clerk IS loaded OR when the timeout elapsed.
+// Must be placed inside <ClerkProvider> so useAuth() is valid.
+function TimedClerkLoaded({ timedOut, children }: { timedOut: boolean; children: ReactNode }) {
+  const { isLoaded } = useAuth();
+  if (!isLoaded && !timedOut) return null;
+  return <>{children}</>;
+}
+
+// Shown at the top of the page in dev-timeout mode so the developer knows why
+// auth features aren't working.
+function DevAuthBanner() {
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+      background: "#F59E0B", color: "#1A1A1A",
+      padding: "0.35rem 1rem", fontSize: "0.78rem",
+      fontFamily: "system-ui, sans-serif",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      gap: "0.4rem", flexWrap: "wrap",
+    }}>
+      <span>⚠️ Auth unavailable on localhost — use Guest mode to test UI, or sign in at</span>
+      <a href="https://app.writingsprint.site" target="_blank" rel="noopener noreferrer"
+        style={{ color: "#1A1A1A", fontWeight: 700, textDecoration: "underline" }}>
+        app.writingsprint.site
+      </a>
+    </div>
+  );
+}
+
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
+  const [clerkTimedOut, setClerkTimedOut] = useState(false);
+
+  // Give Clerk 6 seconds to initialise. If it hasn't by then (e.g. live key
+  // rejected on localhost), flip to guest-only mode without a hard error.
+  useEffect(() => {
+    const t = setTimeout(() => setClerkTimedOut(true), 6000);
+    return () => clearTimeout(t);
+  }, []);
 
   if (!clerkPubKey) return <MissingKeyScreen />;
 
   return (
+    <DevTimeoutContext.Provider value={clerkTimedOut}>
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
@@ -472,27 +524,30 @@ function ClerkProviderWithRoutes() {
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
-      {/* Show a visible loading screen while Clerk initialises.
-          Without this, ClerkProvider renders nothing during init and the
-          page appears blank — especially noticeable when the Clerk FAPI
-          proxy is slow or unreachable. */}
+      {/* Loading screen: hidden once timeout fires so TimedClerkLoaded can take over */}
       <ClerkLoading>
-        <div style={{
-          minHeight: "100dvh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "1rem",
-          fontFamily: "Inter, sans-serif",
-          background: "#FAF8F4",
-          color: "#2D3142",
-        }}>
-          <img src={`${basePath}/logo.svg`} alt="Writing Sprint" style={{ width: 48, height: 48, borderRadius: 12 }} />
-          <p style={{ margin: 0, color: "#68708A", fontSize: "0.95rem" }}>Loading Writing Sprint…</p>
-        </div>
+        {!clerkTimedOut && (
+          <div style={{
+            minHeight: "100dvh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "1rem",
+            fontFamily: "Inter, sans-serif",
+            background: "#FAF8F4",
+            color: "#2D3142",
+          }}>
+            <img src={`${basePath}/logo.svg`} alt="Writing Sprint" style={{ width: 48, height: 48, borderRadius: 12 }} />
+            <p style={{ margin: 0, color: "#68708A", fontSize: "0.95rem" }}>Loading Writing Sprint…</p>
+          </div>
+        )}
       </ClerkLoading>
-      <ClerkLoaded>
+      {/* TimedClerkLoaded renders even when Clerk hasn't loaded, once the
+          timeout fires. All auth hooks return isSignedIn=undefined in that
+          state so the app behaves as if the user is logged out (guest mode). */}
+      <TimedClerkLoaded timedOut={clerkTimedOut}>
+        {clerkTimedOut && <DevAuthBanner />}
       <QueryClientProvider client={queryClient}>
         <GuestProvider>
           <SkinProvider>
@@ -518,8 +573,9 @@ function ClerkProviderWithRoutes() {
           </SkinProvider>
         </GuestProvider>
       </QueryClientProvider>
-      </ClerkLoaded>
+      </TimedClerkLoaded>
     </ClerkProvider>
+    </DevTimeoutContext.Provider>
   );
 }
 
