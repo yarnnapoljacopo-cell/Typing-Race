@@ -1,6 +1,8 @@
-import { memo, useRef } from "react";
+import { memo, useRef, type ReactNode } from "react";
 import { Participant } from "@/hooks/useSprintRoom";
 import { motion, AnimatePresence } from "framer-motion";
+
+const ITEM_BOX_INTERVAL = 250; // words between item boxes
 
 interface RaceTrackProps {
   participants: Participant[];
@@ -230,6 +232,39 @@ export const RaceTrack = memo(function RaceTrack({
                     className="absolute top-0 bottom-0"
                     style={{ left: "59px", right: `${16 + CAR_W}px` }}
                   >
+                    {/* Kart item boxes — yellow ? boxes at upcoming 250-word thresholds */}
+                    {/* Use displayWordCount (actual words typed) to match server's kartNextItemAt logic */}
+                    {isKartMode && !eliminated && !finished && (() => {
+                      const nextBox = (Math.floor(displayWordCount / ITEM_BOX_INTERVAL) + 1) * ITEM_BOX_INTERVAL;
+                      const boxes: ReactNode[] = [];
+                      for (let box = nextBox; box < target && boxes.length < 3; box += ITEM_BOX_INTERVAL) {
+                        const boxFraction = Math.min(box / target, 1);
+                        boxes.push(
+                          <div
+                            key={box}
+                            className="absolute top-1/2 z-10 pointer-events-none"
+                            style={{
+                              left: `${boxFraction * 100}%`,
+                              transform: "translate(-50%, -50%)",
+                            }}
+                          >
+                            <div
+                              className="w-5 h-5 rounded-sm flex items-center justify-center text-[9px] font-black leading-none"
+                              style={{
+                                background: "linear-gradient(135deg, #fbbf24, #f59e0b)",
+                                border: "1.5px solid #fde68a",
+                                color: "#78350f",
+                                boxShadow: "0 0 5px rgba(251,191,36,0.6)",
+                              }}
+                            >
+                              ?
+                            </div>
+                          </div>
+                        );
+                      }
+                      return boxes;
+                    })()}
+
                     <motion.div
                       className="absolute top-0 bottom-0 flex flex-col items-center justify-center"
                       animate={{ left: `${fraction * 100}%` }}

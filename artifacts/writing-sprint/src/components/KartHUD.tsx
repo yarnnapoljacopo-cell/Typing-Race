@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { ITEMS, ITEM_KEYS, type ItemKey } from "@/lib/kartItems";
+import type { KartHitNotification } from "@/hooks/useSprintRoom";
 
 interface KartHUDProps {
   items: string[];
@@ -9,6 +10,7 @@ interface KartHUDProps {
   starActive: boolean;
   onUseItem: (item: string) => void;
   flashEvent: KartFlashEvent | null;
+  hitNotification: KartHitNotification | null;
 }
 
 export interface KartFlashEvent {
@@ -26,6 +28,7 @@ export function KartHUD({
   starActive,
   onUseItem,
   flashEvent,
+  hitNotification,
 }: KartHUDProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -207,8 +210,26 @@ export function KartHUD({
         </div>
       )}
 
-      {/* Flash event toast */}
-      {flashEvent && (
+      {/* Personal hit notification — shown only to the player who was hit */}
+      {hitNotification && (
+        <div
+          className="absolute -top-14 left-0 right-0 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold shadow-2xl z-50 animate-in slide-in-from-top-2 duration-200"
+          style={{
+            background: "rgba(239,68,68,0.25)",
+            border: "1px solid rgba(239,68,68,0.7)",
+            color: "#fca5a5",
+            boxShadow: "0 0 18px rgba(239,68,68,0.35)",
+          }}
+        >
+          <span className="text-xl">{hitNotification.emoji}</span>
+          <span>
+            You were hit by <strong className="text-red-300">{hitNotification.sourceName}</strong>!
+          </span>
+        </div>
+      )}
+
+      {/* Flash event toast — broadcast to all (only shown when not personally hit) */}
+      {flashEvent && !hitNotification && (
         <div
           className="absolute -top-14 left-0 right-0 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold shadow-xl z-50 animate-in slide-in-from-top-2 duration-300"
           style={{ background: `${flashEvent.color}22`, border: `1px solid ${flashEvent.color}60`, color: "#fff" }}

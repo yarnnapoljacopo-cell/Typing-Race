@@ -59,6 +59,12 @@ export interface GladiatorState {
   executionResult: GladiatorResult | null;
 }
 
+export interface KartHitNotification {
+  emoji: string;
+  sourceName: string;
+  item: string;
+}
+
 export interface KartState {
   items: string[];
   bonusWords: number;
@@ -68,6 +74,7 @@ export interface KartState {
   starActive: boolean;
   starActiveIds: string[];
   flashEvent: KartFlashEvent | null;
+  hitNotification: KartHitNotification | null;
 }
 
 export interface ParticipantText {
@@ -124,11 +131,15 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
     starActive: false,
     starActiveIds: [],
     flashEvent: null,
+    hitNotification: null,
   });
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const boldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const starTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Stable ref for participantId so WS closures don't go stale
+  const participantIdRef = useRef<string | null>(null);
 
   const [gladiatorState, setGladiatorState] = useState<GladiatorState>({
     myHp: 1000,
@@ -188,6 +199,7 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
           case "joined": {
             const isReconnect = hasJoinedRef.current;
             disconnectedAtRef.current = null;
+            participantIdRef.current = data.participantId;
             setParticipantId(data.participantId);
             setRoom({ ...ROOM_STATE_DEFAULTS, ...data.room, participants: data.room.participants ?? [] });
             if (isReconnect && latestTextRef.current) {
@@ -300,7 +312,7 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
               }, starDuration);
             }
 
-            // Flash notification
+            // Flash notification (broadcast to all)
             const itemEmoji = (data.emoji as string) ?? "🎮";
             const sourceName = (data.sourceName as string) ?? "Someone";
             const targetName = (data.targetName as string) ?? "";
@@ -318,6 +330,29 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
             flashTimerRef.current = setTimeout(() => {
               setKartState((prev) => ({ ...prev, flashEvent: null }));
             }, 3000);
+
+            // Personal hit notification — only for the targeted player
+            if (effect === "car_subtract" || effect === "bold_text") {
+              const myId = participantIdRef.current;
+              const wasHit =
+                myId &&
+                ((targetId && targetId === myId) ||
+                  (targetIds && targetIds.includes(myId)));
+              if (wasHit) {
+                if (hitTimerRef.current) clearTimeout(hitTimerRef.current);
+                setKartState((prev) => ({
+                  ...prev,
+                  hitNotification: {
+                    emoji: itemEmoji,
+                    sourceName,
+                    item: (data.item as string) ?? "item",
+                  },
+                }));
+                hitTimerRef.current = setTimeout(() => {
+                  setKartState((prev) => ({ ...prev, hitNotification: null }));
+                }, 3500);
+              }
+            }
             break;
           }
 

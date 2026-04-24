@@ -1475,6 +1475,7 @@ export default function Room() {
                     starActive={kartState.starActive}
                     onUseItem={sendUseItem}
                     flashEvent={kartState.flashEvent}
+                    hitNotification={kartState.hitNotification}
                   />
                 </div>
               )}

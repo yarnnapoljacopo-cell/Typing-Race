@@ -1,7 +1,7 @@
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
-import { Crown, ArrowLeft, Trophy, Loader2 } from "lucide-react";
+import { Crown, ArrowLeft, Trophy, Loader2, Lock } from "lucide-react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -53,9 +53,14 @@ export default function GlobalRanking() {
     enabled: isLoaded && !!isSignedIn,
   });
 
+  const myXp = profile?.xp ?? 0;
+  const myName = profile?.writerName;
+  const isRanker = myXp >= RANKER_MIN_XP;
+
   const { data: rankings, isLoading: rankingsLoading } = useQuery({
     queryKey: ["global-rankings"],
     queryFn: fetchGlobalRankings,
+    enabled: isRanker,
   });
 
   if (!isLoaded || profileLoading) {
@@ -65,10 +70,6 @@ export default function GlobalRanking() {
       </div>
     );
   }
-
-  const myXp = profile?.xp ?? 0;
-  const myName = profile?.writerName;
-  const isRanker = myXp >= RANKER_MIN_XP;
 
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col">
@@ -103,21 +104,57 @@ export default function GlobalRanking() {
       {/* Body */}
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
 
-        {/* Non-ranker teaser */}
-        {!isRanker && isSignedIn && (
-          <div
-            className="rounded-xl px-4 py-3 mb-5 text-sm text-fuchsia-200/80"
-            style={{
-              background: "rgba(232,121,249,0.07)",
-              border: "1px solid rgba(232,121,249,0.2)",
-            }}
-          >
-            You need <strong className="text-fuchsia-300">200,000 XP</strong> to earn a spot here.
-            Keep writing — you're at <strong className="text-fuchsia-300">{myXp.toLocaleString()} XP</strong>.
+        {/* Access Restricted — non-rankers */}
+        {!isRanker ? (
+          <div className="flex flex-col items-center gap-6 py-16 text-center">
+            <div
+              className="w-20 h-20 rounded-2xl flex items-center justify-center"
+              style={{ background: "rgba(232,121,249,0.08)", border: "1px solid rgba(232,121,249,0.2)" }}
+            >
+              <Lock className="w-9 h-9 text-fuchsia-400/60" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white/90 mb-1">Access Restricted</h2>
+              <p className="text-sm text-fuchsia-300/60 max-w-xs leading-relaxed">
+                Only writers who have reached{" "}
+                <strong className="text-fuchsia-300">200,000 XP</strong> can view the Global Ranking.
+              </p>
+            </div>
+            {isSignedIn && (
+              <div
+                className="rounded-xl px-5 py-4 text-sm text-fuchsia-200/80 max-w-xs"
+                style={{
+                  background: "rgba(232,121,249,0.07)",
+                  border: "1px solid rgba(232,121,249,0.2)",
+                }}
+              >
+                <p className="mb-2 text-xs text-fuchsia-300/50 uppercase tracking-wider font-semibold">Your progress</p>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <span className="text-white/70">Current XP</span>
+                  <span className="font-mono font-bold text-fuchsia-300">{myXp.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <span className="text-white/70">XP needed</span>
+                  <span className="font-mono font-bold text-fuchsia-300">
+                    {Math.max(0, RANKER_MIN_XP - myXp).toLocaleString()}
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "rgba(139,92,246,0.15)" }}>
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 to-pink-500 transition-all"
+                    style={{ width: `${Math.min(100, (myXp / RANKER_MIN_XP) * 100).toFixed(1)}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-fuchsia-300/40">
+                  {((myXp / RANKER_MIN_XP) * 100).toFixed(1)}% of the way there
+                </p>
+              </div>
+            )}
+            {!isSignedIn && (
+              <p className="text-xs text-muted-foreground/50">Sign in to track your progress.</p>
+            )}
           </div>
-        )}
-
-        {rankingsLoading ? (
+        ) : rankingsLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-6 h-6 animate-spin text-fuchsia-400" />
           </div>
@@ -198,9 +235,11 @@ export default function GlobalRanking() {
         )}
 
         {/* Footer note */}
-        <p className="text-center text-xs text-muted-foreground/40 mt-8">
-          Only writers who have reached 200,000 XP appear here.
-        </p>
+        {isRanker && (
+          <p className="text-center text-xs text-muted-foreground/40 mt-8">
+            Only writers who have reached 200,000 XP appear here.
+          </p>
+        )}
       </div>
     </div>
   );
