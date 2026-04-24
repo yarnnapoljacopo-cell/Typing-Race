@@ -92,7 +92,7 @@ class ClerkErrorBoundary extends Component<
   }
 }
 
-const clerkPubKey = import.meta.env.VITE_CLERK_PK as string | undefined;
+const clerkPubKey = (import.meta.env.VITE_CLERK_PK ?? import.meta.env.VITE_CLERK_PUBLISHABLE_KEY) as string | undefined;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 // In development builds (NODE_ENV=development), skip the domain restriction so
