@@ -19,6 +19,8 @@ npm exec pnpm -- install --no-frozen-lockfile
 npm exec pnpm -- --filter @workspace/db push || echo "[build] DB push skipped (DATABASE_URL not available at build time — that is expected)"
 
 # Build the frontend with the correct NODE_ENV baked in
+VITE_CLERK_PK="${VITE_CLERK_PK:-pk_live_Y2xlcmsud3JpdGluZ3NwcmludC5zaXRlJA}" \
+VITE_CLERK_PUBLISHABLE_KEY="${VITE_CLERK_PUBLISHABLE_KEY:-pk_live_Y2xlcmsud3JpdGluZ3NwcmludC5zaXRlJA}" \
 PORT=3000 BASE_PATH=/ NODE_ENV="$NODE_ENV" npm exec pnpm -- --filter @workspace/writing-sprint run build
 
 # Build the API server
