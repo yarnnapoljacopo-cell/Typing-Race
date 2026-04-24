@@ -454,6 +454,7 @@ export default function Profile() {
   return (
     <>
       {/* Fixed background layers */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "#F5F2EC" }} />
       <div style={{
         position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
         backgroundImage: "linear-gradient(rgba(107,143,212,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(107,143,212,0.05) 1px, transparent 1px)",
@@ -464,7 +465,7 @@ export default function Profile() {
       <div style={{ position: "fixed", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(168,85,247,0.07) 0%, transparent 70%)", filter: "blur(90px)", top: "40%", left: "30%", pointerEvents: "none", zIndex: 0 }} />
 
       {/* Scrollable content */}
-      <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", background: "#F5F2EC", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 40, paddingBottom: 60, paddingLeft: 20, paddingRight: 20 }}>
+      <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 40, paddingBottom: 60, paddingLeft: 20, paddingRight: 20 }}>
         <div style={{ width: "100%", maxWidth: 520, animation: "portalFadeUp 0.6s cubic-bezier(.22,1,.36,1) both" }}>
 
           {/* Back button */}

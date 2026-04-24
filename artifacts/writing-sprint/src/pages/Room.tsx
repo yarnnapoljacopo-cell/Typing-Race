@@ -978,6 +978,7 @@ export default function Room() {
     <>
     {/* Fixed background layers — only shown in normal (non-distraction-free) mode */}
     {!distractionFree && <>
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "#F5F2EC" }} />
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(107,143,212,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(107,143,212,0.04) 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
       <div style={{ position: "fixed", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(107,143,212,0.12) 0%, transparent 70%)", filter: "blur(90px)", top: -80, right: -80, pointerEvents: "none", zIndex: 0 }} />
       <div style={{ position: "fixed", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(232,168,56,0.07) 0%, transparent 70%)", filter: "blur(90px)", bottom: 0, left: 0, pointerEvents: "none", zIndex: 0 }} />
@@ -985,7 +986,7 @@ export default function Room() {
     <div className={distractionFree
       ? "fixed inset-0 z-50 bg-background flex flex-col overflow-auto"
       : "min-h-screen w-full flex flex-col gap-4"
-    } style={!distractionFree ? { background: "#F5F2EC", position: "relative", zIndex: 1 } : undefined}>
+    } style={!distractionFree ? { position: "relative", zIndex: 1 } : undefined}>
 
       {/* Chest award modal — shown when timer ends naturally */}
       {chestAwarded && (
