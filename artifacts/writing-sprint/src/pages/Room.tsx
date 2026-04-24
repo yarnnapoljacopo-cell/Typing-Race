@@ -975,10 +975,17 @@ export default function Room() {
   const otherParticipants = room.participants.filter((p) => p.id !== participantId);
 
   return (
+    <>
+    {/* Fixed background layers — only shown in normal (non-distraction-free) mode */}
+    {!distractionFree && <>
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(107,143,212,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(107,143,212,0.04) 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
+      <div style={{ position: "fixed", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(107,143,212,0.12) 0%, transparent 70%)", filter: "blur(90px)", top: -80, right: -80, pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "fixed", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(232,168,56,0.07) 0%, transparent 70%)", filter: "blur(90px)", bottom: 0, left: 0, pointerEvents: "none", zIndex: 0 }} />
+    </>}
     <div className={distractionFree
       ? "fixed inset-0 z-50 bg-background flex flex-col overflow-auto"
-      : "min-h-screen w-full max-w-5xl mx-auto flex flex-col p-4 md:p-6 gap-4"
-    }>
+      : "min-h-screen w-full flex flex-col gap-4"
+    } style={!distractionFree ? { background: "#F5F2EC", position: "relative", zIndex: 1 } : undefined}>
 
       {/* Chest award modal — shown when timer ends naturally */}
       {chestAwarded && (
@@ -1028,56 +1035,64 @@ export default function Room() {
       )}
 
       {/* Header — hidden in distraction-free mode */}
-      {!distractionFree && <header className="flex items-center justify-between bg-card border rounded-lg px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-3">
-          <h1 className="font-serif font-bold text-lg text-foreground">Writing Sprint</h1>
+      {!distractionFree && (
+        <header style={{
+          position: "sticky", top: 0, zIndex: 100,
+          background: "rgba(245,242,236,0.92)",
+          backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+          borderBottom: "1px solid rgba(107,143,212,0.15)",
+          display: "flex", alignItems: "center", gap: 16,
+          height: 56, padding: "0 20px",
+        }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.1rem", fontWeight: 700, color: "#1a1a2e" }}>Writing Sprint</span>
+          <span style={{ color: "rgba(107,143,212,0.3)", fontSize: "1.2rem" }}>|</span>
+
+          {/* Room code */}
+          <div style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(107,143,212,0.10)", border: "1px solid rgba(107,143,212,0.2)", borderRadius: 8, padding: "4px 10px", fontSize: "0.82rem", fontWeight: 700, letterSpacing: "0.06em", color: "#1a1a2e", fontFamily: "monospace" }}>
+            Room: <strong>{code}</strong>
+            <button
+              onClick={copyRoomCode}
+              style={{ cursor: "pointer", color: "#7a7a92", background: "none", border: "none", display: "flex", alignItems: "center", padding: 0 }}
+              title="Copy room code"
+            >
+              <Copy size={13} />
+            </button>
+          </div>
+
           {isOpenMode && (
-            <span className="flex items-center gap-1 text-xs font-semibold bg-primary/10 text-primary px-2 py-1 rounded">
-              <Eye className="w-3 h-3" /> Open
+            <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem", fontWeight: 700, background: "rgba(107,143,212,0.1)", color: "#6B8FD4", padding: "3px 10px", borderRadius: 6 }}>
+              <Eye size={11} /> Open
             </span>
           )}
-          <div className="h-4 w-px bg-border hidden sm:block" />
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm text-muted-foreground">Room:</span>
-            <code className="font-mono text-sm font-bold bg-muted px-2 py-0.5 rounded select-all">{code}</code>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={copyRoomCode}>
-              <Copy className="h-3 w-3" />
-            </Button>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex -space-x-2">
-            {room.participants.slice(0, 4).map((p) => (
-              <div
-                key={p.id}
-                title={p.name}
-                className="w-7 h-7 rounded-full bg-primary/20 border-2 border-card flex items-center justify-center text-[10px] font-bold text-primary"
-              >
-                {p.name.charAt(0).toUpperCase()}
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+            {/* Writer avatars + count */}
+            <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "0.83rem", fontWeight: 500, color: "#7a7a92" }}>
+              <div style={{ display: "flex" }}>
+                {room.participants.slice(0, 4).map((p) => (
+                  <div
+                    key={p.id}
+                    title={p.name}
+                    style={{ width: 26, height: 26, borderRadius: "50%", background: "linear-gradient(135deg, #6B8FD4, #5a82d0)", color: "white", fontSize: "0.72rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", marginLeft: -6, border: "2px solid rgba(245,242,236,0.9)" }}
+                  >
+                    {p.name.charAt(0).toUpperCase()}
+                  </div>
+                ))}
+                {room.participants.length > 4 && (
+                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(107,143,212,0.15)", fontSize: "0.65rem", fontWeight: 600, color: "#6B8FD4", display: "flex", alignItems: "center", justifyContent: "center", marginLeft: -6, border: "2px solid rgba(245,242,236,0.9)" }}>
+                    +{room.participants.length - 4}
+                  </div>
+                )}
               </div>
-            ))}
-            {room.participants.length > 4 && (
-              <div className="w-7 h-7 rounded-full bg-muted border-2 border-card flex items-center justify-center text-[10px] font-medium text-muted-foreground">
-                +{room.participants.length - 4}
-              </div>
-            )}
-          </div>
-          <span className="text-sm text-muted-foreground ml-1">
-            {room.participants.length} {room.participants.length === 1 ? "writer" : "writers"}
-          </span>
+              {room.participants.length} {room.participants.length === 1 ? "writer" : "writers"}
+            </div>
 
-          {/* Read / Write toggle — visible in all active states */}
-          {(isWaiting || isCountdown || isRunning || isFinished) && (
-            <>
-              <div className="w-px h-5 bg-border mx-1 hidden sm:block" />
-              <Button
-                variant={readMode ? "secondary" : "ghost"}
-                size="sm"
+            {/* Read / Write toggle */}
+            {(isWaiting || isCountdown || isRunning || isFinished) && (
+              <button
                 onClick={() => {
                   setReadMode((v) => {
                     if (v) {
-                      // returning to write — refocus editor after paint
                       setTimeout(() => {
                         const el = textareaRef.current;
                         if (el) {
@@ -1094,35 +1109,27 @@ export default function Room() {
                     return !v;
                   });
                 }}
-                className="gap-1.5 text-xs px-2"
+                style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", fontSize: "0.83rem", fontWeight: 500, color: "#7a7a92", transition: "color 0.18s", padding: 0 }}
                 title={readMode ? "Switch back to writing" : "Read what you've written"}
               >
-                {readMode ? (
-                  <><PenLine className="w-3.5 h-3.5" /><span className="hidden sm:inline">Write</span></>
-                ) : (
-                  <><BookOpen className="w-3.5 h-3.5" /><span className="hidden sm:inline">Read</span></>
-                )}
-              </Button>
-            </>
-          )}
+                {readMode ? <><PenLine size={14} /><span className="hidden sm:inline">Write</span></> : <><BookOpen size={14} /><span className="hidden sm:inline">Read</span></>}
+              </button>
+            )}
 
-          {/* Leave — always visible in the top-right */}
-          <div className="w-px h-5 bg-border mx-1 hidden sm:block" />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setLeaveDialogOpen(true)}
-            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-1.5 text-xs px-2"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Leave</span>
-          </Button>
-        </div>
-      </header>}
+            {/* Leave */}
+            <button
+              onClick={() => setLeaveDialogOpen(true)}
+              style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", fontSize: "0.83rem", fontWeight: 500, color: "#dc2626", transition: "color 0.18s", padding: 0 }}
+            >
+              <LogOut size={14} /><span className="hidden sm:inline">Leave</span>
+            </button>
+          </div>
+        </header>
+      )}
 
       {/* Main */}
       {isFinished ? (
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center" style={!distractionFree ? { padding: "16px 20px" } : undefined}>
           <ResultsScreen
             participants={room.participants}
             currentParticipantId={participantId}
@@ -1136,11 +1143,12 @@ export default function Room() {
           />
         </div>
       ) : (
-        <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col gap-4"}>
+        <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col gap-4"} style={!distractionFree ? { padding: "0 20px 20px" } : undefined}>
           {/* Race / boss track — hidden in distraction-free mode */}
           {!distractionFree && (
             <div
-              className="sticky top-0 z-20 bg-background pb-2"
+              className="sticky z-20 pb-2"
+              style={{ top: 56, background: "#F5F2EC" }}
               onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
             ><>
               {room.mode === "gladiator" ? (
@@ -1407,7 +1415,7 @@ export default function Room() {
                   style={{ opacity: isTyping && isRunning ? 0.3 : 1 }}
                   onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
                 >
-                  <div className="bg-card border rounded-lg p-3 shadow-sm">
+                  <div style={{ background: "rgba(255,255,255,0.82)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: 12, boxShadow: "0 4px 20px rgba(107,143,212,0.08)" }}>
                     <SpectatorView
                       participants={otherParticipants}
                       participantTexts={participantTexts}
@@ -1421,7 +1429,7 @@ export default function Room() {
                 const gladiatorNeedsOpponent = room.mode === "gladiator" &&
                   room.participants.length < 2;
                 return (
-                  <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-3">
+                  <div style={{ background: "rgba(255,255,255,0.82)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", display: "flex", flexDirection: "column", gap: 12 }}>
                     <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
                     {gladiatorNeedsOpponent && (
                       <p className="text-xs text-amber-600 dark:text-amber-400 text-center font-medium animate-pulse">
@@ -1442,7 +1450,7 @@ export default function Room() {
               })()}
 
               {isCountdown && isCreator && (
-                <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-3">
+                <div style={{ background: "rgba(255,255,255,0.82)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", display: "flex", flexDirection: "column", gap: 12 }}>
                   <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
                   <Button onClick={startSprint} size="lg" variant="outline" className="w-full" disabled>
                     <Play className="w-4 h-4 mr-2" />
@@ -1452,15 +1460,15 @@ export default function Room() {
               )}
 
               {isCountdown && !isCreator && (
-                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700 rounded-lg p-4 shadow-sm text-center">
-                  <p className="text-sm text-amber-800 dark:text-amber-300 font-medium">
+                <div style={{ background: "linear-gradient(135deg, rgba(232,168,56,0.1), rgba(232,168,56,0.06))", border: "1px solid rgba(232,168,56,0.2)", borderRadius: 16, padding: 16, textAlign: "center" }}>
+                  <p style={{ fontSize: "0.88rem", color: "#a07020", fontWeight: 600 }}>
                     Sprint starts in {formatCountdown(room.countdownTimeLeft ?? 0)} — get ready!
                   </p>
                 </div>
               )}
 
               {isWaiting && !isCreator && (
-                <div className="bg-card border rounded-lg p-4 shadow-sm text-center">
+                <div style={{ background: "rgba(255,255,255,0.82)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", textAlign: "center" }}>
                   <p className="text-sm text-muted-foreground">
                     Waiting for the host to start the sprint…
                   </p>
@@ -1468,7 +1476,7 @@ export default function Room() {
               )}
 
               {isRunning && isCreator && (
-                <div className="bg-card border rounded-lg p-4 shadow-sm flex flex-col gap-3">
+                <div style={{ background: "rgba(255,255,255,0.82)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", display: "flex", flexDirection: "column", gap: 12 }}>
                   <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
                   <Button onClick={endSprint} variant="destructive" className="w-full" disabled={!isConnected}>
                     End Early
@@ -1557,5 +1565,6 @@ export default function Room() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </>
   );
 }

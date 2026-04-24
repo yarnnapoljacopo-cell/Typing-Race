@@ -2,9 +2,7 @@ import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
-import { ArrowLeft, Pen, TrendingUp, Hash, Check, ExternalLink, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { ArrowLeft, Check, ExternalLink, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -12,6 +10,15 @@ import { RANKS, getRankFromXp, getNextRank, xpProgressPercent, type Rank } from 
 import { NAMEPLATES, getUnlockedNameplates, type NameplateKey } from "@/lib/nameplates";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+const CARD: React.CSSProperties = {
+  background: "rgba(255,255,255,0.82)",
+  backdropFilter: "blur(16px)",
+  WebkitBackdropFilter: "blur(16px)",
+  border: "1px solid rgba(255,255,255,0.9)",
+  borderRadius: 18,
+  boxShadow: "0 4px 24px rgba(107,143,212,0.09)",
+};
 
 interface PublicProfile {
   name: string;
@@ -130,64 +137,38 @@ function GlobalRankBadge({ position }: { position: number }) {
 
   return (
     <div
-      className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full text-sm font-semibold"
       style={{
+        display: "inline-flex", alignItems: "center", gap: 10,
+        padding: "6px 16px", borderRadius: 999,
         border: `1.5px solid ${c.border}`,
         background: c.bg,
         boxShadow: c.glow,
         color: c.text,
+        fontSize: "0.85rem", fontWeight: 700,
       }}
     >
-      <span className="text-xl leading-none">{POSITION_SYMBOLS[position]}</span>
-      <span className="font-mono font-black tracking-wide">{ordinal(position)}</span>
-      <span className="text-xs font-medium opacity-75">Global Rank</span>
+      <span style={{ fontSize: "1rem" }}>{POSITION_SYMBOLS[position]}</span>
+      <span style={{ fontWeight: 900, letterSpacing: "0.04em" }}>{ordinal(position)}</span>
+      <span style={{ fontSize: "0.75rem", fontWeight: 500, opacity: 0.75 }}>Global Rank</span>
     </div>
   );
 }
 
-function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
-  return (
-    <Card className="flex-1">
-      <CardContent className="pt-6 pb-5 px-5 flex flex-col items-center text-center gap-2">
-        <div className="text-primary/70">{icon}</div>
-        <div className="font-mono text-3xl font-bold text-foreground">{typeof value === "number" ? value.toLocaleString() : value}</div>
-        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{label}</div>
-      </CardContent>
-    </Card>
-  );
-}
-
 const borderColorMap: Record<number, string> = {
-  0: "#71717a",
-  1: "#94a3b8",
-  2: "#f97316",
-  3: "#8b5cf6",
-  4: "#dc2626",
-  5: "#facc15",
-  6: "#22d3ee",
-  7: "#e879f9",
+  0: "#71717a", 1: "#94a3b8", 2: "#f97316", 3: "#8b5cf6",
+  4: "#dc2626", 5: "#facc15", 6: "#22d3ee", 7: "#e879f9",
 };
 
 const glowMap: Record<number, string> = {
-  0: "none",
-  1: "0 0 10px rgba(148,163,184,0.3)",
-  2: "0 0 15px rgba(249,115,22,0.5)",
-  3: "0 0 15px rgba(139,92,246,0.5)",
-  4: "0 0 20px rgba(220,38,38,0.6)",
-  5: "0 0 25px rgba(250,204,21,0.7)",
-  6: "0 0 30px rgba(34,211,238,0.8), 0 0 60px rgba(34,211,238,0.3)",
+  0: "none", 1: "0 0 10px rgba(148,163,184,0.3)", 2: "0 0 15px rgba(249,115,22,0.5)",
+  3: "0 0 15px rgba(139,92,246,0.5)", 4: "0 0 20px rgba(220,38,38,0.6)",
+  5: "0 0 25px rgba(250,204,21,0.7)", 6: "0 0 30px rgba(34,211,238,0.8), 0 0 60px rgba(34,211,238,0.3)",
   7: "0 0 35px rgba(232,121,249,0.9), 0 0 70px rgba(232,121,249,0.35)",
 };
 
 const bgMap: Record<number, string> = {
-  0: "#1c1c20",
-  1: "#1e2130",
-  2: "#1c1008",
-  3: "#1a1030",
-  4: "#1c0808",
-  5: "#201800",
-  6: "#080c20",
-  7: "#1a0020",
+  0: "#1c1c20", 1: "#1e2130", 2: "#1c1008", 3: "#1a1030",
+  4: "#1c0808", 5: "#201800", 6: "#080c20", 7: "#1a0020",
 };
 
 function RankDetailDialog({ rank, open, onClose }: { rank: Rank | null; open: boolean; onClose: () => void }) {
@@ -208,38 +189,21 @@ function RankDetailDialog({ rank, open, onClose }: { rank: Rank | null; open: bo
         <div className="flex flex-col items-center gap-4 py-2">
           <div
             className="w-20 h-20 rounded-full flex items-center justify-center"
-            style={{
-              border: `4px solid ${color}`,
-              boxShadow: glowMap[rank.index],
-              background: bgMap[rank.index],
-            }}
+            style={{ border: `4px solid ${color}`, boxShadow: glowMap[rank.index], background: bgMap[rank.index] }}
           >
             <span className="text-4xl">{rank.emoji}</span>
           </div>
-
           <div className="space-y-1">
-            <div
-              className="text-base font-black uppercase tracking-wider"
-              style={{ color, textShadow: rank.index >= 4 ? `0 0 10px ${color}` : "none" }}
-            >
+            <div className="text-base font-black uppercase tracking-wider" style={{ color, textShadow: rank.index >= 4 ? `0 0 10px ${color}` : "none" }}>
               {rank.title}
             </div>
             <div className="text-xs text-muted-foreground italic">{rank.subtitle}</div>
           </div>
-
-          <div
-            className="text-xs font-mono font-semibold px-3 py-1.5 rounded-full"
-            style={{ background: bgMap[rank.index], color, border: `1px solid ${color}40` }}
-          >
+          <div className="text-xs font-mono font-semibold px-3 py-1.5 rounded-full" style={{ background: bgMap[rank.index], color, border: `1px solid ${color}40` }}>
             {xpRangeText}
           </div>
-
-          {rank.index === 0 && (
-            <p className="text-xs text-muted-foreground">The starting rank — every writer begins here.</p>
-          )}
-          {rank.index === 6 && (
-            <p className="text-xs text-muted-foreground">The highest rank. Very few reach this level.</p>
-          )}
+          {rank.index === 0 && <p className="text-xs text-muted-foreground">The starting rank — every writer begins here.</p>}
+          {rank.index === 6 && <p className="text-xs text-muted-foreground">The highest rank. Very few reach this level.</p>}
         </div>
       </DialogContent>
     </Dialog>
@@ -253,139 +217,109 @@ function RankBadge({ xp }: { xp: number }) {
   const [selectedRank, setSelectedRank] = useState<Rank | null>(null);
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      {/* Avatar with rank border */}
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
       <div
-        className="w-24 h-24 rounded-full flex items-center justify-center relative"
         style={{
+          width: 96, height: 96, borderRadius: "50%",
           border: `4px solid ${borderColorMap[rank.index]}`,
           boxShadow: glowMap[rank.index],
           background: bgMap[rank.index],
+          display: "flex", alignItems: "center", justifyContent: "center",
+          position: "relative",
         }}
       >
-        {rank.index === 6 ? (
-          <div className="relative">
-            <span className="text-4xl">{rank.emoji}</span>
-            <div
-              className="absolute inset-0 rounded-full"
-              style={{
-                background: "radial-gradient(circle, rgba(34,211,238,0.15) 0%, transparent 70%)",
-                animation: "pulse 2s infinite",
-              }}
-            />
-          </div>
-        ) : (
-          <span className="text-4xl">{rank.emoji}</span>
-        )}
-
-        {/* Rank index badge */}
+        <span style={{ fontSize: "2.4rem" }}>{rank.emoji}</span>
         <div
-          className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white"
-          style={{ background: borderColorMap[rank.index], boxShadow: `0 0 6px ${borderColorMap[rank.index]}` }}
+          style={{
+            position: "absolute", bottom: -4, right: -4,
+            width: 22, height: 22, borderRadius: "50%",
+            background: borderColorMap[rank.index],
+            boxShadow: `0 0 6px ${borderColorMap[rank.index]}`,
+            color: "white", fontSize: "0.72rem", fontWeight: 900,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            border: "2px solid #F5F2EC",
+          }}
         >
           {rank.index + 1}
         </div>
       </div>
 
-      {/* Rank title */}
-      <div className="text-center space-y-1">
-        <div
-          className="text-base font-black uppercase tracking-wider"
-          style={{ color: borderColorMap[rank.index], textShadow: rank.index >= 4 ? `0 0 10px ${borderColorMap[rank.index]}` : "none" }}
-        >
-          {rank.emoji} {rank.title}
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontWeight: 900, fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "#e879a0" }}>
+          <span style={{ marginRight: 4 }}>{rank.emoji}</span>{rank.title}
         </div>
-        <div className="text-xs text-muted-foreground italic">{rank.subtitle}</div>
+        <div style={{ fontSize: "0.82rem", color: "#7a7a92", fontStyle: "italic", marginTop: 4 }}>{rank.subtitle}</div>
       </div>
 
-      {/* XP progress bar */}
-      <div className="w-full max-w-xs space-y-1.5">
+      <div style={{ width: "100%", maxWidth: 280 }}>
         {!nextRank ? (
-          /* ── Ranker: show accumulated ranking XP ─────────────────── */
           <>
-            <div className="flex justify-between items-center text-xs">
-              <span className="font-mono font-semibold" style={{ color: borderColorMap[rank.index] }}>
-                {xp.toLocaleString()} XP
-              </span>
-              <span className="text-fuchsia-400/80 font-semibold text-[11px]">👑 Ranking XP</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, fontSize: "0.85rem" }}>
+              <span style={{ fontWeight: 600, color: "#e879a0" }}>{xp.toLocaleString()} XP</span>
+              <span style={{ color: "#7a7a92", display: "flex", alignItems: "center", gap: 4 }}><span>👑</span> Ranking XP</span>
             </div>
-            <div className="h-2.5 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-700"
-                style={{
-                  width: `${Math.min(100, Math.floor(((xp - 200000) / 100000) * 100))}%`,
-                  background: "linear-gradient(90deg, #e879f9, #ec4899)",
-                  boxShadow: "0 0 6px #e879f9",
-                }}
-              />
+            <div style={{ height: 7, background: "rgba(107,143,212,0.12)", borderRadius: 99, overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 99,
+                width: `${Math.min(100, Math.floor(((xp - 200000) / 100000) * 100))}%`,
+                background: "linear-gradient(90deg, #6B8FD4, #e879a0)",
+              }} />
             </div>
-            <div className="text-[10px] text-fuchsia-400/60 text-center">
+            <div style={{ fontSize: "0.75rem", color: "#7a7a92", textAlign: "center", marginTop: 6 }}>
               XP above 200k counts toward your global rank position
             </div>
           </>
         ) : (
-          /* ── Progressing toward next rank ────────────────────────── */
           <>
-            <div className="flex justify-between items-center text-xs">
-              <span className="font-mono font-semibold" style={{ color: borderColorMap[rank.index] }}>
-                {xp.toLocaleString()} XP
-              </span>
-              <span className="text-muted-foreground">
-                Next: {nextRank.emoji} {nextRank.title}
-              </span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, fontSize: "0.85rem" }}>
+              <span style={{ fontWeight: 600, color: borderColorMap[rank.index] }}>{xp.toLocaleString()} XP</span>
+              <span style={{ color: "#7a7a92" }}>Next: {nextRank.emoji} {nextRank.title}</span>
             </div>
-            <div className="h-2.5 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-700"
-                style={{
-                  width: `${progress}%`,
-                  background: rank.index >= 5
-                    ? `linear-gradient(90deg, ${borderColorMap[rank.index]}, ${rank.index === 6 ? "#6366f1" : "#f97316"})`
-                    : borderColorMap[rank.index],
-                  boxShadow: rank.index >= 3 ? `0 0 6px ${borderColorMap[rank.index]}` : "none",
-                }}
-              />
+            <div style={{ height: 7, background: "rgba(107,143,212,0.12)", borderRadius: 99, overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 99,
+                width: `${progress}%`,
+                background: rank.index >= 5
+                  ? `linear-gradient(90deg, ${borderColorMap[rank.index]}, ${rank.index === 6 ? "#6366f1" : "#f97316"})`
+                  : `linear-gradient(90deg, #6B8FD4, #e879a0)`,
+                boxShadow: rank.index >= 3 ? `0 0 6px ${borderColorMap[rank.index]}` : "none",
+              }} />
             </div>
-            <div className="text-[10px] text-muted-foreground text-center">
+            <div style={{ fontSize: "0.75rem", color: "#7a7a92", textAlign: "center", marginTop: 6 }}>
               {(nextRank.minXp - xp).toLocaleString()} XP to next rank
             </div>
           </>
         )}
       </div>
 
-      {/* All ranks reference — click each to see details */}
-      <div className="w-full max-w-xs">
-        <div className="text-[10px] text-muted-foreground text-center mb-2 uppercase tracking-wider">Rank Progression — click to explore</div>
-        <div className="grid grid-cols-8 gap-1">
+      <div style={{ width: "100%", maxWidth: 280 }}>
+        <div style={{ fontSize: "0.72rem", color: "#7a7a92", textAlign: "center", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700 }}>
+          Rank Progression — click to explore
+        </div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
           {RANKS.map((r) => (
             <button
               key={r.index}
-              className="flex flex-col items-center gap-0.5 group"
               onClick={() => setSelectedRank(r)}
               title={`${r.title} (${r.minXp.toLocaleString()} XP)`}
+              style={{
+                width: 44, height: 44, borderRadius: "50%",
+                background: r.index <= rank.index ? bgMap[r.index] : "rgba(0,0,0,0.06)",
+                border: `2px solid ${r.index <= rank.index ? borderColorMap[r.index] : "rgba(107,143,212,0.15)"}`,
+                boxShadow: r.index === rank.index ? `0 0 16px ${borderColorMap[r.index]}80` : "0 3px 12px rgba(0,0,0,0.1)",
+                opacity: r.index <= rank.index ? 1 : 0.4,
+                cursor: "pointer", transition: "all 0.2s",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: "1.1rem",
+              }}
             >
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-sm transition-transform group-hover:scale-110 group-hover:opacity-100"
-                style={{
-                  border: `2px solid ${r.index <= rank.index ? borderColorMap[r.index] : "#374151"}`,
-                  background: r.index <= rank.index ? bgMap[r.index] : "transparent",
-                  boxShadow: r.index === rank.index ? `0 0 8px ${borderColorMap[r.index]}` : "none",
-                  opacity: r.index <= rank.index ? 1 : 0.3,
-                  cursor: "pointer",
-                }}
-              >
-                <span style={{ fontSize: "12px" }}>{r.emoji}</span>
-              </div>
+              {r.emoji}
             </button>
           ))}
         </div>
       </div>
 
-      <RankDetailDialog
-        rank={selectedRank}
-        open={selectedRank !== null}
-        onClose={() => setSelectedRank(null)}
-      />
+      <RankDetailDialog rank={selectedRank} open={selectedRank !== null} onClose={() => setSelectedRank(null)} />
     </div>
   );
 }
@@ -514,177 +448,187 @@ export default function Profile() {
   );
 
   if (!name) {
-    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">No name provided.</div>;
+    return <div className="min-h-screen flex items-center justify-center" style={{ background: "#F5F2EC", color: "#7a7a92" }}>No name provided.</div>;
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center py-12 px-4">
-      <div className="w-full max-w-lg space-y-8">
+    <>
+      {/* Fixed background layers */}
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
+        backgroundImage: "linear-gradient(rgba(107,143,212,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(107,143,212,0.05) 1px, transparent 1px)",
+        backgroundSize: "48px 48px",
+      }} />
+      <div style={{ position: "fixed", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(107,143,212,0.15) 0%, transparent 70%)", filter: "blur(90px)", top: -120, right: -100, pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "fixed", width: 350, height: 350, borderRadius: "50%", background: "radial-gradient(circle, rgba(232,168,56,0.09) 0%, transparent 70%)", filter: "blur(90px)", bottom: 0, left: -80, pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "fixed", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(168,85,247,0.07) 0%, transparent 70%)", filter: "blur(90px)", top: "40%", left: "30%", pointerEvents: "none", zIndex: 0 }} />
 
-        <Button variant="ghost" size="sm" onClick={() => setLocation("/portal")} className="gap-2 text-muted-foreground -ml-2">
-          <ArrowLeft className="w-4 h-4" /> Back
-        </Button>
+      {/* Scrollable content */}
+      <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", background: "#F5F2EC", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 40, paddingBottom: 60, paddingLeft: 20, paddingRight: 20 }}>
+        <div style={{ width: "100%", maxWidth: 520, animation: "portalFadeUp 0.6s cubic-bezier(.22,1,.36,1) both" }}>
 
-        {isLoading && (
-          <div className="text-center text-muted-foreground py-16">Loading profile…</div>
-        )}
+          {/* Back button */}
+          <button
+            onClick={() => setLocation("/portal")}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: "#7a7a92", fontSize: "0.85rem", fontWeight: 500, marginBottom: 24, padding: "4px 0", transition: "color 0.15s" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#1a1a2e")}
+            onMouseLeave={e => (e.currentTarget.style.color = "#7a7a92")}
+          >
+            <ArrowLeft size={15} /> Back
+          </button>
 
-        {isError && (
-          <div className="text-center text-destructive py-16">Couldn't load this profile.</div>
-        )}
+          {isLoading && (
+            <div style={{ textAlign: "center", color: "#7a7a92", padding: "64px 0" }}>Loading profile…</div>
+          )}
 
-        {data && (
-          <>
-            <div className="text-center space-y-3">
-              <h1 className="text-3xl font-serif font-bold text-foreground">{data.writerName}</h1>
+          {isError && (
+            <div style={{ textAlign: "center", color: "#dc2626", padding: "64px 0" }}>Couldn't load this profile.</div>
+          )}
+
+          {data && (
+            <>
+              {/* Profile name */}
+              <h1 style={{
+                fontFamily: "'Playfair Display', serif",
+                fontSize: "2.4rem", fontWeight: 900,
+                color: "#1a1a2e", textAlign: "center",
+                letterSpacing: "-0.02em", marginBottom: 10,
+              }}>
+                {data.writerName}
+              </h1>
+
+              {/* Global rank badge */}
               {globalRankEntry && (
-                <div className="flex justify-center">
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 28 }}>
                   <GlobalRankBadge position={globalRankEntry.position} />
                 </div>
               )}
+
+              {/* No sprints note */}
               {data.sprintCount === 0 && (
-                <p className="text-muted-foreground text-sm mt-1">No sprints recorded yet.</p>
+                <p style={{ textAlign: "center", color: "#7a7a92", fontSize: "0.88rem", marginBottom: 16 }}>No sprints recorded yet.</p>
               )}
-            </div>
 
-            {/* Rank badge */}
-            <div className="flex justify-center">
-              <RankBadge xp={data.xp} />
-            </div>
-
-            {/* Stats */}
-            <div className="flex gap-4">
-              <StatCard
-                icon={<Pen className="w-5 h-5" />}
-                label="All-time words"
-                value={data.totalWords}
-              />
-              <StatCard
-                icon={<TrendingUp className="w-5 h-5" />}
-                label="Best sprint"
-                value={data.highestWordCount}
-              />
-              <StatCard
-                icon={<Hash className="w-5 h-5" />}
-                label="Sprints"
-                value={data.sprintCount}
-              />
-            </div>
-
-            {data.sprintCount > 0 && (
-              <p className="text-center text-sm text-muted-foreground">
-                Averaging <span className="font-semibold text-foreground">
-                  {Math.round(data.totalWords / data.sprintCount).toLocaleString()}
-                </span> words per sprint
-              </p>
-            )}
-
-            {/* Cultivation — only visible on own profile */}
-            {isOwnProfile && (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 px-1">Cultivation</p>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    {
-                      emoji: "🎒",
-                      label: "Bag",
-                      description: "Items, effects & inventory",
-                      statLabel: "items",
-                      statValue: bagCount,
-                      href: "/bag",
-                    },
-                    {
-                      emoji: "🎁",
-                      label: "Chests",
-                      description: "Open rewards from sprinting",
-                      statLabel: "to open",
-                      statValue: chestCount,
-                      href: "/chests",
-                    },
-                    {
-                      emoji: "⚗️",
-                      label: "Crafting",
-                      description: "Fusion, alchemy & tribulation",
-                      statLabel: "recipes",
-                      statValue: recipeCount,
-                      href: "/crafting",
-                    },
-                  ].map(({ emoji, label, description, statLabel, statValue, href }) => (
-                    <button
-                      key={href}
-                      onClick={() => setLocation(href)}
-                      className="group flex flex-col rounded-xl border border-border bg-card hover:bg-muted hover:border-primary/20 transition-all text-left overflow-hidden"
-                    >
-                      <div className="p-4 flex-1">
-                        <div className="text-3xl mb-3 leading-none">{emoji}</div>
-                        <div className="text-sm font-bold text-foreground leading-tight">{label}</div>
-                        <div className="text-xs text-muted-foreground mt-1 leading-snug">{description}</div>
-                      </div>
-                      <div className="border-t border-border px-4 py-2.5 flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">{statLabel}</span>
-                        <span className="text-xs font-semibold text-foreground">{statValue}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+              {/* Avatar + rank */}
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
+                <RankBadge xp={data.xp} />
               </div>
-            )}
 
-            {/* Nameplate Picker — only visible on own profile */}
-            {isOwnProfile && data.xp >= 10000 && (
-              <Card>
-                <CardContent className="pt-5 pb-5 px-5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Your Nameplate</p>
-                  <div className="flex flex-wrap gap-2">
+              {/* Stats grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
+                {[
+                  { emoji: "✍️", label: "All-Time Words", value: data.totalWords },
+                  { emoji: "🏆", label: "Best Sprint", value: data.highestWordCount },
+                  { emoji: "#", label: "Sprints", value: data.sprintCount },
+                ].map(({ emoji, label, value }) => (
+                  <div key={label} style={{ ...CARD, padding: "18px 10px", textAlign: "center", transition: "transform 0.2s" }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)")}
+                    onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.transform = "")}
+                  >
+                    <div style={{ fontSize: "1.1rem", marginBottom: 6, color: "#6B8FD4" }}>{emoji}</div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.6rem", fontWeight: 700, color: "#1a1a2e", lineHeight: 1, marginBottom: 5 }}>
+                      {typeof value === "number" ? value.toLocaleString() : value}
+                    </div>
+                    <div style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.08em", color: "#7a7a92", textTransform: "uppercase" }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {data.sprintCount > 0 && (
+                <p style={{ textAlign: "center", fontSize: "0.88rem", color: "#7a7a92", marginBottom: 24 }}>
+                  Averaging <strong style={{ color: "#1a1a2e" }}>{Math.round(data.totalWords / data.sprintCount).toLocaleString()} words</strong> per sprint
+                </p>
+              )}
+
+              {/* Cultivation — only visible on own profile */}
+              {isOwnProfile && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "#7a7a92", textTransform: "uppercase", textAlign: "center", marginBottom: 12 }}>
+                    Cultivation
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                    {[
+                      { emoji: "🎒", label: "Bag", description: "Items, effects & inventory", statLabel: "items", statValue: bagCount, href: "/bag" },
+                      { emoji: "🎁", label: "Chests", description: "Open rewards from sprinting", statLabel: "to open", statValue: chestCount, href: "/chests" },
+                      { emoji: "⚗️", label: "Crafting", description: "Fusion, alchemy & tribulation", statLabel: "recipes", statValue: recipeCount, href: "/crafting" },
+                    ].map(({ emoji, label, description, statLabel, statValue, href }) => (
+                      <button
+                        key={href}
+                        onClick={() => setLocation(href)}
+                        style={{ ...CARD, padding: "16px 12px", cursor: "pointer", textAlign: "left", border: "1px solid rgba(255,255,255,0.9)", transition: "all 0.2s", display: "flex", flexDirection: "column" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-3px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 28px rgba(107,143,212,0.15)"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ""; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 20px rgba(107,143,212,0.08)"; }}
+                      >
+                        <div style={{ fontSize: "1.6rem", marginBottom: 8 }}>{emoji}</div>
+                        <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#1a1a2e", marginBottom: 4 }}>{label}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#7a7a92", lineHeight: 1.4, marginBottom: 10 }}>{description}</div>
+                        <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid rgba(107,143,212,0.15)", fontSize: "0.72rem", color: "#7a7a92" }}>
+                          <span>{statLabel}</span>
+                          <span style={{ fontWeight: 700, color: "#1a1a2e" }}>{statValue}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Nameplate Picker — only visible on own profile */}
+              {isOwnProfile && data.xp >= 10000 && (
+                <div style={{ ...CARD, padding: 20, marginBottom: 16 }}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "#7a7a92", textTransform: "uppercase", marginBottom: 14 }}>
+                    Your Nameplate
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {getUnlockedNameplates(data.xp).map((np) => {
                       const isActive = (ownPrefs?.nameplate ?? "default") === np.key;
+                      const npColor = np.key !== "default" ? NAMEPLATES[np.key as NameplateKey]?.color : undefined;
                       return (
                         <button
                           key={np.key}
                           onClick={() => nameplateMutation.mutate(np.key)}
                           title={np.description}
-
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all duration-200 ${
-                            isActive
-                              ? "border-current opacity-100 ring-2 ring-offset-1 ring-offset-card"
-                              : "border-border opacity-60 hover:opacity-90"
-                          }`}
-                          style={
-                            np.key !== "default"
-                              ? { color: NAMEPLATES[np.key as NameplateKey]?.color, borderColor: isActive ? NAMEPLATES[np.key as NameplateKey]?.color : undefined, outlineColor: isActive ? NAMEPLATES[np.key as NameplateKey]?.color : undefined }
-                              : {}
-                          }
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 6,
+                            padding: "6px 16px", borderRadius: 999,
+                            fontSize: "0.82rem", fontWeight: 600, cursor: "pointer",
+                            border: `1.5px solid ${isActive ? (npColor ?? "#1a1a2e") : "rgba(107,143,212,0.2)"}`,
+                            background: isActive ? (npColor ? `${npColor}15` : "rgba(26,26,46,0.08)") : "white",
+                            color: isActive ? (npColor ?? "#1a1a2e") : "#7a7a92",
+                            transition: "all 0.18s",
+                            outline: isActive ? `2px solid ${npColor ?? "#1a1a2e"}40` : "none",
+                            outlineOffset: 2,
+                          }}
                         >
-                          {isActive && <Check className="w-3 h-3" />}
+                          {isActive && <Check size={11} />}
                           {np.label}
                         </button>
                       );
                     })}
                   </div>
                   {data.xp < 25000 && (
-                    <p className="text-[11px] text-muted-foreground mt-2">More nameplates unlock at higher ranks.</p>
+                    <p style={{ fontSize: "0.72rem", color: "#7a7a92", marginTop: 8 }}>More nameplates unlock at higher ranks.</p>
                   )}
-                </CardContent>
-              </Card>
-            )}
+                </div>
+              )}
 
-            {/* Discord Integration — only visible on own profile */}
-            {isOwnProfile && (
-              <Card>
-                <CardContent className="pt-5 pb-5 px-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#5865F2]" aria-hidden="true">
+              {/* Discord Integration — only visible on own profile */}
+              {isOwnProfile && (
+                <div style={{ ...CARD, padding: 20 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: "#5865F2", flexShrink: 0 }} aria-hidden="true">
                         <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.033.056a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
                       </svg>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Discord Integration</p>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "#7a7a92", textTransform: "uppercase" }}>Discord Integration</span>
                     </div>
                     {discordSettings?.webhookUrl && (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">Connected</span>
+                      <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 10px", borderRadius: 999, background: "rgba(34,197,94,0.12)", color: "#16a34a" }}>
+                        Connected
+                      </span>
                     )}
                   </div>
 
-                  <p className="text-xs text-muted-foreground leading-relaxed">
+                  <p style={{ fontSize: "0.83rem", color: "#7a7a92", lineHeight: 1.5, marginBottom: 10 }}>
                     Paste a Discord channel webhook URL below. When you start a sprint from the web app, an announcement will automatically be posted to that channel.
                   </p>
 
@@ -692,61 +636,80 @@ export default function Profile() {
                     href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.83rem", color: "#6B8FD4", textDecoration: "none", marginBottom: 14 }}
                   >
-                    How to create a webhook in Discord <ExternalLink className="w-3 h-3" />
+                    How to create a webhook in Discord <ExternalLink size={12} />
                   </a>
 
-                  <div className="flex gap-2">
-                    <Input
+                  <div style={{ display: "flex", gap: 8, marginBottom: discordSettings?.webhookUrl ? 10 : 0 }}>
+                    <input
+                      type="text"
                       placeholder="https://discord.com/api/webhooks/…"
                       value={webhookInput}
                       onChange={(e) => setWebhookInput(e.target.value)}
-                      className="font-mono text-xs h-9"
+                      style={{
+                        flex: 1, background: "rgba(255,255,255,0.7)",
+                        border: "1.5px solid rgba(107,143,212,0.2)", borderRadius: 11,
+                        padding: "10px 14px", fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "0.83rem", color: "#1a1a2e", outline: "none",
+                        transition: "all 0.2s",
+                      }}
+                      onFocus={e => { e.target.style.borderColor = "#6B8FD4"; e.target.style.background = "white"; e.target.style.boxShadow = "0 0 0 3px rgba(107,143,212,0.1)"; }}
+                      onBlur={e => { e.target.style.borderColor = "rgba(107,143,212,0.2)"; e.target.style.background = "rgba(255,255,255,0.7)"; e.target.style.boxShadow = "none"; }}
                     />
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="shrink-0 h-9"
+                    <button
+                      style={{
+                        background: "linear-gradient(135deg, #7fa4e0, #5a82d0)",
+                        border: "none", borderRadius: 11, padding: "10px 18px",
+                        color: "white", fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "0.88rem", fontWeight: 700, cursor: saveWebhookMutation.isPending ? "not-allowed" : "pointer",
+                        boxShadow: "0 4px 16px rgba(90,130,208,0.3)",
+                        transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                        opacity: saveWebhookMutation.isPending ? 0.7 : 1,
+                      }}
                       disabled={saveWebhookMutation.isPending}
                       onClick={() => saveWebhookMutation.mutate(webhookInput.trim() || null)}
                     >
-                      {saveWebhookMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
-                    </Button>
+                      {saveWebhookMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : "Save"}
+                    </button>
                   </div>
 
                   {discordSettings?.webhookUrl && (
-                    <div className="flex gap-2 flex-wrap">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs"
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
                         disabled={testWebhookMutation.isPending}
                         onClick={() => testWebhookMutation.mutate()}
+                        style={{
+                          background: "white", border: "1.5px solid rgba(107,143,212,0.2)", borderRadius: 9,
+                          padding: "7px 14px", fontSize: "0.82rem", fontWeight: 600, color: "#1a1a2e",
+                          cursor: testWebhookMutation.isPending ? "not-allowed" : "pointer",
+                          display: "inline-flex", alignItems: "center", gap: 5,
+                          transition: "all 0.18s",
+                        }}
                       >
-                        {testWebhookMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                        {testWebhookMutation.isPending && <Loader2 size={12} className="animate-spin" />}
                         Send test message
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                      </button>
+                      <button
                         disabled={saveWebhookMutation.isPending}
-                        onClick={() => {
-                          setWebhookInput("");
-                          saveWebhookMutation.mutate(null);
+                        onClick={() => { setWebhookInput(""); saveWebhookMutation.mutate(null); }}
+                        style={{
+                          background: "none", border: "1.5px solid rgba(220,38,38,0.2)", borderRadius: 9,
+                          padding: "7px 14px", fontSize: "0.82rem", fontWeight: 600, color: "#dc2626",
+                          cursor: saveWebhookMutation.isPending ? "not-allowed" : "pointer",
+                          transition: "all 0.18s",
                         }}
                       >
                         Disconnect
-                      </Button>
+                      </button>
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            )}
-          </>
-        )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
