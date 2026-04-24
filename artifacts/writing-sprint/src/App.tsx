@@ -99,7 +99,8 @@ const isProductionDomain =
   import.meta.env.DEV ||
   window.location.hostname === "app.writingsprint.site" ||
   window.location.hostname === "writingsprint.site" ||
-  window.location.hostname.endsWith(".writingsprint.site");
+  window.location.hostname.endsWith(".writingsprint.site") ||
+  window.location.hostname.endsWith(".up.railway.app");
 
 // Route Clerk FAPI through the server-side proxy on production so cookies are
 // always set for app.writingsprint.site regardless of clerk.writingsprint.site DNS.
