@@ -1,4 +1,5 @@
 import { pgTable, serial, varchar, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // ── Master list of all items ──────────────────────────────────────────────────
 export const itemsMasterTable = pgTable("items_master", {
@@ -15,6 +16,9 @@ export const itemsMasterTable = pgTable("items_master", {
   isChestObtainable: boolean("is_chest_obtainable").notNull().default(true),
   icon: varchar("icon", { length: 20 }).notNull().default("💊"),
   stackLimit: integer("stack_limit").notNull().default(1),
+  sellValue: integer("sell_value").notNull().default(0),
+  isStorageItem: boolean("is_storage_item").notNull().default(false),
+  storageSlotCount: integer("storage_slot_count"),
 });
 
 // ── Items owned by each user ──────────────────────────────────────────────────
@@ -100,4 +104,48 @@ export const itemUseLogTable = pgTable("item_use_log", {
   itemId: integer("item_id").notNull().references(() => itemsMasterTable.id),
   usedAt: timestamp("used_at").notNull().defaultNow(),
   metadata: text("metadata"),
+});
+
+// ── Spirit Coin balance per user ──────────────────────────────────────────────
+export const userCoinsTable = pgTable("user_coins", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull().unique(),
+  balance: integer("balance").notNull().default(0),
+  dailyCoinsEarned: integer("daily_coins_earned").notNull().default(0),
+  dailyResetAt: timestamp("daily_reset_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// ── Immutable coin transaction ledger ─────────────────────────────────────────
+export const coinTransactionsTable = pgTable("coin_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull(),
+  amount: integer("amount").notNull(),
+  transactionType: text("transaction_type").notNull(), // chest_drop | item_sale | shop_purchase
+  referenceId: text("reference_id"),
+  description: text("description").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// ── Shop listings (seeded by migration) ──────────────────────────────────────
+export const shopListingsTable = pgTable("shop_listings", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  itemType: text("item_type").notNull(), // mortal_chest | iron_chest | crystal_chest | inferno_chest | immortal_chest
+  quantity: integer("quantity").notNull().default(1),
+  price: integer("price").notNull(),
+  icon: text("icon").notNull(),
+  isAvailable: boolean("is_available").notNull().default(true),
+  displayOrder: integer("display_order").notNull().unique(),
+  dailyPurchaseLimit: integer("daily_purchase_limit").notNull(),
+});
+
+// ── Storage item equipped by each user ───────────────────────────────────────
+export const equippedStorageTable = pgTable("equipped_storage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull().unique(),
+  itemId: integer("item_id").references(() => itemsMasterTable.id),
+  slotCount: integer("slot_count").notNull().default(20),
+  equippedAt: timestamp("equipped_at").notNull().defaultNow(),
 });

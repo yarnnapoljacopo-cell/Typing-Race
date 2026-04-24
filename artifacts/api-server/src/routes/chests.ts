@@ -2,8 +2,18 @@ import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { pool } from "@workspace/db";
 import { grantXp } from "./bag";
+import { ensureUserCoins, dailyResetCheck, creditCoins } from "../lib/coinHelper";
 
 const router: IRouter = Router();
+
+// ── Coin drop amounts per chest type ─────────────────────────────────────────
+const CHEST_COIN_DROP: Record<string, [number, number]> = {
+  mortal:   [2,  5],
+  iron:     [5,  15],
+  crystal:  [10, 25],
+  inferno:  [25, 50],
+  immortal: [50, 100],
+};
 
 // ── Rarity order (for guarantee checks) ──────────────────────────────────────
 const RARITY_ORDER = ["common", "uncommon", "rare", "epic", "mythic", "legendary"];
@@ -323,7 +333,29 @@ router.post("/user/chests/open", async (req, res): Promise<void> => {
       }
     }
 
-    res.json({ ok: true, items });
+    // ── Coin drop ─────────────────────────────────────────────────────────
+    let coinsAwarded = 0;
+    let newCoinBalance: number | null = null;
+    try {
+      await ensureUserCoins(client, userId);
+      await dailyResetCheck(client, userId);
+      const [minCoins, maxCoins] = CHEST_COIN_DROP[chestType as string] ?? [0, 0];
+      const coinDrop = Math.floor(Math.random() * (maxCoins - minCoins + 1)) + minCoins;
+      const coinResult = await creditCoins(
+        client,
+        userId,
+        coinDrop,
+        "chest_drop",
+        chestType as string,
+        `Opened ${chestType} chest`,
+      );
+      coinsAwarded = coinResult.credited;
+      newCoinBalance = coinResult.newBalance;
+    } catch {
+      // Non-fatal: coin drop failure should not block chest open success
+    }
+
+    res.json({ ok: true, items, coins_awarded: coinsAwarded, new_coin_balance: newCoinBalance });
   } finally {
     client.release();
   }

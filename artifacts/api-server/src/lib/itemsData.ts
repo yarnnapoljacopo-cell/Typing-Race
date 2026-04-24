@@ -11,6 +11,9 @@ export interface ItemDef {
   isChestObtainable?: boolean;
   icon: string;
   stackLimit?: number;
+  sellValue?: number;       // override; if omitted, computed from rarity+category rules
+  isStorageItem?: boolean;  // true for equippable bag-expansion items
+  storageSlotCount?: number; // total bag slots when this item is equipped
 }
 
 // ── Pills ────────────────────────────────────────────────────────────────────
@@ -131,7 +134,7 @@ const commonTreasures: ItemDef[] = [
 const uncommonTreasures: ItemDef[] = [
   { name: "Mid Grade Spirit Stone", description: "A mid-quality spirit stone with a steady Qi output.", category: "treasure", rarity: "uncommon", effectType: "xp_instant", effectValue: 100, icon: "💎" },
   { name: "Spirit Gathering Talisman", description: "Attracts higher-quality items from your next 2 chests.", category: "treasure", rarity: "uncommon", effectType: "chest_luck", effectValue: 2, icon: "🪬" },
-  { name: "Jade Ring", description: "Permanently expands your bag by 5 slots.", category: "treasure", rarity: "uncommon", effectType: "bag_slots", effectValue: 5, icon: "💍" },
+  { name: "Jade Ring", description: "A storage ring that holds 25 items when equipped. Equip from your profile to expand your bag.", category: "treasure", rarity: "uncommon", effectType: "storage_equip", isStorageItem: true, storageSlotCount: 25, icon: "💍" },
   { name: "Prayer Beads", description: "Worn by cultivators during deep meditation. +100 XP.", category: "treasure", rarity: "uncommon", effectType: "xp_instant", effectValue: 100, icon: "📿" },
   { name: "Spirit Brush", description: "Use before a sprint to channel focused intent — +150 XP.", category: "treasure", rarity: "uncommon", effectType: "xp_instant", effectValue: 150, icon: "🖊️" },
   { name: "Dao Seed", description: "A seed containing the earliest whisper of the Dao.", category: "treasure", rarity: "uncommon", effectType: "xp_instant", effectValue: 60, icon: "🌱" },
@@ -141,12 +144,12 @@ const uncommonTreasures: ItemDef[] = [
 const rareTreasures: ItemDef[] = [
   { name: "High Grade Spirit Stone", description: "A high-quality spirit stone radiating dense Qi.", category: "treasure", rarity: "rare", effectType: "xp_instant", effectValue: 300, icon: "💎" },
   { name: "Bronze Alchemy Cauldron", description: "A durable bronze cauldron that improves crafting success rates by 20%.", category: "treasure", rarity: "rare", effectType: "cauldron_bronze", effectValue: 20, icon: "⚗️" },
-  { name: "Spirit Ring", description: "Permanently expands your bag by 10 slots.", category: "treasure", rarity: "rare", effectType: "bag_slots", effectValue: 10, icon: "💍" },
+  { name: "Spirit Ring", description: "A spirit-infused ring that holds 40 items when equipped. Equip from your profile to expand your bag.", category: "treasure", rarity: "rare", effectType: "storage_equip", isStorageItem: true, storageSlotCount: 40, icon: "💍" },
   { name: "Mountain Suppressing Seal", description: "Stores sprint XP from your next 3 sprints, then releases the total as a bonus. The stored amount is locked at each sprint's completion — active multipliers at release time do not apply.", category: "treasure", rarity: "rare", effectType: "mountain_seal", effectValue: 3, icon: "🏔️" },
   { name: "Heaven Defying Talisman", description: "Skip the cooldown on any one item of your choice.", category: "treasure", rarity: "rare", effectType: "skip_cooldown", icon: "🪬" },
   { name: "Ten Thousand Year Spirit Milk", description: "Milk drawn from a spirit beast ten thousand years old.", category: "treasure", rarity: "rare", effectType: "xp_instant", effectValue: 700, icon: "🍶" },
   { name: "Void Essence", description: "Crystallised essence of the void between worlds.", category: "treasure", rarity: "rare", effectType: "xp_instant", effectValue: 400, icon: "🌀" },
-  { name: "Cultivation Ring", description: "Permanently expands your bag by 5 slots.", category: "treasure", rarity: "rare", effectType: "bag_slots", effectValue: 5, icon: "💍" },
+  { name: "Cultivation Ring", description: "A cultivator's ring that holds 30 items when equipped. Equip from your profile to expand your bag.", category: "treasure", rarity: "rare", effectType: "storage_equip", isStorageItem: true, storageSlotCount: 30, icon: "💍" },
   { name: "Ancient Sect Manual", description: "A manual from a now-fallen ancient sect, filled with forgotten techniques.", category: "treasure", rarity: "rare", effectType: "xp_instant", effectValue: 500, icon: "📖" },
   { name: "Spirit Bead Necklace", description: "Passively grants +5% XP from sprint earnings for 24 hours.", category: "treasure", rarity: "rare", effectType: "xp_timed_bonus", effectValue: 5, effectDuration: 1440, icon: "📿" },
   { name: "Refining Furnace", description: "Converts 5 Failure Ashes into one random Common pill.", category: "treasure", rarity: "rare", effectType: "refining_furnace", icon: "🔥" },
@@ -155,7 +158,7 @@ const rareTreasures: ItemDef[] = [
 const epicTreasures: ItemDef[] = [
   { name: "King Grade Spirit Stone", description: "A king-grade spirit stone, radiating regal Qi density.", category: "treasure", rarity: "epic", effectType: "xp_instant", effectValue: 800, icon: "💎" },
   { name: "Spirit Cauldron", description: "Increases crafting success rate by 35% and allows crafting up to Mythic-rarity pills.", category: "treasure", rarity: "epic", effectType: "cauldron_spirit", effectValue: 35, icon: "⚗️" },
-  { name: "Spatial Pouch", description: "Permanently expands your bag by 15 slots.", category: "treasure", rarity: "epic", effectType: "bag_slots", effectValue: 15, icon: "👜" },
+  { name: "Spatial Pouch", description: "A spatial artifact that holds 50 items when equipped. Equip from your profile to expand your bag.", category: "treasure", rarity: "epic", effectType: "storage_equip", isStorageItem: true, storageSlotCount: 50, icon: "👜" },
   { name: "Dao Fruit", description: "Grants XP equal to your current rank tier multiplied by 200.", category: "treasure", rarity: "epic", effectType: "dao_fruit", effectValue: 200, icon: "🍑" },
   { name: "Fate Sealing Talisman", description: "Seals fate to your advantage — guarantees your next chest is Rare rarity or above.", category: "treasure", rarity: "epic", effectType: "guarantee_rare_plus", icon: "🪬" },
   { name: "Heaven Locking Seal", description: "Prevents any XP penalties (decay, tribulation backlash) for 48 hours.", category: "treasure", rarity: "epic", effectType: "xp_penalty_immune", effectDuration: 2880, icon: "🔒" },
@@ -165,7 +168,7 @@ const epicTreasures: ItemDef[] = [
   { name: "Ancestral Seal", description: "A seal passed down through a line of ancient cultivators. +3,000 XP flat — does not scale.", category: "treasure", rarity: "epic", effectType: "xp_instant", effectValue: 3000, icon: "🏺" },
   { name: "Space Tear Fragment", description: "A crystallised fragment of torn space-time.", category: "treasure", rarity: "epic", effectType: "xp_instant", effectValue: 1000, icon: "🌀" },
   { name: "Soul Binding Ring", description: "Links two different inventory items by their slot IDs — using one automatically uses the other. Cannot bind an item to itself or another copy of the same item. Binding is consumed on use.", category: "treasure", rarity: "epic", effectType: "soul_binding", icon: "💍" },
-  { name: "Void Ring", description: "Permanently expands your bag by 20 slots.", category: "treasure", rarity: "epic", effectType: "bag_slots", effectValue: 20, icon: "💍" },
+  { name: "Void Ring", description: "A void-forged ring that holds 60 items when equipped. Equip from your profile to expand your bag.", category: "treasure", rarity: "epic", effectType: "storage_equip", isStorageItem: true, storageSlotCount: 60, icon: "💍" },
   { name: "Phoenix Feather", description: "Doubles XP earned from sprint writings for 48 hours.", category: "treasure", rarity: "epic", effectType: "xp_timed_bonus", effectValue: 100, effectDuration: 2880, icon: "🪶" },
   { name: "Dragon Scale", description: "Triples XP earned from sprint writings for 24 hours.", category: "treasure", rarity: "epic", effectType: "xp_timed_bonus", effectValue: 200, effectDuration: 1440, icon: "🐉" },
 ];
@@ -173,7 +176,7 @@ const epicTreasures: ItemDef[] = [
 const mythicTreasures: ItemDef[] = [
   { name: "Emperor Grade Spirit Stone", description: "An emperor-grade spirit stone radiating overwhelming Qi presence.", category: "treasure", rarity: "mythic", effectType: "xp_instant", effectValue: 2500, icon: "💎" },
   { name: "Heaven Cauldron", description: "100% crafting success rate and capable of crafting Legendary-tier pills.", category: "treasure", rarity: "mythic", effectType: "cauldron_heaven", effectValue: 100, icon: "⚗️" },
-  { name: "Immortal Storage Ring", description: "Permanently expands your bag by 50 slots.", category: "treasure", rarity: "mythic", effectType: "bag_slots", effectValue: 50, icon: "💍" },
+  { name: "Immortal Storage Ring", description: "An immortal-grade ring that holds 100 items when equipped. Equip from your profile to expand your bag.", category: "treasure", rarity: "mythic", effectType: "storage_equip", isStorageItem: true, storageSlotCount: 100, icon: "💍" },
   { name: "Heaven's Mirror", description: "Reveals the contents of your next chest before opening. You may open it or discard it (discarding destroys the chest with no refund). Goes on a 48-hour cooldown after use.", category: "treasure", rarity: "mythic", effectType: "heaven_mirror", effectDuration: 2880, icon: "🪞" },
   { name: "Qilin Horn Fragment", description: "A fragment of a Qilin's sacred horn. Multiplies next sprint XP by 5×.", category: "treasure", rarity: "mythic", effectType: "xp_5x_next_sprint", icon: "🦄" },
   { name: "Nine Heavens Tribulation Crystal", description: "Crystallised energy from nine rounds of heavenly tribulation.", category: "treasure", rarity: "mythic", effectType: "xp_instant", effectValue: 7000, icon: "⚡" },

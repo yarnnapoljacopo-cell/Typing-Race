@@ -1,0 +1,537 @@
+Build the Spirit Coin currency system, shop, and bag/storage equipment 
+system for the Writing Sprint app. Push all changes to the development 
+branch only. The base cultivation system (user_inventory, items_master, 
+active_effects, user_chests, crafting tables) already exists — 
+do not recreate those tables unless adding new columns.
+
+---
+
+## PART 1 — DATABASE CHANGES
+
+### New tables
+
+#### user_coins
+Tracks each user's coin balance and daily earning cap.
+
+- id: uuid, primary key
+- user_id: text, not null, unique
+- balance: integer, not null, default 0
+- daily_coins_earned: integer, not null, default 0
+- daily_reset_at: timestamp, not null, default now()
+- updated_at: timestamp, not null, default now()
+
+#### coin_transactions
+Full immutable ledger. Never delete or update rows.
+
+- id: uuid, primary key
+- user_id: text, not null
+- amount: integer, not null — positive = earned, negative = spent
+- transaction_type: text, not null — one of:
+  chest_drop | item_sale | shop_purchase
+- reference_id: text, nullable
+- description: text, not null — e.g. "Opened: Iron Chest" 
+  or "Sold: Foundation Pill"
+- created_at: timestamp, not null, default now()
+
+Note: admin_grant is intentionally omitted. Admin coin tools will be 
+added later with proper role-based auth. Do not create any admin 
+coin endpoint now.
+
+#### shop_listings
+Seeded by migration. Not user-editable.
+
+- id: integer, primary key, auto increment
+- name: text, not null
+- description: text, not null
+- item_type: text, not null — one of: mortal_chest | iron_chest |
+  crystal_chest | inferno_chest | immortal_chest
+- quantity: integer, not null, default 1
+- price: integer, not null
+- icon: text, not null
+- is_available: boolean, not null, default true
+- display_order: integer, not null
+- daily_purchase_limit: integer, not null
+
+#### equipped_storage
+Tracks which storage item each user currently has equipped.
+
+- id: uuid, primary key
+- user_id: text, not null, unique
+- item_id: integer, nullable, references items_master.id —
+  null means user has only the base Cloth Bag equipped
+- slot_count: integer, not null, default 20 —
+  current active bag capacity for this user
+- equipped_at: timestamp, not null, default now()
+
+### Columns to add to existing tables
+
+#### items_master — add these columns:
+- sell_value: integer, not null, default 0
+- is_storage_item: boolean, not null, default false —
+  true only for items that can be equipped as a bag
+- storage_slot_count: integer, nullable —
+  how many slots this item provides when equipped,
+  null if is_storage_item = false
+
+#### user_inventory — no changes needed
+
+---
+
+## PART 2 — STORAGE ITEMS & EQUIPMENT SYSTEM
+
+### Base state
+Every user starts with a Cloth Bag (not a physical item in inventory —
+it is the default state when equipped_storage.item_id is null).
+Cloth Bag provides 20 slots. It cannot be unequipped or sold.
+
+### Storage items
+Update items_master seed data to mark these items as storage items
+and set their storage_slot_count:
+
+| Item                  | Rarity   | Slots | is_storage_item |
+|-----------------------|----------|-------|-----------------|
+| Jade Ring             | Uncommon | 25    | true            |
+| Cultivation Ring      | Rare     | 30    | true            |
+| Spirit Ring           | Rare     | 40    | true            |
+| Spatial Pouch         | Epic     | 50    | true            |
+| Void Ring             | Epic     | 60    | true            |
+| Immortal Storage Ring | Mythic   | 100   | true            |
+
+Important: Soul Binding Ring, Karmic Ring, and all other rings that 
+are not storage items must have is_storage_item = false. 
+Do not confuse ring items with storage items — only the six above 
+are equippable as storage.
+
+### Equip rules (all enforced server-side)
+
+Equipping a larger or equal storage item:
+1. Validate item exists in user_inventory and belongs to current user
+2. Validate item is_storage_item = true
+3. Validate item is not currently equipped by this user
+4. If user currently has a non-default item equipped:
+   move that item back to user_inventory (INSERT row or increment 
+   quantity if already owned)
+5. UPDATE equipped_storage: item_id = new item, 
+   slot_count = new item's storage_slot_count
+6. Remove new item from user_inventory
+7. Return new slot count
+
+Equipping a smaller storage item:
+1–3. Same validation as above
+4. Count current rows in user_inventory for this user = current_item_count
+5. If current_item_count > new item's storage_slot_count:
+   REJECT with message: "You have [X] items but [Item Name] only holds 
+   [Y] slots. Clear your bag to [X - Y] items before equipping."
+6. If current_item_count fits: proceed with same steps as above
+
+Unequipping (reverting to Cloth Bag):
+1. Count current rows in user_inventory for this user
+2. If current_item_count > 20: REJECT with message:
+   "You have [X] items but your Cloth Bag only holds 20 slots. 
+   Clear your bag first."
+3. If fits: move equipped item back to user_inventory,
+   SET equipped_storage.item_id = null, slot_count = 20
+
+### Storage item trade/sell protection
+When a storage item is currently equipped (exists in equipped_storage 
+for this user), it is treated as is_tradeable = false regardless of 
+its normal tradeable status. The server enforces this on every sell 
+request — a user cannot sell their currently equipped storage item. 
+They must unequip it first, which requires having 20 or fewer items 
+in their bag.
+
+### Bag capacity calculation
+User's current bag capacity = equipped_storage.slot_count for that user.
+If no equipped_storage row exists for the user, create one with 
+default values (item_id = null, slot_count = 20) on first access.
+Capacity is always read from equipped_storage server-side — 
+never calculated client-side.
+
+### Overflow rules
+- Overflow: 5 extra slots beyond equipped capacity
+- Items in overflow for more than 48 hours are auto-discarded
+- Warning notification sent 24 hours before expiry
+- Overflow is never treated as permanent storage
+
+### Bag expansion items — auto-equip prompt
+When a storage item is received from a chest and the user's 
+currently equipped storage has fewer slots than the new item:
+- Do NOT auto-equip silently
+- Send a notification: "You received [Item Name] — it holds more 
+  slots than your current bag. Equip it from your profile."
+- Item lands in bag inventory normally
+- User chooses when to equip from the Equipped Items page
+
+---
+
+## PART 3 — CHEST CONTENTS SYSTEM
+
+### Sprint completion validation
+Chests are only awarded when a sprint timer reaches zero naturally.
+The server validates that:
+1. Sprint end was triggered by timer expiry, not a user action
+2. User had at least 1 word written before the final minute —
+   pure idlers receive nothing
+
+Early exits, manual ends, and disconnects award no chest, 
+no XP, and no coins. The client never self-reports completion.
+
+### Guaranteed chest per player
+- Every qualifying player receives 1 Mortal Chest
+- Player with highest word count when timer expires (1st place)
+  receives 1 Iron Chest instead of Mortal
+- Ties for 1st: both receive Iron Chest
+
+### Bonus chest rolls (server-side RNG after guaranteed chest)
+Every player rolls once on the standard bonus table:
+
+| Bonus chest    | Probability |
+|----------------|-------------|
+| Iron Chest     | 6.00%       |
+| Crystal Chest  | 1.50%       |
+| Inferno Chest  | 0.30%       |
+| Immortal Chest | 0.05%       |
+| No bonus       | 92.15%      |
+
+1st place additionally rolls on this separate table:
+
+| Bonus chest    | Probability |
+|----------------|-------------|
+| Crystal Chest  | 5.00%       |
+| Inferno Chest  | 1.00%       |
+| Immortal Chest | 0.10%       |
+| No bonus       | 93.90%      |
+
+Maximum 3 chests from one sprint for 1st place 
+(guaranteed Iron + one standard bonus + one 1st place bonus).
+All rolls are independent. All chest grants inserted into 
+user_chests server-side immediately after sprint ends.
+
+### Chest contents on opening
+When a player opens a chest, the server rolls for both 
+coin amount and item count separately.
+
+#### Mortal Chest
+| Contents                    | Chance |
+|-----------------------------|--------|
+| Coins only (8–15 🪙)        | 40%    |
+| 1 item + coins (8–15 🪙)    | 55%    |
+| 2 items + coins (8–15 🪙)   | 5%     |
+
+#### Iron Chest
+| Contents                    | Chance |
+|-----------------------------|--------|
+| Coins only (35–60 🪙)       | 15%    |
+| 1 item + coins (35–60 🪙)   | 60%    |
+| 2 items + coins (35–60 🪙)  | 20%    |
+| 3 items + coins (35–60 🪙)  | 5%     |
+
+#### Crystal Chest
+| Contents                     | Chance |
+|------------------------------|--------|
+| Coins only (90–140 🪙)       | 5%     |
+| 1 item + coins (90–140 🪙)   | 40%    |
+| 2 items + coins (90–140 🪙)  | 40%    |
+| 3 items + coins (90–140 🪙)  | 15%    |
+
+#### Inferno Chest
+| Contents                     | Chance |
+|------------------------------|--------|
+| 2 items + coins (250–400 🪙) | 30%    |
+| 3 items + coins (250–400 🪙) | 50%    |
+| 4 items + coins (250–400 🪙) | 20%    |
+
+#### Immortal Chest
+| Contents                      | Chance |
+|-------------------------------|--------|
+| 3 items + coins (600–1000 🪙) | 20%    |
+| 4 items + coins (600–1000 🪙) | 50%    |
+| 5 items + coins (600–1000 🪙) | 30%    |
+
+### Item roll rules
+- Coins always drop regardless of whether items drop
+- Each item in a multi-item chest rolls its rarity independently
+  from that chest's drop table
+- Immortal Chest: at least one item is forced to Mythic or above
+  before remaining items roll freely
+- If chest yields items but bag + overflow are both full:
+  chest is NOT consumed — player is told to clear space first
+- Each item that is a storage item and is better than the user's
+  current equipped storage triggers an equip notification
+
+---
+
+## PART 4 — COIN ECONOMY
+
+### Daily earning cap
+- Hard cap: 80 coins per day per user from chest_drop and 
+  item_sale combined
+- Tracked in user_coins.daily_coins_earned
+- Before crediting: credit = min(amount, 80 - daily_coins_earned)
+- Reset daily_coins_earned to 0 when now() > daily_reset_at + 24h,
+  then set daily_reset_at = now()
+- Shop purchases never count toward the earning cap
+- Cap cannot be bypassed by any item or effect including 
+  Jade Emperor's Decree — economic caps are explicitly excluded 
+  from all "bypass all limits" item effects
+
+### Sell values
+Stored in items_master.sell_value. Server always reads from this
+column — client never sends or computes a price.
+
+Pills:
+- Common: 2 | Uncommon: 6 | Rare: 0 | Epic: 20 | 
+  Mythic: 50 | Legendary: 0
+
+Treasures and Artifacts:
+- Common: 2 | Uncommon: 8 | Rare: 20 | Epic: 55 | 
+  Mythic: 140 | Legendary: 0
+
+Ingredients (flat, raw materials):
+- Common: 1 | Uncommon: 3 | Rare: 8 | Epic: 15 | 
+  Mythic: 25 | Legendary: 50
+
+Recipe scrolls: sell_value = 0, is_tradeable = false always.
+Legendary items: sell_value = 0 always.
+Rare pills: sell_value = 0 — they are for using not selling.
+
+### Shop listings seed data
+| Listing             | Price    | Daily limit |
+|---------------------|----------|-------------|
+| 📦 Mortal Chest x1  | 50 🪙    | 5           |
+| 🗃️ Iron Chest x1    | 300 🪙   | 3           |
+| 🗃️ Iron Chest x3    | 800 🪙   | 1           |
+| 💎 Crystal Chest x1 | 800 🪙   | 2           |
+| 🔥 Inferno Chest x1 | 2,500 🪙 | 1           |
+| 👑 Immortal Chest x1| 7,000 🪙 | 1           |
+
+Shop sells chests only. No items, ingredients, or pills 
+are sold directly in the shop.
+
+---
+
+## PART 5 — SERVER-SIDE LOGIC
+
+### Daily reset check
+Runs on every request that reads or modifies user_coins:
+- If now() > daily_reset_at + 24h:
+  SET daily_coins_earned = 0, daily_reset_at = now()
+- Then proceed with the operation
+- Never triggered by the client
+
+### On chest open
+Atomic transaction:
+1. Roll item count from chest's content table using server-side RNG
+2. Roll coin amount from chest's range using server-side RNG
+3. Run daily reset check
+4. credit = min(coin_roll, 80 - daily_coins_earned)
+5. For each item slot: roll rarity from chest drop table,
+   then roll a random item of that rarity from items_master
+   where is_chest_obtainable = true
+6. Apply Immortal Chest guaranteed Mythic rule if applicable
+7. Check bag + overflow capacity — if insufficient, 
+   do not consume chest, return error with slots needed
+8. INSERT all items into user_inventory
+9. If credit > 0: INSERT coin_transactions (chest_drop),
+   UPDATE user_coins balance += credit, 
+   daily_coins_earned += credit
+10. DELETE or decrement user_chests row
+11. Return items received, coins earned, new balance
+
+### Sell item
+Atomic transaction with row-level locking:
+1. SELECT FOR UPDATE on user_inventory row matching 
+   inventory_id AND user_id
+2. Validate row exists and belongs to user
+3. Check equipped_storage — if this item is currently equipped,
+   REJECT: "Unequip this item before selling"
+4. JOIN items_master: get is_tradeable, sell_value
+5. REJECT if is_tradeable = false
+6. REJECT if sell_value = 0: "This item cannot be sold"
+7. Run daily reset check
+8. If daily_coins_earned >= 80: REJECT "Daily coin limit reached"
+9. credit = min(sell_value, 80 - daily_coins_earned)
+10. Decrement quantity; delete row if quantity reaches 0
+11. INSERT coin_transactions (item_sale)
+12. UPDATE balance += credit, daily_coins_earned += credit
+13. Return new balance, coins earned
+
+### Buy from shop
+Atomic transaction:
+1. Validate listing exists and is_available = true
+2. Count today's purchases of this listing by this user:
+   coin_transactions where type = shop_purchase
+   AND reference_id = listing_id
+   AND created_at >= midnight UTC today
+3. REJECT if count >= daily_purchase_limit
+4. REJECT if balance < price
+5. INSERT coin_transactions (shop_purchase, amount: -price)
+6. UPDATE balance -= price (never below 0)
+7. INSERT user_chests rows for chest_type and quantity
+8. Return new balance, chest_type, quantity_added
+
+---
+
+## PART 6 — API ROUTES
+
+GET /api/coins
+- Returns: { balance, daily_coins_earned, daily_cap: 80,
+  resets_at, last_20_transactions }
+- Triggers daily reset check
+
+POST /api/coins/sell
+- Body: { inventory_id: uuid }
+- Returns: { new_balance, coins_earned, daily_coins_earned }
+
+GET /api/shop
+- Returns shop_listings where is_available = true,
+  ordered by display_order
+- Include daily_purchases_today per listing for current user
+
+POST /api/shop/buy
+- Body: { listing_id: integer }
+- Returns: { new_balance, chest_type, quantity_added }
+
+GET /api/storage/equipped
+- Returns current equipped_storage row for user including
+  item details from items_master, current slot_count,
+  and current items_used count
+
+POST /api/storage/equip
+- Body: { inventory_id: uuid }
+- Runs full equip validation server-side
+- Returns: { new_slot_count, previously_equipped_item | null }
+
+POST /api/storage/unequip
+- No body needed
+- Reverts to Cloth Bag if item count <= 20
+- Returns: { new_slot_count: 20, returned_item }
+
+---
+
+## PART 7 — UI PAGES
+
+### /shop page
+
+Coin balance bar at top:
+- 🪙 [balance] Spirit Coins
+- "Daily limit: [X] / 80 coins earned today" with progress bar
+- "Sell items → bag" link
+- Last 5 transactions collapsed, expandable to full history
+
+Shop grid (3 columns desktop, 2 mobile):
+- Each card: chest icon, name, drop rate summary,
+  price in 🪙, "X purchases remaining today"
+- Buy button: active if affordable and within daily limit
+- Greyed with reason if not: "Can't afford" or "Daily limit reached"
+- Card border coloured by chest tier
+
+### /bag page (updated)
+
+Slot counter now reads from equipped_storage.slot_count:
+- Shows: "[X] / [slot_count] slots used"
+- If overflow items exist: red warning banner with countdown
+
+Storage items in bag:
+- Show a special "Equip" button on storage item detail modal
+  in addition to the normal Use button
+- "Equip" replaces "Use" as the primary action for storage items
+- Show current equipped item at top of Ingredients tab or 
+  in a small banner: "Equipped: [Item Name] — [X] slots"
+
+Sell button on item modal:
+- Shows "Sell for 🪙 [sell_value]"
+- Hidden entirely if sell_value = 0 or is_tradeable = false
+- Hidden if item is currently equipped
+- Confirmation: "Sell [Name] for [X] Spirit Coins? 
+  This cannot be undone."
+- If daily cap reached: "Daily coin limit reached — resets at midnight"
+
+### Profile page — Equipped Items section
+
+Add an Equipped Items section to the existing profile page.
+Do not create a separate page — it lives on /profile.
+
+Layout:
+- Section header: "Equipped Items"
+- Grid of equipment slots (show all slots, lock future ones)
+
+Current slots:
+┌─────────────────────────────────────┐
+│ 👜 Storage                          │
+│ [Item icon + name + slot count]     │
+│ "Change" button                     │
+└─────────────────────────────────────┘
+
+Future locked slots (greyed, labelled "Coming Soon"):
+┌──────────────────┐  ┌──────────────────┐
+│ ⚗️ Cauldron      │  │ 🪬 Talisman      │
+│ Coming Soon      │  │ Coming Soon      │
+└──────────────────┘  └──────────────────┘
+
+Clicking "Change" on the Storage slot opens a modal showing:
+- Currently equipped item (or Cloth Bag if default)
+- All storage items the user owns in their bag
+- Each option shows: icon, name, rarity colour, slot count
+- Selecting one runs POST /api/storage/equip
+- If equipping would fail (bag too full): show inline error
+  "You have [X] items — clear [Y] items before equipping this"
+- "Unequip" button at bottom reverts to Cloth Bag 
+  (same capacity check applies)
+
+### Nav bar
+- 🪙 [balance] visible on all pages at all times
+- Re-fetched from server after every transaction
+- On Electron: sync across all open windows via IPC
+  after every transaction — client never calculates 
+  balance locally
+
+---
+
+## PART 8 — EXPLOIT PREVENTION
+Implement all of these explicitly:
+
+1. Chests only awarded when sprint timer reaches zero server-side.
+   Early exits award nothing.
+2. Players must have at least 1 word written before the final minute
+   to qualify for chest rewards.
+3. Daily earn cap of 80 coins enforced server-side on every 
+   chest_drop and item_sale. Cannot be bypassed by any item 
+   or effect including Jade Emperor's Decree.
+4. Sell value always read from items_master.sell_value server-side.
+   Client never sends a price.
+5. Sell transactions use SELECT FOR UPDATE to prevent race conditions.
+6. Balance never goes below 0 — hard server-side check before 
+   any deduction.
+7. Daily purchase limits enforced by querying coin_transactions,
+   not client state.
+8. All transactions logged to coin_transactions.
+   No silent balance changes ever.
+9. is_tradeable = false validated server-side on every sell request.
+10. No admin coin endpoint in this build.
+11. No item or effect can modify coin drop amounts from chests.
+12. Legendary items and Rare pills have sell_value = 0 —
+    server rejects sell attempts on these explicitly.
+13. All chest content and bonus chest RNG runs server-side.
+    Client is told results, never decides them.
+14. Equipped storage items are treated as is_tradeable = false
+    server-side — cannot be sold or traded while equipped.
+15. Equipping a smaller storage item is blocked server-side
+    if current item count exceeds new capacity.
+16. Unequipping to Cloth Bag is blocked if item count exceeds 20.
+17. Chest is not consumed if bag and overflow are both full —
+    player must clear space first.
+18. Each item in a multi-item chest rolls rarity independently
+    server-side. Client never influences item rolls.
+
+---
+
+## IMPORTANT RULES
+- Works on both web and Electron desktop app
+- Add Shop to main navigation menu
+- Equipped Items section lives on /profile — not a separate page
+- Push to development branch only, never main
+- Coin balance visible in nav bar on all pages at all times
+- All balance reads are fresh from server — no client-side caching
+- All RNG is server-side — no client-side randomness for 
+  any reward, chest, or coin calculation

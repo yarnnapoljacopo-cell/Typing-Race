@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
-import { ArrowLeft, Package, Gift, FlaskConical, Sparkles, Flame, Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Package, Gift, FlaskConical, Sparkles, Flame, Loader2, ShoppingBag, Coins } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { CoinBalance } from "@/components/CoinBalance";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -62,6 +64,20 @@ interface InventoryItem {
   effect_duration: number | null;
   icon: string;
   stack_limit: number;
+  sell_value: number;
+  is_storage_item: boolean;
+  storage_slot_count: number | null;
+}
+
+interface EquippedStorage {
+  id: string;
+  user_id: string;
+  item_id: number | null;
+  slot_count: number;
+  item_name: string | null;
+  item_icon: string | null;
+  item_rarity: string | null;
+  items_used: number;
 }
 
 interface ActiveEffect {
@@ -104,21 +120,31 @@ export default function Bag() {
   const [, setLocation] = useLocation();
   const { isSignedIn } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [bagData, setBagData] = useState<BagData | null>(null);
+  const [equippedStorage, setEquippedStorage] = useState<EquippedStorage | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [usingItem, setUsingItem] = useState(false);
+  const [sellingItem, setSellingItem] = useState(false);
+  const [equippingItem, setEquippingItem] = useState(false);
   const [activeTab, setActiveTab] = useState<"items" | "effects">("items");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterRarity, setFilterRarity] = useState<string>("all");
 
   const fetchBag = useCallback(async () => {
     try {
-      const res = await fetch(`${basePath}/api/user/bag`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load bag");
-      const data = await res.json();
+      const [bagRes, storageRes] = await Promise.all([
+        fetch(`${basePath}/api/user/bag`, { credentials: "include" }),
+        fetch(`${basePath}/api/storage/equipped`, { credentials: "include" }),
+      ]);
+      if (!bagRes.ok) throw new Error("Failed to load bag");
+      const data = await bagRes.json();
       setBagData(data);
+      if (storageRes.ok) {
+        setEquippedStorage(await storageRes.json());
+      }
     } catch {
       toast({ title: "Error", description: "Failed to load bag", variant: "destructive" });
     } finally {
@@ -155,6 +181,79 @@ export default function Bag() {
       toast({ title: "Error", description: "Failed to use item", variant: "destructive" });
     } finally {
       setUsingItem(false);
+    }
+  };
+
+  const sellItem = async (item: InventoryItem) => {
+    setSellingItem(true);
+    try {
+      const res = await fetch(`${basePath}/api/coins/sell`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inventory_id: item.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "Cannot sell item", description: data.error, variant: "destructive" });
+      } else {
+        toast({
+          title: `${item.name} sold`,
+          description: `+${data.coins_earned} 🪙 Spirit Coins. New balance: ${data.new_balance}`,
+        });
+        setSelectedItem(null);
+        fetchBag();
+        queryClient.invalidateQueries({ queryKey: ["coinBalance"] });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to sell item", variant: "destructive" });
+    } finally {
+      setSellingItem(false);
+    }
+  };
+
+  const equipStorageItem = async (item: InventoryItem) => {
+    setEquippingItem(true);
+    try {
+      const res = await fetch(`${basePath}/api/storage/equip`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inventory_id: item.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "Cannot equip item", description: data.error, variant: "destructive" });
+      } else {
+        toast({
+          title: `${item.name} equipped`,
+          description: `Your bag now holds ${data.new_slot_count} items.${data.previously_equipped_item ? ` ${data.previously_equipped_item.name} returned to bag.` : ""}`,
+        });
+        setSelectedItem(null);
+        fetchBag();
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to equip item", variant: "destructive" });
+    } finally {
+      setEquippingItem(false);
+    }
+  };
+
+  const unequipStorage = async () => {
+    try {
+      const res = await fetch(`${basePath}/api/storage/unequip`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "Cannot unequip", description: data.error, variant: "destructive" });
+      } else {
+        toast({ title: "Storage unequipped", description: `${data.returned_item?.name ?? "Item"} returned to bag. Bag reset to 20 slots.` });
+        fetchBag();
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to unequip storage", variant: "destructive" });
     }
   };
 
@@ -230,6 +329,11 @@ export default function Bag() {
           )}
 
           <div className="flex items-center gap-1.5 ml-2">
+            <CoinBalance />
+            <Button variant="outline" size="sm" onClick={() => setLocation("/shop")} className="h-8 gap-1.5 text-xs">
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Shop</span>
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setLocation("/chests")} className="h-8 gap-1.5 text-xs">
               <Gift className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Chests</span>
@@ -278,6 +382,48 @@ export default function Bag() {
         {/* ── Items tab ─────────────────────────────────────────────────── */}
         {!loading && activeTab === "items" && (
           <>
+            {/* Equipped Storage */}
+            {equippedStorage && (
+              <div className="mb-5 flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3">
+                <span className="text-2xl">{equippedStorage.item_id ? (equippedStorage.item_icon ?? "💍") : "👜"}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    {equippedStorage.item_name ?? "Cloth Bag"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {equippedStorage.items_used} / {equippedStorage.slot_count} slots used
+                    {equippedStorage.item_rarity && (
+                      <span className="ml-1 capitalize text-muted-foreground/70">· {equippedStorage.item_rarity}</span>
+                    )}
+                  </p>
+                </div>
+                {equippedStorage.item_id && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground h-7"
+                    onClick={() => {
+                      if (confirm("Unequip storage item? Your bag will revert to 20 slots.")) {
+                        unequipStorage();
+                      }
+                    }}
+                  >
+                    Unequip
+                  </Button>
+                )}
+                {!equippedStorage.item_id && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-primary h-7"
+                    onClick={() => setLocation("/shop")}
+                  >
+                    Get more slots →
+                  </Button>
+                )}
+              </div>
+            )}
+
             {/* Category filter */}
             <div className="space-y-2 mb-5">
               <div className="flex flex-wrap gap-1.5">
@@ -476,25 +622,66 @@ export default function Bag() {
                   </div>
                 </DialogDescription>
               </DialogHeader>
-              <div className="flex gap-2 mt-2">
-                <Button
-                  className="flex-1"
-                  disabled={usingItem}
-                  onClick={() => useItem(selectedItem)}
-                >
-                  {usingItem ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Using…</> : "Use Item"}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => {
-                    if (confirm(`Discard ${selectedItem.name}? This cannot be undone.`)) {
-                      discardItem(selectedItem);
-                    }
-                  }}
-                >
-                  Discard
-                </Button>
+              {/* Sell value info */}
+              {selectedItem.sell_value > 0 && (
+                <div className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                  🪙 Sell value: {selectedItem.sell_value} Spirit Coin{selectedItem.sell_value !== 1 ? "s" : ""}
+                </div>
+              )}
+              {selectedItem.is_storage_item && selectedItem.storage_slot_count && (
+                <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  💾 Expands bag to {selectedItem.storage_slot_count} slots when equipped
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 mt-3">
+                {/* Storage equip or use */}
+                {selectedItem.is_storage_item ? (
+                  <Button
+                    className="w-full"
+                    disabled={equippingItem}
+                    onClick={() => equipStorageItem(selectedItem)}
+                  >
+                    {equippingItem ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Equipping…</> : "Equip as Storage"}
+                  </Button>
+                ) : (
+                  <Button
+                    className="flex-1"
+                    disabled={usingItem}
+                    onClick={() => useItem(selectedItem)}
+                  >
+                    {usingItem ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Using…</> : "Use Item"}
+                  </Button>
+                )}
+                {/* Sell + Discard row */}
+                <div className="flex gap-2">
+                  {selectedItem.sell_value > 0 && (
+                    <Button
+                      variant="outline"
+                      className="flex-1 gap-1.5 text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700 hover:bg-yellow-50 dark:hover:bg-yellow-900/20"
+                      disabled={sellingItem}
+                      onClick={() => {
+                        if (confirm(`Sell ${selectedItem.name} for 🪙 ${selectedItem.sell_value} Spirit Coin${selectedItem.sell_value !== 1 ? "s" : ""}?`)) {
+                          sellItem(selectedItem);
+                        }
+                      }}
+                    >
+                      {sellingItem ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                      Sell 🪙{selectedItem.sell_value}
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => {
+                      if (confirm(`Discard ${selectedItem.name}? This cannot be undone.`)) {
+                        discardItem(selectedItem);
+                      }
+                    }}
+                  >
+                    Discard
+                  </Button>
+                </div>
               </div>
             </>
           )}

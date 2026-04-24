@@ -173,6 +173,49 @@ export async function ensureSchema(): Promise<void> {
         metadata  TEXT
       );
       CREATE INDEX IF NOT EXISTS item_use_log_user_idx ON item_use_log (user_id);
+
+      -- ── Spirit Coin economy tables ─────────────────────────────────────
+      CREATE TABLE IF NOT EXISTS user_coins (
+        id                  UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id             TEXT          NOT NULL UNIQUE,
+        balance             INTEGER       NOT NULL DEFAULT 0,
+        daily_coins_earned  INTEGER       NOT NULL DEFAULT 0,
+        daily_reset_at      TIMESTAMP     NOT NULL DEFAULT NOW(),
+        updated_at          TIMESTAMP     NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS coin_transactions (
+        id                UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id           TEXT          NOT NULL,
+        amount            INTEGER       NOT NULL,
+        transaction_type  TEXT          NOT NULL,
+        reference_id      TEXT,
+        description       TEXT          NOT NULL,
+        created_at        TIMESTAMP     NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS coin_transactions_user_created_idx
+        ON coin_transactions (user_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS shop_listings (
+        id                   SERIAL   PRIMARY KEY,
+        name                 TEXT     NOT NULL,
+        description          TEXT     NOT NULL,
+        item_type            TEXT     NOT NULL,
+        quantity             INTEGER  NOT NULL DEFAULT 1,
+        price                INTEGER  NOT NULL,
+        icon                 TEXT     NOT NULL,
+        is_available         BOOLEAN  NOT NULL DEFAULT TRUE,
+        display_order        INTEGER  NOT NULL UNIQUE,
+        daily_purchase_limit INTEGER  NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS equipped_storage (
+        id          UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id     TEXT      NOT NULL UNIQUE,
+        item_id     INTEGER   REFERENCES items_master(id),
+        slot_count  INTEGER   NOT NULL DEFAULT 20,
+        equipped_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
     `);
 
     // ── Phase 2: add any columns that were added to the schema after the
@@ -216,7 +259,10 @@ export async function ensureSchema(): Promise<void> {
         ADD COLUMN IF NOT EXISTS is_craftable        BOOLEAN NOT NULL DEFAULT FALSE,
         ADD COLUMN IF NOT EXISTS is_tradeable        BOOLEAN NOT NULL DEFAULT TRUE,
         ADD COLUMN IF NOT EXISTS is_chest_obtainable BOOLEAN NOT NULL DEFAULT TRUE,
-        ADD COLUMN IF NOT EXISTS stack_limit         INTEGER NOT NULL DEFAULT 1;
+        ADD COLUMN IF NOT EXISTS stack_limit         INTEGER NOT NULL DEFAULT 1,
+        ADD COLUMN IF NOT EXISTS sell_value          INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS is_storage_item     BOOLEAN NOT NULL DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS storage_slot_count  INTEGER;
 
       ALTER TABLE active_effects
         ADD COLUMN IF NOT EXISTS metadata TEXT;
@@ -226,6 +272,20 @@ export async function ensureSchema(): Promise<void> {
 
       ALTER TABLE crafting_recipes
         ADD COLUMN IF NOT EXISTS recipe_type VARCHAR(20) NOT NULL DEFAULT 'alchemy';
+    `);
+
+    // ── Phase 3: seed static data ─────────────────────────────────────────
+    await client.query(`
+      INSERT INTO shop_listings
+        (name, description, item_type, quantity, price, icon, is_available, display_order, daily_purchase_limit)
+      VALUES
+        ('Mortal Chest',    'A basic chest of common cultivation resources.',       'mortal_chest',   1, 50,   '📦', TRUE, 1, 5),
+        ('Iron Chest',      'Improved rewards with higher rarity drops.',           'iron_chest',     1, 300,  '🗃️', TRUE, 2, 3),
+        ('Iron Chest ×3',   'Three Iron Chests for a bulk discount.',               'iron_chest',     3, 800,  '🗃️', TRUE, 3, 1),
+        ('Crystal Chest',   'Crystalline chest with rare cultivation treasures.',   'crystal_chest',  1, 800,  '💎', TRUE, 4, 2),
+        ('Inferno Chest',   'Forged in heavenly flames. Exceptional rewards.',      'inferno_chest',  1, 2500, '🔥', TRUE, 5, 1),
+        ('Immortal Chest',  'The pinnacle chest. Mythic power within.',             'immortal_chest', 1, 7000, '👑', TRUE, 6, 1)
+      ON CONFLICT (display_order) DO NOTHING
     `);
 
     logger.info("DB schema ensured (tables created + missing columns added)");

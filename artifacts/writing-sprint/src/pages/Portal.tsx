@@ -24,8 +24,9 @@ import {
 import {
   PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
   Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User, Users, ChevronDown, KeyRound, Crown,
-  Package, Gift, FlaskConical,
+  Package, Gift, FlaskConical, ShoppingBag,
 } from "lucide-react";
+import { CoinBalance } from "@/components/CoinBalance";
 import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
 import ActiveRooms from "./ActiveRooms";
@@ -387,6 +388,7 @@ export default function Portal() {
               </button>
             </div>
           )}
+          <CoinBalance />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-1 text-sm text-foreground hover:text-primary transition-colors">
@@ -420,6 +422,10 @@ export default function Portal() {
                   <DropdownMenuItem onClick={() => setLocation("/chests")} className="gap-2">
                     <Gift size={14} className="text-muted-foreground" />
                     Chests
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLocation("/shop")} className="gap-2">
+                    <ShoppingBag size={14} className="text-muted-foreground" />
+                    Shop
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setLocation("/crafting")} className="gap-2">
                     <FlaskConical size={14} className="text-muted-foreground" />

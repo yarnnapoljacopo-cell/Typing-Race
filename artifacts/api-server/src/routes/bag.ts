@@ -23,13 +23,17 @@ function getRankIndex(xp: number): number {
 async function getBagSlots(userId: string): Promise<number> {
   const client = await pool.connect();
   try {
-    const { rows } = await client.query<{ total: string }>(
-      `SELECT COALESCE(SUM(modifier_value), 0) AS total
-       FROM permanent_modifiers
-       WHERE user_id = $1 AND modifier_type = 'bag_slots'`,
+    // Ensure row exists (default 20 slots = Cloth Bag)
+    await client.query(
+      `INSERT INTO equipped_storage (user_id, item_id, slot_count)
+       VALUES ($1, NULL, 20) ON CONFLICT (user_id) DO NOTHING`,
       [userId],
     );
-    return DEFAULT_BAG_SLOTS + Number(rows[0]?.total ?? 0);
+    const { rows } = await client.query<{ slot_count: number }>(
+      `SELECT slot_count FROM equipped_storage WHERE user_id = $1`,
+      [userId],
+    );
+    return rows[0]?.slot_count ?? DEFAULT_BAG_SLOTS;
   } finally {
     client.release();
   }
@@ -86,7 +90,8 @@ router.get("/user/bag", async (req, res): Promise<void> => {
       `SELECT ui.id, ui.item_id, ui.quantity, ui.acquired_at,
               im.name, im.description, im.category, im.rarity,
               im.effect_type, im.effect_value, im.effect_duration,
-              im.is_craftable, im.is_tradeable, im.icon, im.stack_limit
+              im.is_craftable, im.is_tradeable, im.icon, im.stack_limit,
+              im.sell_value, im.is_storage_item, im.storage_slot_count
        FROM user_inventory ui
        JOIN items_master im ON im.id = ui.item_id
        WHERE ui.user_id = $1
@@ -159,7 +164,8 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
     const { rows: invRows } = await client.query(
       `SELECT ui.id, ui.quantity, ui.item_id,
               im.name, im.effect_type, im.effect_value, im.effect_duration,
-              im.rarity, im.category, im.icon, im.is_tradeable, im.stack_limit
+              im.rarity, im.category, im.icon, im.is_tradeable, im.stack_limit,
+              im.is_storage_item
        FROM user_inventory ui
        JOIN items_master im ON im.id = ui.item_id
        WHERE ui.id = $1 AND ui.user_id = $2`,
@@ -173,6 +179,14 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
     const inv = invRows[0];
     const { item_id: itemId, effect_type: effectType, effect_value: effectValue,
             effect_duration: effectDuration, name, rarity, category } = inv;
+
+    // Storage rings are equipped, not "used" — send caller to the storage route
+    if (effectType === "storage_equip") {
+      res.status(400).json({
+        error: "This is a storage item. Equip it from the equipped storage section to expand your bag.",
+      });
+      return;
+    }
 
     // Check if user profile exists
     const { rows: profileRows } = await client.query(
