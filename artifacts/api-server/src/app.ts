@@ -47,14 +47,6 @@ app.use(express.urlencoded({ extended: true }));
 
 const resolvedPublishableKey = process.env.VITE_CLERK_PK ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY;
 
-// Temporary: log cookies to diagnose dev-browser-missing 401s
-app.use("/api", (req, _res, next) => {
-  const cookieHeader = req.headers.cookie ?? "";
-  const names = cookieHeader.split(";").map((c) => c.trim().split("=")[0].trim()).filter(Boolean);
-  logger.info({ url: req.url, cookieNames: names }, "[auth-debug] incoming cookie names");
-  next();
-});
-
 app.use(clerkMiddleware({ publishableKey: resolvedPublishableKey }));
 
 app.use("/api", router);
