@@ -101,9 +101,12 @@ const clerkPubKey =
   HARDCODED_PK;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-// Clerk production keys only work on writingsprint.site origins.
-// In dev/non-production, we skip ClerkProvider entirely and show a placeholder.
+// In development builds (NODE_ENV=development), skip the domain restriction so
+// the dev Railway service works on any domain (e.g. *.up.railway.app or dev.writingsprint.site).
+// In production builds this stays false for non-writingsprint.site origins and
+// shows the "wrong domain" screen instead of a broken Clerk state.
 const isProductionDomain =
+  import.meta.env.DEV ||
   window.location.hostname === "app.writingsprint.site" ||
   window.location.hostname === "writingsprint.site" ||
   window.location.hostname.endsWith(".writingsprint.site");
