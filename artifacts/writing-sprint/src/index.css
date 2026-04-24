@@ -463,6 +463,11 @@ html.villain h1, html.villain h2 {
   50%     { opacity: 0.4; transform: scale(0.7); }
 }
 
+@keyframes kartTrackPulse {
+  0%,100% { opacity: 1; }
+  50%     { opacity: 0.4; }
+}
+
 .portal-fade-up  { animation: portalFadeUp 0.7s cubic-bezier(.22,1,.36,1) both; }
 .portal-logo-float { animation: portalLogoFloat 4s ease-in-out infinite; }
 .portal-badge-dot {
