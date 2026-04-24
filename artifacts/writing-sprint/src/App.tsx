@@ -105,11 +105,17 @@ const isProductionDomain =
   window.location.hostname.endsWith(".writingsprint.site") ||
   window.location.hostname.endsWith(".up.railway.app");
 
-// Route Clerk FAPI through the server-side proxy on production so cookies are
-// always set for app.writingsprint.site regardless of clerk.writingsprint.site DNS.
-// VITE_CLERK_PROXY_URL should be set to "https://app.writingsprint.site/api/__clerk"
-// in the Railway environment variables.
-const clerkProxyUrl = isProductionDomain
+// Route Clerk FAPI through the server-side proxy ONLY on the real production
+// domains — never in the Replit dev preview. Using the production proxy in dev
+// sets cookies for app.writingsprint.site, which the dev API server never sees,
+// breaking authentication entirely in the Replit preview.
+const isRealProductionDomain =
+  window.location.hostname === "app.writingsprint.site" ||
+  window.location.hostname === "writingsprint.site" ||
+  window.location.hostname.endsWith(".writingsprint.site") ||
+  window.location.hostname.endsWith(".up.railway.app");
+
+const clerkProxyUrl = isRealProductionDomain
   ? (import.meta.env.VITE_CLERK_PROXY_URL as string | undefined)
   : undefined;
 
