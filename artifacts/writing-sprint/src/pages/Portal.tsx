@@ -24,7 +24,7 @@ import {
 import {
   PenTool, ArrowRight, Loader2, Feather, Eye, Lock, Timer, Target,
   Clock, BookOpen, LogOut, Pencil, Radio, Skull, UserRound, Swords, User, Users, ChevronDown, KeyRound, Crown,
-  Package, Gift, FlaskConical, ShoppingBag,
+  ShoppingBag,
 } from "lucide-react";
 import { CoinBalance } from "@/components/CoinBalance";
 import { useToast } from "@/hooks/use-toast";
@@ -415,21 +415,9 @@ export default function Portal() {
                     Friends
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setLocation("/bag")} className="gap-2">
-                    <Package size={14} className="text-muted-foreground" />
-                    Bag
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setLocation("/chests")} className="gap-2">
-                    <Gift size={14} className="text-muted-foreground" />
-                    Chests
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setLocation("/shop")} className="gap-2">
                     <ShoppingBag size={14} className="text-muted-foreground" />
                     Shop
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setLocation("/crafting")} className="gap-2">
-                    <FlaskConical size={14} className="text-muted-foreground" />
-                    Crafting Lab
                   </DropdownMenuItem>
                   {profile?.writerName && (
                     <DropdownMenuItem
