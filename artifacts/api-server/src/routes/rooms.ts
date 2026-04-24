@@ -3,9 +3,10 @@ import { getAuth } from "@clerk/express";
 import { createRoom, getRoom, getActiveRooms } from "../lib/roomManager";
 import { saveWriting, getWriting, getUserSprints } from "../lib/writingStore";
 import { CreateRoomBody, GetRoomParams } from "@workspace/api-zod";
-import { db, userProfilesTable, sprintWritingTable, friendshipsTable } from "@workspace/db";
+import { db, pool, userProfilesTable, sprintWritingTable, friendshipsTable } from "@workspace/db";
 import { eq, and, or, ne, desc, sql, max, sum, count, inArray, ilike, gte } from "drizzle-orm";
 import bcrypt from "bcrypt";
+import { grantChest } from "./chests";
 
 const router: IRouter = Router();
 
@@ -509,7 +510,6 @@ router.post("/user/xp", async (req, res): Promise<void> => {
 
   const dbWordCount = sprintRows[0].wordCount;
   const base = Math.max(5, Math.ceil(dbWordCount / 5));
-  const xpGained = isFirstPlace === true ? base * 2 : base;
 
   if (sprintRows[0].xpAwarded) {
     // Server already handled it — return current XP without touching DB again.
@@ -519,7 +519,7 @@ router.post("/user/xp", async (req, res): Promise<void> => {
       .where(eq(userProfilesTable.clerkUserId, clerkUserId))
       .limit(1);
     const newXp = profileRows[0]?.xp ?? 0;
-    res.json({ xpGained, newXp, alreadyAwarded: true });
+    res.json({ xpGained: base, newXp, alreadyAwarded: true });
     return;
   }
 
@@ -531,6 +531,167 @@ router.post("/user/xp", async (req, res): Promise<void> => {
 
   if (profileRows.length === 0) {
     res.status(404).json({ error: "Profile not found" }); return;
+  }
+
+  // ── Apply active sprint effects ──────────────────────────────────────────
+  let xpGained = isFirstPlace === true ? base * 2 : base;
+
+  const client2 = await pool.connect();
+  try {
+    // Remove expired effects
+    await client2.query(
+      `DELETE FROM active_effects WHERE user_id = $1 AND expires_at < NOW()`,
+      [clerkUserId],
+    );
+
+    const { rows: activeEffects } = await client2.query(
+      `SELECT id, effect_type, effect_value, metadata FROM active_effects
+       WHERE user_id = $1 AND expires_at > NOW()`,
+      [clerkUserId],
+    );
+
+    let multiplier = 1;
+
+    // World Destroying: multiply by count of active timed effects
+    const worldDestroying = activeEffects.find(e => e.effect_type === "world_destroying");
+    if (worldDestroying) {
+      const timedEffects = activeEffects.filter(e =>
+        e.effect_type !== "world_destroying" &&
+        e.effect_type !== "cauldron" &&
+        e.effect_type !== "chest_luck" &&
+        e.effect_type !== "fortune_reversal" &&
+        e.effect_type !== "reroll_chest_rarity" &&
+        e.effect_type !== "guarantee_rarity" &&
+        e.effect_type !== "guarantee_one_mythic" &&
+        e.effect_type !== "karmic_ring" &&
+        e.effect_type !== "nuwa_stone",
+      );
+      multiplier = Math.min(worldDestroying.effect_value ?? 8, Math.max(1, timedEffects.length));
+      await client2.query(`DELETE FROM active_effects WHERE id = $1`, [worldDestroying.id]);
+    }
+
+    // Sprint multiplier (xp_sprint_multiplier) — Qilin, Triple XP, etc.
+    const sprintMult = activeEffects.find(e => e.effect_type === "xp_sprint_multiplier");
+    if (sprintMult && !worldDestroying) {
+      multiplier = Math.max(multiplier, (sprintMult.effect_value ?? 100) / 100);
+      // Decrement sprints_remaining
+      let meta: { sprints_remaining?: number } = {};
+      try { meta = JSON.parse(sprintMult.metadata ?? "{}"); } catch { /* ignore */ }
+      const remaining = (meta.sprints_remaining ?? 1) - 1;
+      if (remaining <= 0) {
+        await client2.query(`DELETE FROM active_effects WHERE id = $1`, [sprintMult.id]);
+      } else {
+        await client2.query(
+          `UPDATE active_effects SET metadata = $1 WHERE id = $2`,
+          [JSON.stringify({ ...meta, sprints_remaining: remaining }), sprintMult.id],
+        );
+      }
+    }
+
+    // Timed bonus % (xp_sprint_bonus_pct) — Spirit Bead Necklace, Phoenix Feather, etc.
+    let bonusPct = 0;
+    for (const eff of activeEffects) {
+      if (eff.effect_type === "xp_sprint_bonus_pct") {
+        bonusPct += eff.effect_value ?? 0;
+      }
+    }
+
+    // Apply permanent modifiers (sprint XP % boost, capped at +60%)
+    const { rows: permRows } = await client2.query<{ total: string; mult: string }>(
+      `SELECT
+         COALESCE(SUM(CASE WHEN modifier_type IN ('sprint_xp_pct','heaven_defying_constitution') THEN modifier_value ELSE 0 END), 0) AS total,
+         COALESCE(MAX(CASE WHEN modifier_type = 'sprint_xp_multiplier' THEN modifier_value ELSE 100 END), 100) AS mult
+       FROM permanent_modifiers
+       WHERE user_id = $1`,
+      [clerkUserId],
+    );
+    const permBonusPct = Math.min(60, Number(permRows[0]?.total ?? 0));
+    const permMultiplier = Math.min(3, Number(permRows[0]?.mult ?? 100) / 100);
+
+    xpGained = Math.floor(xpGained * multiplier * (1 + (bonusPct + permBonusPct) / 100) * permMultiplier);
+
+    // Dao of Writing stack
+    const daoEffect = activeEffects.find(e => e.effect_type === "dao_of_writing");
+    if (daoEffect) {
+      let meta: { stack?: number; last_sprint_date?: string | null } = {};
+      try { meta = JSON.parse(daoEffect.metadata ?? "{}"); } catch { /* ignore */ }
+      const today = new Date().toISOString().slice(0, 10);
+      if (meta.last_sprint_date !== today) {
+        meta.stack = Math.min((meta.stack ?? 0) + 5, daoEffect.effect_value ?? 50);
+        meta.last_sprint_date = today;
+        await client2.query(
+          `UPDATE active_effects SET metadata = $1 WHERE id = $2`,
+          [JSON.stringify(meta), daoEffect.id],
+        );
+        // Add as bonus XP (counted toward permanent bonus cap)
+        const daoBonus = Math.floor(base * (meta.stack / 100));
+        xpGained += daoBonus;
+      }
+    }
+
+    // Mountain Seal: store XP from this sprint
+    const mountainSeal = activeEffects.find(e => e.effect_type === "mountain_seal");
+    if (mountainSeal) {
+      let meta: { stored_xp?: number; sprints_remaining?: number } = {};
+      try { meta = JSON.parse(mountainSeal.metadata ?? "{}"); } catch { /* ignore */ }
+      meta.stored_xp = (meta.stored_xp ?? 0) + base; // store base (not multiplied)
+      meta.sprints_remaining = (meta.sprints_remaining ?? 3) - 1;
+      if (meta.sprints_remaining <= 0) {
+        // Release stored XP as bonus
+        xpGained += meta.stored_xp;
+        await client2.query(`DELETE FROM active_effects WHERE id = $1`, [mountainSeal.id]);
+      } else {
+        await client2.query(
+          `UPDATE active_effects SET metadata = $1 WHERE id = $2`,
+          [JSON.stringify(meta), mountainSeal.id],
+        );
+      }
+    }
+
+    // Karma Beads: track sprint XP earned
+    const karmaBeads = activeEffects.find(e => e.effect_type === "karma_beads");
+    if (karmaBeads) {
+      let meta: { sprint_xp_tracked?: number } = {};
+      try { meta = JSON.parse(karmaBeads.metadata ?? "{}"); } catch { /* ignore */ }
+      meta.sprint_xp_tracked = (meta.sprint_xp_tracked ?? 0) + base;
+      await client2.query(
+        `UPDATE active_effects SET metadata = $1 WHERE id = $2`,
+        [JSON.stringify(meta), karmaBeads.id],
+      );
+    }
+
+    // Chronicle of Heaven: record best sprint
+    const chronicle = activeEffects.find(e => e.effect_type === "chronicle_of_heaven");
+    if (chronicle) {
+      let meta: { best_sprint_xp?: number; last_replay?: string | null } = {};
+      try { meta = JSON.parse(chronicle.metadata ?? "{}"); } catch { /* ignore */ }
+      // Only record if no active XP multiplier effect was running (other than permanent mods)
+      const hasMultiplierEffect = activeEffects.some(e =>
+        e.effect_type === "xp_sprint_multiplier" || e.effect_type === "xp_timed_multiplier",
+      );
+      if (!hasMultiplierEffect) {
+        meta.best_sprint_xp = Math.max(meta.best_sprint_xp ?? 0, base);
+        await client2.query(
+          `UPDATE active_effects SET metadata = $1 WHERE id = $2`,
+          [JSON.stringify(meta), chronicle.id],
+        );
+      }
+      // Check if replay is due (every 7 days)
+      const lastReplay = meta.last_replay ? new Date(meta.last_replay) : null;
+      if (!lastReplay || (Date.now() - lastReplay.getTime()) > 7 * 86_400_000) {
+        const replayXp = Math.min(chronicle.effect_value ?? 5000, meta.best_sprint_xp ?? 0);
+        if (replayXp > 0) {
+          xpGained += replayXp;
+          meta.last_replay = new Date().toISOString();
+          await client2.query(
+            `UPDATE active_effects SET metadata = $1 WHERE id = $2`,
+            [JSON.stringify(meta), chronicle.id],
+          );
+        }
+      }
+    }
+  } finally {
+    client2.release();
   }
 
   const newXp = (profileRows[0].xp ?? 0) + xpGained;
@@ -549,6 +710,14 @@ router.post("/user/xp", async (req, res): Promise<void> => {
       eq(sprintWritingTable.clerkUserId, clerkUserId),
       eq(sprintWritingTable.roomCode, roomCode),
     ));
+
+  // ── Award chests ─────────────────────────────────────────────────────────
+  // Every sprint completion → +1 Mortal Chest
+  void grantChest(clerkUserId, "mortal", 1);
+  // Win (first place) → +1 Iron Chest
+  if (isFirstPlace === true) {
+    void grantChest(clerkUserId, "iron", 1);
+  }
 
   res.json({ xpGained, newXp });
 });

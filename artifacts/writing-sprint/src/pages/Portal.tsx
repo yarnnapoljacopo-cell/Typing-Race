@@ -411,6 +411,19 @@ export default function Portal() {
                     <Users size={14} className="text-muted-foreground" />
                     Friends
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setLocation("/bag")} className="gap-2">
+                    <span className="text-sm">🎒</span>
+                    Cultivation Bag
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLocation("/chests")} className="gap-2">
+                    <span className="text-sm">🎁</span>
+                    Chests
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLocation("/crafting")} className="gap-2">
+                    <span className="text-sm">⚗️</span>
+                    Crafting Lab
+                  </DropdownMenuItem>
                   {profile?.writerName && (
                     <DropdownMenuItem
                       onClick={() => setLocation(`/profile/${encodeURIComponent(profile.writerName!)}`)}

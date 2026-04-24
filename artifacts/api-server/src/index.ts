@@ -4,6 +4,7 @@ import { logger } from "./lib/logger";
 import { setupWebSocketServer } from "./lib/wsHandler";
 import { restoreRoomsFromDB } from "./lib/roomManager";
 import { ensureSchema } from "./lib/ensureSchema";
+import { seedItems } from "./lib/seedItems";
 
 const rawPort = process.env["PORT"];
 
@@ -45,6 +46,7 @@ server.listen(port, () => {
   // DATABASE_URL is only available at runtime on Railway, not during the
   // build phase, so drizzle-kit push in the build command is a no-op there.
   ensureSchema()
+    .then(() => seedItems())
     .then(() => restoreRoomsFromDB())
     .then(() => {
       logger.info("Rooms restored from DB");
