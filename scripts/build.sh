@@ -7,22 +7,21 @@ set -euo pipefail
 : "${NODE_ENV:=production}"
 echo "[build] NODE_ENV=$NODE_ENV"
 
-# Disable corepack to avoid signature verification failures on Node 18 (known
-# corepack/keyid mismatch bug). pnpm is already available in the environment;
-# this just removes the corepack wrapper so it runs directly.
-corepack disable
+# Use npm exec to invoke pnpm directly, bypassing the broken mise pnpm shim
+# ("pnpm is not a valid shim" error). npm is always available and can locate
+# the real pnpm binary without going through mise's shim layer.
 
-pnpm install --no-frozen-lockfile
+npm exec pnpm -- install --no-frozen-lockfile
 
 # Attempt schema push — only works if DATABASE_URL is available at build time
 # (Railway injects it at runtime, so this is usually a no-op; ensureSchema() in
 # the server handles the actual migration on startup)
-pnpm --filter @workspace/db push || echo "[build] DB push skipped (DATABASE_URL not available at build time — that is expected)"
+npm exec pnpm -- --filter @workspace/db push || echo "[build] DB push skipped (DATABASE_URL not available at build time — that is expected)"
 
 # Build the frontend with the correct NODE_ENV baked in
-PORT=3000 BASE_PATH=/ NODE_ENV="$NODE_ENV" pnpm --filter @workspace/writing-sprint run build
+PORT=3000 BASE_PATH=/ NODE_ENV="$NODE_ENV" npm exec pnpm -- --filter @workspace/writing-sprint run build
 
 # Build the API server
-pnpm --filter @workspace/api-server run build
+npm exec pnpm -- --filter @workspace/api-server run build
 
 echo "[build] Done."
