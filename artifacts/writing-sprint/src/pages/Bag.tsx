@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Package, Gift, FlaskConical, Sparkles, Flame, Loader2, ShoppingBag, Coins } from "lucide-react";
+import { ArrowLeft, Package, Gift, FlaskConical, Sparkles, Flame, Loader2, ShoppingBag, Coins, AlertTriangle, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -55,6 +55,7 @@ interface InventoryItem {
   item_id: number;
   quantity: number;
   acquired_at: string;
+  overflow_since: string | null;
   name: string;
   description: string;
   category: string;
@@ -67,6 +68,16 @@ interface InventoryItem {
   sell_value: number;
   is_storage_item: boolean;
   storage_slot_count: number | null;
+}
+
+function overflowTimeLeft(overflow_since: string): string {
+  const expiresAt = new Date(overflow_since).getTime() + 24 * 60 * 60 * 1000;
+  const msLeft = expiresAt - Date.now();
+  if (msLeft <= 0) return "Expiring soon";
+  const h = Math.floor(msLeft / 3_600_000);
+  const m = Math.floor((msLeft % 3_600_000) / 60_000);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
 }
 
 interface EquippedStorage {
@@ -286,6 +297,8 @@ export default function Bag() {
     return catOk && rarOk;
   }) ?? [];
 
+  const overflowItems = bagData?.inventory.filter(i => i.overflow_since) ?? [];
+
   const usedSlots = bagData?.inventory.length ?? 0;
   const totalSlots = bagData?.totalSlots ?? 20;
   const slotPct = Math.min(100, (usedSlots / totalSlots) * 100);
@@ -424,6 +437,21 @@ export default function Bag() {
               </div>
             )}
 
+            {/* Overflow warning banner */}
+            {overflowItems.length > 0 && (
+              <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/60 bg-red-50 dark:bg-red-950/30 px-4 py-3">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+                    Bag over capacity — {overflowItems.length} item{overflowItems.length > 1 ? "s" : ""} will be deleted
+                  </p>
+                  <p className="text-xs text-red-600/80 dark:text-red-400/70 mt-0.5">
+                    Your lowest-rarity overflow items (shown in red) will be permanently deleted 24 hours after they entered overflow. Use, equip a storage ring, or free up slots to save them.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Category filter */}
             <div className="space-y-2 mb-5">
               <div className="flex flex-wrap gap-1.5">
@@ -493,12 +521,14 @@ export default function Bag() {
                       <TooltipTrigger asChild>
                         <button
                           onClick={() => setSelectedItem(item)}
-                          className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border border-l-4 transition-all hover:scale-[1.03] hover:shadow-sm text-center bg-card ${
-                            RARITY_BORDER_LEFT[item.rarity] ?? "border-l-border"
+                          className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border border-l-4 transition-all hover:scale-[1.03] hover:shadow-sm text-center ${
+                            item.overflow_since
+                              ? "bg-red-50 dark:bg-red-950/30 border-red-500 border-l-red-500"
+                              : `bg-card ${RARITY_BORDER_LEFT[item.rarity] ?? "border-l-border"}`
                           }`}
                         >
                           <span className="text-3xl leading-none">{item.icon}</span>
-                          <span className="text-xs font-medium leading-tight line-clamp-2 text-foreground">
+                          <span className={`text-xs font-medium leading-tight line-clamp-2 ${item.overflow_since ? "text-red-700 dark:text-red-400" : "text-foreground"}`}>
                             {item.name}
                           </span>
                           {item.quantity > 1 && (
@@ -506,19 +536,32 @@ export default function Bag() {
                               ×{item.quantity}
                             </span>
                           )}
-                          {onCooldown && (
+                          {onCooldown && !item.overflow_since && (
                             <span className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/85 text-xs text-muted-foreground font-mono">
                               {formatDuration(new Date(cooldownEnd!).getTime() - Date.now())}
                             </span>
                           )}
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold capitalize ${RARITY_BADGE[item.rarity] ?? "bg-muted text-muted-foreground"}`}>
-                            {item.rarity}
-                          </span>
+                          {item.overflow_since ? (
+                            <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-red-500 text-white">
+                              <Trash2 className="w-2.5 h-2.5" />
+                              {overflowTimeLeft(item.overflow_since)}
+                            </span>
+                          ) : (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold capitalize ${RARITY_BADGE[item.rarity] ?? "bg-muted text-muted-foreground"}`}>
+                              {item.rarity}
+                            </span>
+                          )}
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs">
                         <div className="font-semibold mb-1">{item.name}</div>
                         <div className="text-xs text-muted-foreground">{item.description}</div>
+                        {item.overflow_since && (
+                          <div className="text-xs text-red-500 font-semibold mt-1.5 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            Overflow — deletes in {overflowTimeLeft(item.overflow_since)}
+                          </div>
+                        )}
                         <div className="text-xs text-muted-foreground/60 mt-1 capitalize">{item.category}</div>
                       </TooltipContent>
                     </Tooltip>
@@ -611,6 +654,14 @@ export default function Bag() {
                       <span className="text-xs text-muted-foreground capitalize">{selectedItem.category}</span>
                     </div>
                     <p className="text-sm text-foreground mt-3 leading-relaxed">{selectedItem.description}</p>
+                    {selectedItem.overflow_since && (
+                      <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-400/60 bg-red-50 dark:bg-red-950/40 px-3 py-2">
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-red-700 dark:text-red-400 font-medium">
+                          Bag overflow — this item will be permanently deleted in <strong>{overflowTimeLeft(selectedItem.overflow_since)}</strong> unless you use it or free up bag space.
+                        </p>
+                      </div>
+                    )}
                     {selectedItem.effect_value && (
                       <div className="text-xs text-primary/80 mt-2 font-medium">
                         Effect: {selectedItem.effect_value}

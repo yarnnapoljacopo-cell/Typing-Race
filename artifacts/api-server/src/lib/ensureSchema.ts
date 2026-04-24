@@ -264,6 +264,9 @@ export async function ensureSchema(): Promise<void> {
         ADD COLUMN IF NOT EXISTS is_storage_item     BOOLEAN NOT NULL DEFAULT FALSE,
         ADD COLUMN IF NOT EXISTS storage_slot_count  INTEGER;
 
+      ALTER TABLE user_inventory
+        ADD COLUMN IF NOT EXISTS overflow_since TIMESTAMP NULL;
+
       ALTER TABLE active_effects
         ADD COLUMN IF NOT EXISTS metadata TEXT;
 

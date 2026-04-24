@@ -85,17 +85,13 @@ router.get("/user/bag", async (req, res): Promise<void> => {
 
   const client = await pool.connect();
   try {
-    // Inventory with item details
-    const { rows: inventory } = await client.query(
-      `SELECT ui.id, ui.item_id, ui.quantity, ui.acquired_at,
-              im.name, im.description, im.category, im.rarity,
-              im.effect_type, im.effect_value, im.effect_duration,
-              im.is_craftable, im.is_tradeable, im.icon, im.stack_limit,
-              im.sell_value, im.is_storage_item, im.storage_slot_count
-       FROM user_inventory ui
-       JOIN items_master im ON im.id = ui.item_id
-       WHERE ui.user_id = $1
-       ORDER BY im.rarity DESC, im.category, im.name`,
+    // ── Overflow management ───────────────────────────────────────────────
+    // 1. Delete items that have been in overflow for 24+ hours
+    await client.query(
+      `DELETE FROM user_inventory
+       WHERE user_id = $1
+         AND overflow_since IS NOT NULL
+         AND overflow_since < NOW() - INTERVAL '24 hours'`,
       [userId],
     );
 
@@ -104,6 +100,53 @@ router.get("/user/bag", async (req, res): Promise<void> => {
 
     // Bag slot total
     const totalSlots = await getBagSlots(userId);
+
+    // 2. Recompute overflow markers: rank items worst-first (lowest rarity → oldest).
+    //    Items beyond the slot limit get overflow_since set (preserving existing timestamp);
+    //    items now within limit have overflow_since cleared.
+    await client.query(
+      `WITH ranked AS (
+         SELECT ui.id,
+           ROW_NUMBER() OVER (
+             ORDER BY
+               CASE im.rarity
+                 WHEN 'common'    THEN 0
+                 WHEN 'uncommon'  THEN 1
+                 WHEN 'rare'      THEN 2
+                 WHEN 'epic'      THEN 3
+                 WHEN 'mythic'    THEN 4
+                 WHEN 'legendary' THEN 5
+                 ELSE 0
+               END ASC,
+               ui.acquired_at ASC
+           ) AS rk
+         FROM user_inventory ui
+         JOIN items_master im ON im.id = ui.item_id
+         WHERE ui.user_id = $1
+       )
+       UPDATE user_inventory
+       SET overflow_since = CASE
+         WHEN rk > $2 THEN COALESCE(user_inventory.overflow_since, NOW())
+         ELSE NULL
+       END
+       FROM ranked
+       WHERE user_inventory.id = ranked.id`,
+      [userId, totalSlots],
+    );
+
+    // Inventory with item details (includes overflow_since)
+    const { rows: inventory } = await client.query(
+      `SELECT ui.id, ui.item_id, ui.quantity, ui.acquired_at, ui.overflow_since,
+              im.name, im.description, im.category, im.rarity,
+              im.effect_type, im.effect_value, im.effect_duration,
+              im.is_craftable, im.is_tradeable, im.icon, im.stack_limit,
+              im.sell_value, im.is_storage_item, im.storage_slot_count
+       FROM user_inventory ui
+       JOIN items_master im ON im.id = ui.item_id
+       WHERE ui.user_id = $1
+       ORDER BY ui.overflow_since DESC NULLS LAST, im.rarity DESC, im.category, im.name`,
+      [userId],
+    );
 
     // Failure ashes count
     const { rows: ashRows } = await client.query(
