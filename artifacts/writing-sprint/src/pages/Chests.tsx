@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Package, Gift, FlaskConical, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,12 @@ interface ChestItem {
   rarity: string;
   icon: string;
   category: string;
+}
+
+interface OpenResult {
+  items: ChestItem[];
+  coins_awarded: number;
+  new_coin_balance: number | null;
 }
 
 interface Chests {
@@ -46,8 +53,8 @@ const CHEST_INFO: Record<string, {
     emoji: "📦",
     color: "from-gray-600/30 to-gray-800/30 border-gray-500/40",
     glow: "",
-    description: "Earned every sprint. Contains Common–Epic items.",
-    dropTable: "55% Common · 30% Uncommon · 10% Rare · 5% Epic",
+    description: "Earned every sprint. Contains Common–Epic items. Tiny legendary chance.",
+    dropTable: "55% Common · 30% Uncommon · 10% Rare · 5% Epic · 0.05% Legendary",
   },
   iron: {
     label: "Iron Chest",
@@ -55,8 +62,8 @@ const CHEST_INFO: Record<string, {
     emoji: "🔩",
     color: "from-slate-500/30 to-slate-700/30 border-slate-400/40",
     glow: "shadow-slate-500/20 shadow-md",
-    description: "Awarded for winning a sprint. Contains Uncommon–Mythic items and Recipe Scrolls.",
-    dropTable: "10% Uncommon · 50% Rare · 30% Epic · 10% Mythic",
+    description: "Awarded for winning a sprint. Contains Uncommon–Mythic items. Rare legendary chance.",
+    dropTable: "10% Uncommon · 50% Rare · 30% Epic · 10% Mythic · 0.3% Legendary",
   },
   crystal: {
     label: "Crystal Chest",
@@ -82,9 +89,18 @@ const CHEST_INFO: Record<string, {
     emoji: "⭐",
     color: "from-yellow-600/20 to-amber-800/20 border-yellow-400/50",
     glow: "shadow-yellow-500/40 shadow-xl",
-    description: "Supreme chest. Guaranteed Mythic + 30% chance of a Legendary.",
-    dropTable: "Guaranteed Mythic + 30% chance Legendary",
+    description: "Supreme chest. Guaranteed 2 items. 40% legendary per roll.",
+    dropTable: "60% Mythic · 40% Legendary (guaranteed 2 items, 45% chance of 3rd)",
   },
+};
+
+// Bonus item drop chances per chest (matches backend CHEST_CONFIGS)
+const BONUS_CHANCES: Record<string, [number, number]> = {
+  mortal:   [0.15, 0],
+  iron:     [0.25, 0.05],
+  crystal:  [0.40, 0.12],
+  inferno:  [0.55, 0.22],
+  immortal: [1.0, 0.45],
 };
 
 const RARITY_COLORS: Record<string, string> = {
@@ -100,11 +116,12 @@ export default function Chests() {
   const [, setLocation] = useLocation();
   const { isSignedIn } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [chests, setChests] = useState<Chests | null>(null);
   const [loading, setLoading] = useState(true);
   const [opening, setOpening] = useState(false);
-  const [openResult, setOpenResult] = useState<ChestItem[] | null>(null);
+  const [openResult, setOpenResult] = useState<OpenResult | null>(null);
   const [selectedChest, setSelectedChest] = useState<string | null>(null);
   const [animating, setAnimating] = useState(false);
 
@@ -144,9 +161,15 @@ export default function Chests() {
       }
       // Brief animation delay then show results
       await new Promise(r => setTimeout(r, 900));
-      setOpenResult(data.items as ChestItem[]);
+      setOpenResult({
+        items: data.items as ChestItem[],
+        coins_awarded: data.coins_awarded ?? 0,
+        new_coin_balance: data.new_coin_balance ?? null,
+      });
       setSelectedChest(chestType);
       fetchChests();
+      // Refresh coin balance in header
+      void queryClient.invalidateQueries({ queryKey: ["coinBalance"] });
     } catch {
       toast({ title: "Error", description: "Failed to open chest", variant: "destructive" });
     } finally {
@@ -154,6 +177,8 @@ export default function Chests() {
       setAnimating(false);
     }
   };
+
+  const closeResult = () => { setOpenResult(null); setSelectedChest(null); };
 
   const CHEST_ORDER: (keyof Chests)[] = ["mortal", "iron", "crystal", "inferno", "immortal"];
   const totalChests = chests ? CHEST_ORDER.reduce((sum, k) => sum + chests[k], 0) : 0;
@@ -211,6 +236,12 @@ export default function Chests() {
             {CHEST_ORDER.map(chestType => {
               const qty = chests?.[chestType] ?? 0;
               const info = CHEST_INFO[chestType];
+              const [b2, b3] = BONUS_CHANCES[chestType] ?? [0, 0];
+              const bonusLabel = b2 === 1.0
+                ? `Guaranteed 2 items · ${Math.round(b3 * 100)}% chance of 3rd`
+                : b2 > 0
+                ? `${Math.round(b2 * 100)}% chance of 2nd item${b3 > 0 ? ` · ${Math.round(b3 * 100)}% chance of 3rd` : ""}`
+                : "";
               return (
                 <div
                   key={chestType}
@@ -226,6 +257,9 @@ export default function Chests() {
                     </div>
                     <p className="text-xs text-white/60 mb-1">{info.description}</p>
                     <p className="text-[11px] text-white/40 font-mono">{info.dropTable}</p>
+                    {bonusLabel && (
+                      <p className="text-[11px] text-yellow-400/50 font-mono mt-0.5">✦ {bonusLabel}</p>
+                    )}
                   </div>
                   <Button
                     disabled={qty === 0 || opening}
@@ -268,22 +302,24 @@ export default function Chests() {
       </div>
 
       {/* Open Result Dialog */}
-      <Dialog open={!!openResult} onOpenChange={(open) => { if (!open) { setOpenResult(null); setSelectedChest(null); } }}>
+      <Dialog open={!!openResult} onOpenChange={(open) => { if (!open) closeResult(); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-center text-xl">
               {selectedChest && CHEST_INFO[selectedChest]?.label} Opened!
             </DialogTitle>
             <DialogDescription className="text-center text-sm">
-              {openResult && openResult.length > 1 ? "You received these items:" : "You received:"}
+              {openResult && openResult.items.length > 1
+                ? `You received ${openResult.items.length} items!`
+                : "You received:"}
             </DialogDescription>
           </DialogHeader>
 
-          <div className={`flex gap-3 mt-2 ${openResult && openResult.length > 1 ? "flex-row justify-center flex-wrap" : "flex-col items-center"}`}>
-            {openResult?.map((item, idx) => (
+          <div className={`flex gap-3 mt-2 ${openResult && openResult.items.length > 1 ? "flex-row justify-center flex-wrap" : "flex-col items-center"}`}>
+            {openResult?.items.map((item, idx) => (
               <div
                 key={idx}
-                className={`flex flex-col items-center gap-2 p-4 rounded-xl border w-full ${RARITY_COLORS[item.rarity] ?? "border-border"}`}
+                className={`flex flex-col items-center gap-2 p-4 rounded-xl border ${openResult.items.length > 1 ? "flex-1 min-w-[120px]" : "w-full"} ${RARITY_COLORS[item.rarity] ?? "border-border"}`}
               >
                 <span className="text-5xl leading-none">{item.icon}</span>
                 <div className="text-center">
@@ -294,20 +330,34 @@ export default function Chests() {
             ))}
           </div>
 
+          {/* Coin drop display */}
+          {openResult && openResult.coins_awarded > 0 && (
+            <div className="mt-3 flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-yellow-900/20 border border-yellow-500/30">
+              <span className="text-xl">🪙</span>
+              <span className="text-yellow-300 font-semibold text-sm">
+                +{openResult.coins_awarded} Spirit Coins
+              </span>
+              {openResult.new_coin_balance !== null && (
+                <span className="text-yellow-400/50 text-xs ml-1">
+                  ({openResult.new_coin_balance.toLocaleString()} total)
+                </span>
+              )}
+            </div>
+          )}
+
+          {openResult && openResult.coins_awarded === 0 && (
+            <div className="mt-3 text-center text-xs text-muted-foreground">
+              Daily coin limit reached — coins reset every 24 hours.
+            </div>
+          )}
+
           <div className="flex gap-2 mt-4">
-            <Button
-              className="flex-1"
-              onClick={() => { setOpenResult(null); setSelectedChest(null); }}
-            >
+            <Button className="flex-1" onClick={closeResult}>
               Nice!
             </Button>
             <Button
               variant="outline"
-              onClick={() => {
-                setOpenResult(null);
-                setSelectedChest(null);
-                setLocation("/bag");
-              }}
+              onClick={() => { closeResult(); setLocation("/bag"); }}
             >
               View Bag
             </Button>

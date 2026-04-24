@@ -24,33 +24,39 @@ type ChestConfig = {
   rarityTable: RarityWeight[];
   allowedCategories: string[];
   allowRecipes: boolean;
-  allowLegendary: boolean;
+  // bonusItemChances[0] = chance of a 2nd item, [1] = chance of a 3rd item
+  bonusItemChances: [number, number];
 };
 
 const CHEST_CONFIGS: Record<string, ChestConfig> = {
   mortal: {
+    // ~0.05% legendary (1 in 2 000)
     rarityTable: [
-      { rarity: "common",   weight: 55 },
-      { rarity: "uncommon", weight: 30 },
-      { rarity: "rare",     weight: 10 },
-      { rarity: "epic",     weight:  5 },
+      { rarity: "common",    weight: 54.95 },
+      { rarity: "uncommon",  weight: 30 },
+      { rarity: "rare",      weight: 10 },
+      { rarity: "epic",      weight:  5 },
+      { rarity: "legendary", weight:  0.05 },
     ],
     allowedCategories: ["pill", "treasure", "ingredient"],
     allowRecipes: false,
-    allowLegendary: false,
+    bonusItemChances: [0.15, 0],
   },
   iron: {
+    // ~0.3% legendary (1 in ~330)
     rarityTable: [
-      { rarity: "uncommon", weight: 10 },
-      { rarity: "rare",     weight: 50 },
-      { rarity: "epic",     weight: 30 },
-      { rarity: "mythic",   weight: 10 },
+      { rarity: "uncommon",  weight: 9.7 },
+      { rarity: "rare",      weight: 50 },
+      { rarity: "epic",      weight: 30 },
+      { rarity: "mythic",    weight: 10 },
+      { rarity: "legendary", weight:  0.3 },
     ],
     allowedCategories: ["pill", "treasure", "ingredient"],
     allowRecipes: true,
-    allowLegendary: false,
+    bonusItemChances: [0.25, 0.05],
   },
   crystal: {
+    // 5% legendary
     rarityTable: [
       { rarity: "rare",      weight: 20 },
       { rarity: "epic",      weight: 45 },
@@ -59,9 +65,10 @@ const CHEST_CONFIGS: Record<string, ChestConfig> = {
     ],
     allowedCategories: ["pill", "treasure", "artifact", "ingredient"],
     allowRecipes: true,
-    allowLegendary: true,
+    bonusItemChances: [0.40, 0.12],
   },
   inferno: {
+    // 35% legendary
     rarityTable: [
       { rarity: "epic",      weight: 10 },
       { rarity: "mythic",    weight: 55 },
@@ -69,13 +76,17 @@ const CHEST_CONFIGS: Record<string, ChestConfig> = {
     ],
     allowedCategories: ["pill", "treasure", "artifact", "recipe"],
     allowRecipes: true,
-    allowLegendary: true,
+    bonusItemChances: [0.55, 0.22],
   },
   immortal: {
-    rarityTable: [{ rarity: "mythic", weight: 100 }],
+    // 40% legendary per roll (extremely high)
+    rarityTable: [
+      { rarity: "mythic",    weight: 60 },
+      { rarity: "legendary", weight: 40 },
+    ],
     allowedCategories: ["pill", "treasure", "artifact", "ingredient", "recipe"],
     allowRecipes: true,
-    allowLegendary: true,
+    bonusItemChances: [1.0, 0.45], // 2nd item guaranteed, 45% 3rd
   },
 };
 
@@ -210,9 +221,8 @@ router.post("/user/chests/open", async (req, res): Promise<void> => {
         }
       }
 
-      // Respect chest restrictions
-      if (!config.allowLegendary && rarity === "legendary") rarity = "mythic";
-      if (!config.allowRecipes && rarity === "legendary") rarity = "mythic";
+      // Strip recipes from category filter if chest doesn't allow them
+      // (legendary is now available from all chests, no flag needed)
 
       // Build category filter (copy so we don't mutate the config)
       const catFilter = [...config.allowedCategories];
@@ -248,19 +258,19 @@ router.post("/user/chests/open", async (req, res): Promise<void> => {
       return candidates[0];
     }
 
-    // Main item
+    // Main item (always 1)
     const mainItem = await rollOneItem();
     if (mainItem) items.push(mainItem);
 
-    // Immortal chest: guaranteed one Mythic + 30% chance of extra Legendary
-    if (chestType === "immortal") {
-      if (!items[0] || RARITY_ORDER.indexOf(items[0].rarity) < RARITY_ORDER.indexOf("mythic")) {
-        const mythicItem = await rollOneItem("mythic");
-        if (mythicItem) items.push(mythicItem);
-      }
-      if (Math.random() < 0.30) {
-        const legItem = await rollOneItem("legendary");
-        if (legItem) items.push(legItem);
+    // Bonus item rolls — each chest has its own probability for a 2nd and 3rd item
+    const [chance2nd, chance3rd] = config.bonusItemChances;
+    if (chance2nd > 0 && Math.random() < chance2nd) {
+      const bonus2 = await rollOneItem();
+      if (bonus2) items.push(bonus2);
+
+      if (chance3rd > 0 && Math.random() < chance3rd) {
+        const bonus3 = await rollOneItem();
+        if (bonus3) items.push(bonus3);
       }
     }
 
