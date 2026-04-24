@@ -30,6 +30,7 @@ import ActiveRooms from "./ActiveRooms";
 import { useGuest } from "@/lib/guestContext";
 import { useVillainMode } from "@/lib/villainModeContext";
 import { useSkin } from "@/lib/skinContext";
+import { Navbar } from "@/components/Navbar";
 
 type RoomMode = "regular" | "open" | "goal" | "boss" | "kart" | "gladiator";
 
@@ -288,6 +289,8 @@ export default function Portal() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
+      <Navbar />
+
       {/* ── Fixed background ── */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0, background: C.cream }} />
 
@@ -308,7 +311,7 @@ export default function Portal() {
       <div style={{ position: "fixed", width: 500, height: 500, borderRadius: "50%", border: "1.5px solid rgba(107,143,212,0.07)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 0, pointerEvents: "none" }} />
 
       {/* ── Scrollable content ── */}
-      <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", overflowY: "auto", padding: "32px 0" }}>
+      <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto", paddingTop: 80, paddingBottom: 32 }}>
         <div className="portal-fade-up" style={{ width: "100%", maxWidth: 460, padding: "0 20px", fontFamily: "'DM Sans', sans-serif" }}>
 
           {/* Logo */}
