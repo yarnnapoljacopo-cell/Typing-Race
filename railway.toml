@@ -1,7 +1,9 @@
 [build]
 builder = "RAILPACK"
 buildCommand = "bash scripts/build.sh"
-corepackEnabled = false
+
+[build.environment]
+COREPACK_INTEGRITY_KEYS = ""
 
 [deploy]
 startCommand = "node --enable-source-maps artifacts/api-server/dist/index.mjs"
