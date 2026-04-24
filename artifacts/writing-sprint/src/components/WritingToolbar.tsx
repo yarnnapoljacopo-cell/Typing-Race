@@ -1,5 +1,4 @@
 import { memo } from "react";
-import { Type, AlignLeft, Bold, Italic, Underline } from "lucide-react";
 
 export interface WritingStyle {
   fontFamily: string;
@@ -9,12 +8,20 @@ export interface WritingStyle {
   typewriterMode: boolean;
 }
 
+const C = {
+  muted: "#7a7a92",
+  ink: "#1a1a2e",
+  blue: "#6B8FD4",
+  blueLight: "#dce6f7",
+  border: "rgba(107,143,212,0.15)",
+};
+
 const FONTS = [
-  { label: "Georgia",  sublabel: "Classic",     value: "Georgia, serif" },
-  { label: "Times",    sublabel: "Traditional", value: "'Times New Roman', Times, serif" },
-  { label: "Palatino", sublabel: "Elegant",     value: "'Palatino Linotype', Palatino, serif" },
-  { label: "Courier",  sublabel: "Typewriter",  value: "'Courier New', Courier, monospace" },
-  { label: "System",   sublabel: "Clean",       value: "system-ui, -apple-system, sans-serif" },
+  { label: "Georgia",  sublabel: "Georgia",  value: "Georgia, serif" },
+  { label: "Times",    sublabel: "Times",    value: "'Times New Roman', Times, serif" },
+  { label: "Palatino", sublabel: "Palatino", value: "'Palatino Linotype', Palatino, serif" },
+  { label: "Courier",  sublabel: "Courier",  value: "'Courier New', Courier, monospace" },
+  { label: "System",   sublabel: "System",   value: "system-ui, -apple-system, sans-serif" },
 ];
 
 const SIZES = [
@@ -30,10 +37,10 @@ const LINE_HEIGHTS = [
   { label: "Relaxed", value: 2.1 },
 ];
 
-const PARAGRAPH_MODES: { label: string; sublabel: string; value: WritingStyle["paragraphMode"] }[] = [
-  { label: "None",   sublabel: "Plain Enter",           value: "none" },
-  { label: "Indent", sublabel: "Indent next paragraph", value: "indent" },
-  { label: "Double", sublabel: "Blank line between paragraphs", value: "double" },
+const PARAGRAPH_MODES: { label: string; value: WritingStyle["paragraphMode"] }[] = [
+  { label: "None",   value: "none" },
+  { label: "Indent", value: "indent" },
+  { label: "Double", value: "double" },
 ];
 
 export type FormatType = "bold" | "italic" | "underline";
@@ -44,35 +51,62 @@ interface WritingToolbarProps {
   onFormat: (type: FormatType) => void;
 }
 
-function ToolBtn({
-  active,
-  onClick,
-  children,
-  title,
-  className = "",
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  title?: string;
-  className?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      className={`h-7 rounded text-xs font-semibold transition-all ${
-        active
-          ? "bg-primary text-primary-foreground shadow-sm"
-          : "bg-muted/60 text-foreground hover:bg-muted"
-      } ${className}`}
-    >
-      {children}
-    </button>
-  );
+const dividerStyle: React.CSSProperties = {
+  width: 1, height: 20,
+  background: C.border,
+  margin: "0 4px",
+  flexShrink: 0,
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: "0.72rem", fontWeight: 700, color: C.muted,
+  letterSpacing: "0.06em", textTransform: "uppercase",
+  marginRight: 4, whiteSpace: "nowrap",
+  fontFamily: "'DM Sans', sans-serif",
+};
+
+function fontChipStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: "5px 10px", borderRadius: 8, fontSize: "0.82rem",
+    cursor: "pointer", border: `1.5px solid ${active ? C.blue : "transparent"}`,
+    transition: "all 0.15s", color: active ? "white" : C.muted,
+    background: active ? C.blue : "none", fontFamily: "'DM Sans', sans-serif",
+    display: "flex", flexDirection: "column", alignItems: "center",
+    lineHeight: 1.1,
+  };
 }
 
-const Divider = () => <div className="h-6 w-px bg-border hidden sm:block" />;
+function sizeChipStyle(active: boolean): React.CSSProperties {
+  return {
+    width: 30, height: 30, borderRadius: 8,
+    display: "flex", alignItems: "center", justifyContent: "center",
+    fontSize: "0.78rem", fontWeight: 700, cursor: "pointer",
+    border: `1.5px solid transparent`,
+    color: active ? "white" : C.muted,
+    background: active ? C.blue : "none",
+    transition: "all 0.15s", fontFamily: "'DM Sans', sans-serif",
+  };
+}
+
+function spacingChipStyle(active: boolean, dark?: boolean): React.CSSProperties {
+  const activeBg = dark ? C.ink : C.blue;
+  return {
+    padding: "5px 10px", borderRadius: 8, fontSize: "0.75rem", fontWeight: 700,
+    cursor: "pointer", border: `1.5px solid transparent`,
+    color: active ? "white" : C.muted,
+    letterSpacing: "0.05em", textTransform: "uppercase",
+    transition: "all 0.15s", background: active ? activeBg : "none",
+    fontFamily: "'DM Sans', sans-serif",
+  };
+}
+
+const formatChipBase: React.CSSProperties = {
+  width: 30, height: 30, borderRadius: 8,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  fontSize: "0.85rem", fontWeight: 700, cursor: "pointer",
+  border: `1.5px solid ${C.border}`,
+  color: C.muted, transition: "all 0.15s", background: "none",
+};
 
 export const WritingToolbar = memo(function WritingToolbar({
   style,
@@ -80,126 +114,103 @@ export const WritingToolbar = memo(function WritingToolbar({
   onFormat,
 }: WritingToolbarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2.5 px-3 py-2 bg-card border border-b-0 rounded-t-lg">
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, fontFamily: "'DM Sans', sans-serif" }}>
 
-      {/* Font family */}
-      <div className="flex items-center gap-1 text-muted-foreground">
-        <Type size={12} />
-        <span className="text-[10px] font-semibold uppercase tracking-wider hidden sm:inline">Font</span>
-      </div>
-      <div className="flex items-center gap-1">
+      {/* Row 1: Font | Size | Line-height */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={labelStyle}>T Font</span>
         {FONTS.map((f) => (
           <button
             key={f.value}
             onClick={() => onChange({ fontFamily: f.value })}
-            title={`${f.label} — ${f.sublabel}`}
-            className={`flex flex-col items-center justify-center px-2 py-1 rounded transition-all ${
-              style.fontFamily === f.value
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "bg-muted/60 text-foreground hover:bg-muted"
-            }`}
-            style={{ minWidth: "44px" }}
+            title={f.label}
+            style={fontChipStyle(style.fontFamily === f.value)}
           >
-            <span style={{ fontFamily: f.value, fontSize: "14px", lineHeight: 1, fontWeight: style.fontFamily === f.value ? 700 : 500 }}>
-              Ag
-            </span>
-            <span className="text-[9px] mt-0.5 font-medium leading-none opacity-80">{f.label}</span>
+            <span style={{ fontFamily: f.value, fontSize: "0.82rem", fontWeight: 700 }}>Ag</span>
+            <small style={{ fontSize: "0.6rem" }}>{f.sublabel}</small>
+          </button>
+        ))}
+
+        <div style={dividerStyle} />
+
+        {SIZES.map((s) => (
+          <button
+            key={s.value}
+            onClick={() => onChange({ fontSize: s.value })}
+            style={sizeChipStyle(style.fontSize === s.value)}
+          >
+            {s.label}
+          </button>
+        ))}
+
+        <div style={dividerStyle} />
+
+        {LINE_HEIGHTS.map((lh) => (
+          <button
+            key={lh.value}
+            onClick={() => onChange({ lineHeight: lh.value })}
+            style={spacingChipStyle(style.lineHeight === lh.value)}
+          >
+            {lh.label}
           </button>
         ))}
       </div>
 
-      <Divider />
+      {/* Row 2: Align icon | Paragraph | Format | TW */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {/* Align icon — decorative */}
+        <button style={formatChipBase} title="Paragraph settings">≡</button>
 
-      {/* Font size */}
-      <div className="flex items-center gap-1">
-        {SIZES.map((s) => (
-          <ToolBtn
-            key={s.value}
-            active={style.fontSize === s.value}
-            onClick={() => onChange({ fontSize: s.value })}
-            className="w-8"
-          >
-            {s.label}
-          </ToolBtn>
-        ))}
-      </div>
-
-      <Divider />
-
-      {/* Line height */}
-      <div className="flex items-center gap-1">
-        {LINE_HEIGHTS.map((lh) => (
-          <ToolBtn
-            key={lh.value}
-            active={style.lineHeight === lh.value}
-            onClick={() => onChange({ lineHeight: lh.value })}
-            title={`Line height: ${lh.label}`}
-            className="px-2 uppercase tracking-wide text-[10px]"
-          >
-            {lh.label}
-          </ToolBtn>
-        ))}
-      </div>
-
-      <Divider />
-
-      {/* Paragraph mode */}
-      <div className="flex items-center gap-1 text-muted-foreground">
-        <AlignLeft size={12} />
-        <span className="text-[10px] font-semibold uppercase tracking-wider hidden sm:inline">¶</span>
-      </div>
-      <div className="flex items-center gap-1">
         {PARAGRAPH_MODES.map((m) => (
-          <ToolBtn
+          <button
             key={m.value}
-            active={style.paragraphMode === m.value}
             onClick={() => onChange({ paragraphMode: m.value })}
-            title={m.sublabel}
-            className="px-2 uppercase tracking-wide text-[10px]"
+            style={spacingChipStyle(style.paragraphMode === m.value, true)}
           >
             {m.label}
-          </ToolBtn>
+          </button>
         ))}
-      </div>
 
-      <Divider />
+        <div style={dividerStyle} />
 
-      {/* Formatting: Bold / Italic / Underline */}
-      <div className="flex items-center gap-1">
         <button
           onClick={() => onFormat("bold")}
           title="Bold"
-          className="h-7 w-7 rounded flex items-center justify-center bg-muted/60 text-foreground hover:bg-muted transition-all"
+          style={formatChipBase}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.blueLight; (e.currentTarget as HTMLElement).style.color = C.ink; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = C.muted; }}
         >
-          <Bold size={13} strokeWidth={2.5} />
+          <strong>B</strong>
         </button>
         <button
           onClick={() => onFormat("italic")}
           title="Italic"
-          className="h-7 w-7 rounded flex items-center justify-center bg-muted/60 text-foreground hover:bg-muted transition-all"
+          style={formatChipBase}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.blueLight; (e.currentTarget as HTMLElement).style.color = C.ink; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = C.muted; }}
         >
-          <Italic size={13} strokeWidth={2} />
+          <em>I</em>
         </button>
         <button
           onClick={() => onFormat("underline")}
           title="Underline"
-          className="h-7 w-7 rounded flex items-center justify-center bg-muted/60 text-foreground hover:bg-muted transition-all"
+          style={{ ...formatChipBase, textDecoration: "underline" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.blueLight; (e.currentTarget as HTMLElement).style.color = C.ink; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = C.muted; }}
         >
-          <Underline size={13} strokeWidth={2} />
+          U
+        </button>
+
+        <div style={dividerStyle} />
+
+        <button
+          onClick={() => onChange({ typewriterMode: !style.typewriterMode })}
+          title="Typewriter mode — cursor stays vertically centered while you write"
+          style={spacingChipStyle(style.typewriterMode, true)}
+        >
+          TW
         </button>
       </div>
-
-      <Divider />
-
-      {/* Typewriter mode */}
-      <ToolBtn
-        active={style.typewriterMode}
-        onClick={() => onChange({ typewriterMode: !style.typewriterMode })}
-        title="Typewriter mode — cursor stays vertically centered while you write"
-        className="px-2 text-[10px] uppercase tracking-wide"
-      >
-        TW
-      </ToolBtn>
 
     </div>
   );

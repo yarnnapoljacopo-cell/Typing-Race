@@ -1144,12 +1144,12 @@ export default function Room() {
           />
         </div>
       ) : (
-        <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col gap-4"} style={!distractionFree ? { padding: "0 20px 20px" } : undefined}>
+        <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col"} style={!distractionFree ? { padding: "16px 20px 80px" } : undefined}>
           {/* Race / boss track — hidden in distraction-free mode */}
           {!distractionFree && (
             <div
               className="sticky z-20 pb-2"
-              style={{ top: 56, background: "#F5F2EC" }}
+              style={{ top: 56, background: "#F5F2EC", maxWidth: 1100, margin: "0 auto", width: "100%" }}
               onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
             ><>
               {room.mode === "gladiator" ? (
@@ -1211,13 +1211,13 @@ export default function Room() {
           </div>
           )}
 
-          <div className={distractionFree
-            ? "flex-1 flex flex-col px-6 md:px-24 py-4"
-            : "grid grid-cols-1 md:grid-cols-4 gap-4 flex-1"
-          }>
+          <div
+            className={distractionFree ? "flex-1 flex flex-col px-6 md:px-24 py-4" : ""}
+            style={!distractionFree ? { display: "grid", gridTemplateColumns: "1fr 240px", gap: 16, flex: 1, maxWidth: 1100, margin: "0 auto", width: "100%" } : undefined}
+          >
 
             {/* Writing area */}
-            <div className={distractionFree ? "flex-1 flex flex-col max-w-3xl mx-auto w-full" : "md:col-span-3 flex flex-col"}>
+            <div className={distractionFree ? "flex-1 flex flex-col max-w-3xl mx-auto w-full" : "flex flex-col"}>
               {/* Distraction-free minimal top bar */}
               {distractionFree && (
                 <div className="flex items-center justify-between mb-3 px-1">
@@ -1254,33 +1254,37 @@ export default function Room() {
                   <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} />
                 </div>
               )}
+
+              {/* Warmup / countdown banner — between toolbar and editor */}
+              {(isWaiting || isCountdown) && (
+                <div style={{
+                  background: isCountdown
+                    ? "linear-gradient(135deg, rgba(232,168,56,0.1), rgba(232,168,56,0.06))"
+                    : "linear-gradient(135deg, rgba(232,168,56,0.1), rgba(232,168,56,0.06))",
+                  border: `1px solid ${isCountdown ? "rgba(232,168,56,0.25)" : "rgba(232,168,56,0.2)"}`,
+                  borderRadius: 10, padding: "10px 14px",
+                  fontSize: "0.82rem", color: "#1a1a2e",
+                  display: "flex", alignItems: "center", gap: 8,
+                  marginBottom: 8,
+                }}>
+                  {isCountdown ? (
+                    <>
+                      <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "1rem", color: "#a07020" }}>
+                        {formatCountdown(room.countdownTimeLeft ?? 0)}
+                      </span>
+                      <span>until the sprint starts — warm up while you wait!</span>
+                    </>
+                  ) : (
+                    <span>✍️ Write ahead while you wait — words written now <strong>won't count</strong> toward your score.</span>
+                  )}
+                </div>
+              )}
+
               <div
                 style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", overflow: "hidden", flex: 1, display: "flex", flexDirection: "column", minHeight: 400 }}
                 className={`${kartState.boldText ? "kart-banana-hit" : ""}${kartState.blurCounter ? " kart-blur-counter" : ""}`}
               >
-                {/* Pre-sprint / countdown hint bar */}
-                {(isWaiting || isCountdown) && (
-                  <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    fontSize: "0.82rem", fontWeight: 500, padding: "10px 14px",
-                    background: isCountdown
-                      ? "linear-gradient(135deg, rgba(232,168,56,0.1), rgba(232,168,56,0.06))"
-                      : "linear-gradient(135deg, rgba(107,143,212,0.08), rgba(107,143,212,0.04))",
-                    borderBottom: "1px solid " + (isCountdown ? "rgba(232,168,56,0.2)" : "rgba(107,143,212,0.15)"),
-                    color: isCountdown ? "#a07020" : "#1a1a2e",
-                  }}>
-                    {isCountdown ? (
-                      <>
-                        <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "1rem" }}>
-                          {formatCountdown(room.countdownTimeLeft ?? 0)}
-                        </span>
-                        <span>until the sprint starts — warm up while you wait!</span>
-                      </>
-                    ) : (
-                      <span>✍️ Write ahead while you wait — words written now <strong>won't count</strong> toward your score.</span>
-                    )}
-                  </div>
-                )}
+                {/* nothing before the editor now */}
                 <div
                   ref={textareaRef}
                   contentEditable={!readMode && (isRunning || isWaiting || isCountdown)}
@@ -1339,18 +1343,6 @@ export default function Room() {
                       )}
                     </div>
                   )}
-                  <button
-                    onClick={saveToMyFiles}
-                    title={savedToMyFiles ? "Saved to Files" : "Save to Files"}
-                    className={`flex items-center gap-1 px-2 py-1 rounded border text-[10px] font-medium transition-all duration-200 ${
-                      savedToMyFiles
-                        ? "bg-primary/10 border-primary/40 text-primary"
-                        : "bg-muted/40 border-border text-muted-foreground hover:text-primary hover:border-primary/40"
-                    }`}
-                  >
-                    {savedToMyFiles ? <BookCheck size={12} /> : <BookOpen size={12} />}
-                    {savedToMyFiles ? "Saved" : "Save to Files"}
-                  </button>
                   <div className="kart-word-count bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
                     <span className="font-mono font-semibold text-sm text-foreground">{netWordCount}{room.mode === "kart" && kartState.bonusWords > 0 ? <span className="text-orange-400 text-xs ml-1">+{kartState.bonusWords}</span> : null}</span>
                     <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
@@ -1373,7 +1365,7 @@ export default function Room() {
             </div>
 
             {/* Sidebar — hidden in distraction-free mode */}
-            {!distractionFree && <div className="md:col-span-1 flex flex-col gap-4">
+            {!distractionFree && <div className="flex flex-col gap-3" style={{ width: 240, minWidth: 240 }}>
               <div
                 className="transition-opacity duration-500"
                 style={{ opacity: isTyping && isRunning ? 0.3 : 1 }}
@@ -1523,6 +1515,50 @@ export default function Room() {
             </div>}
 
           </div>
+        </div>
+      )}
+
+      {/* ── Sticky bottom bar ───────────────────────────────────────── */}
+      {!distractionFree && (
+        <div style={{
+          position: "sticky", bottom: 0, zIndex: 50,
+          background: "rgba(245,242,236,0.95)",
+          backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+          borderTop: "1px solid rgba(107,143,212,0.15)",
+          padding: "10px 20px",
+          display: "flex", justifyContent: "flex-end", gap: 10,
+        }}>
+          <button
+            onClick={saveToMyFiles}
+            style={{
+              padding: "9px 18px", borderRadius: 10,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "0.85rem", fontWeight: 600, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 7,
+              transition: "all 0.18s",
+              background: "white", border: "1.5px solid rgba(107,143,212,0.15)", color: "#7a7a92",
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#6B8FD4"; (e.currentTarget as HTMLElement).style.color = "#1a1a2e"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(107,143,212,0.15)"; (e.currentTarget as HTMLElement).style.color = "#7a7a92"; }}
+            title={savedToMyFiles ? "Saved to Files" : "Save to Files"}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            {savedToMyFiles ? "Saved" : "Save to Files"}
+          </button>
+
+          {(isWaiting || isCountdown) && (
+            <button
+              style={{
+                padding: "9px 18px", borderRadius: 10,
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "0.85rem", fontWeight: 600, cursor: "default",
+                display: "flex", alignItems: "center", gap: 7,
+                background: "rgba(232,168,56,0.10)", border: "1.5px solid rgba(232,168,56,0.3)", color: "#a07020",
+              }}
+            >
+              🔥 WARM-UP
+            </button>
+          )}
         </div>
       )}
 
