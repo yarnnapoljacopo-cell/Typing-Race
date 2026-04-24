@@ -5,6 +5,8 @@ import { ensureUserCoins, dailyResetCheck, creditCoins } from "../lib/coinHelper
 
 const router: IRouter = Router();
 
+const DAILY_EARN_CAP = 80;
+
 // ── GET /api/coins ────────────────────────────────────────────────────────────
 // Returns balance, daily stats, and last 20 transactions.
 // Triggers the daily reset check on every call.
