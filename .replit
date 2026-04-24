@@ -66,4 +66,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 CLERK_FAPI_URL = "https://clerk.writingsprint.site"
-VITE_CLERK_PK = "pk_live_Y2xlcmsud3JpdGluZ3NwcmludC5zaXRlJA"
+VITE_CLERK_PK = "pk_test_Y2hvaWNlLWFuY2hvdnktMzEuY2xlcmsuYWNjb3VudHMuZGV2JA"
