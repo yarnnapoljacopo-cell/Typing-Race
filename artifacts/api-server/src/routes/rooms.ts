@@ -713,10 +713,14 @@ router.post("/user/xp", async (req, res): Promise<void> => {
 
   // ── Award chests ─────────────────────────────────────────────────────────
   // Every sprint completion → +1 Mortal Chest
-  void grantChest(clerkUserId, "mortal", 1);
+  grantChest(clerkUserId, "mortal", 1).catch((err) =>
+    console.error("[chest] grantChest(mortal) failed:", err),
+  );
   // Win (first place) → +1 Iron Chest
   if (isFirstPlace === true) {
-    void grantChest(clerkUserId, "iron", 1);
+    grantChest(clerkUserId, "iron", 1).catch((err) =>
+      console.error("[chest] grantChest(iron) failed:", err),
+    );
   }
 
   res.json({ xpGained, newXp });

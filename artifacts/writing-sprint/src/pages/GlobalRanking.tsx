@@ -1,9 +1,7 @@
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
-import { Crown, ArrowLeft, Trophy, Loader2, Lock } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { getRankFromXp } from "@/lib/ranks";
+import { Crown, ArrowLeft, Trophy, Loader2 } from "lucide-react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -27,10 +25,9 @@ async function fetchGlobalRankings(): Promise<RankerEntry[]> {
 }
 
 function XpBar({ xp }: { xp: number }) {
-  const rank = getRankFromXp(xp);
-  const nextMinXp = 250000;
-  const span = nextMinXp - RANKER_MIN_XP;
-  const progress = Math.min(100, Math.floor(((xp - RANKER_MIN_XP) / span) * 100));
+  const aboveRanker = xp - RANKER_MIN_XP;
+  const span = 100_000; // visual span: 200k–300k
+  const progress = Math.min(100, Math.floor((aboveRanker / span) * 100));
   return (
     <div className="flex items-center gap-2 min-w-[120px]">
       <div className="flex-1 h-1.5 rounded-full bg-fuchsia-900/40 overflow-hidden">
@@ -56,12 +53,9 @@ export default function GlobalRanking() {
     enabled: isLoaded && !!isSignedIn,
   });
 
-  const isRanker = (profile?.xp ?? 0) >= RANKER_MIN_XP;
-
   const { data: rankings, isLoading: rankingsLoading } = useQuery({
     queryKey: ["global-rankings"],
     queryFn: fetchGlobalRankings,
-    enabled: isRanker,
   });
 
   if (!isLoaded || profileLoading) {
@@ -72,29 +66,9 @@ export default function GlobalRanking() {
     );
   }
 
-  if (!isSignedIn || !isRanker) {
-    return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-5 bg-background px-4">
-        <div className="flex flex-col items-center gap-3 text-center max-w-sm">
-          <div className="w-14 h-14 rounded-full bg-fuchsia-950/60 border border-fuchsia-500/30 flex items-center justify-center">
-            <Lock className="w-7 h-7 text-fuchsia-400" />
-          </div>
-          <h1 className="text-xl font-semibold text-foreground">Access Restricted</h1>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            The Global Ranking is exclusive to{" "}
-            <span className="text-fuchsia-400 font-semibold">👑 The Ranker</span>.
-            Reach <strong>200,000 XP</strong> to unlock this hall of legends.
-          </p>
-        </div>
-        <Button variant="ghost" size="sm" onClick={() => setLocation("/portal")} className="gap-2">
-          <ArrowLeft className="w-4 h-4" />
-          Back to Portal
-        </Button>
-      </div>
-    );
-  }
-
+  const myXp = profile?.xp ?? 0;
   const myName = profile?.writerName;
+  const isRanker = myXp >= RANKER_MIN_XP;
 
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col">
@@ -128,6 +102,21 @@ export default function GlobalRanking() {
 
       {/* Body */}
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
+
+        {/* Non-ranker teaser */}
+        {!isRanker && isSignedIn && (
+          <div
+            className="rounded-xl px-4 py-3 mb-5 text-sm text-fuchsia-200/80"
+            style={{
+              background: "rgba(232,121,249,0.07)",
+              border: "1px solid rgba(232,121,249,0.2)",
+            }}
+          >
+            You need <strong className="text-fuchsia-300">200,000 XP</strong> to earn a spot here.
+            Keep writing — you're at <strong className="text-fuchsia-300">{myXp.toLocaleString()} XP</strong>.
+          </div>
+        )}
+
         {rankingsLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-6 h-6 animate-spin text-fuchsia-400" />
@@ -136,7 +125,7 @@ export default function GlobalRanking() {
           <div className="flex flex-col items-center gap-3 py-20 text-center">
             <Trophy className="w-10 h-10 text-fuchsia-400/40" />
             <p className="text-sm text-muted-foreground">
-              You're the first Ranker. The hall awaits more legends.
+              No Rankers yet. The hall awaits the first legend.
             </p>
           </div>
         ) : (

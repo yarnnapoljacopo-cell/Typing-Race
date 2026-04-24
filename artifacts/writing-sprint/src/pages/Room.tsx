@@ -184,6 +184,9 @@ export default function Room() {
   const [survivedSeconds, setSurvivedSeconds] = useState(0);
   const [xpGained, setXpGained] = useState<number | null>(null);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  // ── HUD fade while actively typing ──────────────────────────────────────
+  const [isTyping, setIsTyping] = useState(false);
+  const idleTimerRef = useRef<number | null>(null);
   const xpAwardedRef = useRef(false);
   const eliminationStartedRef = useRef(false);
   const sprintStartedAtRef = useRef<number | null>(null);
@@ -620,6 +623,13 @@ export default function Room() {
     currentTextRef.current = html;
     setText(html);
     setWordCount(wc);
+
+    // ── HUD fade: mark as typing, reset idle timer (2 s) ─────────────────
+    if (!newHtml) { // only on user input, not programmatic restores
+      setIsTyping(true);
+      if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = window.setTimeout(() => setIsTyping(false), 2000);
+    }
 
     // Net words = words typed SINCE sprint started (baseline subtracted)
     const netWc = Math.max(0, wc - baselineWordCountRef.current);
@@ -1120,7 +1130,11 @@ export default function Room() {
         <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col gap-4"}>
           {/* Race / boss track — hidden in distraction-free mode */}
           {!distractionFree && (
-            <>
+            <div
+              className="transition-opacity duration-500"
+              style={{ opacity: isTyping && isRunning ? 0.3 : 1 }}
+              onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
+            ><>
               {room.mode === "gladiator" ? (
                 <>
                   {/* Arena scene — visible during waiting, countdown, and running */}
@@ -1161,7 +1175,7 @@ export default function Room() {
                   <span className="text-xl">💀</span>
                 </div>
               )}
-            </>
+            </></div>
           )}
 
           <div className={distractionFree
@@ -1320,7 +1334,13 @@ export default function Room() {
 
             {/* Sidebar — hidden in distraction-free mode */}
             {!distractionFree && <div className="md:col-span-1 flex flex-col gap-4">
-              <Timer timeLeft={room.timeLeft} countdownTimeLeft={room.countdownTimeLeft} status={room.status} />
+              <div
+                className="transition-opacity duration-500"
+                style={{ opacity: isTyping && isRunning ? 0.3 : 1 }}
+                onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
+              >
+                <Timer timeLeft={room.timeLeft} countdownTimeLeft={room.countdownTimeLeft} status={room.status} />
+              </div>
 
               <WritingArchive
                 text={text}
@@ -1358,12 +1378,18 @@ export default function Room() {
 
               {/* Live writers panel — only in open mode */}
               {isOpenMode && otherParticipants.length > 0 && (
-                <div className="bg-card border rounded-lg p-3 shadow-sm">
-                  <SpectatorView
-                    participants={otherParticipants}
-                    participantTexts={participantTexts}
-                    currentParticipantId={participantId}
-                  />
+                <div
+                  className="transition-opacity duration-500"
+                  style={{ opacity: isTyping && isRunning ? 0.3 : 1 }}
+                  onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
+                >
+                  <div className="bg-card border rounded-lg p-3 shadow-sm">
+                    <SpectatorView
+                      participants={otherParticipants}
+                      participantTexts={participantTexts}
+                      currentParticipantId={participantId}
+                    />
+                  </div>
                 </div>
               )}
 

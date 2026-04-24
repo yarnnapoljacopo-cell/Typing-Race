@@ -300,36 +300,56 @@ function RankBadge({ xp }: { xp: number }) {
 
       {/* XP progress bar */}
       <div className="w-full max-w-xs space-y-1.5">
-        <div className="flex justify-between items-center text-xs">
-          <span className="font-mono font-semibold" style={{ color: borderColorMap[rank.index] }}>
-            {xp.toLocaleString()} XP
-          </span>
-          {nextRank ? (
-            <span className="text-muted-foreground">
-              Next: {nextRank.emoji} {nextRank.title}
-            </span>
-          ) : (
-            <span className="text-muted-foreground font-semibold">Max rank</span>
-          )}
-        </div>
-
-        <div className="h-2.5 bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-700"
-            style={{
-              width: `${progress}%`,
-              background: rank.index >= 5
-                ? `linear-gradient(90deg, ${borderColorMap[rank.index]}, ${rank.index === 7 ? "#ec4899" : rank.index === 6 ? "#6366f1" : "#f97316"})`
-                : borderColorMap[rank.index],
-              boxShadow: rank.index >= 3 ? `0 0 6px ${borderColorMap[rank.index]}` : "none",
-            }}
-          />
-        </div>
-
-        {nextRank && (
-          <div className="text-[10px] text-muted-foreground text-center">
-            {(nextRank.minXp - xp).toLocaleString()} XP to next rank
-          </div>
+        {!nextRank ? (
+          /* ── Ranker: show accumulated ranking XP ─────────────────── */
+          <>
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-mono font-semibold" style={{ color: borderColorMap[rank.index] }}>
+                {xp.toLocaleString()} XP
+              </span>
+              <span className="text-fuchsia-400/80 font-semibold text-[11px]">👑 Ranking XP</span>
+            </div>
+            <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${Math.min(100, Math.floor(((xp - 200000) / 100000) * 100))}%`,
+                  background: "linear-gradient(90deg, #e879f9, #ec4899)",
+                  boxShadow: "0 0 6px #e879f9",
+                }}
+              />
+            </div>
+            <div className="text-[10px] text-fuchsia-400/60 text-center">
+              XP above 200k counts toward your global rank position
+            </div>
+          </>
+        ) : (
+          /* ── Progressing toward next rank ────────────────────────── */
+          <>
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-mono font-semibold" style={{ color: borderColorMap[rank.index] }}>
+                {xp.toLocaleString()} XP
+              </span>
+              <span className="text-muted-foreground">
+                Next: {nextRank.emoji} {nextRank.title}
+              </span>
+            </div>
+            <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${progress}%`,
+                  background: rank.index >= 5
+                    ? `linear-gradient(90deg, ${borderColorMap[rank.index]}, ${rank.index === 6 ? "#6366f1" : "#f97316"})`
+                    : borderColorMap[rank.index],
+                  boxShadow: rank.index >= 3 ? `0 0 6px ${borderColorMap[rank.index]}` : "none",
+                }}
+              />
+            </div>
+            <div className="text-[10px] text-muted-foreground text-center">
+              {(nextRank.minXp - xp).toLocaleString()} XP to next rank
+            </div>
+          </>
         )}
       </div>
 
@@ -475,10 +495,14 @@ export default function Profile() {
       );
       return { previous };
     },
-    onError: (_err, _nameplate, context) => {
+    onSuccess: () => {
+      toast({ title: "Nameplate updated!" });
+    },
+    onError: (err: Error, _nameplate, context) => {
       if (context?.previous !== undefined) {
         queryClient.setQueryData(["own-prefs"], context.previous);
       }
+      toast({ title: "Couldn't save nameplate", description: err.message, variant: "destructive" });
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["own-prefs"] });
