@@ -566,15 +566,19 @@ router.put("/user/profile", async (req, res): Promise<void> => {
 
   const name = writerName.trim();
 
-  await db
-    .insert(userProfilesTable)
-    .values({ clerkUserId, writerName: name })
-    .onConflictDoUpdate({
-      target: [userProfilesTable.clerkUserId],
-      set: { writerName: name, updatedAt: new Date() },
-    });
-
-  res.json({ writerName: name });
+  try {
+    await db
+      .insert(userProfilesTable)
+      .values({ clerkUserId, writerName: name })
+      .onConflictDoUpdate({
+        target: [userProfilesTable.clerkUserId],
+        set: { writerName: name, updatedAt: new Date() },
+      });
+    res.json({ writerName: name });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: `DB error: ${msg}` });
+  }
 });
 
 router.get("/users/by-name/:name/profile", async (req, res): Promise<void> => {

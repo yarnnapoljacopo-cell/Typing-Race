@@ -3,6 +3,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { setupWebSocketServer } from "./lib/wsHandler";
 import { restoreRoomsFromDB } from "./lib/roomManager";
+import { ensureSchema } from "./lib/ensureSchema";
 
 const rawPort = process.env["PORT"];
 
@@ -40,12 +41,16 @@ setupWebSocketServer(server);
 server.listen(port, () => {
   logger.info({ port }, "Server listening");
 
-  restoreRoomsFromDB()
+  // Ensure all DB tables exist (safe to run every time; idempotent).
+  // DATABASE_URL is only available at runtime on Railway, not during the
+  // build phase, so drizzle-kit push in the build command is a no-op there.
+  ensureSchema()
+    .then(() => restoreRoomsFromDB())
     .then(() => {
       logger.info("Rooms restored from DB");
     })
     .catch((err) => {
-      logger.error({ err }, "Room restore failed — continuing without restored rooms");
+      logger.error({ err }, "Schema/room restore failed — continuing without restored rooms");
     });
 });
 
