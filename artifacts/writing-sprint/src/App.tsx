@@ -88,11 +88,17 @@ class ClerkErrorBoundary extends Component<
   }
 }
 
-// VITE_CLERK_PK is a plain env var (not a secret) set in shared scope, ensuring
-// the production build always gets the correct writingsprint.site key even if
-// the VITE_CLERK_PUBLISHABLE_KEY secret is stale in the deployment environment.
-const clerkPubKey = (import.meta.env.VITE_CLERK_PK as string | undefined) ||
-  (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined);
+// Clerk publishable keys are intentionally public — they are embedded in every
+// page's source and are not secrets. We hardcode the production key here as the
+// final fallback so Railway builds never fail even if VITE_CLERK_PUBLISHABLE_KEY
+// is not set as a Railway env var.
+// Key encodes: clerk.writingsprint.site (custom Clerk FAPI domain)
+const HARDCODED_PK = "pk_live_Y2xlcmsud3JpdGluZ3NwcmludC5zaXRlJA";
+
+const clerkPubKey =
+  (import.meta.env.VITE_CLERK_PK as string | undefined) ||
+  (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined) ||
+  HARDCODED_PK;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 // Clerk production keys only work on writingsprint.site origins.
