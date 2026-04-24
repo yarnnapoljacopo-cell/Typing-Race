@@ -18,9 +18,6 @@ import Profile from "@/pages/Profile";
 import Friends from "@/pages/Friends";
 import GlobalRanking from "@/pages/GlobalRanking";
 import OfflineSprint from "@/pages/OfflineSprint";
-import Bag from "@/pages/Bag";
-import Chests from "@/pages/Chests";
-import Crafting from "@/pages/Crafting";
 import Shop from "@/pages/Shop";
 import { GuestProvider, useGuest } from "@/lib/guestContext";
 import { VillainModeProvider } from "@/lib/villainModeContext";
@@ -573,9 +570,6 @@ function ClerkProviderWithRoutes() {
               <Route path="/global-ranking" component={GlobalRankingGuard} />
               <Route path="/profile/:name" component={Profile} />
               <Route path="/offline-sprint" component={OfflineSprint} />
-              <Route path="/bag" component={Bag} />
-              <Route path="/chests" component={Chests} />
-              <Route path="/crafting" component={Crafting} />
               <Route path="/shop" component={Shop} />
               <Route path="/sign-in/*?" component={SignInPage} />
               <Route path="/sign-up/*?" component={SignUpPage} />
