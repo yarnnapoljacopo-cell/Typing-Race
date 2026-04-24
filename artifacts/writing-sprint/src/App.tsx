@@ -473,26 +473,6 @@ function TimedClerkLoaded({ timedOut, children }: { timedOut: boolean; children:
   return <>{children}</>;
 }
 
-// Shown at the top of the page in dev-timeout mode so the developer knows why
-// auth features aren't working.
-function DevAuthBanner() {
-  return (
-    <div style={{
-      position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
-      background: "#F59E0B", color: "#1A1A1A",
-      padding: "0.35rem 1rem", fontSize: "0.78rem",
-      fontFamily: "system-ui, sans-serif",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      gap: "0.4rem", flexWrap: "wrap",
-    }}>
-      <span>⚠️ Auth unavailable on localhost — use Guest mode to test UI, or sign in at</span>
-      <a href="https://app.writingsprint.site" target="_blank" rel="noopener noreferrer"
-        style={{ color: "#1A1A1A", fontWeight: 700, textDecoration: "underline" }}>
-        app.writingsprint.site
-      </a>
-    </div>
-  );
-}
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
@@ -557,7 +537,6 @@ function ClerkProviderWithRoutes() {
           timeout fires. All auth hooks return isSignedIn=undefined in that
           state so the app behaves as if the user is logged out (guest mode). */}
       <TimedClerkLoaded timedOut={clerkTimedOut}>
-        {clerkTimedOut && <DevAuthBanner />}
       <QueryClientProvider client={queryClient}>
         <GuestProvider>
           <SkinProvider>
