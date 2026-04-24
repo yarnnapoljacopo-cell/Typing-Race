@@ -7,6 +7,11 @@ set -euo pipefail
 : "${NODE_ENV:=production}"
 echo "[build] NODE_ENV=$NODE_ENV"
 
+# Disable corepack to avoid signature verification failures on Node 18 (known
+# corepack/keyid mismatch bug). pnpm is already available in the environment;
+# this just removes the corepack wrapper so it runs directly.
+corepack disable
+
 pnpm install --no-frozen-lockfile
 
 # Attempt schema push — only works if DATABASE_URL is available at build time
