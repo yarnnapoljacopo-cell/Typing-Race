@@ -45,7 +45,7 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const resolvedPublishableKey = process.env.VITE_CLERK_PK;
+const resolvedPublishableKey = process.env.VITE_CLERK_PK ?? process.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 app.use(clerkMiddleware({ publishableKey: resolvedPublishableKey }));
 
