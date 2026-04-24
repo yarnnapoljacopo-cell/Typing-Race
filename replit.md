@@ -41,6 +41,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Clerk auth + guest mode; XP only awarded to signed-in users
 - Global Ranking leaderboard (`/global-ranking`): locked to Ranker-tier users (200k+ XP)
 - **Data persistence**: server finalizes all writing + awards XP at `endSprint` (`finalizeSprintData`); `xpAwarded` flag on `sprint_writing` prevents double-award between server and client paths
+- **Cultivation system**: Bag (`/bag`), Chests (`/chests`), Crafting Lab (`/crafting`) — complete item/chest/crafting feature with 171 items across 6 rarity tiers; sprint completion awards Mortal Chest, win awards Iron Chest; active effects (30+ handlers) integrate with XP calculation at `/api/user/xp`
 
 ### API Server (`artifacts/api-server`)
 - Express 5 server at `/api` and `/ws`
