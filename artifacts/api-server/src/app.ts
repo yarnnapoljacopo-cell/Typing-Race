@@ -33,6 +33,12 @@ app.use(
   }),
 );
 
+// ── Health check — registered FIRST, before Clerk middleware ─────────────────
+// This guarantees Railway's healthcheck at /api/healthz always gets an
+// instant 200 regardless of Clerk initialisation state or upstream timeouts.
+app.get("/api/healthz", (_req, res) => { res.json({ status: "ok" }); });
+app.get("/api/health",  (_req, res) => { res.json({ status: "ok" }); });
+
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
 app.use(cors({ credentials: true, origin: true }));
