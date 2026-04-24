@@ -119,6 +119,7 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [restoredWordCount, setRestoredWordCount] = useState<number | null>(null);
+  const [chestAwarded, setChestAwarded] = useState<string | null>(null);
   const [participantTexts, setParticipantTexts] = useState<Record<string, ParticipantText>>({});
 
   // Kart state
@@ -248,6 +249,12 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
               if (!prev) return prev;
               return { ...prev, status: "finished", participants: data.results };
             });
+            break;
+
+          case "chest_awarded":
+            if (typeof data.chestType === "string") {
+              setChestAwarded(data.chestType);
+            }
             break;
 
           case "error": {
@@ -541,6 +548,7 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
     error,
     participantTexts,
     restoredWordCount,
+    chestAwarded,
     setLatestText,
     sendTextUpdate,
     updateLocalWordCount,

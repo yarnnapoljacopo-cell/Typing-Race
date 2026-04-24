@@ -332,6 +332,7 @@ export default function Room() {
     error,
     participantTexts,
     restoredWordCount,
+    chestAwarded,
     setLatestText,
     sendTextUpdate,
     updateLocalWordCount,
@@ -355,6 +356,22 @@ export default function Room() {
       description: `Your previous ${restoredWordCount} words have been recovered — continue right where you left off.`,
     });
   }, [restoredWordCount, toast]);
+
+  // ── Toast when a chest is awarded after sprint end ────────────────────
+  const CHEST_LABELS: Record<string, string> = {
+    mortal: "📦 Mortal Chest",
+    iron: "⚙️ Iron Chest",
+    crystal: "💎 Crystal Chest",
+    inferno: "🔥 Inferno Chest",
+    immortal: "⭐ Immortal Chest",
+  };
+  useEffect(() => {
+    if (!chestAwarded) return;
+    toast({
+      title: "Chest earned!",
+      description: `You received a ${CHEST_LABELS[chestAwarded] ?? chestAwarded} for completing the sprint.`,
+    });
+  }, [chestAwarded, toast]);
 
   // ── Seed contenteditable with localStorage content once the div is in the DOM
   // The component does an early return when !room, so textareaRef is null on the
@@ -1131,7 +1148,7 @@ export default function Room() {
           {/* Race / boss track — hidden in distraction-free mode */}
           {!distractionFree && (
             <div
-              className="transition-opacity duration-500"
+              className="sticky top-0 z-20 bg-background pb-2 transition-opacity duration-500"
               style={{ opacity: isTyping && isRunning ? 0.3 : 1 }}
               onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
             ><>

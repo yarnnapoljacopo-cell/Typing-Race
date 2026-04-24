@@ -1,9 +1,40 @@
 import { WebSocket } from "ws";
 import { logger } from "./logger";
-import { db, roomsTable, userProfilesTable, sprintWritingTable } from "@workspace/db";
+import { db, pool, roomsTable, userProfilesTable, sprintWritingTable } from "@workspace/db";
 import { eq, gt, and, ne, sql } from "drizzle-orm";
 import { saveWriting } from "./writingStore";
 import { initGladiatorParticipant, broadcastGladiatorTimerEnd } from "./gladiatorEngine";
+
+// ── Sprint chest roll ─────────────────────────────────────────────────────────
+// Probabilities (add up to 1.0):
+//   Immortal  0.10%
+//   Inferno   0.50%
+//   Crystal   2.00%
+//   Iron      8.00%
+//   Mortal   89.40%
+function rollSprintChest(): string {
+  const r = Math.random() * 100;
+  if (r < 0.10) return "immortal";
+  if (r < 0.60) return "inferno";
+  if (r < 2.60) return "crystal";
+  if (r < 10.60) return "iron";
+  return "mortal";
+}
+
+async function grantSprintChest(clerkUserId: string, chestType: string): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO user_chests (user_id, chest_type, quantity)
+       VALUES ($1, $2, 1)
+       ON CONFLICT (user_id, chest_type)
+       DO UPDATE SET quantity = user_chests.quantity + 1, earned_at = NOW()`,
+      [clerkUserId, chestType],
+    );
+  } finally {
+    client.release();
+  }
+}
 
 export type RoomStatus = "waiting" | "countdown" | "running" | "finished";
 
@@ -513,6 +544,18 @@ async function finalizeSprintData(room: Room): Promise<void> {
         eq(sprintWritingTable.roomCode, room.code),
         eq(sprintWritingTable.participantName, p.name),
       ));
+
+    // ── Award a random chest for completing the sprint ────────────────────
+    const chestType = rollSprintChest();
+    try {
+      await grantSprintChest(p.clerkUserId, chestType);
+      if (p.ws.readyState === WebSocket.OPEN) {
+        p.ws.send(JSON.stringify({ type: "chest_awarded", chestType }));
+      }
+      logger.info({ code: room.code, userId: p.clerkUserId, chestType }, "Sprint chest awarded");
+    } catch (err) {
+      logger.error({ err, code: room.code }, "Failed to grant sprint chest");
+    }
   }));
 }
 
