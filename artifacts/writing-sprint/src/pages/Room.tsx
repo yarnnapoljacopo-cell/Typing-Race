@@ -1249,20 +1249,29 @@ export default function Room() {
                   </div>
                 </div>
               )}
-              {!readMode && <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} />}
-              <div className={`flex flex-col flex-1 min-h-[380px]${kartState.boldText ? " kart-banana-hit" : ""}${kartState.blurCounter ? " kart-blur-counter" : ""}`}>
+              {!readMode && (
+                <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: "12px 16px", boxShadow: "0 4px 20px rgba(107,143,212,0.08)", marginBottom: 8 }}>
+                  <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} />
+                </div>
+              )}
+              <div
+                style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", overflow: "hidden", flex: 1, display: "flex", flexDirection: "column", minHeight: 400 }}
+                className={`${kartState.boldText ? "kart-banana-hit" : ""}${kartState.blurCounter ? " kart-blur-counter" : ""}`}
+              >
                 {/* Pre-sprint / countdown hint bar */}
                 {(isWaiting || isCountdown) && (
-                  <div className={`flex items-center justify-center gap-2 border text-xs font-medium py-1.5 px-3 ${
-                    isCountdown
-                      ? "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-300"
-                      : "bg-primary/8 border-primary/20 text-primary"
-                  }`}
-                    style={{ borderBottom: "none" }}
-                  >
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    fontSize: "0.82rem", fontWeight: 500, padding: "10px 14px",
+                    background: isCountdown
+                      ? "linear-gradient(135deg, rgba(232,168,56,0.1), rgba(232,168,56,0.06))"
+                      : "linear-gradient(135deg, rgba(107,143,212,0.08), rgba(107,143,212,0.04))",
+                    borderBottom: "1px solid " + (isCountdown ? "rgba(232,168,56,0.2)" : "rgba(107,143,212,0.15)"),
+                    color: isCountdown ? "#a07020" : "#1a1a2e",
+                  }}>
                     {isCountdown ? (
                       <>
-                        <span className="font-mono font-bold text-base tabular-nums">
+                        <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "1rem" }}>
                           {formatCountdown(room.countdownTimeLeft ?? 0)}
                         </span>
                         <span>until the sprint starts — warm up while you wait!</span>
@@ -1286,21 +1295,19 @@ export default function Room() {
                       : "Warm up here while you wait for the sprint to start…"
                   }
                   data-has-content={text.trim().length > 0 ? "true" : undefined}
-                  className={`writing-editor flex-1 w-full border shadow-sm p-6 md:p-8 focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground overflow-auto min-h-[380px]${
-                    readMode
-                      ? " bg-card/60 cursor-default select-text"
-                      : (!isRunning && !isWaiting && !isCountdown)
-                      ? " bg-card opacity-60 cursor-not-allowed"
-                      : " bg-card"
+                  className={`writing-editor flex-1 w-full focus:outline-none text-foreground overflow-auto min-h-[380px]${
+                    readMode ? " cursor-default select-text" : (!isRunning && !isWaiting && !isCountdown) ? " opacity-60 cursor-not-allowed" : ""
                   }`}
                   style={{
-                    borderTop: (isWaiting || isCountdown) ? "none" : undefined,
-                    borderRadius: (isWaiting || isCountdown) ? "0 0 0.5rem 0.5rem" : undefined,
+                    padding: "20px 24px",
+                    background: "transparent",
+                    border: "none",
                     fontFamily: writingStyle.fontFamily,
                     fontSize: `${writingStyle.fontSize}px`,
                     lineHeight: readMode ? 1.9 : writingStyle.lineHeight,
-                    outline: readMode ? "none" : undefined,
+                    outline: "none",
                     caretColor: readMode ? "transparent" : undefined,
+                    color: "#1a1a2e",
                   }}
                 />
                 {/* Below-textarea badge row */}
@@ -1381,33 +1388,34 @@ export default function Room() {
                 triggerLabel="My Writing"
                 triggerVariant="outline"
                 triggerClassName="w-full"
+                triggerStyle={{ background: "white", border: "1.5px solid rgba(107,143,212,0.18)", borderRadius: 12, padding: "13px 16px", fontFamily: "'DM Sans', sans-serif", fontSize: "0.88rem", fontWeight: 600, color: "#1a1a2e", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", cursor: "pointer", transition: "all 0.18s" }}
               />
 
               {/* Chapter Finished — downloads chapter, clears box, keeps car position */}
-              <div className="flex flex-col gap-1.5">
+              <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, overflow: "hidden", boxShadow: "0 4px 20px rgba(107,143,212,0.08)" }}>
                 <Button
-                  variant="default"
                   className="w-full"
                   onClick={handleChapterFinished}
                   disabled={!text.trim() || (!isRunning && !isWaiting && !isCountdown)}
+                  style={{ background: "linear-gradient(135deg, #7fa4e0, #5a82d0)", border: "none", borderRadius: "16px 16px 0 0", padding: "14px 16px", fontSize: "0.9rem", fontWeight: 700, color: "white", boxShadow: "0 4px 16px rgba(90,130,208,0.3)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
                 >
-                  <BookCheck className="w-4 h-4 mr-2" />
+                  <BookCheck className="w-4 h-4" />
                   Chapter Finished
                 </Button>
-                <p className="text-[10px] text-muted-foreground text-center leading-snug px-1">
+                <p style={{ fontSize: "0.72rem", color: "#7a7a92", padding: "8px 16px", textAlign: "center", lineHeight: 1.4, borderBottom: "1px solid rgba(107,143,212,0.15)" }}>
                   Downloads chapter &amp; clears box — word count stays on the car
                 </p>
+                <button
+                  onClick={downloadWriting}
+                  disabled={!text}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: 12, width: "100%", fontSize: "0.82rem", color: "#7a7a92", background: "none", border: "none", cursor: text ? "pointer" : "not-allowed", opacity: text ? 1 : 0.5, transition: "color 0.18s" }}
+                  onMouseEnter={e => { if (text) (e.currentTarget as HTMLElement).style.color = "#1a1a2e"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#7a7a92"; }}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download .txt
+                </button>
               </div>
-
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={downloadWriting}
-                disabled={!text}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download .txt
-              </Button>
 
               {/* Live writers panel — only in open mode */}
               {isOpenMode && otherParticipants.length > 0 && (
@@ -1430,8 +1438,8 @@ export default function Room() {
                 const gladiatorNeedsOpponent = room.mode === "gladiator" &&
                   room.participants.length < 2;
                 return (
-                  <div style={{ background: "rgba(255,255,255,0.82)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", display: "flex", flexDirection: "column", gap: 12 }}>
-                    <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
+                  <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", display: "flex", flexDirection: "column", gap: 10 }}>
+                    <p style={{ fontSize: "0.75rem", fontWeight: 700, color: "#7a7a92", letterSpacing: "0.06em", textTransform: "uppercase" }}>Host Controls</p>
                     {gladiatorNeedsOpponent && (
                       <p className="text-xs text-amber-600 dark:text-amber-400 text-center font-medium animate-pulse">
                         ⚔️ Waiting for a second gladiator to enter the arena…
@@ -1439,11 +1447,11 @@ export default function Room() {
                     )}
                     <Button
                       onClick={startSprint}
-                      size="lg"
                       className="w-full"
                       disabled={!isConnected || gladiatorNeedsOpponent}
+                      style={{ background: "linear-gradient(135deg, #7fa4e0, #5a82d0)", border: "none", borderRadius: 12, padding: 14, fontSize: "0.95rem", fontWeight: 700, color: "white", boxShadow: "0 6px 20px rgba(90,130,208,0.35)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
                     >
-                      <Play className="w-4 h-4 mr-2" />
+                      <Play className="w-4 h-4" />
                       {room.countdownDelayMinutes > 0 ? `Start ${room.countdownDelayMinutes}m Timer` : "Start Sprint"}
                     </Button>
                   </div>
@@ -1451,9 +1459,9 @@ export default function Room() {
               })()}
 
               {isCountdown && isCreator && (
-                <div style={{ background: "rgba(255,255,255,0.82)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", display: "flex", flexDirection: "column", gap: 12 }}>
-                  <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
-                  <Button onClick={startSprint} size="lg" variant="outline" className="w-full" disabled>
+                <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <p style={{ fontSize: "0.75rem", fontWeight: 700, color: "#7a7a92", letterSpacing: "0.06em", textTransform: "uppercase" }}>Host Controls</p>
+                  <Button onClick={startSprint} variant="outline" className="w-full" disabled style={{ borderRadius: 12, opacity: 0.7 }}>
                     <Play className="w-4 h-4 mr-2" />
                     Countdown running…
                   </Button>
@@ -1477,9 +1485,9 @@ export default function Room() {
               )}
 
               {isRunning && isCreator && (
-                <div style={{ background: "rgba(255,255,255,0.82)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", display: "flex", flexDirection: "column", gap: 12 }}>
-                  <h3 className="text-sm font-medium text-muted-foreground">Host Controls</h3>
-                  <Button onClick={endSprint} variant="destructive" className="w-full" disabled={!isConnected}>
+                <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <p style={{ fontSize: "0.75rem", fontWeight: 700, color: "#7a7a92", letterSpacing: "0.06em", textTransform: "uppercase" }}>Host Controls</p>
+                  <Button onClick={endSprint} variant="destructive" className="w-full" disabled={!isConnected} style={{ borderRadius: 12 }}>
                     End Early
                   </Button>
                 </div>

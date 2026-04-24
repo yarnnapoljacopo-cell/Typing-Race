@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprint Room — Writing Sprint</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --cream: #F5F2EC;
+    --ink: #1a1a2e;
+    --blue-soft: #6B8FD4;
+    --blue-light: #dce6f7;
+    --gold: #E8A838;
+    --muted: #7a7a92;
+    --card-bg: rgba(255,255,255,0.88);
+    --border: rgba(107,143,212,0.15);
+    --green-dark: #2d4a2d;
+    --green-track: #3a5c38;
+  }
+  body {
+    background: var(--cream);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  .bg-grid {
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(107,143,212,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(107,143,212,0.04) 1px, transparent 1px);
+    background-size: 48px 48px; pointer-events: none;
+  }
+  .bg-orb {
+    position: fixed; border-radius: 50%;
+    filter: blur(90px); pointer-events: none; z-index: 0;
+  }
+  .orb1 { width: 400px; height: 400px; background: radial-gradient(circle, rgba(107,143,212,0.12) 0%, transparent 70%); top: -80px; right: -80px; }
+  .orb2 { width: 300px; height: 300px; background: radial-gradient(circle, rgba(232,168,56,0.07) 0%, transparent 70%); bottom: 0; left: 0; }
+
+  /* Top nav */
+  .topnav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(245,242,236,0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    display: flex; align-items: center; gap: 16px;
+    height: 56px;
+    animation: slideDown 0.4s cubic-bezier(.22,1,.36,1) both;
+  }
+  @keyframes slideDown { from { opacity:0; transform:translateY(-16px); } to { opacity:1; transform:translateY(0); } }
+  .nav-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem; font-weight: 700; color: var(--ink);
+  }
+  .nav-divider { color: var(--border); font-size: 1.2rem; }
+  .room-code {
+    background: rgba(107,143,212,0.10);
+    border: 1px solid rgba(107,143,212,0.2);
+    border-radius: 8px; padding: 4px 10px;
+    font-size: 0.82rem; font-weight: 700; letter-spacing: 0.06em;
+    color: var(--ink); font-family: monospace;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .copy-btn { cursor: pointer; color: var(--muted); background: none; border: none; display: flex; align-items: center; }
+  .copy-btn:hover { color: var(--ink); }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .writer-chip {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 0.83rem; font-weight: 500; color: var(--muted);
+  }
+  .writer-avatar {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--blue-soft), #5a82d0);
+    color: white; font-size: 0.72rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nav-btn {
+    background: none; border: none; cursor: pointer;
+    display: flex; align-items: center; gap: 5px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.83rem; font-weight: 500; color: var(--muted);
+    transition: color 0.18s;
+  }
+  .nav-btn:hover { color: var(--ink); }
+  .nav-btn.leave { color: #dc2626; }
+  .nav-btn.leave:hover { color: #b91c1c; }
+
+  /* Main layout */
+  .main-layout {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: 1fr 240px;
+    gap: 16px; padding: 16px 20px;
+    max-width: 1100px; margin: 0 auto;
+    animation: fadeUp 0.5s cubic-bezier(.22,1,.36,1) both;
+    animation-delay: 0.1s;
+  }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+  /* Race track */
+  .race-track-wrap {
+    grid-column: 1 / -1;
+    border-radius: 16px; overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+    margin-bottom: 2px;
+    position: relative;
+  }
+
+  /* Sky gradient at top */
+  .track-sky {
+    background: linear-gradient(180deg, #1a1040 0%, #2a1a60 40%, #3a2a20 100%);
+    padding: 10px 16px 0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .track-header-label {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em;
+    color: rgba(255,255,255,0.45); text-transform: uppercase;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .track-header-label::before {
+    content: '';
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 6px #4ade80;
+    animation: trackPulse 2s ease-in-out infinite;
+  }
+  @keyframes trackPulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+  .track-goal {
+    font-size: 0.7rem; color: rgba(255,255,255,0.35);
+    letter-spacing: 0.04em;
+  }
+  .track-finish-flag {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 0.68rem; font-weight: 800; letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.7); text-transform: uppercase;
+  }
+
+  /* Road */
+  .track-road {
+    background: linear-gradient(180deg, #2a2035 0%, #1e1830 100%);
+    padding: 6px 0 0;
+    position: relative;
+  }
+  /* Road surface texture lines */
+  .track-road::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0px, transparent 20px,
+      rgba(255,255,255,0.015) 20px, rgba(255,255,255,0.015) 21px
+    );
+  }
+
+  /* Kerb strips at top and bottom of road */
+  .track-kerb {
+    height: 6px;
+    background: repeating-linear-gradient(
+      90deg,
+      #e53e3e 0px, #e53e3e 18px,
+      white 18px, white 36px
+    );
+    opacity: 0.85;
+  }
+  .track-kerb.bottom {
+    background: repeating-linear-gradient(
+      90deg,
+      #2b6cb0 0px, #2b6cb0 18px,
+      white 18px, white 36px
+    );
+  }
+
+  .track-lane {
+    display: flex; align-items: center;
+    padding: 10px 16px 10px; gap: 10px;
+    position: relative;
+  }
+  .lane-num {
+    font-size: 0.68rem; font-weight: 700;
+    color: rgba(255,255,255,0.2); min-width: 14px;
+    font-family: monospace;
+  }
+  .lane-track {
+    flex: 1; height: 48px; position: relative;
+    display: flex; align-items: center;
+  }
+
+  /* Centre dashes */
+  .lane-dashes {
+    position: absolute; inset: 50% 0 auto 0;
+    transform: translateY(-50%);
+    border-top: 2px dashed rgba(255,255,255,0.12);
+  }
+
+  /* Item boxes */
+  .item-box {
+    position: absolute;
+    width: 22px; height: 22px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #f6c90e 0%, #e8a500 100%);
+    border: 2px solid rgba(255,255,255,0.6);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 900; color: rgba(255,255,255,0.9);
+    box-shadow: 0 0 10px rgba(246,201,14,0.6), 0 2px 6px rgba(0,0,0,0.3);
+    animation: itemBoxFloat 1.8s ease-in-out infinite, itemBoxGlow 1.8s ease-in-out infinite;
+    top: 50%; transform: translateY(-50%);
+    cursor: pointer;
+    z-index: 2;
+  }
+  .item-box::after {
+    content: '?';
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 900;
+    font-size: 0.72rem;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  }
+  .item-box:nth-child(2) { animation-delay: 0.3s; }
+  .item-box:nth-child(3) { animation-delay: 0.6s; }
+  @keyframes itemBoxFloat {
+    0%,100% { transform: translateY(-50%); }
+    50% { transform: translateY(calc(-50% - 3px)); }
+  }
+  @keyframes itemBoxGlow {
+    0%,100% { box-shadow: 0 0 10px rgba(246,201,14,0.5), 0 2px 6px rgba(0,0,0,0.3); }
+    50% { box-shadow: 0 0 18px rgba(246,201,14,0.85), 0 2px 6px rgba(0,0,0,0.3); }
+  }
+
+  /* Kart */
+  .car-wrap {
+    position: absolute; left: 2%;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    animation: kartBob 1.4s ease-in-out infinite;
+    z-index: 3;
+  }
+  @keyframes kartBob {
+    0%,100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-1.5px) rotate(-0.5deg); }
+    75% { transform: translateY(1px) rotate(0.5deg); }
+  }
+  .you-tag {
+    background: linear-gradient(135deg, #fff 0%, #f0edff 100%);
+    color: var(--ink);
+    font-size: 0.55rem; font-weight: 800; letter-spacing: 0.05em;
+    padding: 2px 7px; border-radius: 5px; white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    border: 1px solid rgba(107,143,212,0.3);
+  }
+
+  /* Speed lines behind kart */
+  .speed-lines {
+    position: absolute; left: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 55px; height: 30px;
+    pointer-events: none; z-index: 1;
+  }
+
+  /* Finish line */
+  .finish-line {
+    position: absolute; right: 0; top: 0; bottom: 0; width: 16px;
+    background: repeating-linear-gradient(
+      180deg,
+      white 0px, white 5px,
+      #111 5px, #111 10px
+    );
+    opacity: 0.75;
+    border-radius: 0 2px 2px 0;
+    box-shadow: -2px 0 8px rgba(0,0,0,0.3);
+  }
+  /* Finish flag icon */
+  .finish-label {
+    position: absolute; right: 20px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.6rem; font-weight: 800; color: rgba(255,255,255,0.5);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    writing-mode: vertical-lr; text-orientation: mixed;
+  }
+
+  /* Editor section */
+  .editor-col { display: flex; flex-direction: column; gap: 12px; }
+
+  .toolbar-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 16px; padding: 12px 16px;
+    box-shadow: 0 4px 20px rgba(107,143,212,0.08);
+  }
+  .toolbar-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .toolbar-label { font-size: 0.72rem; font-weight: 700; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-right: 4px; }
+  .font-chip {
+    padding: 5px 10px; border-radius: 8px; font-size: 0.82rem;
+    cursor: pointer; border: 1.5px solid transparent;
+    transition: all 0.15s; color: var(--muted); background: none;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .font-chip.active { background: var(--blue-soft); color: white; border-color: var(--blue-soft); }
+  .font-chip:hover:not(.active) { border-color: var(--border); color: var(--ink); }
+  .toolbar-divider { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+  .size-chip {
+    width: 30px; height: 30px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.78rem; font-weight: 700; cursor: pointer;
+    border: 1.5px solid transparent; color: var(--muted);
+    transition: all 0.15s; background: none; font-family: 'DM Sans', sans-serif;
+  }
+  .size-chip.active { background: var(--blue-soft); color: white; }
+  .spacing-chip {
+    padding: 5px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: 700;
+    cursor: pointer; border: 1.5px solid transparent; color: var(--muted);
+    letter-spacing: 0.05em; text-transform: uppercase;
+    transition: all 0.15s; background: none; font-family: 'DM Sans', sans-serif;
+  }
+  .spacing-chip.active { background: var(--ink); color: white; }
+  .format-chip {
+    width: 30px; height: 30px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem; font-weight: 700; cursor: pointer;
+    border: 1.5px solid var(--border); color: var(--muted);
+    transition: all 0.15s; background: none;
+  }
+  .format-chip:hover { background: var(--blue-light); color: var(--ink); }
+
+  .warmup-banner {
+    background: linear-gradient(135deg, rgba(232,168,56,0.1), rgba(232,168,56,0.06));
+    border: 1px solid rgba(232,168,56,0.2);
+    border-radius: 10px; padding: 10px 14px;
+    font-size: 0.82rem; color: var(--ink);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .warmup-banner strong { font-weight: 700; }
+
+  .editor-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 16px; overflow: hidden;
+    box-shadow: 0 4px 20px rgba(107,143,212,0.08);
+    flex: 1; min-height: 400px;
+    display: flex; flex-direction: column;
+  }
+  .editor-area {
+    flex: 1; padding: 20px 24px;
+    font-size: 1rem; line-height: 1.8; color: var(--ink);
+    border: none; outline: none; resize: none;
+    background: transparent; font-family: Georgia, serif;
+    width: 100%;
+  }
+  .editor-area::placeholder { color: #bbb; font-style: italic; }
+
+  /* Bottom bar */
+  .bottom-bar {
+    position: sticky; bottom: 0; z-index: 50;
+    background: rgba(245,242,236,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex; justify-content: flex-end; gap: 10px;
+  }
+  .bottom-btn {
+    padding: 9px 18px; border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 7px; transition: all 0.18s;
+  }
+  .bottom-btn.secondary {
+    background: white; border: 1.5px solid var(--border); color: var(--muted);
+  }
+  .bottom-btn.secondary:hover { border-color: var(--blue-soft); color: var(--ink); }
+  .bottom-btn.warmup-mode {
+    background: rgba(232,168,56,0.1); border: 1.5px solid rgba(232,168,56,0.3);
+    color: #a07020;
+  }
+
+  /* Sidebar */
+  .sidebar { display: flex; flex-direction: column; gap: 12px; }
+
+  .side-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 16px; padding: 18px 16px;
+    box-shadow: 0 4px 20px rgba(107,143,212,0.08);
+    text-align: center;
+  }
+  .waiting-icon { margin-bottom: 12px; display: flex; justify-content: center; }
+  .waiting-icon svg { filter: drop-shadow(0 2px 8px rgba(107,143,212,0.3)); }
+  .waiting-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem; font-weight: 700; color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .waiting-desc { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+
+  .my-writing-btn {
+    width: 100%; background: white;
+    border: 1.5px solid var(--border); border-radius: 12px;
+    padding: 13px; font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem; font-weight: 600; color: var(--ink);
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: all 0.18s;
+  }
+  .my-writing-btn:hover { border-color: var(--blue-soft); background: var(--blue-light); }
+
+  .chapter-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 16px; overflow: hidden;
+    box-shadow: 0 4px 20px rgba(107,143,212,0.08);
+  }
+  .chapter-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #7fa4e0, #5a82d0);
+    border: none; padding: 14px 16px;
+    color: white; font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(90,130,208,0.3);
+  }
+  .chapter-btn:hover { filter: brightness(1.08); }
+  .chapter-desc { font-size: 0.72rem; color: var(--muted); padding: 8px 16px; text-align: center; line-height: 1.4; border-bottom: 1px solid var(--border); }
+  .download-link {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 12px; font-size: 0.82rem; color: var(--muted);
+    cursor: pointer; transition: color 0.18s;
+  }
+  .download-link:hover { color: var(--ink); }
+
+  .host-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 16px; padding: 16px;
+    box-shadow: 0 4px 20px rgba(107,143,212,0.08);
+  }
+  .host-label { font-size: 0.75rem; font-weight: 700; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px; }
+  .start-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #7fa4e0, #5a82d0);
+    border: none; border-radius: 12px; padding: 14px;
+    color: white; font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    box-shadow: 0 6px 20px rgba(90,130,208,0.35);
+    transition: all 0.2s;
+  }
+  .start-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(90,130,208,0.45); }
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-orb orb1"></div>
+<div class="bg-orb orb2"></div>
+
+<!-- Top nav -->
+<nav class="topnav">
+  <span class="nav-title">Writing Sprint</span>
+  <span class="nav-divider">|</span>
+  <div class="room-code">
+    Room: <strong>SPRINT-1660</strong>
+    <button class="copy-btn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    </button>
+  </div>
+  <div class="nav-right">
+    <div class="writer-chip">
+      <div class="writer-avatar">E</div>
+      1 writer
+    </div>
+    <button class="nav-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      Read
+    </button>
+    <button class="nav-btn leave">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Leave
+    </button>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main-layout">
+
+  <!-- Race track -->
+  <div class="race-track-wrap">
+    <!-- Sky / header -->
+    <div class="track-sky">
+      <div class="track-header-label">Race Track</div>
+      <span class="track-goal">goal: 2000 words &nbsp;·&nbsp; 1 writer</span>
+      <div class="track-finish-flag">🏁 Finish</div>
+    </div>
+
+    <!-- Road -->
+    <div class="track-road">
+      <div class="track-kerb"></div>
+      <div class="track-lane">
+        <span class="lane-num">1</span>
+        <div class="lane-track">
+          <div class="lane-dashes"></div>
+
+          <!-- Speed lines -->
+          <svg class="speed-lines" viewBox="0 0 55 30" fill="none">
+            <line x1="50" y1="10" x2="8" y2="10" stroke="rgba(255,255,255,0.07)" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="50" y1="15" x2="2" y2="15" stroke="rgba(255,255,255,0.12)" stroke-width="2" stroke-linecap="round"/>
+            <line x1="50" y1="20" x2="8" y2="20" stroke="rgba(255,255,255,0.07)" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+
+          <!-- Kart -->
+          <div class="car-wrap">
+            <div class="you-tag">You · 0w</div>
+            <!-- Sleek kart SVG -->
+            <svg width="52" height="30" viewBox="0 0 52 30" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,0.5))">
+              <!-- Kart body low profile -->
+              <path d="M6 18 Q6 14 10 14 L40 14 Q45 14 46 18 L46 22 Q46 24 44 24 L8 24 Q6 24 6 22 Z" fill="#3B82F6"/>
+              <!-- Body side detail -->
+              <path d="M10 14 L14 10 L36 10 L40 14 Z" fill="#2563EB"/>
+              <!-- Cockpit -->
+              <path d="M18 14 L20 9 L30 9 L32 14 Z" fill="rgba(180,220,255,0.7)"/>
+              <!-- Cockpit frame -->
+              <path d="M18 14 L20 9 L30 9 L32 14" stroke="rgba(255,255,255,0.4)" stroke-width="0.8" fill="none"/>
+              <!-- Nose -->
+              <path d="M40 14 L48 17 L46 22 L40 22 Z" fill="#1D4ED8"/>
+              <!-- Rear wing -->
+              <rect x="4" y="11" width="2" height="6" rx="1" fill="#1D4ED8"/>
+              <rect x="2" y="10" width="6" height="2" rx="1" fill="#60A5FA"/>
+              <!-- Front wing -->
+              <path d="M44 18 L50 16 L51 19 L46 21 Z" fill="#60A5FA"/>
+              <!-- Wheels -->
+              <ellipse cx="14" cy="25" rx="5" ry="4" fill="#111827"/>
+              <ellipse cx="14" cy="25" rx="3" ry="2.5" fill="#374151"/>
+              <ellipse cx="14" cy="25" rx="1.2" ry="1" fill="#6B7280"/>
+              <ellipse cx="38" cy="25" rx="5" ry="4" fill="#111827"/>
+              <ellipse cx="38" cy="25" rx="3" ry="2.5" fill="#374151"/>
+              <ellipse cx="38" cy="25" rx="1.2" ry="1" fill="#6B7280"/>
+              <!-- Racing number -->
+              <text x="24" y="20" text-anchor="middle" font-size="5" font-weight="900" fill="white" font-family="DM Sans, sans-serif" opacity="0.9">01</text>
+              <!-- Body shine -->
+              <path d="M12 15 Q26 13 38 15" stroke="rgba(255,255,255,0.2)" stroke-width="1.2" stroke-linecap="round"/>
+              <!-- Headlight glow -->
+              <ellipse cx="47" cy="18" rx="2" ry="1.5" fill="#FEF08A" opacity="0.9"/>
+              <ellipse cx="47" cy="18" rx="4" ry="3" fill="rgba(254,240,138,0.2)"/>
+              <!-- Exhaust sparks -->
+              <circle cx="5" cy="19" r="1" fill="#F97316" opacity="0.7"/>
+              <circle cx="3" cy="21" r="0.7" fill="#FBBF24" opacity="0.5"/>
+            </svg>
+          </div>
+
+          <!-- Item boxes -->
+          <div class="item-box" style="left:34%;"></div>
+          <div class="item-box" style="left:56%;"></div>
+          <div class="item-box" style="left:78%;"></div>
+
+          <div class="finish-line"></div>
+        </div>
+      </div>
+      <div class="track-kerb bottom"></div>
+    </div>
+  </div>
+
+  <!-- Editor column -->
+  <div class="editor-col">
+    <div class="toolbar-card">
+      <div class="toolbar-row">
+        <span class="toolbar-label">T Font</span>
+        <button class="font-chip active">Ag<br><small style="font-size:0.6rem;">Georgia</small></button>
+        <button class="font-chip">Ag<br><small style="font-size:0.6rem;">Times</small></button>
+        <button class="font-chip">Ag<br><small style="font-size:0.6rem;">Palatino</small></button>
+        <button class="font-chip">Ag<br><small style="font-size:0.6rem;">Courier</small></button>
+        <button class="font-chip">Ag<br><small style="font-size:0.6rem;">System</small></button>
+        <div class="toolbar-divider"></div>
+        <button class="size-chip active">S</button>
+        <button class="size-chip">M</button>
+        <button class="size-chip">L</button>
+        <button class="size-chip">XL</button>
+        <div class="toolbar-divider"></div>
+        <button class="spacing-chip active">Tight</button>
+        <button class="spacing-chip">Normal</button>
+        <button class="spacing-chip">Relaxed</button>
+      </div>
+      <div class="toolbar-row" style="margin-top:8px;">
+        <button class="format-chip">≡</button>
+        <button class="spacing-chip">None</button>
+        <button class="spacing-chip">Indent</button>
+        <button class="spacing-chip active">Double</button>
+        <div class="toolbar-divider"></div>
+        <button class="format-chip"><strong>B</strong></button>
+        <button class="format-chip"><em>I</em></button>
+        <button class="format-chip" style="text-decoration:underline;">U</button>
+        <div class="toolbar-divider"></div>
+        <button class="spacing-chip">TW</button>
+      </div>
+    </div>
+
+    <div class="warmup-banner">
+      ✍️ Write ahead while you wait — words written now <strong>won't count</strong> toward your score.
+    </div>
+
+    <div class="editor-card">
+      <textarea class="editor-area" placeholder="Warm up here while you wait for the sprint to start…"></textarea>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="side-card">
+      <div class="waiting-icon">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="24" cy="24" r="22" fill="url(#waitGrad)" opacity="0.15"/>
+          <circle cx="24" cy="24" r="22" stroke="url(#waitStroke)" stroke-width="1.5" fill="none"/>
+          <!-- Hourglass shape -->
+          <path d="M16 10 H32 L24 22 L32 38 H16 L24 26 Z" fill="none" stroke="#6B8FD4" stroke-width="1.8" stroke-linejoin="round"/>
+          <!-- Sand top (mostly empty) -->
+          <path d="M17.5 12 H30.5 L24 20 Z" fill="rgba(107,143,212,0.2)"/>
+          <!-- Sand bottom (filling) -->
+          <path d="M19 36 H29 L24 28 Z" fill="rgba(107,143,212,0.55)"/>
+          <!-- Sand drip dot -->
+          <circle cx="24" cy="24" r="1.5" fill="#6B8FD4" opacity="0.8"/>
+          <defs>
+            <linearGradient id="waitGrad" x1="0" y1="0" x2="48" y2="48">
+              <stop offset="0%" stop-color="#6B8FD4"/>
+              <stop offset="100%" stop-color="#a855f7"/>
+            </linearGradient>
+            <linearGradient id="waitStroke" x1="0" y1="0" x2="48" y2="48">
+              <stop offset="0%" stop-color="#6B8FD4" stop-opacity="0.4"/>
+              <stop offset="100%" stop-color="#a855f7" stop-opacity="0.4"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <div class="waiting-title">Waiting to Start</div>
+      <div class="waiting-desc">The creator will start the sprint when everyone is ready. Stretch your fingers!</div>
+    </div>
+
+    <button class="my-writing-btn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      My Writing
+    </button>
+
+    <div class="chapter-card">
+      <button class="chapter-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Chapter Finished
+      </button>
+      <div class="chapter-desc">Downloads chapter & clears box — word count stays on the car</div>
+      <div class="download-link">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download .txt
+      </div>
+    </div>
+
+    <div class="host-card">
+      <div class="host-label">Host Controls</div>
+      <button class="start-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Start Sprint
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Bottom bar -->
+<div class="bottom-bar">
+  <button class="bottom-btn secondary">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    Save to Files
+  </button>
+  <button class="bottom-btn warmup-mode">
+    🔥 WARM-UP
+  </button>
+</div>
+
+</body>
+</html>

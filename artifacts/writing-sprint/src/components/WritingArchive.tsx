@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type React from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,7 @@ interface WritingArchiveProps {
   triggerVariant?: "default" | "outline" | "secondary" | "ghost";
   triggerSize?: "default" | "sm" | "lg";
   triggerClassName?: string;
+  triggerStyle?: React.CSSProperties;
 }
 
 function formatTime(ms: number): string {
@@ -75,6 +77,7 @@ export function WritingArchive({
   triggerVariant = "outline",
   triggerSize = "default",
   triggerClassName = "",
+  triggerStyle,
 }: WritingArchiveProps) {
   const [activeTab, setActiveTab] = useState<"current" | "capsules">("current");
 
@@ -90,7 +93,7 @@ export function WritingArchive({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant={triggerVariant} size={triggerSize} className={`gap-2 ${triggerClassName}`}>
+        <Button variant={triggerVariant} size={triggerSize} className={`gap-2 ${triggerClassName}`} style={triggerStyle}>
           <Archive className="w-4 h-4" />
           {triggerLabel}
         </Button>
