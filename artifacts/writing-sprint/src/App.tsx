@@ -3,7 +3,7 @@ console.log("[clerk-key] VITE_CLERK_PK =", import.meta.env.VITE_CLERK_PK, "| VIT
 
 import { useEffect, useRef, useState, Component } from "react";
 import type { ReactNode } from "react";
-import { ClerkProvider, SignIn, SignUp, useClerk, useAuth } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, ClerkLoading, ClerkLoaded } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, Redirect, useLocation, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
@@ -475,6 +475,27 @@ function ClerkProviderWithRoutes() {
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
+      {/* Show a visible loading screen while Clerk initialises.
+          Without this, ClerkProvider renders nothing during init and the
+          page appears blank — especially noticeable when the Clerk FAPI
+          proxy is slow or unreachable. */}
+      <ClerkLoading>
+        <div style={{
+          minHeight: "100dvh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "1rem",
+          fontFamily: "Inter, sans-serif",
+          background: "#FAF8F4",
+          color: "#2D3142",
+        }}>
+          <img src={`${basePath}/logo.svg`} alt="Writing Sprint" style={{ width: 48, height: 48, borderRadius: 12 }} />
+          <p style={{ margin: 0, color: "#68708A", fontSize: "0.95rem" }}>Loading Writing Sprint…</p>
+        </div>
+      </ClerkLoading>
+      <ClerkLoaded>
       <QueryClientProvider client={queryClient}>
         <GuestProvider>
           <SkinProvider>
@@ -500,6 +521,7 @@ function ClerkProviderWithRoutes() {
           </SkinProvider>
         </GuestProvider>
       </QueryClientProvider>
+      </ClerkLoaded>
     </ClerkProvider>
   );
 }

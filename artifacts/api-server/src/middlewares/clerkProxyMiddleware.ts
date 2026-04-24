@@ -52,15 +52,31 @@ export function clerkProxyMiddleware(): RequestHandler {
     return (_req, _res, next) => next();
   }
 
+  log.info({ target: CLERK_FAPI }, "clerk-proxy target");
+
   return createProxyMiddleware({
     target: CLERK_FAPI,
     changeOrigin: true,
+    // Fail fast if the upstream FAPI host is unreachable (e.g. DNS missing for
+    // a custom Clerk domain). Without this the proxy hangs indefinitely, leaving
+    // ClerkProvider in a permanent loading state → blank page.
+    proxyTimeout: 8000,
+    timeout: 8000,
     // We do all cookie domain manipulation manually in proxyRes so we have
     // full control (cookieDomainRewrite would also strip domains from our
     // explicit clearing cookies, defeating the purpose).
     pathRewrite: (path: string) =>
       path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
+      error: (err, req, res) => {
+        log.error({ err: (err as NodeJS.ErrnoException).message, code: (err as NodeJS.ErrnoException).code, url: req.url, fapi: CLERK_FAPI },
+          "clerk-proxy: upstream FAPI unreachable — check clerk.writingsprint.site DNS (needs CNAME → frontend-api.clerk.dev)"
+        );
+        if (!("headersSent" in res && res.headersSent)) {
+          (res as import("http").ServerResponse).writeHead(502, { "Content-Type": "application/json" });
+          (res as import("http").ServerResponse).end(JSON.stringify({ error: "Clerk FAPI unreachable", hint: "Add CNAME clerk.writingsprint.site → frontend-api.clerk.dev" }));
+        }
+      },
       proxyReq: (proxyReq, req) => {
         const protocol =
           (Array.isArray(req.headers["x-forwarded-proto"])
