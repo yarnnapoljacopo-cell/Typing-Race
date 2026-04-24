@@ -77,9 +77,32 @@ app.use("/api", router);
 if (process.env.NODE_ENV === "production") {
   const frontendDist = path.join(process.cwd(), "artifacts/writing-sprint/dist/public");
   logger.info({ frontendDist }, "Production: serving frontend static files from");
-  app.use(express.static(frontendDist));
-  // SPA fallback — serve index.html for any non-API, non-WS route
+
+  // Hashed assets (/assets/*.js, /assets/*.css) are content-addressed so they
+  // can be cached by CDNs forever — the hash changes with every build.
+  // Everything else (including index.html) must never be CDN-cached because it
+  // contains the hash references to the current JS/CSS bundle.
+  app.use(
+    express.static(frontendDist, {
+      setHeaders(res, filePath) {
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else {
+          // index.html, favicon, logo, etc. — always revalidate, never store
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        }
+      },
+    }),
+  );
+
+  // SPA fallback — serve index.html for any non-API, non-WS route.
+  // Always no-store so Cloudflare / Railway CDN never caches the HTML shell.
   app.use((_req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
