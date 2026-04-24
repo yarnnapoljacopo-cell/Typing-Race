@@ -35,7 +35,7 @@ const _resolvedPkSource = process.env.VITE_CLERK_PK ? "VITE_CLERK_PK" : process.
 console.log("[startup-debug] NODE_ENV:", process.env.NODE_ENV, "| CLERK_SECRET_KEY set:", !!process.env.CLERK_SECRET_KEY, "| resolved PK source:", _resolvedPkSource, "| PK prefix:", _pubKey.slice(0, 30), "| resolved FAPI:", _resolvedFapi);
 
 const server = createServer(app);
-setupWebSocketServer(server);
+const wss = setupWebSocketServer(server);
 
 // Start listening immediately so Railway's healthcheck passes right away.
 // Room restore runs in the background — a slow DB cold-start won't delay
@@ -62,3 +62,22 @@ server.on("error", (err) => {
   logger.error({ err }, "Server error");
   process.exit(1);
 });
+
+// When Railway deploys a new container it sends SIGTERM to the old one.
+// Close all open WebSocket connections with code 1012 (Service Restart) so
+// every client immediately reconnects to the new container. Without this,
+// clients that were connected to the old container end up in a split-brain
+// state where they can no longer see participants connected to the new one.
+function gracefulShutdown(signal: string) {
+  logger.info({ signal }, "Received signal — closing WebSocket connections for graceful handoff");
+  wss.clients.forEach((client) => {
+    if (client.readyState === client.OPEN) {
+      client.close(1012, "Server restarting — please reconnect");
+    }
+  });
+  // Give clients 2 s to handle the close, then exit so Railway can replace us.
+  setTimeout(() => process.exit(0), 2_000);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));

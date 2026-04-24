@@ -432,7 +432,7 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (unmountedRef.current) return;
       setIsConnected(false);
 
@@ -441,6 +441,9 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
           disconnectedAtRef.current = Date.now();
         }
         setIsReconnecting(true);
+        // 1012 = Service Restart: the server intentionally closed all connections
+        // for a deployment handoff. Reset backoff so we reconnect instantly.
+        if (event.code === 1012) reconnectAttemptRef.current = 0;
         const delay = nextDelay(reconnectAttemptRef.current);
         reconnectAttemptRef.current += 1;
         reconnectTimeoutRef.current = window.setTimeout(() => {

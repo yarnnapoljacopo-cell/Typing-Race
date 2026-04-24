@@ -636,14 +636,13 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
       const room = getRoom(roomCode);
       if (!room) return;
 
-      // Apply a 30-second grace period during active sprints AND the post-sprint
-      // results window, so a network blip or quick refresh doesn't evict the
-      // participant. "finished" gets the same grace so reconnecting back to the
-      // results screen works seamlessly.
-      const hasGracePeriod =
-        room.status === "running" ||
-        room.status === "countdown" ||
-        room.status === "finished";
+      // Apply a grace period so a network blip or quick refresh doesn't evict
+      // the participant. We cover ALL room states, including "waiting", because
+      // a brief disconnect in the lobby would otherwise immediately remove the
+      // participant (with no chance to rejoin seamlessly). 30 s for active
+      // sprints; 10 s in the lobby (shorter so abandoned lobby slots clear faster).
+      const hasGracePeriod = true;
+      const gracePeriodMs = room.status === "waiting" ? 10_000 : 30_000;
 
       if (hasGracePeriod) {
         const p = room.participants.get(participantId);
@@ -653,14 +652,11 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             const currentRoom = getRoom(roomCode!);
             if (currentRoom?.participants.has(participantId!)) {
               removeParticipant(currentRoom, participantId!);
-              logger.info({ code: roomCode, participantId }, "Participant removed after 30 s grace period");
+              logger.info({ code: roomCode, participantId }, `Participant removed after ${gracePeriodMs / 1000}s grace period`);
             }
-          }, 30_000);
-          logger.info({ code: roomCode, participantId }, "Participant disconnected — 30 s grace started");
+          }, gracePeriodMs);
+          logger.info({ code: roomCode, participantId, gracePeriodMs }, "Participant disconnected — grace period started");
         }
-      } else {
-        removeParticipant(room, participantId);
-        logger.info({ code: roomCode, participantId }, "Participant left room");
       }
     });
 
