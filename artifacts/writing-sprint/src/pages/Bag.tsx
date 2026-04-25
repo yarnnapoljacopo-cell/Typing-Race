@@ -524,7 +524,7 @@ export default function Bag() {
                           onClick={() => setSelectedItem(item)}
                           className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border border-l-4 transition-all hover:scale-[1.03] hover:shadow-sm text-center ${
                             item.overflow_since
-                              ? "bg-red-50 dark:bg-red-950/30 border-red-500 border-l-red-500"
+                              ? `bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-800 ${RARITY_BORDER_LEFT[item.rarity] ?? "border-l-red-500"}`
                               : `bg-card ${RARITY_BORDER_LEFT[item.rarity] ?? "border-l-border"}`
                           }`}
                         >
@@ -542,14 +542,13 @@ export default function Bag() {
                               {formatDuration(new Date(cooldownEnd!).getTime() - Date.now())}
                             </span>
                           )}
-                          {item.overflow_since ? (
-                            <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-red-500 text-white">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold capitalize ${RARITY_BADGE[item.rarity] ?? "bg-muted text-muted-foreground"}`}>
+                            {item.rarity}
+                          </span>
+                          {item.overflow_since && (
+                            <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-red-500 text-white -mt-0.5">
                               <Trash2 className="w-2.5 h-2.5" />
                               {overflowTimeLeft(item.overflow_since)}
-                            </span>
-                          ) : (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold capitalize ${RARITY_BADGE[item.rarity] ?? "bg-muted text-muted-foreground"}`}>
-                              {item.rarity}
                             </span>
                           )}
                         </button>
