@@ -191,10 +191,32 @@ router.post("/user/chests/open", async (req, res): Promise<void> => {
       }
     }
 
+    // ── Load obtainable items once, select in memory (no ORDER BY RANDOM()) ─
+    const { rows: allItems } = await client.query<{
+      id: number; name: string; rarity: string; icon: string; category: string;
+    }>(
+      `SELECT id, name, rarity, icon, category
+       FROM items_master
+       WHERE is_chest_obtainable = TRUE`,
+    );
+
+    // Index by "rarity:category" for O(1) lookup
+    const itemIndex = new Map<string, Array<{ id: number; name: string; rarity: string; icon: string; category: string }>>();
+    for (const item of allItems) {
+      const key = `${item.rarity}:${item.category}`;
+      if (!itemIndex.has(key)) itemIndex.set(key, []);
+      itemIndex.get(key)!.push(item);
+    }
+
+    function pickRandom<T>(arr: T[]): T | undefined {
+      if (arr.length === 0) return undefined;
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
     // ── Roll item(s) ──────────────────────────────────────────────────────
     const items: Array<{ id: number; name: string; rarity: string; icon: string; category: string }> = [];
 
-    async function rollOneItem(forcedRarity?: string): Promise<{ id: number; name: string; rarity: string; icon: string; category: string } | null> {
+    function rollOneItem(forcedRarity?: string): { id: number; name: string; rarity: string; icon: string; category: string } | null {
       let rarity = forcedRarity ?? weightedRoll(config.rarityTable);
 
       // Apply chest_luck: promote rarity up by one tier
@@ -221,62 +243,55 @@ router.post("/user/chests/open", async (req, res): Promise<void> => {
         }
       }
 
-      // Strip recipes from category filter if chest doesn't allow them
-      // (legendary is now available from all chests, no flag needed)
-
-      // Build category filter (copy so we don't mutate the config)
+      // Build category filter
       const catFilter = [...config.allowedCategories];
       if (!config.allowRecipes) {
         const idx = catFilter.indexOf("recipe");
         if (idx >= 0) catFilter.splice(idx, 1);
       }
 
-      const { rows: candidates } = await client.query(
-        `SELECT id, name, rarity, icon, category
-         FROM items_master
-         WHERE rarity = $1
-           AND is_chest_obtainable = TRUE
-           AND category = ANY($2::text[])
-         ORDER BY RANDOM() LIMIT 1`,
-        [rarity, catFilter],
-      );
-
-      if (candidates.length === 0) {
-        // fallback to any obtainable item of equal or lower rarity in same categories
-        const rarityIdx2 = RARITY_ORDER.indexOf(rarity);
-        for (let i = rarityIdx2; i >= 0; i--) {
-          const { rows: fallback } = await client.query(
-            `SELECT id, name, rarity, icon, category FROM items_master
-             WHERE rarity = $1 AND is_chest_obtainable = TRUE AND category = ANY($2::text[])
-             ORDER BY RANDOM() LIMIT 1`,
-            [RARITY_ORDER[i], catFilter],
-          );
-          if (fallback.length > 0) return fallback[0];
-        }
-        return null;
+      // Pick from in-memory index
+      const eligible: Array<{ id: number; name: string; rarity: string; icon: string; category: string }> = [];
+      for (const cat of catFilter) {
+        const found = itemIndex.get(`${rarity}:${cat}`);
+        if (found) eligible.push(...found);
       }
-      return candidates[0];
+      const picked = pickRandom(eligible);
+      if (picked) return picked;
+
+      // Fallback: try equal or lower rarities
+      const rarityIdx2 = RARITY_ORDER.indexOf(rarity);
+      for (let i = rarityIdx2; i >= 0; i--) {
+        const fallback: Array<{ id: number; name: string; rarity: string; icon: string; category: string }> = [];
+        for (const cat of catFilter) {
+          const found = itemIndex.get(`${RARITY_ORDER[i]}:${cat}`);
+          if (found) fallback.push(...found);
+        }
+        const fallbackPick = pickRandom(fallback);
+        if (fallbackPick) return fallbackPick;
+      }
+      return null;
     }
 
     // Main item (always 1)
-    const mainItem = await rollOneItem();
+    const mainItem = rollOneItem();
     if (mainItem) items.push(mainItem);
 
     // Bonus item rolls — each chest has its own probability for a 2nd and 3rd item
     const [chance2nd, chance3rd] = config.bonusItemChances;
     if (chance2nd > 0 && Math.random() < chance2nd) {
-      const bonus2 = await rollOneItem();
+      const bonus2 = rollOneItem();
       if (bonus2) items.push(bonus2);
 
       if (chance3rd > 0 && Math.random() < chance3rd) {
-        const bonus3 = await rollOneItem();
+        const bonus3 = rollOneItem();
         if (bonus3) items.push(bonus3);
       }
     }
 
     // Guarantee one mythic (Destiny Pill)
     if (forceOneMyithic && !items.some(i => RARITY_ORDER.indexOf(i.rarity) >= RARITY_ORDER.indexOf("mythic"))) {
-      const mythicItem = await rollOneItem("mythic");
+      const mythicItem = rollOneItem("mythic");
       if (mythicItem) items.push(mythicItem);
     }
 
