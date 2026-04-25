@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>Recipe Book — Crafting Lab</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --cream: #F5F2EC;
+    --ink: #1a1a2e;
+    --blue: #3B5FDB;
+    --blue-soft: #6B8FD4;
+    --muted: #7a7a92;
+    --border: rgba(107,143,212,0.13);
+    --gold: #c8960c;
+    --gold-light: #f5c842;
+    --jade: #0d9373;
+    --jade-light: #34d399;
+
+    --common-c: #6b7280;
+    --uncommon-c: #15803d;
+    --uncommon-bg: #f0fdf4;
+    --rare-c: #1d4ed8;
+    --rare-bg: #eff6ff;
+    --epic-c: #6d28d9;
+    --epic-bg: #f5f3ff;
+    --mythic-c: #b45309;
+    --mythic-bg: #fffbeb;
+  }
+
+  body {
+    background: var(--cream);
+    font-family: "DM Sans", sans-serif;
+    min-height: 100vh;
+    color: var(--ink);
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  .bg-grid {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(107,143,212,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(107,143,212,0.04) 1px, transparent 1px);
+    background-size: 52px 52px;
+  }
+  .bg-orb { position: fixed; border-radius: 50%; filter: blur(100px); pointer-events: none; z-index: 0; }
+  .orb1 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(200,150,12,0.07) 0%, transparent 70%); top: -100px; right: -100px; }
+  .orb2 { width: 400px; height: 400px; background: radial-gradient(circle, rgba(13,147,115,0.05) 0%, transparent 70%); bottom: -80px; left: -80px; }
+
+  .bg-symbol { position: fixed; pointer-events: none; z-index: 0; opacity: 0.03; font-family: serif; }
+  .sym1 { font-size: 240px; top: 5%; left: -2%; color: var(--gold); transform: rotate(-8deg); }
+  .sym2 { font-size: 180px; bottom: 5%; right: 1%; color: var(--jade); transform: rotate(6deg); }
+
+  /* ── Page ── */
+  .page { position: relative; z-index: 1; max-width: 920px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* ── Nav ── */
+  .topnav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(245,242,236,0.94); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px; display: flex; align-items: center; gap: 14px;
+    height: 56px; margin: 0 -24px 0;
+  }
+  .nav-back { display: flex; align-items: center; gap: 5px; font-size: 0.84rem; font-weight: 500; color: var(--muted); cursor: pointer; background: none; border: none; font-family: "DM Sans", sans-serif; transition: color 0.18s; }
+  .nav-back:hover { color: var(--ink); }
+  .nav-title { display: flex; align-items: center; gap: 8px; font-family: "Playfair Display", serif; font-size: 1.05rem; font-weight: 700; color: var(--ink); }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .nav-btn { display: flex; align-items: center; gap: 6px; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 7px 13px; font-size: 0.8rem; font-weight: 600; color: var(--ink); cursor: pointer; font-family: "DM Sans", sans-serif; transition: all 0.18s; box-shadow: 0 1px 4px rgba(107,143,212,0.07); }
+  .nav-btn:hover { border-color: rgba(107,143,212,0.25); box-shadow: 0 3px 10px rgba(107,143,212,0.12); }
+
+  /* ── Tabs ── */
+  .tab-row { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 24px; padding-top: 4px; position: relative; }
+  .tab-row::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(200,150,12,0.18), transparent); }
+  .tab { padding: 10px 18px; font-size: 0.84rem; font-weight: 600; color: var(--muted); cursor: pointer; background: none; border: none; font-family: "DM Sans", sans-serif; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.18s; display: flex; align-items: center; gap: 7px; }
+  .tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+  .tab:hover:not(.active) { color: var(--ink); }
+
+  /* ── Filter row ── */
+  .filter-row { display: flex; align-items: center; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; }
+  .filter-btn { padding: 7px 16px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; cursor: pointer; border: 1.5px solid var(--border); background: white; color: var(--muted); transition: all 0.18s; font-family: "DM Sans", sans-serif; }
+  .filter-btn.active { background: var(--ink); color: white; border-color: var(--ink); }
+  .filter-btn:hover:not(.active) { border-color: rgba(107,143,212,0.3); color: var(--ink); }
+
+  /* ── Section header ── */
+  .section-header {
+    display: flex; align-items: center; gap: 12px;
+    margin: 28px 0 14px;
+  }
+  .section-line { flex: 1; height: 1px; }
+  .section-line.gold { background: linear-gradient(90deg, rgba(200,150,12,0.3), transparent); }
+  .section-line.gold-r { background: linear-gradient(270deg, rgba(200,150,12,0.3), transparent); }
+  .section-line.blue { background: linear-gradient(90deg, rgba(59,95,219,0.2), transparent); }
+  .section-line.blue-r { background: linear-gradient(270deg, rgba(59,95,219,0.2), transparent); }
+  .section-line.purple { background: linear-gradient(90deg, rgba(109,40,217,0.2), transparent); }
+  .section-line.purple-r { background: linear-gradient(270deg, rgba(109,40,217,0.2), transparent); }
+  .section-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 14px; border-radius: 999px;
+    font-size: 0.7rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .badge-uncommon { background: #f0fdf4; color: #15803d; border: 1px solid rgba(34,197,94,0.25); }
+  .badge-rare { background: #eff6ff; color: #1d4ed8; border: 1px solid rgba(59,130,246,0.25); }
+  .badge-epic { background: #f5f3ff; color: #6d28d9; border: 1px solid rgba(139,92,246,0.25); }
+  .badge-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .dot-uncommon { background: #22c55e; box-shadow: 0 0 4px rgba(34,197,94,0.6); }
+  .dot-rare { background: #3b82f6; box-shadow: 0 0 4px rgba(59,130,246,0.6); }
+  .dot-epic { background: #8b5cf6; box-shadow: 0 0 4px rgba(139,92,246,0.6); }
+
+  /* ── Recipe grid ── */
+  .recipe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ── Recipe card ── */
+  .recipe-card {
+    background: white;
+    border: 1px solid rgba(200,150,12,0.1);
+    border-radius: 18px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(107,143,212,0.07);
+    transition: all 0.24s cubic-bezier(.22,1,.36,1);
+    cursor: pointer; position: relative;
+  }
+  .recipe-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(107,143,212,0.14);
+    border-color: rgba(200,150,12,0.22);
+  }
+
+  /* Rarity top bar */
+  .recipe-card .rarity-bar {
+    height: 3px; width: 100%;
+  }
+  .bar-uncommon { background: linear-gradient(90deg, #22c55e, #86efac); }
+  .bar-rare { background: linear-gradient(90deg, #3b82f6, #93c5fd); }
+  .bar-epic { background: linear-gradient(90deg, #8b5cf6, #c4b5fd); }
+  .bar-mythic { background: linear-gradient(90deg, #f59e0b, #fcd34d); }
+
+  .recipe-card-inner { padding: 16px 18px 16px; }
+
+  .recipe-top { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 12px; }
+
+  /* Item icon */
+  .recipe-icon {
+    width: 52px; height: 52px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; position: relative;
+  }
+  .recipe-icon svg { width: 36px; height: 36px; }
+  .icon-uncommon { background: linear-gradient(135deg, #dcfce7, #bbf7d0); box-shadow: 0 2px 10px rgba(34,197,94,0.2); }
+  .icon-rare { background: linear-gradient(135deg, #dbeafe, #bfdbfe); box-shadow: 0 2px 10px rgba(59,130,246,0.2); }
+  .icon-epic { background: linear-gradient(135deg, #ede9fe, #ddd6fe); box-shadow: 0 2px 10px rgba(139,92,246,0.2); }
+  .icon-mythic { background: linear-gradient(135deg, #fef3c7, #fde68a); box-shadow: 0 2px 12px rgba(245,158,11,0.25); }
+
+  .recipe-info { flex: 1; min-width: 0; }
+  .recipe-name { font-size: 0.92rem; font-weight: 800; color: var(--ink); margin-bottom: 4px; letter-spacing: -0.01em; line-height: 1.25; }
+  .recipe-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .meta-tag {
+    font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    letter-spacing: 0.03em;
+  }
+  .tag-uncommon { background: #f0fdf4; color: #15803d; }
+  .tag-rare { background: #eff6ff; color: #1d4ed8; }
+  .tag-epic { background: #f5f3ff; color: #6d28d9; }
+  .tag-type { background: rgba(107,143,212,0.08); color: var(--muted); }
+  .meta-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--border); }
+
+  /* Success rate */
+  .success-wrap { margin-left: auto; text-align: right; flex-shrink: 0; }
+  .success-pct {
+    font-size: 1rem; font-weight: 900; color: var(--ink);
+    letter-spacing: -0.02em; line-height: 1;
+  }
+  .success-label { font-size: 0.6rem; color: var(--muted); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; margin-top: 1px; }
+  .success-bar {
+    width: 44px; height: 4px; background: rgba(107,143,212,0.1);
+    border-radius: 99px; overflow: hidden; margin-top: 4px; margin-left: auto;
+  }
+  .success-fill { height: 100%; border-radius: 99px; }
+  .fill-high { background: linear-gradient(90deg, #22c55e, #86efac); }
+  .fill-mid { background: linear-gradient(90deg, #3b82f6, #93c5fd); }
+  .fill-low { background: linear-gradient(90deg, #8b5cf6, #c4b5fd); }
+  .fill-vlow { background: linear-gradient(90deg, #f59e0b, #fcd34d); }
+
+  /* Divider */
+  .recipe-divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(200,150,12,0.15), rgba(107,143,212,0.1), transparent); margin: 0 0 12px; }
+
+  /* Ingredients */
+  .ingredients { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ingredient {
+    display: flex; align-items: center; gap: 5px;
+    background: var(--cream); border: 1px solid rgba(107,143,212,0.12);
+    border-radius: 999px; padding: 4px 10px;
+    font-size: 0.7rem; font-weight: 600; color: var(--ink);
+    transition: all 0.15s;
+  }
+  .ingredient:hover { border-color: rgba(107,143,212,0.28); background: white; }
+  .ing-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Ingredient dot colours by type */
+  .ing-iron { background: radial-gradient(circle, #9ca3af, #6b7280); }
+  .ing-ginseng { background: radial-gradient(circle, #86efac, #22c55e); }
+  .ing-water { background: radial-gradient(circle, #93c5fd, #3b82f6); }
+  .ing-jade { background: radial-gradient(circle, #6ee7b7, #0d9373); }
+  .ing-flame { background: radial-gradient(circle, #fca5a5, #ef4444); }
+  .ing-lotus { background: radial-gradient(circle, #f9a8d4, #ec4899); }
+  .ing-moss { background: radial-gradient(circle, #bbf7d0, #16a34a); }
+  .ing-thunder { background: radial-gradient(circle, #fde68a, #d97706); }
+  .ing-mushroom { background: radial-gradient(circle, #ddd6fe, #7c3aed); }
+  .ing-python { background: radial-gradient(circle, #6ee7b7, #065f46); }
+  .ing-dew { background: radial-gradient(circle, #bae6fd, #0284c7); }
+  .ing-grass { background: radial-gradient(circle, #bbf7d0, #15803d); }
+  .ing-whisker { background: radial-gradient(circle, #fde68a, #b45309); }
+  .ing-spring { background: radial-gradient(circle, #e0f2fe, #0ea5e9); }
+  .ing-feather { background: radial-gradient(circle, #fecdd3, #e11d48); }
+  .ing-heartwood { background: radial-gradient(circle, #d6b896, #92400e); }
+  .ing-shard { background: radial-gradient(circle, #e0e7ff, #6366f1); }
+  .ing-herb { background: radial-gradient(circle, #bbf7d0, #0d9373); }
+  .ing-bloodlotus { background: radial-gradient(circle, #fca5a5, #b91c1c); }
+  .ing-bamboo { background: radial-gradient(circle, #a7f3d0, #047857); }
+  .ing-ice { background: radial-gradient(circle, #bfdbfe, #1d4ed8); }
+
+  /* Unknown card */
+  .recipe-card.unknown {
+    background: rgba(245,242,236,0.6);
+    border-color: rgba(107,143,212,0.08);
+  }
+  .recipe-card.unknown .recipe-name { color: var(--muted); }
+  .recipe-card.unknown .recipe-icon { filter: grayscale(0.6) opacity(0.7); }
+  .recipe-card.unknown .ingredients { filter: blur(3px); pointer-events: none; }
+  .unknown-lock {
+    position: absolute; top: 12px; right: 14px;
+    color: rgba(107,143,212,0.35);
+  }
+
+  /* Corner rune */
+  .corner-rune { position: fixed; pointer-events: none; z-index: 0; opacity: 0.05; }
+  .rune-tl { top: 60px; left: 10px; }
+  .rune-br { bottom: 20px; right: 10px; transform: rotate(180deg); }
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-orb orb1"></div>
+<div class="bg-orb orb2"></div>
+<div class="bg-symbol sym1">煉</div>
+<div class="bg-symbol sym2">丹</div>
+
+<svg class="corner-rune rune-tl" width="80" height="80" viewBox="0 0 80 80" fill="none">
+  <path d="M10 10 L40 4 L70 10 L76 40 L70 70 L40 76 L10 70 L4 40 Z" stroke="#c8960c" stroke-width="1.5" fill="none"/>
+  <path d="M20 20 L40 15 L60 20 L65 40 L60 60 L40 65 L20 60 L15 40 Z" stroke="#c8960c" stroke-width="1" fill="none"/>
+  <circle cx="40" cy="40" r="8" stroke="#c8960c" stroke-width="1" fill="none"/>
+  <line x1="40" y1="15" x2="40" y2="65" stroke="#c8960c" stroke-width="0.8" opacity="0.5"/>
+  <line x1="15" y1="40" x2="65" y2="40" stroke="#c8960c" stroke-width="0.8" opacity="0.5"/>
+</svg>
+<svg class="corner-rune rune-br" width="80" height="80" viewBox="0 0 80 80" fill="none">
+  <path d="M10 10 L40 4 L70 10 L76 40 L70 70 L40 76 L10 70 L4 40 Z" stroke="#0d9373" stroke-width="1.5" fill="none"/>
+  <path d="M20 20 L40 15 L60 20 L65 40 L60 60 L40 65 L20 60 L15 40 Z" stroke="#0d9373" stroke-width="1" fill="none"/>
+  <circle cx="40" cy="40" r="8" stroke="#0d9373" stroke-width="1" fill="none"/>
+  <line x1="40" y1="15" x2="40" y2="65" stroke="#0d9373" stroke-width="0.8" opacity="0.5"/>
+  <line x1="15" y1="40" x2="65" y2="40" stroke="#0d9373" stroke-width="0.8" opacity="0.5"/>
+</svg>
+
+<div class="page">
+  <nav class="topnav">
+    <button class="nav-back">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </button>
+    <div class="nav-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+      Crafting Lab
+    </div>
+    <div class="nav-right">
+      <button class="nav-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        Bag
+      </button>
+      <button class="nav-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Chests
+      </button>
+    </div>
+  </nav>
+
+  <div class="tab-row" style="margin-top:0;">
+    <button class="tab">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+      Fusion
+    </button>
+    <button class="tab">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+      Alchemy
+    </button>
+    <button class="tab">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Tribulation
+    </button>
+    <button class="tab active">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      Recipe Book
+    </button>
+  </div>
+
+  <!-- Filter -->
+  <div class="filter-row">
+    <button class="filter-btn active" onclick="setFilter(this,'all')">All</button>
+    <button class="filter-btn" onclick="setFilter(this,'known')">Known</button>
+    <button class="filter-btn" onclick="setFilter(this,'unknown')">Unknown</button>
+  </div>
+
+  <!-- ══ UNCOMMON ══ -->
+  <div class="section-header">
+    <div class="section-line gold"></div>
+    <div class="section-badge badge-uncommon"><div class="badge-dot dot-uncommon"></div>Uncommon Recipes</div>
+    <div class="section-line gold-r"></div>
+  </div>
+
+  <div class="recipe-grid">
+
+    <!-- Beast Bloodline Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-uncommon"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-uncommon">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="bbp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#86efac"/><stop offset="100%" stop-color="#15803d"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#bbp)" stroke="#16a34a" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.45)" transform="rotate(-15 20 19)"/>
+              <path d="M20 10 L17 6 M24 9 L24 5 M28 10 L31 6" stroke="#22c55e" stroke-width="1.1" stroke-linecap="round" opacity="0.7"/>
+              <circle cx="24" cy="9" r="1.5" fill="#bbf7d0" opacity="0.8"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Beast Bloodline Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-uncommon">Uncommon</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">65%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-high" style="width:65%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-iron"></div>Iron Core Dust</div>
+          <div class="ingredient"><div class="ing-dot ing-ginseng"></div>Thousand Year Ginseng</div>
+          <div class="ingredient"><div class="ing-dot ing-water"></div>Cold Spring Water</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Body Tempering Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-uncommon"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-uncommon">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="btp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a7f3d0"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#btp)" stroke="#10b981" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.4)" transform="rotate(-15 20 19)"/>
+              <path d="M18 10 L15 6 M24 9 L24 5 M30 10 L33 6" stroke="#10b981" stroke-width="1.1" stroke-linecap="round" opacity="0.6"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Body Tempering Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-uncommon">Uncommon</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">75%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-high" style="width:75%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-ginseng"></div>Thousand Year Ginseng</div>
+          <div class="ingredient"><div class="ing-dot ing-iron"></div>Iron Core Dust</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Heaven Qi Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-uncommon"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-uncommon">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><radialGradient id="hqp" cx="40%" cy="30%" r="65%"><stop offset="0%" stop-color="#bbf7d0"/><stop offset="100%" stop-color="#065f46"/></radialGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#hqp)" stroke="#059669" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.65)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.4)" transform="rotate(-15 20 19)"/>
+              <path d="M22 10 L20 6 M24 9 L24 5 M26 10 L28 6" stroke="#22c55e" stroke-width="1.1" stroke-linecap="round" opacity="0.6"/>
+              <circle cx="24" cy="31" r="2" fill="rgba(255,255,255,0.3)"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Heaven Qi Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-uncommon">Uncommon</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">70%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-high" style="width:70%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-jade"></div>Jade Flower</div>
+          <div class="ingredient"><div class="ing-dot ing-flame"></div>Solar Flame Petal</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Luck Enhancing Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-uncommon"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-uncommon">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="lep" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d1fae5"/><stop offset="100%" stop-color="#047857"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#lep)" stroke="#10b981" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.65)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.4)" transform="rotate(-15 20 19)"/>
+              <circle cx="24" cy="8" r="3" fill="#fde68a" stroke="#d97706" stroke-width="1"/>
+              <path d="M22 8 L24 6 L26 8 L24 10 Z" fill="#f59e0b"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Luck Enhancing Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-uncommon">Uncommon</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">65%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-high" style="width:65%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-flame"></div>Solar Flame Petal</div>
+          <div class="ingredient"><div class="ing-dot ing-water"></div>Cold Spring Water</div>
+          <div class="ingredient"><div class="ing-dot ing-jade"></div>Jade Flower</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Meridian Clearing Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-uncommon"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-uncommon">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="mcp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a7f3d0"/><stop offset="100%" stop-color="#0d9373"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#mcp)" stroke="#0d9373" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.65)" stroke-width="1.5"/>
+              <path d="M18 16 Q24 12 30 16" stroke="rgba(255,255,255,0.5)" stroke-width="1" fill="none"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.4)" transform="rotate(-15 20 19)"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Meridian Clearing Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-uncommon">Uncommon</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">75%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-high" style="width:75%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-moss"></div>Spirit Moss</div>
+          <div class="ingredient"><div class="ing-dot ing-water"></div>Cold Spring Water</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Qi Condensation Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-uncommon"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-uncommon">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="qcp" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ecfdf5"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#qcp)" stroke="#10b981" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.65)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.45)" transform="rotate(-15 20 19)"/>
+              <circle cx="24" cy="30" r="2.5" fill="rgba(255,255,255,0.35)"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Qi Condensation Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-uncommon">Uncommon</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">65%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-high" style="width:65%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-ginseng"></div>Thousand Year Ginseng</div>
+          <div class="ingredient"><div class="ing-dot ing-moss"></div>Spirit Moss</div>
+          <div class="ingredient"><div class="ing-dot ing-iron"></div>Iron Core Dust</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Yang Gathering Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-uncommon"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-uncommon">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="ygp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#d97706"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#ygp)" stroke="#f59e0b" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.65)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.4)" transform="rotate(-15 20 19)"/>
+              <path d="M22 10 L20 6 M24 9 L24 5 M26 10 L28 6" stroke="#fcd34d" stroke-width="1.1" stroke-linecap="round" opacity="0.8"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Yang Gathering Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-uncommon">Uncommon</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">70%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-high" style="width:70%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-flame"></div>Solar Flame Petal</div>
+          <div class="ingredient"><div class="ing-dot ing-ginseng"></div>Thousand Year Ginseng</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Yin Gathering Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-uncommon"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-uncommon">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="yingp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e0f2fe"/><stop offset="100%" stop-color="#0284c7"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#yingp)" stroke="#38bdf8" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.45)" transform="rotate(-15 20 19)"/>
+              <path d="M22 10 L20 6 M24 9 L24 5 M26 10 L28 6" stroke="#7dd3fc" stroke-width="1.1" stroke-linecap="round" opacity="0.8"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Yin Gathering Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-uncommon">Uncommon</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">70%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-high" style="width:70%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-water"></div>Cold Spring Water</div>
+          <div class="ingredient"><div class="ing-dot ing-jade"></div>Jade Flower</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end uncommon grid -->
+
+  <!-- ══ RARE ══ -->
+  <div class="section-header">
+    <div class="section-line blue"></div>
+    <div class="section-badge badge-rare"><div class="badge-dot dot-rare"></div>Rare Recipes</div>
+    <div class="section-line blue-r"></div>
+  </div>
+
+  <div class="recipe-grid">
+
+    <!-- Dragon Bloodline Fragment Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-rare"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-rare">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="dbfp" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#bfdbfe"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#dbfp)" stroke="#3b82f6" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.35)" transform="rotate(-15 20 19)"/>
+              <path d="M20 10 Q24 6 28 10" stroke="#93c5fd" stroke-width="1.2" fill="none"/>
+              <path d="M22 10 L24 8 L26 10 L24 12 Z" fill="#60a5fa"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Dragon Bloodline Fragment Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-rare">Rare</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">55%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-mid" style="width:55%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-python"></div>Spirit Python Gallbladder</div>
+          <div class="ingredient"><div class="ing-dot ing-thunder"></div>Thunder Bamboo</div>
+          <div class="ingredient"><div class="ing-dot ing-bloodlotus"></div>Blood Lotus</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fate Altering Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-rare"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-rare">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="fap" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#dbeafe"/><stop offset="100%" stop-color="#1e40af"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#fap)" stroke="#3b82f6" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.35)" transform="rotate(-15 20 19)"/>
+              <path d="M26 10 L22 8 L20 10 M24 9 L24 5" stroke="#93c5fd" stroke-width="1.1" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Fate Altering Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-rare">Rare</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">50%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-mid" style="width:50%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-mushroom"></div>Crimson Spirit Mushroom</div>
+          <div class="ingredient"><div class="ing-dot ing-bloodlotus"></div>Blood Lotus</div>
+          <div class="ingredient"><div class="ing-dot ing-python"></div>Spirit Python Gallbladder</div>
+          <div class="ingredient"><div class="ing-dot ing-dew"></div>Heaven Dew Drop</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fortune Reversal Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-rare"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-rare">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="frp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#93c5fd"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#frp)" stroke="#2563eb" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.35)" transform="rotate(-15 20 19)"/>
+              <path d="M20 10 L24 6 L28 10" stroke="#bfdbfe" stroke-width="1.2" fill="none"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Fortune Reversal Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-rare">Rare</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">55%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-mid" style="width:55%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-python"></div>Spirit Python Gallbladder</div>
+          <div class="ingredient"><div class="ing-dot ing-ice"></div>Nine Cold Ice Grass</div>
+          <div class="ingredient"><div class="ing-dot ing-dew"></div>Heaven Dew Drop</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Foundation Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-rare"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-rare">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="fp2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#bfdbfe"/><stop offset="100%" stop-color="#1e40af"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#fp2)" stroke="#3b82f6" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.35)" transform="rotate(-15 20 19)"/>
+              <path d="M20 9 L17 5 M24 8 L24 4 M28 9 L31 5" stroke="#60a5fa" stroke-width="1.1" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Foundation Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-rare">Rare</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">65%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-mid" style="width:65%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-bloodlotus"></div>Blood Lotus</div>
+          <div class="ingredient"><div class="ing-dot ing-dew"></div>Heaven Dew Drop</div>
+          <div class="ingredient"><div class="ing-dot ing-iron"></div>Iron Core Dust</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Heaven Earth Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-rare"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-rare">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="hep" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#dbeafe"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#hep)" stroke="#3b82f6" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.35)" transform="rotate(-15 20 19)"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Heaven Earth Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-rare">Rare</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">60%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-mid" style="width:60%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-bamboo"></div>Thunder Bamboo</div>
+          <div class="ingredient"><div class="ing-dot ing-bloodlotus"></div>Blood Lotus</div>
+          <div class="ingredient"><div class="ing-dot ing-ice"></div>Nine Cold Ice Grass</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lightning Tribulation Remnant Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-rare"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-rare">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="ltrp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#b45309"/></linearGradient></defs>
+              <circle cx="24" cy="24" r="18" fill="rgba(253,230,138,0.12)" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3 2"/>
+              <path d="M26 8 L18 24 L24 24 L22 40 L30 22 L24 22 Z" fill="url(#ltrp)" stroke="#d97706" stroke-width="0.8"/>
+              <circle cx="24" cy="8" r="2.5" fill="#fef3c7" opacity="0.8"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Lightning Tribulation Remnant Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-rare">Rare</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">50%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-mid" style="width:50%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-bamboo"></div>Thunder Bamboo</div>
+          <div class="ingredient"><div class="ing-dot ing-ice"></div>Nine Cold Ice Grass</div>
+          <div class="ingredient"><div class="ing-dot ing-python"></div>Spirit Python Gallbladder</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Time Acceleration Elixir -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-rare"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-rare">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="tae" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fef3c7"/><stop offset="100%" stop-color="#b45309"/></linearGradient></defs>
+              <!-- Hourglass -->
+              <path d="M16 10 H32 L24 22 L32 38 H16 L24 26 Z" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M17.5 12 H30.5 L24 20 Z" fill="url(#tae)" opacity="0.7"/>
+              <path d="M19 36 H29 L24 28 Z" fill="#f59e0b" opacity="0.8"/>
+              <circle cx="24" cy="24" r="1.8" fill="#fcd34d"/>
+              <circle cx="18" cy="10" r="2" fill="#fde68a" stroke="#f59e0b" stroke-width="1"/>
+              <circle cx="30" cy="10" r="2" fill="#fde68a" stroke="#f59e0b" stroke-width="1"/>
+              <circle cx="18" cy="38" r="2" fill="#fde68a" stroke="#f59e0b" stroke-width="1"/>
+              <circle cx="30" cy="38" r="2" fill="#fde68a" stroke="#f59e0b" stroke-width="1"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Time Acceleration Elixir</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-rare">Rare</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">55%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-mid" style="width:55%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-mushroom"></div>Crimson Spirit Mushroom</div>
+          <div class="ingredient"><div class="ing-dot ing-dew"></div>Heaven Dew Drop</div>
+          <div class="ingredient"><div class="ing-dot ing-bamboo"></div>Thunder Bamboo</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Yin-Yang Harmony Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-rare"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-rare">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs>
+                <linearGradient id="yyhp1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#d97706"/></linearGradient>
+                <linearGradient id="yyhp2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1e40af"/><stop offset="100%" stop-color="#1e3a8a"/></linearGradient>
+              </defs>
+              <circle cx="24" cy="24" r="14" fill="none" stroke="#6366f1" stroke-width="1" stroke-dasharray="3 2"/>
+              <path d="M24 10 A14 14 0 0 1 24 38 A7 7 0 0 0 24 24 A7 7 0 0 1 24 10Z" fill="url(#yyhp1)" opacity="0.9"/>
+              <path d="M24 10 A14 14 0 0 0 24 38 A7 7 0 0 1 24 24 A7 7 0 0 0 24 10Z" fill="url(#yyhp2)" opacity="0.9"/>
+              <circle cx="24" cy="17" r="3" fill="#fef3c7" stroke="#f59e0b" stroke-width="0.8"/>
+              <circle cx="24" cy="31" r="3" fill="#1e40af" stroke="#3b82f6" stroke-width="0.8"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Yin-Yang Harmony Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-rare">Rare</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">60%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-mid" style="width:60%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-bloodlotus"></div>Blood Lotus</div>
+          <div class="ingredient"><div class="ing-dot ing-ice"></div>Nine Cold Ice Grass</div>
+          <div class="ingredient"><div class="ing-dot ing-dew"></div>Heaven Dew Drop</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end rare grid -->
+
+  <!-- ══ EPIC ══ -->
+  <div class="section-header">
+    <div class="section-line purple"></div>
+    <div class="section-badge badge-epic"><div class="badge-dot dot-epic"></div>Epic Recipes</div>
+    <div class="section-line purple-r"></div>
+  </div>
+
+  <div class="recipe-grid">
+
+    <!-- Core Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-epic"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-epic">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><radialGradient id="corep" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ddd6fe"/><stop offset="100%" stop-color="#4c1d95"/></radialGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#corep)" stroke="#7c3aed" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.55)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.35)" transform="rotate(-15 20 19)"/>
+              <path d="M20 10 L17 6 M24 9 L24 5 M28 10 L31 6" stroke="#a78bfa" stroke-width="1.1" stroke-linecap="round"/>
+              <circle cx="24" cy="9" r="1.5" fill="#c4b5fd" opacity="0.8"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Core Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-epic">Epic</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">50%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-low" style="width:50%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-grass"></div>Nine Leaf Immortal Grass</div>
+          <div class="ingredient"><div class="ing-dot ing-whisker"></div>Dragon Whisker</div>
+          <div class="ingredient"><div class="ing-dot ing-spring"></div>Celestial Spring Water</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dao Comprehension Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-epic"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-epic">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="dcp" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ede9fe"/><stop offset="100%" stop-color="#5b21b6"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#dcp)" stroke="#6d28d9" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.3)" transform="rotate(-15 20 19)"/>
+              <text x="24" y="35" text-anchor="middle" font-size="8" fill="rgba(196,181,253,0.6)" font-family="serif">道</text>
+              <path d="M22 10 L20 6 M24 9 L24 5 M26 10 L28 6" stroke="#a78bfa" stroke-width="1.1" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Dao Comprehension Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-epic">Epic</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">40%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-low" style="width:40%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-grass"></div>Nine Leaf Immortal Grass</div>
+          <div class="ingredient"><div class="ing-dot ing-heartwood"></div>Ancient Tree Heartwood</div>
+          <div class="ingredient"><div class="ing-dot ing-bloodlotus"></div>True Blood Lotus</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Destiny Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-mythic"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-mythic">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><radialGradient id="destinyp" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="#fef9c3"/><stop offset="50%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#92400e"/></radialGradient></defs>
+              <path d="M24 6 L26.9 15.5 L37 15.5 L28.5 21.5 L31.4 31 L24 25 L16.6 31 L19.5 21.5 L11 15.5 L21.1 15.5 Z" fill="url(#destinyp)" stroke="#d97706" stroke-width="1.2"/>
+              <circle cx="24" cy="21" r="3" fill="#fef3c7" opacity="0.7"/>
+              <circle cx="24" cy="21" r="1.5" fill="white" opacity="0.9"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">Destiny Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-epic">Epic</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">35%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-vlow" style="width:35%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-grass"></div>Nine Leaf Immortal Grass</div>
+          <div class="ingredient"><div class="ing-dot ing-feather"></div>Phoenix Tail Feather</div>
+          <div class="ingredient"><div class="ing-dot ing-heartwood"></div>Ancient Tree Heartwood</div>
+          <div class="ingredient"><div class="ing-dot ing-shard"></div>Void Crystal Shard</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- False Tribulation Pill -->
+    <div class="recipe-card">
+      <div class="rarity-bar bar-epic"></div>
+      <div class="recipe-card-inner">
+        <div class="recipe-top">
+          <div class="recipe-icon icon-epic">
+            <svg viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="ftpill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#4c1d95"/></linearGradient></defs>
+              <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#ftpill)" stroke="#7c3aed" stroke-width="1.5"/>
+              <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+              <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.3)" transform="rotate(-15 20 19)"/>
+              <path d="M26 10 L22 8 M24 9 L24 5 M26 8 L28 10" stroke="#fbbf24" stroke-width="1.1" stroke-linecap="round"/>
+              <circle cx="24" cy="32" r="2" fill="rgba(196,181,253,0.4)"/>
+            </svg>
+          </div>
+          <div class="recipe-info">
+            <div class="recipe-name">False Tribulation Pill</div>
+            <div class="recipe-meta">
+              <span class="meta-tag tag-epic">Epic</span>
+              <span class="meta-dot"></span>
+              <span class="meta-tag tag-type">Alchemy</span>
+            </div>
+          </div>
+          <div class="success-wrap">
+            <div class="success-pct">35%</div>
+            <div class="success-label">Success</div>
+            <div class="success-bar"><div class="success-fill fill-low" style="width:35%"></div></div>
+          </div>
+        </div>
+        <div class="recipe-divider"></div>
+        <div class="ingredients">
+          <div class="ingredient"><div class="ing-dot ing-shard"></div>Void Crystal Shard</div>
+          <div class="ingredient"><div class="ing-dot ing-herb"></div>Heaven Defying Herb</div>
+          <div class="ingredient"><div class="ing-dot ing-heartwood"></div>Ancient Tree Heartwood</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end epic grid -->
+
+</div><!-- end page -->
+
+<script>
+  function setFilter(btn, type) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  document.querySelectorAll('.tab').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

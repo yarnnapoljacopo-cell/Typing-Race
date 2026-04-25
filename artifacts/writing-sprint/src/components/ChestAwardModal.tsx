@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChestIcon } from "@/components/ChestIcon";
+import { ItemIcon } from "@/components/ItemIcon";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -221,7 +222,7 @@ function RevealedView({ loot, meta, onClose }: { loot: OpenResult; meta: typeof 
               className="flex flex-col items-center gap-2 p-4 rounded-2xl flex-1 min-w-[120px] animate-in zoom-in-75 duration-300"
               style={{ background: rs.bg, border: `1.5px solid ${rs.border}`, color: rs.text }}
             >
-              <span className="text-4xl">{item.icon}</span>
+              <span className="inline-flex items-center justify-center w-12 h-12"><ItemIcon name={item.name} size={48} /></span>
               <div className="text-center">
                 <div className="text-sm font-black leading-tight">{item.name}</div>
                 <div className="mt-1">

@@ -638,3 +638,194 @@
   display: flex; align-items: center; justify-content: center;
   padding: 80px; gap: 10px; font-size: 0.84rem; color: #7a7a92;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RECIPE BOOK — cf-rb-* redesign
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* Section headers */
+.cf-rb-section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 28px 0 14px;
+}
+.cf-rb-section-line { flex: 1; height: 1px; }
+.cf-rb-line-uncommon         { background: linear-gradient(90deg, rgba(34,197,94,0.35), transparent); }
+.cf-rb-line-uncommon.reverse { background: linear-gradient(270deg, rgba(34,197,94,0.35), transparent); }
+.cf-rb-line-rare             { background: linear-gradient(90deg, rgba(59,130,246,0.3), transparent); }
+.cf-rb-line-rare.reverse     { background: linear-gradient(270deg, rgba(59,130,246,0.3), transparent); }
+.cf-rb-line-epic             { background: linear-gradient(90deg, rgba(139,92,246,0.3), transparent); }
+.cf-rb-line-epic.reverse     { background: linear-gradient(270deg, rgba(139,92,246,0.3), transparent); }
+.cf-rb-line-mythic           { background: linear-gradient(90deg, rgba(244,63,94,0.3), transparent); }
+.cf-rb-line-mythic.reverse   { background: linear-gradient(270deg, rgba(244,63,94,0.3), transparent); }
+.cf-rb-line-legendary        { background: linear-gradient(90deg, rgba(245,158,11,0.38), transparent); }
+.cf-rb-line-legendary.reverse{ background: linear-gradient(270deg, rgba(245,158,11,0.38), transparent); }
+
+.cf-rb-section-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.cf-rb-badge-uncommon  { background: #f0fdf4; color: #15803d; border: 1px solid rgba(34,197,94,0.28); }
+.cf-rb-badge-rare      { background: #eff6ff; color: #1d4ed8; border: 1px solid rgba(59,130,246,0.28); }
+.cf-rb-badge-epic      { background: #f5f3ff; color: #6d28d9; border: 1px solid rgba(139,92,246,0.28); }
+.cf-rb-badge-mythic    { background: #fff1f2; color: #be123c; border: 1px solid rgba(244,63,94,0.28); }
+.cf-rb-badge-legendary { background: #fffbeb; color: #b45309; border: 1px solid rgba(245,158,11,0.32); }
+
+.cf-rb-badge-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.cf-rb-dot-uncommon  { background: #22c55e; box-shadow: 0 0 5px rgba(34,197,94,0.65); }
+.cf-rb-dot-rare      { background: #3b82f6; box-shadow: 0 0 5px rgba(59,130,246,0.65); }
+.cf-rb-dot-epic      { background: #8b5cf6; box-shadow: 0 0 5px rgba(139,92,246,0.65); }
+.cf-rb-dot-mythic    { background: #f43f5e; box-shadow: 0 0 5px rgba(244,63,94,0.65); }
+.cf-rb-dot-legendary { background: #f59e0b; box-shadow: 0 0 5px rgba(245,158,11,0.65); }
+
+/* Card grid */
+.cf-rb-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 560px) { .cf-rb-grid { grid-template-columns: 1fr; } }
+
+/* Card shell */
+.cf-rb-card {
+  background: white;
+  border: 1px solid rgba(107,143,212,0.12);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(107,143,212,0.06);
+  transition: transform 0.22s cubic-bezier(.22,1,.36,1), box-shadow 0.22s ease, border-color 0.22s ease;
+  position: relative;
+}
+.cf-rb-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(107,143,212,0.13);
+  border-color: rgba(107,143,212,0.22);
+}
+.cf-rb-card.unknown { background: rgba(245,242,236,0.72); }
+.cf-rb-card.unknown .cf-rb-name { color: #8a8aa8; }
+.cf-rb-card.unknown .cf-rb-icon { filter: grayscale(0.55) opacity(0.72); }
+.cf-rb-card.unknown .cf-rb-ings { filter: blur(3.5px); pointer-events: none; user-select: none; }
+
+.cf-rb-unknown-lock {
+  position: absolute;
+  top: 11px;
+  right: 13px;
+  color: rgba(107,143,212,0.38);
+  z-index: 1;
+}
+
+/* Rarity top bar */
+.cf-rb-rarity-bar { height: 3px; width: 100%; }
+.cf-rb-bar-uncommon  { background: linear-gradient(90deg, #22c55e, #86efac); }
+.cf-rb-bar-rare      { background: linear-gradient(90deg, #3b82f6, #93c5fd); }
+.cf-rb-bar-epic      { background: linear-gradient(90deg, #8b5cf6, #c4b5fd); }
+.cf-rb-bar-mythic    { background: linear-gradient(90deg, #f43f5e, #fda4af); }
+.cf-rb-bar-legendary { background: linear-gradient(90deg, #f59e0b, #fcd34d); }
+
+/* Inner padding */
+.cf-rb-card-inner { padding: 14px 16px 14px; }
+.cf-rb-card-top   { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+
+/* Icon box */
+.cf-rb-icon {
+  width: 52px; height: 52px;
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.cf-rb-icon-uncommon  { background: linear-gradient(135deg, #dcfce7, #bbf7d0); box-shadow: 0 2px 10px rgba(34,197,94,0.18); }
+.cf-rb-icon-rare      { background: linear-gradient(135deg, #dbeafe, #bfdbfe); box-shadow: 0 2px 10px rgba(59,130,246,0.18); }
+.cf-rb-icon-epic      { background: linear-gradient(135deg, #ede9fe, #ddd6fe); box-shadow: 0 2px 10px rgba(139,92,246,0.18); }
+.cf-rb-icon-mythic    { background: linear-gradient(135deg, #ffe4e6, #fecdd3); box-shadow: 0 2px 12px rgba(244,63,94,0.18); }
+.cf-rb-icon-legendary { background: linear-gradient(135deg, #fef3c7, #fde68a); box-shadow: 0 2px 12px rgba(245,158,11,0.22); }
+
+/* Info block */
+.cf-rb-info { flex: 1; min-width: 0; }
+.cf-rb-name {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #1a1a2e;
+  margin-bottom: 5px;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.cf-rb-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.cf-rb-meta-dot {
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: rgba(107,143,212,0.3);
+  flex-shrink: 0;
+}
+.cf-rb-tag {
+  font-size: 0.64rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.cf-rb-tag-uncommon  { background: #f0fdf4; color: #15803d; }
+.cf-rb-tag-rare      { background: #eff6ff; color: #1d4ed8; }
+.cf-rb-tag-epic      { background: #f5f3ff; color: #6d28d9; }
+.cf-rb-tag-mythic    { background: #fff1f2; color: #be123c; }
+.cf-rb-tag-legendary { background: #fffbeb; color: #b45309; }
+.cf-rb-tag-type      { background: rgba(107,143,212,0.09); color: #7a7a92; }
+
+/* Success readout */
+.cf-rb-success { margin-left: auto; text-align: right; flex-shrink: 0; }
+.cf-rb-success-pct   { font-size: 1rem; font-weight: 900; color: #1a1a2e; letter-spacing: -0.02em; line-height: 1; }
+.cf-rb-success-label { font-size: 0.58rem; color: #9a9ab8; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; margin-top: 1px; }
+.cf-rb-success-bar {
+  width: 44px; height: 4px;
+  background: rgba(107,143,212,0.1);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 5px;
+  margin-left: auto;
+}
+.cf-rb-success-fill { height: 100%; border-radius: 99px; }
+.cf-rb-fill-high { background: linear-gradient(90deg, #22c55e, #86efac); }
+.cf-rb-fill-mid  { background: linear-gradient(90deg, #3b82f6, #93c5fd); }
+.cf-rb-fill-low  { background: linear-gradient(90deg, #8b5cf6, #c4b5fd); }
+.cf-rb-fill-vlow { background: linear-gradient(90deg, #f59e0b, #fcd34d); }
+
+/* Divider */
+.cf-rb-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200,150,12,0.13), rgba(107,143,212,0.1), transparent);
+  margin: 0 0 11px;
+}
+
+/* Ingredient pills */
+.cf-rb-ings { display: flex; flex-wrap: wrap; gap: 6px; }
+.cf-rb-ing-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #F5F2EC;
+  border: 1px solid rgba(107,143,212,0.1);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cf-rb-ing-pill:hover { border-color: rgba(107,143,212,0.26); background: white; }
+.cf-rb-ing-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cf-rb-unknown-hint {
+  font-size: 0.68rem;
+  color: #9a9ab8;
+  font-style: italic;
+}

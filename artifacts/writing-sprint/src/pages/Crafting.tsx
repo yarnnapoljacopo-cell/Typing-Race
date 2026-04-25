@@ -1,9 +1,38 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
+import { ItemIcon } from "@/components/ItemIcon";
 import "./Crafting.css";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+/* ── Recipe book helpers ─────────────────────────────────────────────────── */
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function getIngDotColor(name: string | null): string {
+  if (!name) return "#9ca3af";
+  const n = name.toLowerCase();
+  if (n.includes("ginseng") || n.includes("moss") || n.includes("herb") || n.includes("mortal qi") || n.includes("ash root") || n.includes("bamboo") || n.includes("jade vine") || n.includes("spirit wort")) return "#22c55e";
+  if (n.includes("water") || n.includes("dew") || n.includes("spring") || n.includes("ice") || n.includes("cold") || n.includes("prayer") || n.includes("brush")) return "#3b82f6";
+  if (n.includes("jade flower") || n.includes("python") || n.includes("snake") || n.includes("bamboo")) return "#0d9373";
+  if (n.includes("flame") || n.includes("solar") || n.includes("blood") || n.includes("phoenix feather") || n.includes("lotus")) return "#ef4444";
+  if (n.includes("thunder") || n.includes("whisker") || n.includes("tiger") || n.includes("cultivation manual") || n.includes("dao seed")) return "#d97706";
+  if (n.includes("mushroom") || n.includes("shard") || n.includes("void") || n.includes("star") || n.includes("crystal")) return "#7c3aed";
+  if (n.includes("feather")) return "#e11d48";
+  if (n.includes("heartwood") || n.includes("wood")) return "#92400e";
+  if (n.includes("iron") || n.includes("dust") || n.includes("stone") || n.includes("fragment") || n.includes("impure") || n.includes("spirit stone")) return "#6b7280";
+  return "#9ca3af";
+}
+
+function getSuccessClass(pct: number): string {
+  if (pct >= 70) return "high";
+  if (pct >= 50) return "mid";
+  if (pct >= 30) return "low";
+  return "vlow";
+}
 
 /* ── Rarity helpers ──────────────────────────────────────────────────────── */
 
@@ -305,7 +334,7 @@ function AlchemyPanel({
                   className={`cf-recipe-btn${selectedRecipe?.id === recipe.id ? " selected" : ""}`}
                   onClick={() => { setSelectedRecipe(recipe); setAlchemySelected([]); }}
                 >
-                  <span className="cf-recipe-icon">{recipe.result_icon}</span>
+                  <span className="cf-recipe-icon"><ItemIcon name={recipe.result_name} size={28} /></span>
                   <div>
                     <div className="cf-recipe-name">{recipe.result_name}</div>
                     <div className="cf-recipe-meta">{recipe.result_rarity} · {recipe.base_success_rate}%</div>
@@ -324,7 +353,7 @@ function AlchemyPanel({
             <>
               <div className={`cf-recipe-detail ${RARITY_BORDER_CLASS[selectedRecipe.result_rarity] ?? "cf-border-common"}`}>
                 <div className="cf-recipe-detail-head">
-                  <span className="cf-recipe-detail-icon">{selectedRecipe.result_icon}</span>
+                  <span className="cf-recipe-detail-icon"><ItemIcon name={selectedRecipe.result_name} size={36} /></span>
                   <div>
                     <div className="cf-recipe-detail-name">{selectedRecipe.result_name}</div>
                     <RarityBadge rarity={selectedRecipe.result_rarity} />
@@ -333,7 +362,7 @@ function AlchemyPanel({
                 <div className="cf-ing-label">Required ingredients</div>
                 <div className="cf-ing-chips">
                   {ings.map((ing, i) => (
-                    <span key={i} className="cf-ing-chip">{ing.icon} {ing.name}</span>
+                    <span key={i} className="cf-ing-chip"><ItemIcon name={ing.name!} size={16} /> {ing.name}</span>
                   ))}
                 </div>
                 {selectedRecipe.required_cauldron && (
@@ -364,7 +393,7 @@ function AlchemyPanel({
                               : [...alchemySelected, item]
                           )}
                         >
-                          {item.icon} {item.name}
+                          <ItemIcon name={item.name} size={18} /> {item.name}
                           {isSel && <span className="cf-ing-pick-check">✓</span>}
                         </button>
                       );
@@ -588,7 +617,7 @@ export default function Crafting() {
                     className="cf-selected-item-tag"
                     onClick={() => setFusionGroupItemId(null)}
                   >
-                    {selItem.icon} {selItem.name} ×3
+                    <ItemIcon name={selItem.name} size={20} /> {selItem.name} ×3
                     <span className="remove">✕</span>
                   </button>
                 ) : (
@@ -633,7 +662,7 @@ export default function Crafting() {
                         className={`cf-item-card ${RARITY_BORDER_CLASS[item.rarity] ?? "cf-border-common"}${isSelected ? " selected" : ""}`}
                         onClick={() => setFusionGroupItemId(isSelected ? null : item.item_id)}
                       >
-                        <span className="cf-item-icon">{item.icon}</span>
+                        <span className="cf-item-icon"><ItemIcon name={item.name} size={32} /></span>
                         <div className="cf-item-name">{item.name}</div>
                         <div className="cf-item-rarity">{item.rarity}</div>
                         <span className="cf-item-qty">×{totalQty}</span>
@@ -690,7 +719,7 @@ export default function Crafting() {
                   className={`cf-filter-pill${recipeFilter === f ? " active" : ""}`}
                   onClick={() => setRecipeFilter(f)}
                 >
-                  {f}
+                  {f === "all" ? "All" : f === "known" ? "Known" : "Unknown"}
                 </button>
               ))}
             </div>
@@ -701,42 +730,81 @@ export default function Crafting() {
                 desc="Open Iron Chests or above to discover Recipe Scrolls."
               />
             ) : (
-              <div className="cf-recipes-grid">
-                {filteredRecipes.map(recipe => (
-                  <div
-                    key={recipe.id}
-                    className={`cf-recipe-card ${RARITY_BORDER_CLASS[recipe.result_rarity] ?? "cf-border-common"}${!recipe.is_known ? " unknown" : ""}`}
-                  >
-                    <div className="cf-recipe-card-head">
-                      <span className="cf-recipe-card-icon">{recipe.result_icon}</span>
-                      <div className="cf-recipe-card-body">
-                        <div className="cf-recipe-card-title">
-                          {recipe.result_name}
-                          {recipe.is_known && <span className="cf-known-badge">Known</span>}
+              <>
+                {(["uncommon", "rare", "epic", "mythic", "legendary"] as const).map(rarity => {
+                  const group = filteredRecipes.filter(r => r.result_rarity === rarity);
+                  if (group.length === 0) return null;
+                  return (
+                    <div key={rarity}>
+                      <div className="cf-rb-section-header">
+                        <div className={`cf-rb-section-line cf-rb-line-${rarity}`} />
+                        <div className={`cf-rb-section-badge cf-rb-badge-${rarity}`}>
+                          <div className={`cf-rb-badge-dot cf-rb-dot-${rarity}`} />
+                          {capitalize(rarity)} Recipes
                         </div>
-                        <div className="cf-recipe-card-meta">
-                          {recipe.result_rarity} · {recipe.recipe_type} · {recipe.base_success_rate}% success
-                        </div>
-                        {recipe.required_cauldron && (
-                          <div className="cf-recipe-card-cauldron">
-                            Requires: {recipe.required_cauldron.replace("cauldron_", "").replace(/^\w/, c => c.toUpperCase())} Cauldron
-                          </div>
-                        )}
-                        <div className="cf-recipe-card-ings">
-                          {[recipe.ing1_name, recipe.ing2_name, recipe.ing3_name, recipe.ing4_name]
-                            .filter(Boolean)
-                            .map((name, i) => {
-                              const icons = [recipe.ing1_icon, recipe.ing2_icon, recipe.ing3_icon, recipe.ing4_icon];
-                              return (
-                                <span key={i} className="cf-recipe-card-ing">{icons[i]} {name}</span>
-                              );
-                            })}
-                        </div>
+                        <div className={`cf-rb-section-line cf-rb-line-${rarity} reverse`} />
+                      </div>
+                      <div className="cf-rb-grid">
+                        {group.map(recipe => {
+                          const ings = [
+                            recipe.ing1_name, recipe.ing2_name,
+                            recipe.ing3_name, recipe.ing4_name,
+                          ].filter(Boolean) as string[];
+                          const sc = getSuccessClass(recipe.base_success_rate);
+                          return (
+                            <div key={recipe.id} className={`cf-rb-card${!recipe.is_known ? " unknown" : ""}`}>
+                              {!recipe.is_known && (
+                                <div className="cf-rb-unknown-lock">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                  </svg>
+                                </div>
+                              )}
+                              <div className={`cf-rb-rarity-bar cf-rb-bar-${rarity}`} />
+                              <div className="cf-rb-card-inner">
+                                <div className="cf-rb-card-top">
+                                  <div className={`cf-rb-icon cf-rb-icon-${rarity}`}>
+                                    <ItemIcon name={recipe.result_name} size={36} />
+                                  </div>
+                                  <div className="cf-rb-info">
+                                    <div className="cf-rb-name">{recipe.result_name}</div>
+                                    <div className="cf-rb-meta">
+                                      <span className={`cf-rb-tag cf-rb-tag-${rarity}`}>{capitalize(rarity)}</span>
+                                      <span className="cf-rb-meta-dot" />
+                                      <span className="cf-rb-tag cf-rb-tag-type">{capitalize(recipe.recipe_type)}</span>
+                                    </div>
+                                  </div>
+                                  <div className="cf-rb-success">
+                                    <div className="cf-rb-success-pct">{recipe.base_success_rate}%</div>
+                                    <div className="cf-rb-success-label">Success</div>
+                                    <div className="cf-rb-success-bar">
+                                      <div className={`cf-rb-success-fill cf-rb-fill-${sc}`} style={{ width: `${recipe.base_success_rate}%` }} />
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="cf-rb-divider" />
+                                <div className="cf-rb-ings">
+                                  {!recipe.is_known ? (
+                                    <span className="cf-rb-unknown-hint">Discover this recipe to reveal ingredients</span>
+                                  ) : (
+                                    ings.map((name, i) => (
+                                      <div key={i} className="cf-rb-ing-pill">
+                                        <div className="cf-rb-ing-dot" style={{ background: getIngDotColor(name) }} />
+                                        {name}
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  );
+                })}
+              </>
             )}
           </div>
         )}
@@ -749,7 +817,7 @@ export default function Crafting() {
             <div className="cf-dialog-title">Fusion Complete!</div>
             <div className="cf-dialog-desc">{fusionResult.message}</div>
             <div className={`cf-dialog-item ${RARITY_BORDER_CLASS[fusionResult.rarity] ?? "cf-border-common"}`}>
-              <span className="cf-dialog-item-icon">{fusionResult.icon}</span>
+              <span className="cf-dialog-item-icon"><ItemIcon name={fusionResult.name} size={40} /></span>
               <div className="cf-dialog-item-name">{fusionResult.name}</div>
               <RarityBadge rarity={fusionResult.rarity} />
             </div>
@@ -768,7 +836,7 @@ export default function Crafting() {
             <div className="cf-dialog-desc">{craftResult.message}</div>
             {craftResult.success && craftResult.result && (
               <div className={`cf-dialog-item ${RARITY_BORDER_CLASS[craftResult.result.rarity] ?? "cf-border-common"}`}>
-                <span className="cf-dialog-item-icon">{craftResult.result.icon}</span>
+                <span className="cf-dialog-item-icon"><ItemIcon name={craftResult.result.name} size={40} /></span>
                 <div className="cf-dialog-item-name">{craftResult.result.name}</div>
                 <RarityBadge rarity={craftResult.result.rarity} />
               </div>
