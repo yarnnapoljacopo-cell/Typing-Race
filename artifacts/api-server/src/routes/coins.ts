@@ -16,7 +16,14 @@ router.get("/coins", async (req, res): Promise<void> => {
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const client = await pool.connect();
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    console.error("[coins] pool.connect failed:", (err as Error).message);
+    res.status(503).json({ error: "Database temporarily unavailable, please try again." });
+    return;
+  }
   try {
     await ensureUserCoins(client, userId);
     await dailyResetCheck(client, userId);
@@ -61,7 +68,14 @@ router.post("/coins/sell", async (req, res): Promise<void> => {
   const { inventory_id } = req.body ?? {};
   if (!inventory_id) { res.status(400).json({ error: "inventory_id required" }); return; }
 
-  const client = await pool.connect();
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    console.error("[coins/sell] pool.connect failed:", (err as Error).message);
+    res.status(503).json({ error: "Database temporarily unavailable, please try again." });
+    return;
+  }
   try {
     await client.query("BEGIN");
 
