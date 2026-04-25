@@ -25,8 +25,8 @@ function getPool(): pg.Pool {
       allowExitOnIdle: false,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
-      query_timeout: 20_000,
-      statement_timeout: 20_000,
+      query_timeout: 5_000,
+      statement_timeout: 5_000,
     });
 
     // Swallow idle-client errors — pg-pool removes the dead client and creates
@@ -38,7 +38,7 @@ function getPool(): pg.Pool {
     // Set statement_timeout on every new connection so the DB kills any query
     // that hangs longer than 20 s, freeing the pool slot automatically.
     _pool.on("connect", (client) => {
-      client.query("SET statement_timeout = 20000").catch((err) => {
+      client.query("SET statement_timeout = 5000").catch((err) => {
         console.error("[db-pool] could not set statement_timeout:", err.message);
       });
     });

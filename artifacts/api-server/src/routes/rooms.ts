@@ -405,13 +405,13 @@ router.get("/user/profile", async (req, res): Promise<void> => {
   const clerkUserId = auth?.userId;
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  // Apply any uncharged decay first (lazy evaluation) — non-fatal if it fails
+  // Fire decay in the background — do NOT await it so the profile response
+  // is never held hostage by a slow DB update.
   let decayResult: DecayResult | null = null;
-  try {
-    decayResult = await applyXpDecay(clerkUserId);
-  } catch (err) {
+  const decayPromise = applyXpDecay(clerkUserId).then(r => { decayResult = r; }).catch(err => {
     console.error("[profile] applyXpDecay failed (non-fatal):", (err as Error).message);
-  }
+  });
+  void decayPromise;
 
   const rows = await db
     .select()
