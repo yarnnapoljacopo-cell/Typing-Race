@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CoinBalance } from "@/components/CoinBalance";
+import { ItemIcon } from "@/components/ItemIcon";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
