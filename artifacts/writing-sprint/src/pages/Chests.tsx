@@ -128,8 +128,8 @@ const RARITY_COLORS: Record<string, string> = {
   uncommon: "border-green-500/50 bg-green-900/40 text-green-200",
   rare: "border-blue-400/50 bg-blue-900/40 text-blue-200",
   epic: "border-purple-400/50 bg-purple-900/40 text-purple-200",
-  mythic: "border-orange-400/50 bg-orange-900/40 text-orange-200",
-  legendary: "border-yellow-400/60 bg-yellow-900/30 text-yellow-200 shadow-yellow-500/30 shadow-md",
+  mythic: "border-rose-400/50 bg-rose-900/40 text-rose-200",
+  legendary: "border-amber-400/60 bg-amber-900/30 text-amber-200 shadow-amber-500/30 shadow-md",
 };
 
 export default function Chests() {

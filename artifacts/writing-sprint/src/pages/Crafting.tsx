@@ -25,8 +25,8 @@ const RARITY_BADGE: Record<string, string> = {
   uncommon: "bg-green-800 text-green-200",
   rare: "bg-blue-800 text-blue-200",
   epic: "bg-purple-800 text-purple-200",
-  mythic: "bg-orange-800 text-orange-200",
-  legendary: "bg-yellow-700 text-yellow-100",
+  mythic: "bg-rose-800 text-rose-200",
+  legendary: "bg-amber-700 text-amber-100",
 };
 
 const RARITY_BORDER: Record<string, string> = {
@@ -34,8 +34,8 @@ const RARITY_BORDER: Record<string, string> = {
   uncommon: "border-green-500/40",
   rare: "border-blue-400/40",
   epic: "border-purple-400/40",
-  mythic: "border-orange-400/40",
-  legendary: "border-yellow-400/50",
+  mythic: "border-rose-400/40",
+  legendary: "border-amber-400/50",
 };
 
 interface InventoryItem {

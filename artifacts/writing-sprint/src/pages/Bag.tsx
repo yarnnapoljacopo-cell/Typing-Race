@@ -29,8 +29,8 @@ const RARITY_BORDER_LEFT: Record<string, string> = {
   uncommon: "border-l-green-500",
   rare: "border-l-blue-500",
   epic: "border-l-purple-500",
-  mythic: "border-l-orange-500",
-  legendary: "border-l-yellow-500",
+  mythic: "border-l-rose-500",
+  legendary: "border-l-amber-400",
 };
 
 const RARITY_BADGE: Record<string, string> = {
@@ -38,8 +38,8 @@ const RARITY_BADGE: Record<string, string> = {
   uncommon: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400",
   rare: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400",
   epic: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400",
-  mythic: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400",
-  legendary: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300",
+  mythic: "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400",
+  legendary: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
 };
 
 const RARITY_DIALOG_BADGE: Record<string, string> = {
@@ -47,8 +47,8 @@ const RARITY_DIALOG_BADGE: Record<string, string> = {
   uncommon: "bg-green-50 text-green-700 border-green-200",
   rare: "bg-blue-50 text-blue-700 border-blue-200",
   epic: "bg-purple-50 text-purple-700 border-purple-200",
-  mythic: "bg-orange-50 text-orange-700 border-orange-200",
-  legendary: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  mythic: "bg-rose-50 text-rose-700 border-rose-200",
+  legendary: "bg-amber-50 text-amber-700 border-amber-200",
 };
 
 interface InventoryItem {

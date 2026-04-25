@@ -16,8 +16,8 @@ const RARITY_STYLE: Record<string, { border: string; bg: string; text: string; b
   uncommon:  { border: "#22c55e", bg: "rgba(21,128,61,0.3)",   text: "#86efac", badge: "bg-green-700/60 text-green-200" },
   rare:      { border: "#3b82f6", bg: "rgba(29,78,216,0.3)",   text: "#93c5fd", badge: "bg-blue-700/60 text-blue-200" },
   epic:      { border: "#a855f7", bg: "rgba(109,40,217,0.3)",  text: "#d8b4fe", badge: "bg-purple-700/60 text-purple-200" },
-  mythic:    { border: "#f97316", bg: "rgba(194,65,12,0.3)",   text: "#fdba74", badge: "bg-orange-700/60 text-orange-200" },
-  legendary: { border: "#eab308", bg: "rgba(161,98,7,0.25)",   text: "#fde047", badge: "bg-yellow-600/60 text-yellow-200 shadow shadow-yellow-500/30" },
+  mythic:    { border: "#f43f5e", bg: "rgba(190,18,60,0.3)",   text: "#fda4af", badge: "bg-rose-700/60 text-rose-200" },
+  legendary: { border: "#f59e0b", bg: "rgba(120,53,15,0.3)",   text: "#fcd34d", badge: "bg-amber-600/60 text-amber-200 shadow shadow-amber-500/30" },
 };
 
 interface LootItem {
