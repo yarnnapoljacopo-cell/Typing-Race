@@ -821,8 +821,11 @@ export default function Room() {
       // eslint-disable-next-line @typescript-eslint/no-deprecated
       document.execCommand("insertHTML", false, "<br><br>");
     } else {
+      // insertHTML with a lone <br> leaves the cursor visually stuck when at
+      // end of content — the browser needs something after the <br> to render
+      // a new visible line.  insertLineBreak handles this correctly.
       // eslint-disable-next-line @typescript-eslint/no-deprecated
-      document.execCommand("insertHTML", false, "<br>");
+      document.execCommand("insertLineBreak");
     }
     applyText();
     // rAF so the new line is in the DOM before we compute the caret rect
