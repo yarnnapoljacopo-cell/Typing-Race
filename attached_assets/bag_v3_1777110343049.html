@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>Bag — Writing Sprint</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --cream: #F5F2EC;
+    --ink: #1a1a2e;
+    --blue: #3B5FDB;
+    --blue-soft: #6B8FD4;
+    --blue-light: #dce6f7;
+    --muted: #7a7a92;
+    --border: rgba(107,143,212,0.13);
+    --card: #ffffff;
+
+    --common: #9ca3af;
+    --common-bg: #f3f4f6;
+    --uncommon: #22c55e;
+    --uncommon-bg: #f0fdf4;
+    --rare: #3b82f6;
+    --rare-bg: #eff6ff;
+    --epic: #8b5cf6;
+    --epic-bg: #f5f3ff;
+    --mythic: #f59e0b;
+    --mythic-bg: #fffbeb;
+    --legendary: #ec4899;
+    --legendary-bg: #fdf2f8;
+    --overflow: #ef4444;
+    --overflow-bg: #fff5f5;
+  }
+
+  body {
+    background: var(--cream);
+    font-family: "DM Sans", sans-serif;
+    min-height: 100vh;
+    color: var(--ink);
+  }
+
+  /* Background */
+  .bg-grid {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(107,143,212,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(107,143,212,0.04) 1px, transparent 1px);
+    background-size: 52px 52px;
+  }
+  .bg-orb {
+    position: fixed; border-radius: 50%; filter: blur(100px); pointer-events: none; z-index: 0;
+  }
+  .orb1 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(107,143,212,0.10) 0%, transparent 70%); top: -150px; right: -100px; }
+  .orb2 { width: 350px; height: 350px; background: radial-gradient(circle, rgba(232,168,56,0.07) 0%, transparent 70%); bottom: -80px; left: -80px; }
+
+  /* Page */
+  .page { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 24px 60px; }
+
+  /* Top nav */
+  .topnav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(245,242,236,0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex; align-items: center; gap: 16px;
+    height: 56px;
+    margin: 0 -24px 28px;
+  }
+  .nav-back {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.85rem; font-weight: 500; color: var(--muted);
+    cursor: pointer; background: none; border: none;
+    font-family: "DM Sans", sans-serif;
+    transition: color 0.18s;
+  }
+  .nav-back:hover { color: var(--ink); }
+  .nav-title {
+    display: flex; align-items: center; gap: 8px;
+    font-family: "Playfair Display", serif;
+    font-size: 1.1rem; font-weight: 700; color: var(--ink);
+  }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+  .slots-wrap {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 0.78rem; font-weight: 600; color: var(--muted);
+  }
+  .slots-bar {
+    width: 80px; height: 6px; background: rgba(107,143,212,0.15);
+    border-radius: 99px; overflow: hidden;
+  }
+  .slots-fill {
+    height: 100%; width: 100%;
+    background: linear-gradient(90deg, #ef4444, #f87171);
+    border-radius: 99px;
+  }
+  .slots-label { color: #ef4444; font-weight: 700; }
+
+  .coins-badge {
+    display: flex; align-items: center; gap: 7px;
+    background: white; border: 1px solid rgba(232,168,56,0.25);
+    border-radius: 999px; padding: 5px 14px 5px 8px;
+    font-weight: 700; font-size: 0.88rem; color: var(--ink);
+    box-shadow: 0 2px 8px rgba(232,168,56,0.10);
+  }
+  .coin-icon {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: linear-gradient(135deg, #f5c542, #e8933a);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 800; color: white;
+    box-shadow: 0 1px 4px rgba(232,168,56,0.4);
+  }
+
+  .nav-action-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: white; border: 1px solid var(--border);
+    border-radius: 10px; padding: 7px 13px;
+    font-size: 0.8rem; font-weight: 600; color: var(--ink);
+    cursor: pointer; font-family: "DM Sans", sans-serif;
+    transition: all 0.18s;
+    box-shadow: 0 1px 4px rgba(107,143,212,0.07);
+  }
+  .nav-action-btn:hover { border-color: rgba(107,143,212,0.25); box-shadow: 0 3px 10px rgba(107,143,212,0.12); }
+
+  /* Tabs */
+  .tab-row {
+    display: flex; gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .tab {
+    padding: 10px 16px; font-size: 0.85rem; font-weight: 600;
+    color: var(--muted); cursor: pointer; background: none; border: none;
+    font-family: "DM Sans", sans-serif;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: all 0.18s;
+  }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab:hover:not(.active) { color: var(--ink); }
+  .tab-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--blue-light); color: var(--blue-soft);
+    border-radius: 999px; padding: 1px 7px;
+    font-size: 0.72rem; font-weight: 700; margin-left: 5px;
+  }
+  .tab.active .tab-count { background: rgba(59,95,219,0.12); color: var(--blue); }
+
+  /* Equipped item */
+  .equipped-card {
+    background: white; border: 1px solid var(--border);
+    border-radius: 16px; padding: 14px 18px;
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 14px;
+    box-shadow: 0 2px 12px rgba(107,143,212,0.07);
+  }
+  .equipped-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    background: linear-gradient(135deg, #e8f0fd, #d4e3fa);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; flex-shrink: 0;
+  }
+  .equipped-info { flex: 1; }
+  .equipped-name { font-size: 0.92rem; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+  .equipped-sub { font-size: 0.75rem; color: var(--muted); }
+  .equipped-sub .uncommon { color: var(--uncommon); font-weight: 600; }
+  .unequip-btn {
+    background: none; border: 1px solid var(--border);
+    border-radius: 9px; padding: 6px 14px;
+    font-size: 0.78rem; font-weight: 600; color: var(--muted);
+    cursor: pointer; font-family: "DM Sans", sans-serif;
+    transition: all 0.18s;
+  }
+  .unequip-btn:hover { border-color: rgba(107,143,212,0.3); color: var(--ink); }
+
+  /* Alert banner */
+  .alert-banner {
+    background: #fff5f5; border: 1px solid rgba(239,68,68,0.25);
+    border-radius: 14px; padding: 12px 16px;
+    display: flex; gap: 12px; align-items: flex-start;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 12px rgba(239,68,68,0.07);
+  }
+  .alert-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+  .alert-title { font-size: 0.85rem; font-weight: 700; color: #dc2626; margin-bottom: 3px; }
+  .alert-desc { font-size: 0.75rem; color: #9a3333; line-height: 1.5; }
+
+  /* Filter rows */
+  .filter-row {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;
+  }
+  .filter-chip {
+    padding: 5px 12px; border-radius: 999px;
+    font-size: 0.76rem; font-weight: 600; cursor: pointer;
+    border: 1.5px solid var(--border);
+    background: white; color: var(--muted);
+    transition: all 0.18s; font-family: "DM Sans", sans-serif;
+  }
+  .filter-chip:hover { border-color: rgba(107,143,212,0.3); color: var(--ink); }
+  .filter-chip.active { background: var(--blue); color: white; border-color: var(--blue); }
+  .filter-chip .chip-count {
+    display: inline-block; margin-left: 4px;
+    font-weight: 700; opacity: 0.8;
+  }
+
+  .rarity-chip { padding: 5px 12px; border-radius: 999px; font-size: 0.76rem; font-weight: 700; cursor: pointer; border: 1.5px solid transparent; background: white; transition: all 0.18s; font-family: "DM Sans", sans-serif; }
+  .rarity-chip.all { color: var(--ink); border-color: var(--border); }
+  .rarity-chip.all.active { background: var(--ink); color: white; border-color: var(--ink); }
+  .rarity-chip.common { color: var(--common); border-color: rgba(156,163,175,0.3); }
+  .rarity-chip.common:hover, .rarity-chip.common.active { background: var(--common-bg); border-color: var(--common); }
+  .rarity-chip.uncommon { color: var(--uncommon); border-color: rgba(34,197,94,0.25); }
+  .rarity-chip.uncommon:hover, .rarity-chip.uncommon.active { background: var(--uncommon-bg); border-color: var(--uncommon); }
+  .rarity-chip.rare { color: var(--rare); border-color: rgba(59,130,246,0.25); }
+  .rarity-chip.rare:hover, .rarity-chip.rare.active { background: var(--rare-bg); border-color: var(--rare); }
+  .rarity-chip.epic { color: var(--epic); border-color: rgba(139,92,246,0.25); }
+  .rarity-chip.epic:hover, .rarity-chip.epic.active { background: var(--epic-bg); border-color: var(--epic); }
+  .rarity-chip.mythic { color: var(--mythic); border-color: rgba(245,158,11,0.25); }
+  .rarity-chip.mythic:hover, .rarity-chip.mythic.active { background: var(--mythic-bg); border-color: var(--mythic); }
+  .rarity-chip.legendary { color: var(--legendary); border-color: rgba(236,72,153,0.25); }
+  .rarity-chip.legendary:hover, .rarity-chip.legendary.active { background: var(--legendary-bg); border-color: var(--legendary); }
+
+  /* Item grid */
+  .item-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px; margin-top: 16px;
+  }
+
+  .item-card {
+    background: white; border-radius: 16px;
+    border: 1.5px solid var(--border);
+    padding: 14px 10px 12px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 8px; cursor: pointer; position: relative;
+    transition: all 0.22s cubic-bezier(.22,1,.36,1);
+    box-shadow: 0 2px 8px rgba(107,143,212,0.06);
+  }
+  .item-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 28px rgba(107,143,212,0.14);
+    border-color: rgba(107,143,212,0.25);
+  }
+
+  /* Rarity border colours */
+  .item-card.common { border-color: rgba(156,163,175,0.3); }
+  .item-card.uncommon { border-color: rgba(34,197,94,0.35); }
+  .item-card.uncommon:hover { border-color: var(--uncommon); box-shadow: 0 10px 28px rgba(34,197,94,0.12); }
+  .item-card.rare { border-color: rgba(59,130,246,0.35); }
+  .item-card.rare:hover { border-color: var(--rare); box-shadow: 0 10px 28px rgba(59,130,246,0.14); }
+  .item-card.epic { border-color: rgba(139,92,246,0.35); }
+  .item-card.epic:hover { border-color: var(--epic); box-shadow: 0 10px 28px rgba(139,92,246,0.14); }
+  .item-card.mythic { border-color: rgba(245,158,11,0.35); }
+  .item-card.mythic:hover { border-color: var(--mythic); box-shadow: 0 10px 28px rgba(245,158,11,0.14); }
+  .item-card.legendary { border-color: rgba(236,72,153,0.4); }
+  .item-card.legendary:hover { border-color: var(--legendary); box-shadow: 0 10px 28px rgba(236,72,153,0.14); }
+  .item-card.overflow { border-color: rgba(239,68,68,0.4); background: linear-gradient(160deg, #fff8f8, #fff1f1); }
+  .item-card.overflow:hover { border-color: var(--overflow); box-shadow: 0 10px 28px rgba(239,68,68,0.12); }
+
+  /* Rarity top stripe */
+  .item-card::before {
+    content: ''; position: absolute; top: 0; left: 12%; right: 12%; height: 2px;
+    border-radius: 99px; opacity: 0.7;
+  }
+  .item-card.uncommon::before { background: var(--uncommon); }
+  .item-card.rare::before { background: var(--rare); }
+  .item-card.epic::before { background: var(--epic); }
+  .item-card.mythic::before { background: linear-gradient(90deg, var(--mythic), #fcd34d); }
+  .item-card.legendary::before { background: linear-gradient(90deg, var(--legendary), #f9a8d4); }
+  .item-card.overflow::before { background: var(--overflow); }
+
+  .item-emoji { font-size: 2rem; line-height: 1; }
+  .item-icon {
+    width: 52px; height: 52px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 14px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .item-icon svg { width: 38px; height: 38px; }
+  /* Rarity-tinted icon backgrounds */
+  .item-card.overflow .item-icon { background: linear-gradient(135deg, #fff1f1, #ffe0e0); box-shadow: 0 2px 10px rgba(239,68,68,0.18); }
+  .item-card.common .item-icon { background: linear-gradient(135deg, #f3f4f6, #e5e7eb); box-shadow: 0 2px 8px rgba(156,163,175,0.15); }
+  .item-card.uncommon .item-icon { background: linear-gradient(135deg, #dcfce7, #bbf7d0); box-shadow: 0 2px 10px rgba(34,197,94,0.2); }
+  .item-card.rare .item-icon { background: linear-gradient(135deg, #dbeafe, #bfdbfe); box-shadow: 0 2px 10px rgba(59,130,246,0.2); }
+  .item-card.epic .item-icon { background: linear-gradient(135deg, #ede9fe, #ddd6fe); box-shadow: 0 2px 10px rgba(139,92,246,0.2); }
+  .item-card.mythic .item-icon { background: linear-gradient(135deg, #fef3c7, #fde68a); box-shadow: 0 2px 12px rgba(245,158,11,0.25); }
+  .item-card.legendary .item-icon { background: linear-gradient(135deg, #fce7f3, #fbcfe8); box-shadow: 0 2px 12px rgba(236,72,153,0.22); }
+  .item-name { font-size: 0.72rem; font-weight: 600; color: var(--ink); text-align: center; line-height: 1.3; }
+
+  .item-badge {
+    padding: 2px 9px; border-radius: 999px;
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.03em;
+  }
+  .badge-common { background: var(--common-bg); color: var(--common); }
+  .badge-uncommon { background: var(--uncommon-bg); color: var(--uncommon); }
+  .badge-rare { background: var(--rare-bg); color: var(--rare); }
+  .badge-epic { background: var(--epic-bg); color: var(--epic); }
+  .badge-mythic { background: var(--mythic-bg); color: var(--mythic); }
+  .badge-legendary { background: var(--legendary-bg); color: var(--legendary); }
+
+  .item-qty {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(0,0,0,0.07); border-radius: 6px;
+    padding: 1px 6px; font-size: 0.62rem; font-weight: 700; color: var(--muted);
+  }
+
+  .overflow-timer {
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(239,68,68,0.1); border-radius: 999px;
+    padding: 3px 8px; font-size: 0.62rem; font-weight: 700; color: var(--overflow);
+  }
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-orb orb1"></div>
+<div class="bg-orb orb2"></div>
+
+<div class="page">
+
+  <!-- Top nav -->
+  <nav class="topnav">
+    <button class="nav-back">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </button>
+    <div class="nav-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg> Bag
+    </div>
+    <div class="nav-right">
+      <div class="slots-wrap">
+        <div class="slots-bar"><div class="slots-fill"></div></div>
+        <span class="slots-label">31</span><span>/ 25 slots</span>
+      </div>
+      <div class="coins-badge">
+        <div class="coin-icon">✦</div>
+        35,328
+      </div>
+      <button class="nav-action-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        Shop
+      </button>
+      <button class="nav-action-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Chests
+      </button>
+      <button class="nav-action-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        Crafting
+      </button>
+    </div>
+  </nav>
+
+  <!-- Tabs -->
+  <div class="tab-row">
+    <button class="tab active">Items <span class="tab-count">31</span></button>
+    <button class="tab">Active Effects <span class="tab-count">1</span></button>
+  </div>
+
+  <!-- Equipped -->
+  <div class="equipped-card">
+    <div class="equipped-icon">
+      <svg width="24" height="24" viewBox="0 0 48 48" fill="none">
+        <circle cx="24" cy="24" r="13" fill="none" stroke="#22c55e" stroke-width="4"/>
+        <circle cx="24" cy="24" r="9" fill="rgba(34,197,94,0.08)"/>
+        <circle cx="24" cy="11" r="4" fill="rgba(34,197,94,0.15)" stroke="#22c55e" stroke-width="1.2"/>
+        <path d="M21 11 L23 9 L25 11 L23 13 Z" fill="#22c55e"/>
+      </svg>
+    </div>
+    <div class="equipped-info">
+      <div class="equipped-name">Jade Ring</div>
+      <div class="equipped-sub">31 / 25 slots used · <span class="uncommon">Uncommon</span></div>
+    </div>
+    <button class="unequip-btn">Unequip</button>
+  </div>
+
+  <!-- Alert -->
+  <div class="alert-banner">
+    <div class="alert-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+      <div class="alert-title">Bag over capacity — 6 items will be deleted</div>
+      <div class="alert-desc">Your lowest-rarity overflow items (shown in red) will be permanently deleted 24 hours after they entered overflow. Use, equip a storage ring, or free up slots to save them.</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filter-row">
+    <button class="filter-chip active">All Items <span class="chip-count">31</span></button>
+    <button class="filter-chip">Artifact <span class="chip-count">3</span></button>
+    <button class="filter-chip">Ingredient <span class="chip-count">11</span></button>
+    <button class="filter-chip">Pill <span class="chip-count">9</span></button>
+    <button class="filter-chip">Treasure <span class="chip-count">8</span></button>
+  </div>
+  <div class="filter-row">
+    <button class="rarity-chip all active">All</button>
+    <button class="rarity-chip common">Common</button>
+    <button class="rarity-chip uncommon">Uncommon</button>
+    <button class="rarity-chip rare">Rare</button>
+    <button class="rarity-chip epic">Epic</button>
+    <button class="rarity-chip mythic">Mythic</button>
+    <button class="rarity-chip legendary">Legendary</button>
+  </div>
+
+  <!-- Item grid -->
+  <div class="item-grid">
+
+    <!-- Overflow (red) items -->
+    <div class="item-card overflow">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><linearGradient id="daog" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fef3c7"/><stop offset="100%" stop-color="#fde8e8"/></linearGradient></defs>
+          <rect x="10" y="6" width="28" height="36" rx="3" fill="url(#daog)" stroke="#ef4444" stroke-width="1.5"/>
+          <rect x="10" y="6" width="28" height="5" rx="2" fill="#ef4444" opacity="0.15"/>
+          <path d="M16 14 Q24 10 32 14" stroke="#d97706" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+          <line x1="14" y1="20" x2="34" y2="20" stroke="#ef4444" stroke-width="1.2" opacity="0.6"/>
+          <line x1="14" y1="25" x2="34" y2="25" stroke="#ef4444" stroke-width="1.2" opacity="0.5"/>
+          <line x1="14" y1="30" x2="28" y2="30" stroke="#ef4444" stroke-width="1.2" opacity="0.4"/>
+          <path d="M22 6 Q24 2 26 6" stroke="#ef4444" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <circle cx="32" cy="36" r="4" fill="#ef4444" opacity="0.25"/>
+          <path d="M30 36 L32 34 L34 36 L32 38 Z" fill="#ef4444"/>
+          <circle cx="32" cy="36" r="1.5" fill="#fef3c7" opacity="0.8"/>
+        </svg>
+      </div>
+      <div class="item-name">Dao of Writing</div>
+      <div class="overflow-timer">⏱ 20h 58m</div>
+    </div>
+    <div class="item-card overflow">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><radialGradient id="bdrop" cx="40%" cy="30%" r="60%"><stop offset="0%" stop-color="#ff6b6b"/><stop offset="100%" stop-color="#b91c1c"/></radialGradient></defs>
+          <path d="M24 8 Q32 18 34 28 A10 10 0 0 1 14 28 Q16 18 24 8Z" fill="url(#bdrop)" stroke="#ef4444" stroke-width="1"/>
+          <ellipse cx="20" cy="26" rx="3" ry="4" fill="rgba(255,255,255,0.25)" transform="rotate(-20 20 26)"/>
+          <circle cx="24" cy="30" r="2" fill="rgba(255,255,255,0.15)"/>
+          <path d="M24 8 Q26 14 28 20" stroke="rgba(255,150,150,0.4)" stroke-width="1" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="item-name">Pangu's Blood Drop</div>
+      <div class="overflow-timer">⏱ 20h 58m</div>
+    </div>
+    <div class="item-card overflow">
+      <div class="item-qty">×2</div>
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><linearGradient id="boneg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fffbeb"/><stop offset="100%" stop-color="#fecaca"/></linearGradient></defs>
+          <g transform="rotate(45 24 24)">
+            <rect x="20" y="8" width="8" height="32" rx="4" fill="url(#boneg)" stroke="#ef4444" stroke-width="1.5"/>
+            <circle cx="24" cy="10" r="6" fill="#fffbeb" stroke="#ef4444" stroke-width="1.5"/>
+            <circle cx="24" cy="38" r="6" fill="#fffbeb" stroke="#ef4444" stroke-width="1.5"/>
+            <circle cx="22" cy="8" r="2" fill="rgba(255,255,255,0.7)"/>
+            <line x1="24" y1="16" x2="24" y2="32" stroke="#ef4444" stroke-width="1" opacity="0.35" stroke-dasharray="2 2"/>
+          </g>
+          <circle cx="36" cy="12" r="3" fill="#fcd34d" opacity="0.5"/>
+          <circle cx="12" cy="36" r="2" fill="#fcd34d" opacity="0.4"/>
+        </svg>
+      </div>
+      <div class="item-name">True Immortal Bone Fragment</div>
+      <div class="overflow-timer">⏱ 20h 58m</div>
+    </div>
+    <div class="item-card overflow">
+      <div class="item-qty">×2</div>
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <path d="M18 10 Q14 14 14 20 Q14 32 18 38 L30 38 Q34 32 34 20 Q34 14 30 10 Z" fill="#fde8e8" stroke="#ef4444" stroke-width="1.5"/>
+          <path d="M16 12 L32 12" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M20 8 L28 8" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+          <path d="M18 38 L30 38" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+          <path d="M20 20 Q24 16 28 20 Q24 24 20 20Z" fill="#ef4444" opacity="0.3"/>
+          <line x1="20" y1="28" x2="28" y2="28" stroke="#ef4444" stroke-width="1" opacity="0.5"/>
+          <line x1="19" y1="33" x2="29" y2="33" stroke="#ef4444" stroke-width="1" opacity="0.4"/>
+        </svg>
+      </div>
+      <div class="item-name">Nuwa's Clay</div>
+      <div class="overflow-timer">⏱ 20h 42m</div>
+    </div>
+    <div class="item-card overflow">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><radialGradient id="tpill" cx="35%" cy="30%" r="60%"><stop offset="0%" stop-color="#fca5a5"/><stop offset="100%" stop-color="#b91c1c"/></radialGradient></defs>
+          <ellipse cx="24" cy="24" rx="12" ry="16" fill="url(#tpill)" stroke="#ef4444" stroke-width="1.5"/>
+          <line x1="12" y1="24" x2="36" y2="24" stroke="#ef4444" stroke-width="1.5"/>
+          <ellipse cx="19" cy="20" rx="3" ry="5" fill="rgba(255,255,255,0.3)" transform="rotate(-15 19 20)"/>
+          <path d="M18 10 L14 6 M24 8 L24 4 M30 10 L34 6" stroke="#ef4444" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/>
+          <circle cx="24" cy="8" r="1.5" fill="#ef4444" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="item-name">True Immortal Pill</div>
+      <div class="overflow-timer">⏱ 18h 33m</div>
+    </div>
+
+    <div class="item-card overflow">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <rect x="10" y="28" width="28" height="12" rx="2" fill="#fde8e8" stroke="#ef4444" stroke-width="1.5"/>
+          <path d="M10 28 L16 14 L24 22 L32 10 L38 28 Z" fill="#fde8e8" stroke="#ef4444" stroke-width="1.5" stroke-linejoin="round"/>
+          <circle cx="16" cy="14" r="2.5" fill="#ef4444"/>
+          <circle cx="32" cy="10" r="2.5" fill="#ef4444"/>
+          <circle cx="38" cy="28" r="2" fill="#ef4444" opacity="0.5"/>
+          <path d="M14 34 Q24 30 34 34" stroke="#ef4444" stroke-width="1" fill="none" opacity="0.4"/>
+          <rect x="21" y="31" width="6" height="6" rx="1" fill="#ef4444" opacity="0.3"/>
+        </svg>
+      </div>
+      <div class="item-name">Immortal Emperor Seal</div>
+      <div class="overflow-timer">⏱ 15h 0m</div>
+    </div>
+
+    <!-- Uncommon -->
+    <div class="item-card uncommon">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <circle cx="24" cy="24" r="10" fill="rgba(34,197,94,0.12)" stroke="#22c55e" stroke-width="1.5"/>
+          <circle cx="24" cy="24" r="5" fill="rgba(34,197,94,0.2)" stroke="#22c55e" stroke-width="1"/>
+          <circle cx="24" cy="24" r="2" fill="#22c55e"/>
+          <line x1="24" y1="10" x2="24" y2="7" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+          <line x1="24" y1="38" x2="24" y2="41" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+          <line x1="10" y1="24" x2="7" y2="24" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+          <line x1="38" y1="24" x2="41" y2="24" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+          <line x1="14" y1="14" x2="12" y2="12" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="34" y1="34" x2="36" y2="36" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="34" y1="14" x2="36" y2="12" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="14" y1="34" x2="12" y2="36" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="24" cy="10" r="2" fill="#22c55e" opacity="0.5"/>
+          <circle cx="24" cy="38" r="2" fill="#22c55e" opacity="0.5"/>
+          <circle cx="10" cy="24" r="2" fill="#22c55e" opacity="0.5"/>
+          <circle cx="38" cy="24" r="2" fill="#22c55e" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="item-name">Iron Core Dust</div>
+      <div class="item-badge badge-uncommon">Uncommon</div>
+    </div>
+    <div class="item-card uncommon">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <circle cx="24" cy="24" r="13" fill="none" stroke="#22c55e" stroke-width="4"/>
+          <circle cx="24" cy="24" r="9" fill="rgba(34,197,94,0.08)"/>
+          <circle cx="24" cy="11" r="4" fill="rgba(34,197,94,0.15)" stroke="#22c55e" stroke-width="1.2"/>
+          <path d="M21 11 L23 9 L25 11 L23 13 Z" fill="#22c55e"/>
+          <path d="M16 16 Q24 20 32 16" stroke="rgba(34,197,94,0.4)" stroke-width="1" fill="none"/>
+        </svg>
+      </div>
+      <div class="item-name">Jade Ring</div>
+      <div class="item-badge badge-uncommon">Uncommon</div>
+    </div>
+
+    <!-- Rare -->
+    <div class="item-card rare">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <line x1="24" y1="40" x2="24" y2="28" stroke="#15803d" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M24 34 Q17 30 13 33" stroke="#15803d" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M20 10 Q24 6 28 10 Q32 14 28 18 Q24 22 20 18 Q16 14 20 10Z" fill="rgba(236,72,153,0.18)" stroke="#ec4899" stroke-width="1.3"/>
+          <path d="M12 16 Q10 12 14 10 Q18 8 20 12 Q22 16 18 18 Q14 20 12 16Z" fill="rgba(236,72,153,0.13)" stroke="#f472b6" stroke-width="1.1"/>
+          <path d="M36 16 Q38 12 34 10 Q30 8 28 12 Q26 16 30 18 Q34 20 36 16Z" fill="rgba(236,72,153,0.13)" stroke="#f472b6" stroke-width="1.1"/>
+          <path d="M14 26 Q10 24 10 20 Q10 16 14 16 Q18 16 18 20 Q18 24 14 26Z" fill="rgba(236,72,153,0.1)" stroke="#f9a8d4" stroke-width="1"/>
+          <path d="M34 26 Q38 24 38 20 Q38 16 34 16 Q30 16 30 20 Q30 24 34 26Z" fill="rgba(236,72,153,0.1)" stroke="#f9a8d4" stroke-width="1"/>
+          <circle cx="24" cy="18" r="5.5" fill="rgba(220,38,38,0.2)" stroke="#dc2626" stroke-width="1.5"/>
+          <circle cx="24" cy="18" r="2.5" fill="#dc2626"/>
+          <circle cx="24" cy="18" r="1" fill="#fef2f2"/>
+        </svg>
+      </div>
+      <div class="item-name">Blood Lotus</div>
+      <div class="item-badge badge-rare">Rare</div>
+    </div>
+    <div class="item-card rare">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><linearGradient id="fpill" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#93c5fd"/><stop offset="100%" stop-color="#2563eb"/></linearGradient></defs>
+          <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#fpill)" stroke="#3b82f6" stroke-width="1.5"/>
+          <line x1="13" y1="24" x2="35" y2="24" stroke="white" stroke-width="1.5" opacity="0.6"/>
+          <ellipse cx="20" cy="19" rx="3" ry="5" fill="rgba(255,255,255,0.3)" transform="rotate(-15 20 19)"/>
+          <path d="M20 10 L16 6 M24 9 L24 5 M28 10 L32 6" stroke="#3b82f6" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="item-name">Foundation Pill</div>
+      <div class="item-badge badge-rare">Rare</div>
+    </div>
+    <div class="item-card rare">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><linearGradient id="cauld" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fed7aa"/><stop offset="100%" stop-color="#92400e"/></linearGradient></defs>
+          <path d="M14 18 Q12 26 14 34 L34 34 Q36 26 34 18 Z" fill="rgba(180,83,9,0.12)" stroke="#b45309" stroke-width="1.5"/>
+          <ellipse cx="24" cy="18" rx="10" ry="4" fill="rgba(217,119,6,0.25)" stroke="#b45309" stroke-width="1.5"/>
+          <path d="M18 14 L18 10 Q18 8 20 8 L28 8 Q30 8 30 10 L30 14" stroke="#b45309" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M12 22 Q8 22 8 26 Q8 30 12 30" stroke="#b45309" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M36 22 Q40 22 40 26 Q40 30 36 30" stroke="#b45309" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <line x1="18" y1="34" x2="16" y2="40" stroke="#92400e" stroke-width="2" stroke-linecap="round"/>
+          <line x1="30" y1="34" x2="32" y2="40" stroke="#92400e" stroke-width="2" stroke-linecap="round"/>
+          <path d="M19 24 Q24 19 29 24" stroke="#f59e0b" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M21 27 Q24 24 27 27" stroke="#f59e0b" stroke-width="1" fill="none" opacity="0.6"/>
+          <circle cx="24" cy="18" r="2" fill="#fcd34d" opacity="0.6"/>
+        </svg>
+      </div>
+      <div class="item-name">Bronze Alchemy Cauldron</div>
+      <div class="item-badge badge-rare">Rare</div>
+    </div>
+    <div class="item-card rare">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><radialGradient id="voidg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#e0e7ff"/><stop offset="60%" stop-color="#6366f1"/><stop offset="100%" stop-color="#1e1b4b"/></radialGradient></defs>
+          <circle cx="24" cy="24" r="14" fill="rgba(99,102,241,0.08)" stroke="#6366f1" stroke-width="1" stroke-dasharray="3 2"/>
+          <path d="M24 14 Q30 18 28 24 Q26 30 20 28 Q14 26 16 20 Q18 14 24 14Z" fill="rgba(99,102,241,0.2)" stroke="#6366f1" stroke-width="1.3"/>
+          <path d="M24 18 Q28 20 26 24 Q24 28 20 26 Q16 24 18 20 Q20 16 24 18Z" fill="rgba(139,92,246,0.25)" stroke="#8b5cf6" stroke-width="1.1"/>
+          <circle cx="24" cy="24" r="4" fill="url(#voidg)"/>
+          <circle cx="24" cy="24" r="1.8" fill="white" opacity="0.9"/>
+          <circle cx="20" cy="16" r="1.2" fill="#a5b4fc" opacity="0.6"/>
+          <circle cx="30" cy="20" r="1" fill="#c7d2fe" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="item-name">Void Essence</div>
+      <div class="item-badge badge-rare">Rare</div>
+    </div>
+
+    <!-- Mythic -->
+    <div class="item-card mythic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs>
+            <radialGradient id="flame1" cx="50%" cy="90%" r="70%"><stop offset="0%" stop-color="#fde68a"/><stop offset="35%" stop-color="#f59e0b"/><stop offset="65%" stop-color="#ef4444"/><stop offset="100%" stop-color="#7f1d1d" stop-opacity="0"/></radialGradient>
+            <radialGradient id="flame2" cx="40%" cy="80%" r="50%"><stop offset="0%" stop-color="#fef3c7"/><stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/></radialGradient>
+          </defs>
+          <path d="M24 40 Q13 31 15 21 Q17 13 24 9 Q21 17 26 20 Q23 13 28 9 Q37 17 33 27 Q35 21 31 19 Q37 29 24 40Z" fill="url(#flame1)" stroke="none"/>
+          <path d="M24 38 Q17 29 20 23 Q22 19 24 17 Q23 22 27 23 Q31 25 29 32 Q27 36 24 38Z" fill="url(#flame2)" opacity="0.8"/>
+          <ellipse cx="24" cy="29" rx="4" ry="5" fill="#fef3c7" opacity="0.5"/>
+          <circle cx="24" cy="28" r="2" fill="white" opacity="0.6"/>
+          <circle cx="20" cy="18" r="1.5" fill="#fde68a" opacity="0.5"/>
+          <circle cx="28" cy="16" r="1" fill="#fde68a" opacity="0.4"/>
+        </svg>
+      </div>
+      <div class="item-name">Heavenly Flame Essence</div>
+      <div class="item-badge badge-mythic">Mythic</div>
+    </div>
+    <div class="item-card mythic">
+      <div class="item-qty">×2</div>
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><linearGradient id="lseed" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#d97706"/></linearGradient></defs>
+          <ellipse cx="24" cy="28" rx="8" ry="10" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1.2"/>
+          <path d="M26 8 L18 24 L24 24 L22 40 L30 22 L24 22 Z" fill="url(#lseed)" stroke="#d97706" stroke-width="0.5"/>
+          <circle cx="18" cy="14" r="2" fill="#fde68a" opacity="0.6"/>
+          <circle cx="32" cy="18" r="1.5" fill="#fde68a" opacity="0.4"/>
+          <line x1="10" y1="28" x2="14" y2="26" stroke="#f59e0b" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+          <line x1="38" y1="28" x2="34" y2="26" stroke="#f59e0b" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="item-name">Nine Heavens Lightning Seed</div>
+      <div class="item-badge badge-mythic">Mythic</div>
+    </div>
+    <div class="item-card mythic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs>
+            <radialGradient id="pcore" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fef3c7"/><stop offset="35%" stop-color="#fbbf24"/><stop offset="70%" stop-color="#f97316"/><stop offset="100%" stop-color="#b91c1c"/></radialGradient>
+            <radialGradient id="pglow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fde68a" stop-opacity="0.8"/><stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/></radialGradient>
+          </defs>
+          <circle cx="24" cy="26" r="14" fill="url(#pglow)"/>
+          <path d="M24 8 Q17 12 19 18 Q15 13 13 18 Q17 25 24 16 Q31 25 35 18 Q33 13 29 18 Q31 12 24 8Z" fill="#fcd34d" stroke="#f59e0b" stroke-width="1.2"/>
+          <circle cx="24" cy="26" r="10" fill="url(#pcore)" stroke="#f97316" stroke-width="1.5"/>
+          <circle cx="24" cy="26" r="5" fill="#fef3c7" opacity="0.8"/>
+          <circle cx="24" cy="26" r="2.5" fill="white" opacity="0.95"/>
+          <circle cx="21" cy="23" r="1.5" fill="rgba(255,255,255,0.6)"/>
+        </svg>
+      </div>
+      <div class="item-name">Phoenix Core</div>
+      <div class="item-badge badge-mythic">Mythic</div>
+    </div>
+    <div class="item-card mythic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><linearGradient id="cbpill" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#b45309"/></linearGradient></defs>
+          <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#cbpill)" stroke="#f59e0b" stroke-width="1.5"/>
+          <line x1="13" y1="24" x2="35" y2="24" stroke="white" stroke-width="1.5" opacity="0.5"/>
+          <path d="M19 14 Q24 10 29 14" stroke="rgba(255,255,255,0.5)" stroke-width="1" fill="none"/>
+          <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.35)" transform="rotate(-15 20 19)"/>
+          <path d="M20 9 L17 5 M24 8 L24 4 M28 9 L31 5" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
+        </svg>
+      </div>
+      <div class="item-name">Celestial Bloodline Pill</div>
+      <div class="item-badge badge-mythic">Mythic</div>
+    </div>
+    <div class="item-card mythic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <path d="M24 30 Q20 22 14 20 Q10 14 16 10 Q22 6 24 16 Q26 6 32 10 Q38 14 34 20 Q28 22 24 30Z" fill="rgba(245,158,11,0.15)" stroke="#f59e0b" stroke-width="1.2"/>
+          <path d="M24 30 Q18 26 16 32 Q14 38 20 38 Q24 38 24 30Z" fill="rgba(245,158,11,0.15)" stroke="#f59e0b" stroke-width="1.2"/>
+          <path d="M24 30 Q30 26 32 32 Q34 38 28 38 Q24 38 24 30Z" fill="rgba(245,158,11,0.15)" stroke="#f59e0b" stroke-width="1.2"/>
+          <line x1="24" y1="30" x2="24" y2="42" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="24" cy="18" r="2.5" fill="#f59e0b" opacity="0.6"/>
+        </svg>
+      </div>
+      <div class="item-name">Immortal Luck Pill</div>
+      <div class="item-badge badge-mythic">Mythic</div>
+    </div>
+    <div class="item-card mythic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <path d="M24 30 Q20 22 14 20 Q10 14 16 10 Q22 6 24 16 Q26 6 32 10 Q38 14 34 20 Q28 22 24 30Z" fill="rgba(245,158,11,0.15)" stroke="#f59e0b" stroke-width="1.2"/>
+          <path d="M24 30 Q18 26 16 32 Q14 38 20 38 Q24 38 24 30Z" fill="rgba(245,158,11,0.15)" stroke="#f59e0b" stroke-width="1.2"/>
+          <path d="M24 30 Q30 26 32 32 Q34 38 28 38 Q24 38 24 30Z" fill="rgba(245,158,11,0.15)" stroke="#f59e0b" stroke-width="1.2"/>
+          <line x1="24" y1="30" x2="24" y2="42" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="24" cy="18" r="2.5" fill="#f59e0b" opacity="0.6"/>
+        </svg>
+      </div>
+      <div class="item-name">Immortal Luck Pill</div>
+      <div class="item-badge badge-mythic">Mythic</div>
+    </div>
+    <div class="item-card mythic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <path d="M8 28 Q12 20 18 18 Q16 14 20 10 Q24 8 26 12 Q30 8 34 12 Q36 18 32 22 Q38 24 38 30 Q36 36 30 36 Q28 40 24 40 Q20 40 18 36 Q12 36 8 28Z" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1.2"/>
+          <path d="M26 12 Q28 16 26 18 Q24 20 22 18" stroke="#f59e0b" stroke-width="1" fill="none" opacity="0.6"/>
+          <circle cx="20" cy="20" r="2" fill="#f59e0b" opacity="0.4"/>
+          <circle cx="30" cy="18" r="2" fill="#f59e0b" opacity="0.4"/>
+          <path d="M18 28 Q24 24 30 28" stroke="#f59e0b" stroke-width="1.2" fill="none"/>
+          <circle cx="20" cy="22" r="1.5" fill="#f59e0b"/>
+          <circle cx="28" cy="20" r="1.5" fill="#f59e0b"/>
+          <path d="M14 32 L10 36 M16 34 L13 40" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="item-name">True Dragon Bloodline Pill</div>
+      <div class="item-badge badge-mythic">Mythic</div>
+    </div>
+    <div class="item-card mythic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><radialGradient id="wdpill" cx="35%" cy="30%" r="65%"><stop offset="0%" stop-color="#fde68a"/><stop offset="60%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#78350f"/></radialGradient></defs>
+          <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#wdpill)" stroke="#f59e0b" stroke-width="1.5"/>
+          <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+          <path d="M18 14 Q20 10 24 10" stroke="rgba(255,255,255,0.4)" stroke-width="1" fill="none" stroke-linecap="round"/>
+          <ellipse cx="20" cy="19" rx="2" ry="4" fill="rgba(255,255,255,0.3)" transform="rotate(-15 20 19)"/>
+          <path d="M20 9 L17 5 M24 8 L24 4 M28 9 L31 5" stroke="#fcd34d" stroke-width="1.2" stroke-linecap="round"/>
+          <circle cx="24" cy="4" r="1.5" fill="#fcd34d" opacity="0.7"/>
+        </svg>
+      </div>
+      <div class="item-name">World Destroying Pill</div>
+      <div class="item-badge badge-mythic">Mythic</div>
+    </div>
+    <div class="item-card mythic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <rect x="14" y="8" width="20" height="28" rx="2" fill="rgba(245,158,11,0.10)" stroke="#f59e0b" stroke-width="1.5"/>
+          <path d="M14 14 L34 14" stroke="#f59e0b" stroke-width="1" opacity="0.4"/>
+          <path d="M14 32 L34 32" stroke="#f59e0b" stroke-width="1" opacity="0.4"/>
+          <path d="M24 16 L26 22 L32 22 L27 26 L29 32 L24 28 L19 32 L21 26 L16 22 L22 22 Z" fill="rgba(245,158,11,0.3)" stroke="#f59e0b" stroke-width="1"/>
+          <line x1="21" y1="36" x2="19" y2="42" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="24" y1="36" x2="24" y2="42" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="27" y1="36" x2="29" y2="42" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="item-name">Heaven Destroying Talisman</div>
+      <div class="item-badge badge-mythic">Mythic</div>
+    </div>
+    <div class="item-card mythic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <rect x="10" y="20" width="28" height="18" rx="3" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1.5"/>
+          <ellipse cx="24" cy="20" rx="14" ry="4" fill="rgba(245,158,11,0.15)" stroke="#f59e0b" stroke-width="1.2"/>
+          <path d="M32 8 Q36 12 34 16 L30 20 L28 18 L32 14 Q28 12 28 8 Z" fill="#f59e0b" opacity="0.7"/>
+          <line x1="30" y1="20" x2="28" y2="18" stroke="#f59e0b" stroke-width="1.5"/>
+          <ellipse cx="22" cy="26" rx="6" ry="3" fill="rgba(245,158,11,0.2)" stroke="#f59e0b" stroke-width="1" opacity="0.6"/>
+          <circle cx="24" cy="26" r="2" fill="#f59e0b" opacity="0.4"/>
+        </svg>
+      </div>
+      <div class="item-name">Immortal Ink Stone</div>
+      <div class="item-badge badge-mythic">Mythic</div>
+    </div>
+
+    <!-- Legendary -->
+    <div class="item-card legendary">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs>
+            <linearGradient id="wor1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+            <linearGradient id="wor2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#4c1d95"/></linearGradient>
+          </defs>
+          <circle cx="24" cy="24" r="16" fill="none" stroke="#ec4899" stroke-width="1.5" stroke-dasharray="4 2"/>
+          <circle cx="24" cy="24" r="12" fill="#4c1d95" opacity="0.12"/>
+          <!-- top half gold, bottom half purple yin yang -->
+          <path d="M24 12 A12 12 0 0 1 24 36 A6 6 0 0 0 24 24 A6 6 0 0 1 24 12Z" fill="url(#wor1)" opacity="0.9"/>
+          <path d="M24 12 A12 12 0 0 0 24 36 A6 6 0 0 1 24 24 A6 6 0 0 0 24 12Z" fill="url(#wor2)" opacity="0.9"/>
+          <circle cx="24" cy="18" r="2.5" fill="#fde68a" stroke="#f59e0b" stroke-width="0.5"/>
+          <circle cx="24" cy="30" r="2.5" fill="#4c1d95" stroke="#7c3aed" stroke-width="0.5"/>
+          <circle cx="24" cy="24" r="3" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1"/>
+          <circle cx="24" cy="24" r="14" fill="none" stroke="#ec4899" stroke-width="1" opacity="0.5"/>
+          <!-- spokes -->
+          <line x1="24" y1="8" x2="24" y2="5" stroke="#ec4899" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="24" y1="43" x2="24" y2="40" stroke="#ec4899" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="8" y1="24" x2="5" y2="24" stroke="#ec4899" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="43" y1="24" x2="40" y2="24" stroke="#ec4899" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="13" y1="13" x2="11" y2="11" stroke="#ec4899" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="35" y1="35" x2="37" y2="37" stroke="#ec4899" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="35" y1="13" x2="37" y2="11" stroke="#ec4899" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="13" y1="35" x2="11" y2="37" stroke="#ec4899" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="item-name">Wheel of Reincarnation</div>
+      <div class="item-badge badge-legendary">Legendary</div>
+    </div>
+
+    <!-- Epic -->
+    <div class="item-card epic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <line x1="24" y1="40" x2="24" y2="22" stroke="#6d28d9" stroke-width="2" stroke-linecap="round"/>
+          <path d="M24 30 Q16 26 12 18 Q16 12 24 16 Q24 22 24 30Z" fill="rgba(139,92,246,0.15)" stroke="#8b5cf6" stroke-width="1.2"/>
+          <path d="M24 26 Q32 22 36 14 Q32 8 24 12 Q24 18 24 26Z" fill="rgba(139,92,246,0.12)" stroke="#8b5cf6" stroke-width="1.2"/>
+          <path d="M18 16 Q20 14 22 16" stroke="#8b5cf6" stroke-width="1" fill="none" opacity="0.5"/>
+          <path d="M30 12 Q32 10 34 12" stroke="#8b5cf6" stroke-width="1" fill="none" opacity="0.5"/>
+          <circle cx="24" cy="10" r="3" fill="rgba(139,92,246,0.2)" stroke="#8b5cf6" stroke-width="1"/>
+          <path d="M22 10 L24 8 L26 10 L24 12 Z" fill="#8b5cf6"/>
+        </svg>
+      </div>
+      <div class="item-name">Heaven Defying Herb</div>
+      <div class="item-badge badge-epic">Epic</div>
+    </div>
+    <div class="item-card epic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><linearGradient id="grassg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#bbf7d0"/><stop offset="100%" stop-color="#16a34a"/></linearGradient>
+          <linearGradient id="grassg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#86efac"/><stop offset="100%" stop-color="#15803d"/></linearGradient></defs>
+          <line x1="24" y1="40" x2="24" y2="24" stroke="#166534" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M24 36 Q18 34 16 28 Q18 24 22 26 L24 36Z" fill="url(#grassg)" stroke="#22c55e" stroke-width="1"/>
+          <path d="M24 36 Q30 34 32 28 Q30 24 26 26 L24 36Z" fill="url(#grassg)" stroke="#22c55e" stroke-width="1"/>
+          <path d="M24 30 Q18 28 14 22 Q16 16 22 18 L24 30Z" fill="url(#grassg2)" stroke="#16a34a" stroke-width="1.1"/>
+          <path d="M24 30 Q30 28 34 22 Q32 16 26 18 L24 30Z" fill="url(#grassg2)" stroke="#16a34a" stroke-width="1.1"/>
+          <path d="M24 24 Q20 20 18 14 Q22 10 26 14 L24 24Z" fill="#15803d" stroke="#166534" stroke-width="1.2" opacity="0.9"/>
+          <path d="M24 24 Q28 20 30 14 Q26 10 22 14 L24 24Z" fill="#15803d" stroke="#166534" stroke-width="1.2" opacity="0.85"/>
+          <circle cx="24" cy="10" r="3" fill="#fde68a" stroke="#d97706" stroke-width="1.2"/>
+          <circle cx="24" cy="10" r="1.2" fill="white" opacity="0.7"/>
+        </svg>
+      </div>
+      <div class="item-name">Nine Leaf Immortal Grass</div>
+      <div class="item-badge badge-epic">Epic</div>
+    </div>
+    <div class="item-card epic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><linearGradient id="sstone" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a5f3fc"/><stop offset="40%" stop-color="#22d3ee"/><stop offset="100%" stop-color="#0e7490"/></linearGradient></defs>
+          <path d="M24 8 L36 20 L24 40 L12 20 Z" fill="url(#sstone)" stroke="#0891b2" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M24 8 L30 20 L24 40 L18 20 Z" fill="rgba(255,255,255,0.25)"/>
+          <path d="M12 20 L36 20" stroke="rgba(255,255,255,0.4)" stroke-width="1.2"/>
+          <path d="M15 14 L24 8 L33 14" stroke="rgba(255,255,255,0.5)" stroke-width="1.2" fill="none"/>
+          <circle cx="24" cy="8" r="2.5" fill="#e0f9ff" opacity="0.9"/>
+          <path d="M18 20 L24 30" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+        </svg>
+      </div>
+      <div class="item-name">King Grade Spirit Stone</div>
+      <div class="item-badge badge-epic">Epic</div>
+    </div>
+    <div class="item-card epic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><linearGradient id="sstone2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a5f3fc"/><stop offset="40%" stop-color="#22d3ee"/><stop offset="100%" stop-color="#0e7490"/></linearGradient></defs>
+          <path d="M24 8 L36 20 L24 40 L12 20 Z" fill="url(#sstone2)" stroke="#0891b2" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M24 8 L30 20 L24 40 L18 20 Z" fill="rgba(255,255,255,0.25)"/>
+          <path d="M12 20 L36 20" stroke="rgba(255,255,255,0.4)" stroke-width="1.2"/>
+          <path d="M15 14 L24 8 L33 14" stroke="rgba(255,255,255,0.5)" stroke-width="1.2" fill="none"/>
+          <circle cx="24" cy="8" r="2.5" fill="#e0f9ff" opacity="0.9"/>
+          <path d="M18 20 L24 30" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+        </svg>
+      </div>
+      <div class="item-name">King Grade Spirit Stone</div>
+      <div class="item-badge badge-epic">Epic</div>
+    </div>
+    <div class="item-card epic">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <circle cx="24" cy="24" r="14" fill="none" stroke="#8b5cf6" stroke-width="1" stroke-dasharray="3 3"/>
+          <defs><radialGradient id="beadg" cx="35%" cy="30%" r="60%"><stop offset="0%" stop-color="#c4b5fd"/><stop offset="100%" stop-color="#5b21b6"/></radialGradient>
+          <radialGradient id="cbeadg" cx="35%" cy="30%" r="60%"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#d97706"/></radialGradient></defs>
+          <circle cx="24" cy="10" r="3.8" fill="url(#beadg)" stroke="#7c3aed" stroke-width="1"/>
+          <circle cx="33" cy="14" r="3.8" fill="url(#beadg)" stroke="#7c3aed" stroke-width="1"/>
+          <circle cx="38" cy="24" r="3.8" fill="url(#beadg)" stroke="#7c3aed" stroke-width="1"/>
+          <circle cx="33" cy="34" r="3.8" fill="url(#beadg)" stroke="#7c3aed" stroke-width="1"/>
+          <circle cx="24" cy="38" r="3.8" fill="url(#beadg)" stroke="#7c3aed" stroke-width="1"/>
+          <circle cx="15" cy="34" r="3.8" fill="url(#beadg)" stroke="#7c3aed" stroke-width="1"/>
+          <circle cx="10" cy="24" r="3.8" fill="url(#beadg)" stroke="#7c3aed" stroke-width="1"/>
+          <circle cx="15" cy="14" r="3.8" fill="url(#beadg)" stroke="#7c3aed" stroke-width="1"/>
+          <!-- shine dots on outer beads -->
+          <circle cx="23" cy="9" r="1" fill="rgba(255,255,255,0.5)"/>
+          <circle cx="32" cy="13" r="1" fill="rgba(255,255,255,0.5)"/>
+          <circle cx="23" cy="37" r="1" fill="rgba(255,255,255,0.5)"/>
+          <!-- centre bead gold -->
+          <circle cx="24" cy="24" r="4.5" fill="url(#cbeadg)" stroke="#b45309" stroke-width="1.2"/>
+          <circle cx="23" cy="23" r="1.5" fill="rgba(255,255,255,0.6)"/>
+        </svg>
+      </div>
+      <div class="item-name">Nine Dragon Beads</div>
+      <div class="item-badge badge-epic">Epic</div>
+    </div>
+
+    <!-- Common -->
+    <div class="item-card common">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><linearGradient id="rootg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d6d3d1"/><stop offset="100%" stop-color="#78716c"/></linearGradient></defs>
+          <line x1="24" y1="40" x2="24" y2="26" stroke="#57534e" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M24 36 Q18 32 18 40" stroke="#57534e" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M24 36 Q30 32 30 40" stroke="#57534e" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M24 32 Q18 28 14 22 Q16 16 22 18 Q24 20 24 32Z" fill="url(#rootg)" stroke="#78716c" stroke-width="1.2" opacity="0.9"/>
+          <path d="M24 28 Q30 24 34 18 Q32 12 26 14 Q24 16 24 28Z" fill="url(#rootg)" stroke="#78716c" stroke-width="1.2" opacity="0.75"/>
+          <path d="M18 24 Q20 22 22 24" stroke="#d6d3d1" stroke-width="1" fill="none"/>
+          <path d="M28 19 Q30 17 32 19" stroke="#d6d3d1" stroke-width="1" fill="none"/>
+        </svg>
+      </div>
+      <div class="item-name">Ash Root</div>
+      <div class="item-badge badge-common">Common</div>
+    </div>
+    <div class="item-card common">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><linearGradient id="impureg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e2e8f0"/><stop offset="100%" stop-color="#94a3b8"/></linearGradient></defs>
+          <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#impureg)" stroke="#64748b" stroke-width="1.5"/>
+          <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>
+          <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.6)" transform="rotate(-15 20 19)"/>
+          <ellipse cx="26" cy="28" rx="2" ry="3" fill="rgba(255,255,255,0.25)" transform="rotate(10 26 28)"/>
+        </svg>
+      </div>
+      <div class="item-name">Impure Pill</div>
+      <div class="item-badge badge-common">Common</div>
+    </div>
+    <div class="item-card common">
+      <div class="item-icon">
+        <svg viewBox="0 0 48 48" fill="none">
+          <defs><linearGradient id="qig" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e0f2fe"/><stop offset="100%" stop-color="#7dd3fc"/></linearGradient></defs>
+          <ellipse cx="24" cy="24" rx="11" ry="15" fill="url(#qig)" stroke="#38bdf8" stroke-width="1.5"/>
+          <line x1="13" y1="24" x2="35" y2="24" stroke="rgba(255,255,255,0.8)" stroke-width="1.5"/>
+          <path d="M19 18 Q24 13 29 18" stroke="rgba(255,255,255,0.6)" stroke-width="1.2" fill="none"/>
+          <ellipse cx="20" cy="19" rx="2.5" ry="4" fill="rgba(255,255,255,0.6)" transform="rotate(-15 20 19)"/>
+          <circle cx="24" cy="30" r="2" fill="rgba(255,255,255,0.4)"/>
+          <path d="M20 9 L17 5 M24 8 L24 4 M28 9 L31 5" stroke="#38bdf8" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
+        </svg>
+      </div>
+      <div class="item-name">Qi Gathering Pill</div>
+      <div class="item-badge badge-common">Common</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.filter-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.rarity-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.rarity-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
