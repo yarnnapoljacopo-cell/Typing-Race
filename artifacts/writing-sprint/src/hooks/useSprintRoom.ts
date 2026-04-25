@@ -202,7 +202,20 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
             disconnectedAtRef.current = null;
             participantIdRef.current = data.participantId;
             setParticipantId(data.participantId);
-            setRoom({ ...ROOM_STATE_DEFAULTS, ...data.room, participants: data.room.participants ?? [] });
+            const joinedRoom = { ...ROOM_STATE_DEFAULTS, ...data.room, participants: data.room.participants ?? [] };
+            setRoom(joinedRoom);
+            // Restore kart state from server on join/reconnect
+            if (joinedRoom.mode === "kart") {
+              const offsets: Record<string, number> = {};
+              joinedRoom.participants.forEach((p: Participant) => {
+                if (typeof p.kartCarOffset === "number") offsets[p.id] = p.kartCarOffset;
+              });
+              setKartState((prev) => ({
+                ...prev,
+                carOffsets: offsets,
+                items: Array.isArray(data.kartItems) ? (data.kartItems as string[]) : prev.items,
+              }));
+            }
             if (isReconnect && latestTextRef.current) {
               ws.send(JSON.stringify({
                 type: "text_update",
@@ -217,9 +230,19 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
             break;
           }
 
-          case "room_state":
-            setRoom({ ...ROOM_STATE_DEFAULTS, ...data.room, participants: data.room.participants ?? [] });
+          case "room_state": {
+            const updatedRoom = { ...ROOM_STATE_DEFAULTS, ...data.room, participants: data.room.participants ?? [] };
+            setRoom(updatedRoom);
+            // Keep car offsets in sync with authoritative server values
+            if (updatedRoom.mode === "kart") {
+              const offsets: Record<string, number> = {};
+              updatedRoom.participants.forEach((p: Participant) => {
+                if (typeof p.kartCarOffset === "number") offsets[p.id] = p.kartCarOffset;
+              });
+              setKartState((prev) => ({ ...prev, carOffsets: offsets }));
+            }
             break;
+          }
 
           case "participant_update":
             setRoom((prev) => {

@@ -273,11 +273,17 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             isCreator: p.isCreator,
             nameplate: p.nameplate,
             xp: p.xp,
+            ...(room.mode === "kart" && { kartCarOffset: p.kartCarOffset }),
           }));
 
         const bossTotalWords = room.mode === "boss"
           ? currentParticipants.reduce((sum, p) => sum + p.wordCount, 0)
           : null;
+
+        // For kart mode: give the joining participant their current item list so
+        // reconnects and late joins restore the inventory correctly.
+        const selfParticipant = room.participants.get(participantId);
+        const kartItems = room.mode === "kart" ? (selfParticipant?.kartItems ?? []) : undefined;
 
         ws.send(
           JSON.stringify({
@@ -285,6 +291,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             participantId,
             isCreator,
             restoredWordCount: restoredWordCount > 0 ? restoredWordCount : undefined,
+            kartItems,
             room: {
               code: room.code,
               status: room.status,
@@ -385,12 +392,14 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         if (room.mode === "kart" && room.status === "running") {
           const { position, total } = getParticipantPosition(room, participantId);
 
-          while (participant.kartItems.length < 3 && participant.wordCount >= participant.kartNextItemAt) {
+          while (participant.wordCount >= participant.kartNextItemAt) {
             participant.kartNextItemAt += 250;
-            const item = rollItem(position, total, !room.goldenPenUsed);
-            if (item === "golden_pen") room.goldenPenUsed = true;
-            participant.kartItems.push(item);
-            ws.send(JSON.stringify({ type: "item_earned", item, emoji: ITEM_EMOJIS[item] }));
+            if (participant.kartItems.length < 3) {
+              const item = rollItem(position, total, !room.goldenPenUsed);
+              if (item === "golden_pen") room.goldenPenUsed = true;
+              participant.kartItems.push(item);
+              ws.send(JSON.stringify({ type: "item_earned", item, emoji: ITEM_EMOJIS[item] }));
+            }
           }
 
           room.bananaTraps = room.bananaTraps.filter((trap) => {

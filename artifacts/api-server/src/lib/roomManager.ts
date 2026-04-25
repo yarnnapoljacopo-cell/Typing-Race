@@ -377,6 +377,7 @@ export function broadcastRoomState(room: Room): void {
       isCreator: p.isCreator,
       nameplate: p.nameplate,
       xp: p.xp,
+      ...(room.mode === "kart" && { kartCarOffset: p.kartCarOffset }),
     }));
 
   const now = Date.now();
@@ -749,6 +750,10 @@ export function updateParticipantStats(
     const instantWpm = wordDelta / timeDeltaMinutes;
     wpm = Math.round(wpm * 0.7 + instantWpm * 0.3);
   }
+
+  // Skip broadcasting if nothing meaningful changed — avoids flooding all clients
+  // with updates on every mid-word keystroke (debounced at 100 ms on the client).
+  if (participant.wordCount === wordCount && participant.wpm === wpm) return;
 
   participant.wordCount = wordCount;
   participant.wpm = wpm;

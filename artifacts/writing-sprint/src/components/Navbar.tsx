@@ -37,7 +37,7 @@ export function Navbar() {
         }}
       >
         <img
-          src={`${basePath}/logo.svg`}
+          src={`${basePath}/logo-icon.png`}
           alt="Writing Sprint logo"
           style={{
             height: 40,
