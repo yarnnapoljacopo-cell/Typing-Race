@@ -399,7 +399,7 @@ export default function Bag() {
             {/* Equipped Storage */}
             {equippedStorage && (
               <div className="mb-5 flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3">
-                <span className="text-2xl">{equippedStorage.item_id ? (equippedStorage.item_icon ?? "💍") : "👜"}</span>
+                <ItemIcon name={equippedStorage.item_name ?? ""} size={32} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground">
                     {equippedStorage.item_name ?? "Cloth Bag"}
@@ -528,7 +528,7 @@ export default function Bag() {
                               : `bg-card ${RARITY_BORDER_LEFT[item.rarity] ?? "border-l-border"}`
                           }`}
                         >
-                          <span className="text-3xl leading-none">{item.icon}</span>
+                          <ItemIcon name={item.name} size={36} />
                           <span className={`text-xs font-medium leading-tight line-clamp-2 ${item.overflow_since ? "text-red-700 dark:text-red-400" : "text-foreground"}`}>
                             {item.name}
                           </span>
@@ -601,7 +601,7 @@ export default function Bag() {
                   return (
                     <Card key={eff.id} className={`border-l-4 ${RARITY_BORDER_LEFT[eff.rarity] ?? ""}`}>
                       <CardContent className="pt-4 pb-4 px-4 flex gap-3">
-                        <span className="text-2xl shrink-0 mt-0.5 leading-none">{eff.icon}</span>
+                        <ItemIcon name={eff.item_name} size={30} />
                         <div className="min-w-0">
                           <div className="font-semibold text-sm leading-tight text-foreground">{eff.item_name}</div>
                           <div className="text-xs text-muted-foreground capitalize mt-0.5">
@@ -638,7 +638,7 @@ export default function Bag() {
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2.5 text-lg">
-                  <span className="text-3xl leading-none">{selectedItem.icon}</span>
+                  <ItemIcon name={selectedItem.name} size={40} />
                   {selectedItem.name}
                 </DialogTitle>
                 <DialogDescription asChild>
