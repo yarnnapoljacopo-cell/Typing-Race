@@ -482,12 +482,24 @@ function TimedClerkLoaded({ timedOut, children }: { timedOut: boolean; children:
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
   const [clerkTimedOut, setClerkTimedOut] = useState(false);
+  const [slowLoad, setSlowLoad] = useState(false);
 
-  // Give Clerk 6 seconds to initialise. If it hasn't by then (e.g. live key
-  // rejected on localhost), flip to guest-only mode without a hard error.
+  // On production domains the auth proxy lives on the same Railway server.
+  // When Railway restarts (deploy, memory limit, health check) the server
+  // takes up to ~30 s to come back. A 6-second timeout was firing during
+  // every restart window, dropping the app into guest mode and making coins,
+  // profile, and all auth-gated features disappear for the whole session.
+  // In dev/localhost the original 6 s is fine because a live key rejected
+  // there hangs forever and we need a safety valve.
+  const CLERK_TIMEOUT_MS = isRealProductionDomain ? 45_000 : 6_000;
+  // Show a "slow connection" hint after 8 s so users know what's happening.
+  const SLOW_HINT_MS = 8_000;
+
   useEffect(() => {
-    const t = setTimeout(() => setClerkTimedOut(true), 6000);
-    return () => clearTimeout(t);
+    const tTimeout = setTimeout(() => setClerkTimedOut(true), CLERK_TIMEOUT_MS);
+    const tSlow    = setTimeout(() => setSlowLoad(true),      SLOW_HINT_MS);
+    return () => { clearTimeout(tTimeout); clearTimeout(tSlow); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!clerkPubKey) return <MissingKeyScreen />;
@@ -534,7 +546,14 @@ function ClerkProviderWithRoutes() {
             color: "#2D3142",
           }}>
             <img src={`${basePath}/logo.svg`} alt="Writing Sprint" style={{ width: 48, height: 48, borderRadius: 12 }} />
-            <p style={{ margin: 0, color: "#68708A", fontSize: "0.95rem" }}>Loading Writing Sprint…</p>
+            <p style={{ margin: 0, color: "#68708A", fontSize: "0.95rem" }}>
+              {slowLoad ? "Server is starting up, please wait…" : "Loading Writing Sprint…"}
+            </p>
+            {slowLoad && (
+              <p style={{ margin: 0, color: "#A0A8C0", fontSize: "0.8rem" }}>
+                This usually takes under 30 seconds.
+              </p>
+            )}
           </div>
         )}
       </ClerkLoading>
