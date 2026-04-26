@@ -147,6 +147,9 @@ export default function Portal() {
     queryFn: fetchProfile,
     enabled: !isGuest,
     retry: 2,
+    // Keep last-known profile visible during background refetches so the
+    // portal doesn't flash back to a loading/empty state on token refreshes.
+    placeholderData: (prev) => prev,
   });
 
   const saveMutation = useMutation({

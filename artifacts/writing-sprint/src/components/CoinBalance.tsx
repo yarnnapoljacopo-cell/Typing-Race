@@ -27,6 +27,9 @@ export function CoinBalance({ className = "", style }: CoinBalanceProps) {
     queryFn: fetchCoins,
     enabled: !!isSignedIn,
     staleTime: 30_000,
+    // Keep the last-known balance visible while a background refetch is in
+    // flight (e.g. after a Clerk token refresh triggers cache invalidation).
+    placeholderData: (prev) => prev,
   });
 
   if (!isSignedIn || data === undefined) return null;

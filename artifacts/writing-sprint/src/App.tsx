@@ -407,7 +407,11 @@ function ClerkQueryClientCacheInvalidator() {
     const unsubscribe = addListener(({ user }) => {
       const userId = user?.id ?? null;
       if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) {
-        qc.clear();
+        // invalidateQueries marks data stale and refetches in the background,
+        // keeping the last-known values visible while the refetch is in flight.
+        // qc.clear() was wiping all cached data immediately, causing coins/profile
+        // to vanish for the duration of every token refresh or auth state change.
+        qc.invalidateQueries();
       }
       prevUserIdRef.current = userId;
     });
