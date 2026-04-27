@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import { useSprintRoom, type RoomState } from "@/hooks/useSprintRoom";
 import { getNameplateStyle } from "@/lib/nameplates";
 import { SkinOverlay } from "@/components/SkinOverlay";
@@ -143,6 +144,7 @@ export default function Room() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const { isSignedIn, userId } = useAuth();
+  const authedFetch = useAuthedFetch();
 
   const code = searchParams.get("code") || "";
   const name = searchParams.get("name") || "";
@@ -251,15 +253,14 @@ export default function Room() {
   // ── Server backup helpers ───────────────────────────────────────────────
   const serverSaveNow = useCallback((textToSave: string, wc: number) => {
     if (!code || !name) return;
-    fetch(`/api/rooms/${encodeURIComponent(code)}/writing`, {
+    authedFetch(`/api/rooms/${encodeURIComponent(code)}/writing`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({ participantName: name, text: textToSave, wordCount: wc }),
     })
       .then((r) => { if (r.ok) setSaveStatus("cloud"); })
       .catch(() => { /* silent — localStorage is the local fallback */ });
-  }, [code, name]);
+  }, [code, name, authedFetch]);
 
   const scheduleServerSave = useCallback((textToSave: string, wc: number) => {
     if (serverSaveTimeoutRef.current) clearTimeout(serverSaveTimeoutRef.current);
@@ -273,10 +274,9 @@ export default function Room() {
     const plainText = textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
     const wc = netWordCountRef.current;
     try {
-      const res = await fetch(`/api/user/files`, {
+      const res = await authedFetch(`/api/user/files`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ roomCode: code, participantName: name, text: plainText, wordCount: wc }),
       });
       if (res.ok) {
@@ -290,7 +290,7 @@ export default function Room() {
     } catch {
       toast({ title: "Couldn't save", variant: "destructive" });
     }
-  }, [code, name, toast]);
+  }, [code, name, toast, authedFetch]);
 
   const downloadWriting = useCallback(() => {
     const plainText = textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
@@ -763,10 +763,9 @@ export default function Room() {
     const sorted = [...room.participants].sort((a, b) => b.wordCount - a.wordCount);
     const isFirstPlace = sorted[0]?.id === participantId;
 
-    fetch(`${basePath}/api/user/xp`, {
+    authedFetch(`${basePath}/api/user/xp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({ isFirstPlace, roomCode: code }),
     })
       .then((r) => r.json())
