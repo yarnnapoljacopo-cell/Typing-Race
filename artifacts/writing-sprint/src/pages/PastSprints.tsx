@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@clerk/react";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -371,6 +372,7 @@ function SprintCard({ sprint, onDelete }: { sprint: Sprint; onDelete: (id: numbe
 }
 
 export default function PastSprints() {
+  const { isLoaded, isSignedIn } = useAuth();
   const authedFetch = useAuthedFetch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -378,6 +380,7 @@ export default function PastSprints() {
   const { data: sprints, isLoading, isError, refetch } = useQuery({
     queryKey: ["user-sprints"],
     queryFn: () => fetchSprints(authedFetch),
+    enabled: isLoaded && !!isSignedIn,
   });
 
   const deleteMutation = useMutation({
