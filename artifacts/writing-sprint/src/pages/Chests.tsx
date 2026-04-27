@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, Package, Gift, FlaskConical, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -134,7 +135,8 @@ const RARITY_COLORS: Record<string, string> = {
 
 export default function Chests() {
   const [, setLocation] = useLocation();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
+  const authedFetch = useAuthedFetch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -146,7 +148,7 @@ export default function Chests() {
 
   const fetchChests = useCallback(async () => {
     try {
-      const res = await fetch(`${basePath}/api/user/chests`, { credentials: "include" });
+      const res = await authedFetch(`${basePath}/api/user/chests`);
       if (!res.ok) throw new Error("Failed to load chests");
       const data = await res.json();
       setChests(data);
@@ -155,20 +157,21 @@ export default function Chests() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authedFetch]);
 
   useEffect(() => {
+    if (!isLoaded) return;
     if (!isSignedIn) { setLocation("/portal"); return; }
     fetchChests();
-  }, [isSignedIn]);
+  }, [isLoaded, isSignedIn]);
 
   const openChest = async (chestType: string) => {
     setOpening(true);
     setSelectedChest(chestType);
     try {
-      const res = await fetch(`${basePath}/api/user/chests/open`, {
+      const res = await authedFetch(`${basePath}/api/user/chests/open`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chestType }),
       });

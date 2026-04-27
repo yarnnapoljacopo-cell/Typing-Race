@@ -1,17 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@clerk/react";
 import type React from "react";
+import { useAuthedFetch } from "@/lib/authedFetch";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface CoinData {
   balance: number;
-}
-
-async function fetchCoins(): Promise<CoinData> {
-  const res = await fetch(`${basePath}/api/coins`, { credentials: "include" });
-  if (!res.ok) throw new Error("Failed to fetch coins");
-  return res.json();
 }
 
 const COIN_ICON_STYLE: React.CSSProperties = {
@@ -33,12 +28,17 @@ interface CoinBalanceProps {
 }
 
 export function CoinBalance({ className = "", style }: CoinBalanceProps) {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
+  const authedFetch = useAuthedFetch();
 
   const { data, isLoading, isError } = useQuery<CoinData>({
     queryKey: ["coinBalance"],
-    queryFn: fetchCoins,
-    enabled: !!isSignedIn,
+    queryFn: async () => {
+      const res = await authedFetch(`${basePath}/api/coins`);
+      if (!res.ok) throw new Error("Failed to fetch coins");
+      return res.json();
+    },
+    enabled: isLoaded && !!isSignedIn,
     staleTime: 30_000,
     retry: 4,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15000),

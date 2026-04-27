@@ -1,6 +1,7 @@
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import { Crown, ArrowLeft, Trophy, Loader2, Lock } from "lucide-react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -12,8 +13,10 @@ interface RankerEntry {
   xp: number;
 }
 
-async function fetchProfile(): Promise<{ writerName: string | null; xp: number }> {
-  const res = await fetch(`${basePath}/api/user/profile`, { credentials: "include" });
+type AF = (url: string, opts?: RequestInit) => Promise<Response>;
+
+async function fetchProfile(af: AF): Promise<{ writerName: string | null; xp: number }> {
+  const res = await af(`${basePath}/api/user/profile`);
   if (!res.ok) throw new Error("Failed to load profile");
   return res.json();
 }
@@ -46,10 +49,11 @@ function XpBar({ xp }: { xp: number }) {
 export default function GlobalRanking() {
   const [, setLocation] = useLocation();
   const { isSignedIn, isLoaded } = useAuth();
+  const authedFetch = useAuthedFetch();
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["user-profile"],
-    queryFn: fetchProfile,
+    queryFn: () => fetchProfile(authedFetch),
     enabled: isLoaded && !!isSignedIn,
   });
 

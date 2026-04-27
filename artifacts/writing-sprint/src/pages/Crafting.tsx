@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { ItemIcon } from "@/components/ItemIcon";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import "./Crafting.css";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -426,7 +427,8 @@ function AlchemyPanel({
 
 export default function Crafting() {
   const [, setLocation] = useLocation();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
+  const authedFetch = useAuthedFetch();
 
   const [activeTab, setActiveTab] = useState<Tab>("fusion");
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -457,8 +459,8 @@ export default function Crafting() {
   const fetchData = useCallback(async () => {
     try {
       const [invRes, recRes] = await Promise.all([
-        fetch(`${basePath}/api/user/bag`, { credentials: "include" }),
-        fetch(`${basePath}/api/user/crafting/all-recipes`, { credentials: "include" }),
+        authedFetch(`${basePath}/api/user/bag`),
+        authedFetch(`${basePath}/api/user/crafting/all-recipes`),
       ]);
       if (invRes.ok) { const d = await invRes.json(); setInventory(d.inventory ?? []); }
       if (recRes.ok) { const d = await recRes.json(); setRecipes(d); }
@@ -467,12 +469,14 @@ export default function Crafting() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authedFetch]);
 
   useEffect(() => {
+    if (!isLoaded) return;
     if (!isSignedIn) { setLocation("/portal"); return; }
     fetchData();
-  }, [isSignedIn]);
+  }, [isLoaded, isSignedIn]);
 
   /* Fusion */
   const fusionCandidates = inventory.reduce<Record<number, InventoryItem[]>>((acc, item) => {
@@ -495,8 +499,8 @@ export default function Crafting() {
     if (ids.length < 3) { showToast("Not enough items", "You need 3 of the same item."); return; }
     setProcessing(true);
     try {
-      const res = await fetch(`${basePath}/api/user/crafting/fusion`, {
-        method: "POST", credentials: "include",
+      const res = await authedFetch(`${basePath}/api/user/crafting/fusion`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inventoryIds: ids }),
       });
@@ -513,8 +517,8 @@ export default function Crafting() {
     if (!selectedRecipe) return;
     setProcessing(true);
     try {
-      const res = await fetch(`${basePath}/api/user/crafting/${recipeType}`, {
-        method: "POST", credentials: "include",
+      const res = await authedFetch(`${basePath}/api/user/crafting/${recipeType}`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipeId: selectedRecipe.id, inventoryIds: alchemySelected.map(i => i.id) }),
       });

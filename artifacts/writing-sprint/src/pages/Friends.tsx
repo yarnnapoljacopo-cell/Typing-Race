@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@clerk/react";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, UserPlus, UserCheck, UserX, Search, ExternalLink, Loader2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,14 +34,16 @@ interface SearchResult {
   xp: number;
 }
 
-async function fetchFriends(): Promise<FriendsData> {
-  const res = await fetch(`${basePath}/api/friends`, { credentials: "include" });
+type AF = (url: string, opts?: RequestInit) => Promise<Response>;
+
+async function fetchFriends(af: AF): Promise<FriendsData> {
+  const res = await af(`${basePath}/api/friends`);
   if (!res.ok) throw new Error("Failed to load friends");
   return res.json();
 }
 
-async function searchUsers(q: string): Promise<SearchResult[]> {
-  const res = await fetch(`${basePath}/api/users/search?q=${encodeURIComponent(q)}`, { credentials: "include" });
+async function searchUsers(q: string, af: AF): Promise<SearchResult[]> {
+  const res = await af(`${basePath}/api/users/search?q=${encodeURIComponent(q)}`);
   if (!res.ok) throw new Error("Search failed");
   return res.json();
 }
@@ -59,6 +63,8 @@ function RankPip({ xp }: { xp: number }) {
 
 export default function Friends() {
   const [, setLocation] = useLocation();
+  const { isLoaded } = useAuth();
+  const authedFetch = useAuthedFetch();
   const qc = useQueryClient();
 
   const [searchQ, setSearchQ] = useState("");
@@ -68,7 +74,8 @@ export default function Friends() {
 
   const { data, isLoading } = useQuery<FriendsData>({
     queryKey: ["friends"],
-    queryFn: fetchFriends,
+    queryFn: () => fetchFriends(authedFetch),
+    enabled: isLoaded,
   });
 
   const handleSearch = async () => {
@@ -78,7 +85,7 @@ export default function Friends() {
     setSearchError(null);
     setSearchResults(null);
     try {
-      const results = await searchUsers(q);
+      const results = await searchUsers(q, authedFetch);
       setSearchResults(results);
     } catch {
       setSearchError("Search failed. Try again.");
@@ -89,10 +96,9 @@ export default function Friends() {
 
   const requestMutation = useMutation({
     mutationFn: async (writerName: string) => {
-      const res = await fetch(`${basePath}/api/friends/request`, {
+      const res = await authedFetch(`${basePath}/api/friends/request`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ writerName }),
       });
       if (!res.ok) {
@@ -110,10 +116,7 @@ export default function Friends() {
 
   const acceptMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`${basePath}/api/friends/${id}/accept`, {
-        method: "POST",
-        credentials: "include",
-      });
+      const res = await authedFetch(`${basePath}/api/friends/${id}/accept`, { method: "POST" });
       if (!res.ok) throw new Error("Failed to accept");
       return res.json();
     },
@@ -122,10 +125,7 @@ export default function Friends() {
 
   const removeMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`${basePath}/api/friends/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const res = await authedFetch(`${basePath}/api/friends/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to remove");
       return res.json();
     },

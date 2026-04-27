@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChestIcon } from "@/components/ChestIcon";
 import { ItemIcon } from "@/components/ItemIcon";
+import { useAuthedFetch } from "@/lib/authedFetch";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -44,6 +45,7 @@ interface ChestAwardModalProps {
 type Phase = "awarded" | "opening" | "revealed";
 
 export function ChestAwardModal({ chestType, onClose }: ChestAwardModalProps) {
+  const authedFetch = useAuthedFetch();
   const [phase, setPhase] = useState<Phase>("awarded");
   const [loot, setLoot] = useState<OpenResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,9 +56,8 @@ export function ChestAwardModal({ chestType, onClose }: ChestAwardModalProps) {
     setPhase("opening");
     setError(null);
     try {
-      const res = await fetch(`${basePath}/api/user/chests/open`, {
+      const res = await authedFetch(`${basePath}/api/user/chests/open`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chestType }),
       });

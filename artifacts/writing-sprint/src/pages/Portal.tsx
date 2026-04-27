@@ -24,6 +24,7 @@ import {
   ShoppingBag, Clock, Radio, UserRound,
 } from "lucide-react";
 import { CoinBalance } from "@/components/CoinBalance";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import { useToast } from "@/hooks/use-toast";
 import PastSprints from "./PastSprints";
 import ActiveRooms from "./ActiveRooms";
@@ -57,17 +58,21 @@ interface ProfileData {
   decayRatePerDay: number;
 }
 
-async function fetchProfile(): Promise<ProfileData> {
-  const res = await fetch(`${basePath}/api/user/profile`, { credentials: "include" });
+async function fetchProfile(
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<ProfileData> {
+  const res = await af(`${basePath}/api/user/profile`);
   if (!res.ok) throw new Error("Failed to load profile");
   return res.json();
 }
 
-async function saveProfile(writerName: string): Promise<{ writerName: string }> {
-  const res = await fetch(`${basePath}/api/user/profile`, {
+async function saveProfile(
+  writerName: string,
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<{ writerName: string }> {
+  const res = await af(`${basePath}/api/user/profile`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify({ writerName }),
   });
   if (!res.ok) {
@@ -97,7 +102,8 @@ export default function Portal() {
   const { toast } = useToast();
   const { user } = useUser();
   const { signOut } = useClerk();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
+  const authedFetch = useAuthedFetch();
   const queryClient = useQueryClient();
   const { guestName, updateGuestName, exitGuest } = useGuest();
   const { isVillainMode, toggleVillainMode } = useVillainMode();
@@ -144,8 +150,8 @@ export default function Portal() {
 
   const { data: profile, isLoading: profileLoading, isError: profileError } = useQuery({
     queryKey: ["user-profile"],
-    queryFn: fetchProfile,
-    enabled: !isGuest,
+    queryFn: () => fetchProfile(authedFetch),
+    enabled: isLoaded && !isGuest,
     retry: 4,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15000),
     // Keep last-known profile visible during background refetches so the
@@ -154,7 +160,7 @@ export default function Portal() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: saveProfile,
+    mutationFn: (writerName: string) => saveProfile(writerName, authedFetch),
     onSuccess: (data) => {
       queryClient.setQueryData(["user-profile"], data);
       setNameDialogOpen(false);
@@ -257,7 +263,7 @@ export default function Portal() {
       return;
     }
     try {
-      const res = await fetch(`${basePath}/api/rooms/${encodeURIComponent(code)}`, { credentials: "include" });
+      const res = await authedFetch(`${basePath}/api/rooms/${encodeURIComponent(code)}`);
       if (!res.ok) {
         toast({ title: "Room not found", description: "Check the code and try again.", variant: "destructive" });
         return;

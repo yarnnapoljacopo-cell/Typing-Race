@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { useAuth } from "@clerk/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, BookOpen, ChevronDown, ChevronUp, Download, Trash2, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthedFetch } from "@/lib/authedFetch";
 
 interface SavedFile {
   id: number;
@@ -17,24 +19,23 @@ interface SavedFile {
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-async function fetchFiles(): Promise<SavedFile[]> {
-  const res = await fetch(`${basePath}/api/user/files`, { credentials: "include" });
+type AF = (url: string, opts?: RequestInit) => Promise<Response>;
+
+async function fetchFiles(af: AF): Promise<SavedFile[]> {
+  const res = await af(`${basePath}/api/user/files`);
   if (!res.ok) throw new Error("Failed to load files");
   return res.json();
 }
 
-async function fetchFullText(id: number): Promise<string> {
-  const res = await fetch(`${basePath}/api/user/sprints/${id}/text`, { credentials: "include" });
+async function fetchFullText(id: number, af: AF): Promise<string> {
+  const res = await af(`${basePath}/api/user/sprints/${id}/text`);
   if (!res.ok) throw new Error("Failed to load text");
   const data = await res.json();
   return data.text ?? "";
 }
 
-async function unsaveFile(id: number): Promise<void> {
-  const res = await fetch(`${basePath}/api/user/files/${id}`, {
-    method: "DELETE",
-    credentials: "include",
-  });
+async function unsaveFile(id: number, af: AF): Promise<void> {
+  const res = await af(`${basePath}/api/user/files/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to remove file");
 }
 
@@ -71,6 +72,7 @@ function downloadText(text: string, filename: string) {
 }
 
 function FileCard({ file, onRemove }: { file: SavedFile; onRemove: (id: number) => void }) {
+  const authedFetch = useAuthedFetch();
   const [expanded, setExpanded] = useState(false);
   const [fullText, setFullText] = useState<string | null>(null);
   const [loadingText, setLoadingText] = useState(false);
@@ -79,7 +81,7 @@ function FileCard({ file, onRemove }: { file: SavedFile; onRemove: (id: number) 
     if (!expanded && fullText === null) {
       setLoadingText(true);
       try {
-        const raw = await fetchFullText(file.id);
+        const raw = await fetchFullText(file.id, authedFetch);
         setFullText(htmlToPlain(raw));
       } catch {
         setFullText(file.excerpt);
@@ -96,7 +98,7 @@ function FileCard({ file, onRemove }: { file: SavedFile; onRemove: (id: number) 
     if (text === null) {
       setLoadingText(true);
       try {
-        const raw = await fetchFullText(file.id);
+        const raw = await fetchFullText(file.id, authedFetch);
         const plain = htmlToPlain(raw);
         setFullText(plain);
         text = plain;
@@ -176,16 +178,19 @@ function FileCard({ file, onRemove }: { file: SavedFile; onRemove: (id: number) 
 
 export default function MyFiles() {
   const [, setLocation] = useLocation();
+  const { isLoaded } = useAuth();
+  const authedFetch = useAuthedFetch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: files, isLoading, isError, refetch } = useQuery({
     queryKey: ["user-files"],
-    queryFn: fetchFiles,
+    queryFn: () => fetchFiles(authedFetch),
+    enabled: isLoaded,
   });
 
   const removeMutation = useMutation({
-    mutationFn: unsaveFile,
+    mutationFn: (id: number) => unsaveFile(id, authedFetch),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-files"] });
       toast({ title: "Removed from My Files" });

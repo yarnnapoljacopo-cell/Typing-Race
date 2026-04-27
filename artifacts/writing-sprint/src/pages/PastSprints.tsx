@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,31 +23,29 @@ interface Sprint {
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-async function fetchSprints(): Promise<Sprint[]> {
-  const res = await fetch(`${basePath}/api/user/sprints`, { credentials: "include" });
+type AF = (url: string, opts?: RequestInit) => Promise<Response>;
+
+async function fetchSprints(af: AF): Promise<Sprint[]> {
+  const res = await af(`${basePath}/api/user/sprints`);
   if (!res.ok) throw new Error("Failed to load sprints");
   return res.json();
 }
 
-async function fetchSprintText(id: number): Promise<string> {
-  const res = await fetch(`${basePath}/api/user/sprints/${id}/text`, { credentials: "include" });
+async function fetchSprintText(id: number, af: AF): Promise<string> {
+  const res = await af(`${basePath}/api/user/sprints/${id}/text`);
   if (!res.ok) throw new Error("Failed to load text");
   const data = await res.json() as { text: string };
   return data.text ?? "";
 }
 
-async function deleteSprint(id: number): Promise<void> {
-  const res = await fetch(`${basePath}/api/user/sprints/${id}`, {
-    method: "DELETE",
-    credentials: "include",
-  });
+async function deleteSprint(id: number, af: AF): Promise<void> {
+  const res = await af(`${basePath}/api/user/sprints/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete sprint");
 }
 
-async function saveToFiles(sprint: Sprint, text: string): Promise<void> {
-  const res = await fetch(`${basePath}/api/user/files`, {
+async function saveToFiles(sprint: Sprint, text: string, af: AF): Promise<void> {
+  const res = await af(`${basePath}/api/user/files`, {
     method: "POST",
-    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       roomCode: sprint.roomCode,
@@ -148,6 +147,7 @@ function SprintViewModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const authedFetch = useAuthedFetch();
   const { toast } = useToast();
   const [rawText, setRawText] = useState<string | null>(null);
   const [loadingText, setLoadingText] = useState(false);
@@ -161,11 +161,12 @@ function SprintViewModal({
     if (!open || rawText !== null) return;
     let cancelled = false;
     setLoadingText(true);
-    fetchSprintText(sprint.id)
+    fetchSprintText(sprint.id, authedFetch)
       .then((t) => { if (!cancelled) setRawText(t); })
       .catch(() => { if (!cancelled) toast({ title: "Couldn't load text", variant: "destructive" }); })
       .finally(() => { if (!cancelled) setLoadingText(false); });
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sprint.id]);
 
   function handleOpenChange(isOpen: boolean) {
@@ -187,7 +188,7 @@ function SprintViewModal({
     if (!rawText) return;
     setSaving(true);
     try {
-      await saveToFiles(sprint, rawText);
+      await saveToFiles(sprint, rawText, authedFetch);
       setSavedToFiles(true);
       toast({ title: "Saved to My Files" });
     } catch {
@@ -370,16 +371,17 @@ function SprintCard({ sprint, onDelete }: { sprint: Sprint; onDelete: (id: numbe
 }
 
 export default function PastSprints() {
+  const authedFetch = useAuthedFetch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: sprints, isLoading, isError, refetch } = useQuery({
     queryKey: ["user-sprints"],
-    queryFn: fetchSprints,
+    queryFn: () => fetchSprints(authedFetch),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteSprint,
+    mutationFn: (id: number) => deleteSprint(id, authedFetch),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-sprints"] });
       toast({ title: "Sprint deleted" });

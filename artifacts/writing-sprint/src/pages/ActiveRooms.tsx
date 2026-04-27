@@ -1,7 +1,8 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { useUser } from "@clerk/react";
+import { useUser, useAuth } from "@clerk/react";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -25,14 +26,16 @@ interface ActiveRoom {
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-async function fetchActiveRooms(): Promise<ActiveRoom[]> {
-  const res = await fetch(`${basePath}/api/rooms`, { credentials: "include" });
+type AF = (url: string, opts?: RequestInit) => Promise<Response>;
+
+async function fetchActiveRooms(af: AF): Promise<ActiveRoom[]> {
+  const res = await af(`${basePath}/api/rooms`);
   if (!res.ok) throw new Error("Failed to load rooms");
   return res.json();
 }
 
-async function fetchProfile(): Promise<{ writerName: string | null }> {
-  const res = await fetch(`${basePath}/api/user/profile`, { credentials: "include" });
+async function fetchProfile(af: AF): Promise<{ writerName: string | null }> {
+  const res = await af(`${basePath}/api/user/profile`);
   if (!res.ok) return { writerName: null };
   return res.json();
 }
@@ -75,17 +78,21 @@ function StatusBadge({ room }: { room: ActiveRoom }) {
 export default function ActiveRooms() {
   const [, setLocation] = useLocation();
   const { user } = useUser();
+  const { isLoaded, isSignedIn } = useAuth();
+  const authedFetch = useAuthedFetch();
   const [passwordDialogRoom, setPasswordDialogRoom] = React.useState<string | null>(null);
   const [joinPasswordInput, setJoinPasswordInput] = React.useState("");
 
   const { data: profile } = useQuery({
     queryKey: ["user-profile"],
-    queryFn: fetchProfile,
+    queryFn: () => fetchProfile(authedFetch),
+    enabled: isLoaded && !!isSignedIn,
   });
 
   const { data: rooms, isLoading, isError, refetch } = useQuery({
     queryKey: ["active-rooms"],
-    queryFn: fetchActiveRooms,
+    queryFn: () => fetchActiveRooms(authedFetch),
+    enabled: isLoaded,
     refetchInterval: 5000,
   });
 

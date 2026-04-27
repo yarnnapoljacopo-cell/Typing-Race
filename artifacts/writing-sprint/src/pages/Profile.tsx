@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useUser } from "@clerk/react";
+import { useUser, useAuth } from "@clerk/react";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, Check, ExternalLink, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -35,18 +36,22 @@ async function fetchProfile(name: string): Promise<PublicProfile> {
   return res.json();
 }
 
-async function fetchOwnPrefs(): Promise<{ nameplate: string; skin: string; writerName: string }> {
-  const res = await fetch(`${basePath}/api/user/profile`, { credentials: "include" });
+async function fetchOwnPrefs(
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<{ nameplate: string; skin: string; writerName: string }> {
+  const res = await af(`${basePath}/api/user/profile`);
   if (!res.ok) throw new Error("Not authenticated");
   const data = await res.json();
   return { nameplate: data.activeNameplate ?? "default", skin: data.activeSkin ?? "default", writerName: data.writerName ?? "" };
 }
 
-async function saveNameplate(nameplate: string): Promise<void> {
-  const res = await fetch(`${basePath}/api/user/preferences`, {
+async function saveNameplate(
+  nameplate: string,
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<void> {
+  const res = await af(`${basePath}/api/user/preferences`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify({ activeNameplate: nameplate }),
   });
   if (!res.ok) {
@@ -55,17 +60,21 @@ async function saveNameplate(nameplate: string): Promise<void> {
   }
 }
 
-async function fetchDiscordSettings(): Promise<{ webhookUrl: string | null }> {
-  const res = await fetch(`${basePath}/api/user/discord`, { credentials: "include" });
+async function fetchDiscordSettings(
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<{ webhookUrl: string | null }> {
+  const res = await af(`${basePath}/api/user/discord`);
   if (!res.ok) throw new Error("Failed to load Discord settings");
   return res.json();
 }
 
-async function saveDiscordWebhook(webhookUrl: string | null): Promise<void> {
-  const res = await fetch(`${basePath}/api/user/discord`, {
+async function saveDiscordWebhook(
+  webhookUrl: string | null,
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<void> {
+  const res = await af(`${basePath}/api/user/discord`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify({ webhookUrl }),
   });
   if (!res.ok) {
@@ -74,33 +83,38 @@ async function saveDiscordWebhook(webhookUrl: string | null): Promise<void> {
   }
 }
 
-async function testDiscordWebhook(): Promise<void> {
-  const res = await fetch(`${basePath}/api/user/discord/test`, {
-    method: "POST",
-    credentials: "include",
-  });
+async function testDiscordWebhook(
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<void> {
+  const res = await af(`${basePath}/api/user/discord/test`, { method: "POST" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error ?? "Test failed");
   }
 }
 
-async function fetchBagCount(): Promise<number> {
-  const res = await fetch(`${basePath}/api/user/bag`, { credentials: "include" });
+async function fetchBagCount(
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<number> {
+  const res = await af(`${basePath}/api/user/bag`);
   if (!res.ok) return 0;
   const data = await res.json();
   return (data.inventory as unknown[])?.length ?? 0;
 }
 
-async function fetchChestCount(): Promise<number> {
-  const res = await fetch(`${basePath}/api/user/chests`, { credentials: "include" });
+async function fetchChestCount(
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<number> {
+  const res = await af(`${basePath}/api/user/chests`);
   if (!res.ok) return 0;
   const data = await res.json() as Record<string, number>;
   return ["mortal", "iron", "crystal", "inferno", "immortal"].reduce((s, k) => s + (data[k] ?? 0), 0);
 }
 
-async function fetchRecipeCount(): Promise<number> {
-  const res = await fetch(`${basePath}/api/user/crafting/all-recipes`, { credentials: "include" });
+async function fetchRecipeCount(
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<number> {
+  const res = await af(`${basePath}/api/user/crafting/all-recipes`);
   if (!res.ok) return 0;
   const data = await res.json();
   return Array.isArray(data) ? data.length : 0;
@@ -329,6 +343,8 @@ export default function Profile() {
   const [, setLocation] = useLocation();
   const name = decodeURIComponent(params?.name ?? "");
   const { user } = useUser();
+  const { isLoaded } = useAuth();
+  const authedFetch = useAuthedFetch();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [webhookInput, setWebhookInput] = useState("");
@@ -349,8 +365,8 @@ export default function Profile() {
 
   const { data: ownPrefs } = useQuery({
     queryKey: ["own-prefs"],
-    queryFn: fetchOwnPrefs,
-    enabled: !!user,
+    queryFn: () => fetchOwnPrefs(authedFetch),
+    enabled: isLoaded && !!user,
     staleTime: 30_000,
     retry: 4,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15000),
@@ -359,8 +375,8 @@ export default function Profile() {
 
   const { data: discordSettings } = useQuery({
     queryKey: ["discord-settings"],
-    queryFn: fetchDiscordSettings,
-    enabled: !!user,
+    queryFn: () => fetchDiscordSettings(authedFetch),
+    enabled: isLoaded && !!user,
     staleTime: 60_000,
     retry: 3,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
@@ -374,7 +390,7 @@ export default function Profile() {
   }, [discordSettings?.webhookUrl]);
 
   const saveWebhookMutation = useMutation({
-    mutationFn: (url: string | null) => saveDiscordWebhook(url),
+    mutationFn: (url: string | null) => saveDiscordWebhook(url, authedFetch),
     onSuccess: (_data, url) => {
       queryClient.setQueryData(["discord-settings"], { webhookUrl: url || null });
       toast({
@@ -390,7 +406,7 @@ export default function Profile() {
   });
 
   const testWebhookMutation = useMutation({
-    mutationFn: testDiscordWebhook,
+    mutationFn: () => testDiscordWebhook(authedFetch),
     onSuccess: () => {
       toast({ title: "Test message sent!", description: "Check your Discord channel." });
     },
@@ -408,27 +424,27 @@ export default function Profile() {
 
   const { data: bagCount = 0 } = useQuery({
     queryKey: ["profile-bag-count"],
-    queryFn: fetchBagCount,
-    enabled: isOwnProfile,
+    queryFn: () => fetchBagCount(authedFetch),
+    enabled: isLoaded && isOwnProfile,
     staleTime: 60_000,
   });
 
   const { data: chestCount = 0 } = useQuery({
     queryKey: ["profile-chest-count"],
-    queryFn: fetchChestCount,
-    enabled: isOwnProfile,
+    queryFn: () => fetchChestCount(authedFetch),
+    enabled: isLoaded && isOwnProfile,
     staleTime: 60_000,
   });
 
   const { data: recipeCount = 0 } = useQuery({
     queryKey: ["profile-recipe-count"],
-    queryFn: fetchRecipeCount,
-    enabled: isOwnProfile,
+    queryFn: () => fetchRecipeCount(authedFetch),
+    enabled: isLoaded && isOwnProfile,
     staleTime: 60_000,
   });
 
   const nameplateMutation = useMutation({
-    mutationFn: saveNameplate,
+    mutationFn: (nameplate: string) => saveNameplate(nameplate, authedFetch),
     onMutate: async (nameplate) => {
       await queryClient.cancelQueries({ queryKey: ["own-prefs"] });
       const previous = queryClient.getQueryData<{ nameplate: string; skin: string; writerName: string }>(["own-prefs"]);

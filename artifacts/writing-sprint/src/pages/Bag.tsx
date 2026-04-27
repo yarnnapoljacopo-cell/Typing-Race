@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, Package, Gift, FlaskConical, Sparkles, Flame, Loader2, ShoppingBag, Coins, AlertTriangle, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -130,7 +131,8 @@ function formatExpiry(isoDate: string | null): string {
 
 export default function Bag() {
   const [, setLocation] = useLocation();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
+  const authedFetch = useAuthedFetch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -148,8 +150,8 @@ export default function Bag() {
   const fetchBag = useCallback(async () => {
     try {
       const [bagRes, storageRes] = await Promise.all([
-        fetch(`${basePath}/api/user/bag`, { credentials: "include" }),
-        fetch(`${basePath}/api/storage/equipped`, { credentials: "include" }),
+        authedFetch(`${basePath}/api/user/bag`),
+        authedFetch(`${basePath}/api/storage/equipped`),
       ]);
       if (!bagRes.ok) throw new Error("Failed to load bag");
       const data = await bagRes.json();
@@ -162,22 +164,23 @@ export default function Bag() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authedFetch]);
 
   useEffect(() => {
+    if (!isLoaded) return;
     if (!isSignedIn) {
       setLocation("/portal");
       return;
     }
     fetchBag();
-  }, [isSignedIn]);
+  }, [isLoaded, isSignedIn]);
 
   const useItem = async (item: InventoryItem) => {
     setUsingItem(true);
     try {
-      const res = await fetch(`${basePath}/api/user/bag/use`, {
+      const res = await authedFetch(`${basePath}/api/user/bag/use`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inventoryId: item.id }),
       });
@@ -199,9 +202,8 @@ export default function Bag() {
   const sellItem = async (item: InventoryItem) => {
     setSellingItem(true);
     try {
-      const res = await fetch(`${basePath}/api/coins/sell`, {
+      const res = await authedFetch(`${basePath}/api/coins/sell`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inventory_id: item.id }),
       });
@@ -227,9 +229,8 @@ export default function Bag() {
   const equipStorageItem = async (item: InventoryItem) => {
     setEquippingItem(true);
     try {
-      const res = await fetch(`${basePath}/api/storage/equip`, {
+      const res = await authedFetch(`${basePath}/api/storage/equip`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inventory_id: item.id }),
       });
@@ -253,9 +254,8 @@ export default function Bag() {
 
   const unequipStorage = async () => {
     try {
-      const res = await fetch(`${basePath}/api/storage/unequip`, {
+      const res = await authedFetch(`${basePath}/api/storage/unequip`, {
         method: "POST",
-        credentials: "include",
       });
       const data = await res.json();
       if (!res.ok) {
@@ -271,9 +271,8 @@ export default function Bag() {
 
   const discardItem = async (item: InventoryItem) => {
     try {
-      const res = await fetch(`${basePath}/api/user/bag/discard`, {
+      const res = await authedFetch(`${basePath}/api/user/bag/discard`, {
         method: "DELETE",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inventoryId: item.id }),
       });

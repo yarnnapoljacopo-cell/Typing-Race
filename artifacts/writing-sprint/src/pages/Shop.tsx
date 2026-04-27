@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, ShoppingBag, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,23 +43,24 @@ interface CoinData {
   }>;
 }
 
-async function fetchShop(): Promise<ShopData> {
-  const res = await fetch(`${basePath}/api/shop`, { credentials: "include" });
+type AF = (url: string, opts?: RequestInit) => Promise<Response>;
+
+async function fetchShop(af: AF): Promise<ShopData> {
+  const res = await af(`${basePath}/api/shop`);
   if (!res.ok) throw new Error("Failed to load shop");
   return res.json();
 }
 
-async function fetchCoins(): Promise<CoinData> {
-  const res = await fetch(`${basePath}/api/coins`, { credentials: "include" });
+async function fetchCoins(af: AF): Promise<CoinData> {
+  const res = await af(`${basePath}/api/coins`);
   if (!res.ok) throw new Error("Failed to load coins");
   return res.json();
 }
 
-async function buyListing(listingId: number): Promise<{ new_balance: number; chest_type: string; quantity_added: number }> {
-  const res = await fetch(`${basePath}/api/shop/buy`, {
+async function buyListing(listingId: number, af: AF): Promise<{ new_balance: number; chest_type: string; quantity_added: number }> {
+  const res = await af(`${basePath}/api/shop/buy`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify({ listing_id: listingId }),
   });
   if (!res.ok) {
@@ -148,7 +150,8 @@ const CHEST_STYLES: Record<string, ChestStyle> = {
 
 export default function Shop() {
   const [, setLocation] = useLocation();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
+  const authedFetch = useAuthedFetch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -156,20 +159,20 @@ export default function Shop() {
 
   const { data: shopData, isLoading, error } = useQuery<ShopData>({
     queryKey: ["shop"],
-    queryFn: fetchShop,
-    enabled: !!isSignedIn,
+    queryFn: () => fetchShop(authedFetch),
+    enabled: isLoaded && !!isSignedIn,
     staleTime: 30_000,
   });
 
   const { data: coinData } = useQuery<CoinData>({
     queryKey: ["coinHistory"],
-    queryFn: fetchCoins,
-    enabled: !!isSignedIn,
+    queryFn: () => fetchCoins(authedFetch),
+    enabled: isLoaded && !!isSignedIn,
     staleTime: 30_000,
   });
 
   const buyMutation = useMutation({
-    mutationFn: (listingId: number) => buyListing(listingId),
+    mutationFn: (listingId: number) => buyListing(listingId, authedFetch),
     onSuccess: (data, listingId) => {
       const listing = shopData?.listings.find(l => l.id === listingId);
       toast({
