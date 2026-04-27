@@ -146,7 +146,8 @@ export default function Portal() {
     queryKey: ["user-profile"],
     queryFn: fetchProfile,
     enabled: !isGuest,
-    retry: 2,
+    retry: 4,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15000),
     // Keep last-known profile visible during background refetches so the
     // portal doesn't flash back to a loading/empty state on token refreshes.
     placeholderData: (prev) => prev,
@@ -165,14 +166,14 @@ export default function Portal() {
   });
 
   useEffect(() => {
-    if (isGuest || profileLoading) return;
-    if (profile?.writerName === null || profileError) {
+    if (isGuest || profileLoading || profileError) return;
+    if (profile?.writerName === null) {
       const fallback = user?.firstName || user?.username || user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] || "";
       setNameInput(prev => prev || fallback);
       setNameDialogOpen(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isGuest, profileLoading, profileError]);
+  }, [isGuest, profileLoading, profileError, profile?.writerName]);
 
   useEffect(() => {
     if (!isGuest && !profileLoading && profile?.xpDecayed && profile.xpDecayed > 0) {

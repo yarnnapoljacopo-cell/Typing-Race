@@ -337,6 +337,8 @@ export default function Profile() {
     queryKey: ["profile", name],
     queryFn: () => fetchProfile(name),
     enabled: !!name,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
   });
 
   const { data: top10 } = useQuery({
@@ -350,6 +352,9 @@ export default function Profile() {
     queryFn: fetchOwnPrefs,
     enabled: !!user,
     staleTime: 30_000,
+    retry: 4,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15000),
+    placeholderData: (prev) => prev,
   });
 
   const { data: discordSettings } = useQuery({
@@ -357,6 +362,9 @@ export default function Profile() {
     queryFn: fetchDiscordSettings,
     enabled: !!user,
     staleTime: 60_000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+    placeholderData: (prev) => prev,
   });
 
   useEffect(() => {
