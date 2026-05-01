@@ -28,6 +28,7 @@ interface PublicProfile {
   totalWords: number;
   highestWordCount: number;
   sprintCount: number;
+  statsError?: boolean;
 }
 
 async function fetchProfile(name: string): Promise<PublicProfile> {
@@ -375,6 +376,8 @@ export default function Profile() {
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
   });
 
+  const retryStats = () => queryClient.invalidateQueries({ queryKey: ["profile", name] });
+
   const { data: top10 } = useQuery({
     queryKey: ["top10"],
     queryFn: fetchTop10,
@@ -554,9 +557,22 @@ export default function Profile() {
                 </div>
               )}
 
-              {/* No sprints note */}
-              {data.sprintCount === 0 && (
+              {/* No sprints note — only when stats loaded successfully and count is genuinely zero */}
+              {data.sprintCount === 0 && !data.statsError && (
                 <p style={{ textAlign: "center", color: "#7a7a92", fontSize: "0.88rem", marginBottom: 16 }}>No sprints recorded yet.</p>
+              )}
+
+              {/* Stats error notice */}
+              {data.statsError && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16 }}>
+                  <p style={{ textAlign: "center", color: "#92400e", fontSize: "0.83rem", margin: 0 }}>Stats took too long to load.</p>
+                  <button
+                    onClick={retryStats}
+                    style={{ fontSize: "0.8rem", fontWeight: 700, color: "#b45309", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
+                  >
+                    Retry
+                  </button>
+                </div>
               )}
 
               {/* Avatar + rank */}
@@ -576,22 +592,22 @@ export default function Profile() {
                     onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.transform = "")}
                   >
                     <div style={{ fontSize: "1.1rem", marginBottom: 6, color: "#6B8FD4" }}>{emoji}</div>
-                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.6rem", fontWeight: 700, color: "#1a1a2e", lineHeight: 1, marginBottom: 5 }}>
-                      {typeof value === "number" ? value.toLocaleString() : value}
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.6rem", fontWeight: 700, color: data.statsError ? "#d1d5db" : "#1a1a2e", lineHeight: 1, marginBottom: 5 }}>
+                      {data.statsError ? "–" : (typeof value === "number" ? value.toLocaleString() : value)}
                     </div>
                     <div style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.08em", color: "#7a7a92", textTransform: "uppercase" }}>{label}</div>
                   </div>
                 ))}
               </div>
 
-              {data.sprintCount > 0 && (
+              {data.sprintCount > 0 && !data.statsError && (
                 <p style={{ textAlign: "center", fontSize: "0.88rem", color: "#7a7a92", marginBottom: 16 }}>
                   Averaging <strong style={{ color: "#1a1a2e" }}>{Math.round(data.totalWords / data.sprintCount).toLocaleString()} words</strong> per sprint
                 </p>
               )}
 
-              {/* Advanced Stats — collapsible */}
-              {data.sprintCount > 0 && (
+              {/* Advanced Stats — collapsible; show when we have data OR when stats errored */}
+              {(data.sprintCount > 0 || data.statsError) && (
                 <div style={{ ...CARD, marginBottom: 20, overflow: "hidden" }}>
                   <button
                     onClick={() => setAdvancedOpen((v) => !v)}
@@ -607,7 +623,19 @@ export default function Profile() {
                     {advancedOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                   </button>
 
-                  {advancedOpen && (() => {
+                  {advancedOpen && data.statsError && (
+                    <div style={{ padding: "12px 18px 16px", textAlign: "center" }}>
+                      <p style={{ color: "#92400e", fontSize: "0.83rem", marginBottom: 8 }}>Stats couldn't be loaded — the database query timed out.</p>
+                      <button
+                        onClick={retryStats}
+                        style={{ fontSize: "0.82rem", fontWeight: 700, color: "#b45309", background: "rgba(251,191,36,0.1)", border: "1px solid rgba(180,83,9,0.2)", borderRadius: 8, padding: "6px 14px", cursor: "pointer" }}
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
+
+                  {advancedOpen && !data.statsError && (() => {
                     const avgWords = Math.round(data.totalWords / data.sprintCount);
 
                     const MODE_LABELS: Record<string, string> = {

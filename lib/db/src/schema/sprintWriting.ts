@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, integer, timestamp, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, text, integer, timestamp, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
 
 export const sprintWritingTable = pgTable("sprint_writing", {
   id: serial("id").primaryKey(),
@@ -14,6 +14,10 @@ export const sprintWritingTable = pgTable("sprint_writing", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("sprint_writing_room_participant_idx").on(t.roomCode, t.participantName),
+  // Supports fast COUNT/SUM aggregations on the profile page (by writer name)
+  index("sprint_writing_participant_name_idx").on(t.participantName),
+  // Supports fast lookups by authenticated user ID
+  index("sprint_writing_clerk_user_id_idx").on(t.clerkUserId),
 ]);
 
 export type SprintWriting = typeof sprintWritingTable.$inferSelect;

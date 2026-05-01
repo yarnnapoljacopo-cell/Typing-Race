@@ -776,20 +776,44 @@ router.get("/users/by-name/:name/profile", async (req, res): Promise<void> => {
   const name = decodeURIComponent(req.params.name ?? "").trim();
   if (!name) { res.status(400).json({ error: "Missing name" }); return; }
 
-  const [statsRow] = await db
-    .select({
-      totalWords: sum(sprintWritingTable.wordCount),
-      highestWordCount: max(sprintWritingTable.wordCount),
-      sprintCount: count(),
-    })
-    .from(sprintWritingTable)
-    .where(eq(sprintWritingTable.participantName, name));
-
+  // Fetch XP/nameplate profile — fast primary-key lookup, always runs.
   const profileRows = await db
     .select()
     .from(userProfilesTable)
     .where(eq(userProfilesTable.writerName, name))
     .limit(1);
+
+  // Aggregation query (COUNT/SUM) can be slow on large tables.
+  // Run it with a 4-second statement timeout so a slow query never blocks
+  // the whole profile load. On failure we return a partial response with
+  // statsError: true so the client can show a retry prompt instead of
+  // silently showing zero stats.
+  let statsRow: { totalWords: string | null; highestWordCount: number | null; sprintCount: string | null } | null = null;
+  let statsError = false;
+  try {
+    const { pool } = await import("@workspace/db");
+    const client = await pool.connect();
+    try {
+      await client.query("SET LOCAL statement_timeout = '4s'");
+      const result = await client.query<{ total_words: string; highest_word_count: number; sprint_count: string }>(
+        `SELECT SUM(word_count)::text AS total_words,
+                MAX(word_count) AS highest_word_count,
+                COUNT(*)::text AS sprint_count
+         FROM sprint_writing
+         WHERE participant_name = $1`,
+        [name],
+      );
+      const row = result.rows[0];
+      if (row) {
+        statsRow = { totalWords: row.total_words, highestWordCount: row.highest_word_count, sprintCount: row.sprint_count };
+      }
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    req.log.warn({ err: (err as Error).message, name }, "profile: stats aggregation timed out or failed — returning partial response");
+    statsError = true;
+  }
 
   res.json({
     name,
@@ -798,6 +822,7 @@ router.get("/users/by-name/:name/profile", async (req, res): Promise<void> => {
     totalWords: Number(statsRow?.totalWords ?? 0),
     highestWordCount: Number(statsRow?.highestWordCount ?? 0),
     sprintCount: Number(statsRow?.sprintCount ?? 0),
+    statsError,
   });
 });
 
