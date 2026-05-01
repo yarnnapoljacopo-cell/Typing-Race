@@ -7,6 +7,8 @@
  */
 
 import { createProxyMiddleware } from "http-proxy-middleware";
+import https from "https";
+import http from "http";
 import type { RequestHandler } from "express";
 import { logger as _logger } from "../lib/logger";
 
@@ -31,8 +33,15 @@ function fapiFromPublishableKey(pk: string): string {
 const CLERK_FAPI =
   process.env.CLERK_FAPI_URL?.trim() ||
   fapiFromPublishableKey(
-    process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? ""
+    process.env.VITE_CLERK_PK ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? ""
   );
+
+// Fallback FAPI derived from the publishable key — always the real Clerk domain
+// (e.g. choice-anchovyk-31.clerk.accounts.dev). Used when the primary FAPI is
+// unreachable so a single DNS hiccup doesn't break all authentication.
+const CLERK_FAPI_FALLBACK = fapiFromPublishableKey(
+  process.env.VITE_CLERK_PK ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? ""
+);
 
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
@@ -60,8 +69,8 @@ export function clerkProxyMiddleware(): RequestHandler {
     // Fail fast if the upstream FAPI host is unreachable (e.g. DNS missing for
     // a custom Clerk domain). Without this the proxy hangs indefinitely, leaving
     // ClerkProvider in a permanent loading state → blank page.
-    proxyTimeout: 8000,
-    timeout: 8000,
+    proxyTimeout: 4000,
+    timeout: 4000,
     // We do all cookie domain manipulation manually in proxyRes so we have
     // full control (cookieDomainRewrite would also strip domains from our
     // explicit clearing cookies, defeating the purpose).
@@ -69,13 +78,57 @@ export function clerkProxyMiddleware(): RequestHandler {
       path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
       error: (err, req, res) => {
-        log.error({ err: (err as NodeJS.ErrnoException).message, code: (err as NodeJS.ErrnoException).code, url: req.url, fapi: CLERK_FAPI },
-          "clerk-proxy: upstream FAPI unreachable — check clerk.writingsprint.site DNS (needs CNAME → frontend-api.clerk.dev)"
+        const nodeErr = err as NodeJS.ErrnoException;
+        log.error({ err: nodeErr.message, code: nodeErr.code, url: req.url, fapi: CLERK_FAPI },
+          "clerk-proxy: upstream FAPI unreachable — attempting fallback to key-derived FAPI"
         );
-        if (!("headersSent" in res && res.headersSent)) {
-          (res as import("http").ServerResponse).writeHead(502, { "Content-Type": "application/json" });
-          (res as import("http").ServerResponse).end(JSON.stringify({ error: "Clerk FAPI unreachable", hint: "Add CNAME clerk.writingsprint.site → frontend-api.clerk.dev" }));
+
+        const serverRes = res as http.ServerResponse;
+        if (serverRes.headersSent) return;
+
+        // Attempt fallback to the key-derived FAPI when primary custom domain fails.
+        // Only viable for GET/HEAD requests (no body to re-stream).
+        const method = (req as http.IncomingMessage).method ?? "GET";
+        const canFallback = CLERK_FAPI_FALLBACK !== CLERK_FAPI &&
+          (method === "GET" || method === "HEAD");
+
+        if (canFallback) {
+          const targetPath = (req.url ?? "").replace(new RegExp(`^${CLERK_PROXY_PATH}`), "") || "/";
+          const fallbackUrl = `${CLERK_FAPI_FALLBACK}${targetPath}`;
+          log.info({ fallbackUrl }, "clerk-proxy: trying fallback FAPI");
+
+          const parsedFallback = new URL(fallbackUrl);
+          const protocol = parsedFallback.protocol === "https:" ? https : http;
+          const fallbackReq = protocol.request(
+            fallbackUrl,
+            {
+              method,
+              headers: {
+                ...(req as http.IncomingMessage).headers as Record<string, string>,
+                host: parsedFallback.host,
+                "Clerk-Secret-Key": secretKey ?? "",
+              },
+              timeout: 5000,
+            },
+            (fallbackRes) => {
+              if (serverRes.headersSent) return;
+              serverRes.writeHead(fallbackRes.statusCode ?? 502, fallbackRes.headers as http.OutgoingHttpHeaders);
+              fallbackRes.pipe(serverRes);
+            }
+          );
+          fallbackReq.on("error", (fallbackErr) => {
+            log.error({ err: (fallbackErr as Error).message }, "clerk-proxy: fallback FAPI also failed");
+            if (!serverRes.headersSent) {
+              serverRes.writeHead(502, { "Content-Type": "application/json" });
+              serverRes.end(JSON.stringify({ error: "Clerk FAPI unreachable on both primary and fallback" }));
+            }
+          });
+          fallbackReq.end();
+          return;
         }
+
+        serverRes.writeHead(502, { "Content-Type": "application/json" });
+        serverRes.end(JSON.stringify({ error: "Clerk FAPI unreachable", hint: "Check clerk.writingsprint.site CNAME → frontend-api.clerk.dev" }));
       },
       proxyReq: (proxyReq, req) => {
         const protocol =
