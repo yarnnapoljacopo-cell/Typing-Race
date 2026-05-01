@@ -776,11 +776,15 @@ router.get("/users/by-name/:name/profile", async (req, res): Promise<void> => {
   const name = decodeURIComponent(req.params.name ?? "").trim();
   if (!name) { res.status(400).json({ error: "Missing name" }); return; }
 
-  // Fetch XP/nameplate profile — fast primary-key lookup, always runs.
+  // Fetch XP/nameplate profile.
+  // ORDER BY xp DESC, last_sprint_at DESC ensures that if the same writer name
+  // exists under multiple Clerk accounts (e.g. after re-auth), we always surface
+  // the most active profile rather than returning a random 0-XP duplicate.
   const profileRows = await db
     .select()
     .from(userProfilesTable)
     .where(eq(userProfilesTable.writerName, name))
+    .orderBy(desc(userProfilesTable.xp), desc(userProfilesTable.lastSprintAt))
     .limit(1);
 
   // Aggregation query (COUNT/SUM) can be slow on large tables.
