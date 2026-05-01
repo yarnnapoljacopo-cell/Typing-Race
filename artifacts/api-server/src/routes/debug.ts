@@ -216,41 +216,64 @@ router.get("/debug-status", async (_req, res) => {
   const sk = process.env.CLERK_SECRET_KEY ?? "";
   const pk = process.env.VITE_CLERK_PK ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? "";
 
-  let skDomain = "(not set)";
+  // Publishable keys encode the domain in base64 after the prefix.
+  // Secret keys are opaque random tokens — do NOT try to base64-decode them.
   let pkDomain = "(not set)";
   try {
-    if (sk) skDomain = Buffer.from(sk.replace(/^sk_(live|test)_/, ""), "base64").toString().replace(/\$$/, "").trim();
     if (pk) pkDomain = Buffer.from(pk.replace(/^pk_(live|test)_/, ""), "base64").toString().replace(/\$$/, "").trim();
   } catch { /* ignore */ }
 
-  const clerkKeysMatch = sk && pk && skDomain === pkDomain;
+  // Check 1: both keys must be present
+  // Check 2: both must be the same environment (live vs test)
+  const skEnv = sk.startsWith("sk_live_") ? "live" : sk.startsWith("sk_test_") ? "test" : null;
+  const pkEnv = pk.startsWith("pk_live_") ? "live" : pk.startsWith("pk_test_") ? "test" : null;
+  const envMatch = skEnv && pkEnv && skEnv === pkEnv;
+
+  // Check 3: verify the secret key is actually valid by calling Clerk BAPI
+  let bapiStatus = "";
+  let bapiOk = false;
+  try {
+    const bapiRes = await fetch("https://api.clerk.com/v1/users/count", {
+      headers: { Authorization: `Bearer ${sk}`, Accept: "application/json" },
+    });
+    bapiOk = bapiRes.status === 200;
+    bapiStatus = bapiOk
+      ? `✅ Clerk BAPI accepted the key (HTTP ${bapiRes.status})`
+      : `❌ Clerk BAPI rejected the key (HTTP ${bapiRes.status}) — key is wrong or from a different instance`;
+  } catch (e) {
+    bapiStatus = `❌ Could not reach Clerk BAPI: ${String(e)}`;
+  }
+
   const clerkStatus = !sk
     ? "❌ CLERK_SECRET_KEY not set"
     : !pk
     ? "❌ Publishable key not set"
-    : clerkKeysMatch
-    ? `✅ Keys match (${skDomain})`
-    : `❌ KEY MISMATCH — secret: ${skDomain} | publishable: ${pkDomain}`;
+    : !skEnv
+    ? "❌ CLERK_SECRET_KEY has unrecognised format (expected sk_live_ or sk_test_)"
+    : !envMatch
+    ? `❌ Environment mismatch — secret key is ${skEnv} but publishable key is ${pkEnv}`
+    : bapiOk
+    ? `✅ Keys valid — publishable domain: ${pkDomain}, environment: ${pkEnv}`
+    : `⚠️ Environment prefix matches (${pkEnv}) but BAPI check failed — see bapiCheck`;
 
   let dbStatus = "";
-  let dbMs: number | null = null;
   try {
     const start = Date.now();
     await pool.query("SELECT 1");
-    dbMs = Date.now() - start;
-    dbStatus = `✅ Connected (${dbMs}ms)`;
+    dbStatus = `✅ Connected (${Date.now() - start}ms)`;
   } catch (e) {
     dbStatus = `❌ ${String(e)}`;
   }
 
   res.json({
     clerk: clerkStatus,
+    bapiCheck: bapiStatus,
     database: dbStatus,
     env: {
       NODE_ENV: process.env.NODE_ENV,
       CLERK_FAPI_URL: process.env.CLERK_FAPI_URL ?? "(not set)",
-      CLERK_SECRET_KEY: sk ? sk.substring(0, 12) + "..." : "(not set)",
-      publishableKey: pk ? pk.substring(0, 20) + "..." : "(not set)",
+      CLERK_SECRET_KEY: sk ? `${sk.substring(0, 12)}... (${skEnv ?? "unknown env"})` : "(not set)",
+      publishableKey: pk ? `${pk.substring(0, 20)}... → ${pkDomain}` : "(not set)",
     },
   });
 });
