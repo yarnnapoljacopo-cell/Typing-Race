@@ -60,6 +60,11 @@ export async function ensureSchema(): Promise<void> {
       );
       CREATE UNIQUE INDEX IF NOT EXISTS sprint_writing_room_participant_idx
         ON sprint_writing (room_code, participant_name);
+      -- Profile page aggregation index: allows COUNT/SUM to resolve within timeout
+      CREATE INDEX IF NOT EXISTS sprint_writing_participant_name_idx
+        ON sprint_writing (participant_name);
+      CREATE INDEX IF NOT EXISTS sprint_writing_clerk_user_id_idx
+        ON sprint_writing (clerk_user_id);
 
       CREATE TABLE IF NOT EXISTS friendships (
         id            SERIAL       PRIMARY KEY,

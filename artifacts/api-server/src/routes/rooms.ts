@@ -794,6 +794,7 @@ router.get("/users/by-name/:name/profile", async (req, res): Promise<void> => {
     const { pool } = await import("@workspace/db");
     const client = await pool.connect();
     try {
+      await client.query("BEGIN");
       await client.query("SET LOCAL statement_timeout = '4s'");
       const result = await client.query<{ total_words: string; highest_word_count: number; sprint_count: string }>(
         `SELECT SUM(word_count)::text AS total_words,
@@ -803,10 +804,14 @@ router.get("/users/by-name/:name/profile", async (req, res): Promise<void> => {
          WHERE participant_name = $1`,
         [name],
       );
+      await client.query("COMMIT");
       const row = result.rows[0];
       if (row) {
         statsRow = { totalWords: row.total_words, highestWordCount: row.highest_word_count, sprintCount: row.sprint_count };
       }
+    } catch (innerErr) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw innerErr;
     } finally {
       client.release();
     }
