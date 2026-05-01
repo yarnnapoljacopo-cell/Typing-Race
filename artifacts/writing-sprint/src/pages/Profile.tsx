@@ -39,11 +39,11 @@ async function fetchProfile(name: string): Promise<PublicProfile> {
 
 async function fetchOwnPrefs(
   af: (url: string, opts?: RequestInit) => Promise<Response>,
-): Promise<{ nameplate: string; skin: string; writerName: string }> {
+): Promise<{ nameplate: string; skin: string; writerName: string; xp: number }> {
   const res = await af(`${basePath}/api/user/profile`);
   if (!res.ok) throw new Error("Not authenticated");
   const data = await res.json();
-  return { nameplate: data.activeNameplate ?? "default", skin: data.activeSkin ?? "default", writerName: data.writerName ?? "" };
+  return { nameplate: data.activeNameplate ?? "default", skin: data.activeSkin ?? "default", writerName: data.writerName ?? "", xp: data.xp ?? 0 };
 }
 
 async function saveNameplate(
@@ -450,6 +450,11 @@ export default function Profile() {
     ((user.publicMetadata?.writerName as string | undefined)?.toLowerCase() === name.toLowerCase())
   );
 
+  // When viewing your own profile, use XP from your Clerk account (by account ID)
+  // so it stays correct even after a name change. Public profiles fall back to
+  // the name-based lookup.
+  const displayXp = (isOwnProfile && ownPrefs != null) ? ownPrefs.xp : (data?.xp ?? 0);
+
   const { data: bagCount = 0 } = useQuery({
     queryKey: ["profile-bag-count"],
     queryFn: () => fetchBagCount(authedFetch),
@@ -577,7 +582,7 @@ export default function Profile() {
 
               {/* Avatar + rank */}
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
-                <RankBadge xp={data.xp} />
+                <RankBadge xp={displayXp} />
               </div>
 
               {/* Stats grid */}
@@ -760,13 +765,13 @@ export default function Profile() {
               )}
 
               {/* Nameplate Picker — only visible on own profile */}
-              {isOwnProfile && data.xp >= 10000 && (
+              {isOwnProfile && displayXp >= 10000 && (
                 <div style={{ ...CARD, padding: 20, marginBottom: 16 }}>
                   <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "#7a7a92", textTransform: "uppercase", marginBottom: 14 }}>
                     Your Nameplate
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {getUnlockedNameplates(data.xp).map((np) => {
+                    {getUnlockedNameplates(displayXp).map((np) => {
                       const isActive = (ownPrefs?.nameplate ?? "default") === np.key;
                       const npColor = np.key !== "default" ? NAMEPLATES[np.key as NameplateKey]?.color : undefined;
                       return (
@@ -792,7 +797,7 @@ export default function Profile() {
                       );
                     })}
                   </div>
-                  {data.xp < 25000 && (
+                  {displayXp < 25000 && (
                     <p style={{ fontSize: "0.72rem", color: "#7a7a92", marginTop: 8 }}>More nameplates unlock at higher ranks.</p>
                   )}
                 </div>
