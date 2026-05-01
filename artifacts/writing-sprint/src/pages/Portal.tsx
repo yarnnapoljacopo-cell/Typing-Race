@@ -62,7 +62,7 @@ async function fetchProfile(
   af: (url: string, opts?: RequestInit) => Promise<Response>,
 ): Promise<ProfileData> {
   const res = await af(`${basePath}/api/user/profile`);
-  if (!res.ok) throw new Error("Failed to load profile");
+  if (!res.ok) throw Object.assign(new Error("Failed to load profile"), { status: res.status });
   return res.json();
 }
 
@@ -148,7 +148,7 @@ export default function Portal() {
 
   const pendingRoomPasswordRef = useRef<string | null>(null);
 
-  const { data: profile, isLoading: profileLoading, isError: profileError } = useQuery({
+  const { data: profile, isLoading: profileLoading, isError: profileError, error: profileErrorObj } = useQuery({
     queryKey: ["user-profile"],
     queryFn: () => fetchProfile(authedFetch),
     enabled: isLoaded && !isGuest,
@@ -362,23 +362,35 @@ export default function Portal() {
             </div>
           )}
 
-          {/* Session error banner — shown when profile API fails after all retries */}
-          {!isGuest && profileError && !profileLoading && (
-            <div style={{ margin: "16px 0 0", borderRadius: 12, border: "1px solid rgba(220,38,38,0.25)", background: "rgba(254,242,242,0.9)", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                <AlertTriangle size={14} style={{ color: "#dc2626", flexShrink: 0 }} />
-                <p style={{ fontSize: "0.83rem", color: "#991b1b", lineHeight: 1.4, margin: 0 }}>
-                  Your session expired. Sign out and sign back in to restore your data.
-                </p>
+          {/* Session/server error banner — shown when profile API fails after all retries */}
+          {!isGuest && profileError && !profileLoading && (() => {
+            const status = (profileErrorObj as (Error & { status?: number }) | null)?.status;
+            const is401 = status === 401;
+            const is5xx = status !== undefined && status >= 500;
+            const msg = is401
+              ? "Your account could not be verified by the server. Try signing out and back in."
+              : is5xx
+              ? `Server error (${status}) loading your profile — this is not your fault. Please wait a moment and refresh.`
+              : "Could not load your profile. Check your connection and try refreshing.";
+            return (
+              <div style={{ margin: "16px 0 0", borderRadius: 12, border: "1px solid rgba(220,38,38,0.25)", background: "rgba(254,242,242,0.9)", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <AlertTriangle size={14} style={{ color: "#dc2626", flexShrink: 0 }} />
+                  <p style={{ fontSize: "0.83rem", color: "#991b1b", lineHeight: 1.4, margin: 0 }}>
+                    {msg}
+                  </p>
+                </div>
+                {is401 && (
+                  <button
+                    onClick={() => signOut()}
+                    style={{ fontSize: "0.8rem", fontWeight: 700, color: "#dc2626", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2, flexShrink: 0 }}
+                  >
+                    Sign out
+                  </button>
+                )}
               </div>
-              <button
-                onClick={() => signOut()}
-                style={{ fontSize: "0.8rem", fontWeight: 700, color: "#dc2626", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2, flexShrink: 0 }}
-              >
-                Sign out
-              </button>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Top bar */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 0 18px", padding: "0 2px" }}>

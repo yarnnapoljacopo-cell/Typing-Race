@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { pool } from "@workspace/db";
 
 const router = Router();
 
@@ -204,6 +205,54 @@ router.get("/debug-clerk-client", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: String(err), proxyUrl, proxyTarget, fapiUrlFromKey, cookieNames });
   }
+});
+
+/**
+ * One-shot status check: DB connectivity + Clerk key match.
+ * Visit /api/debug-status in a browser to diagnose auth/data failures.
+ * No auth required — safe to hit even when sessions are broken.
+ */
+router.get("/debug-status", async (_req, res) => {
+  const sk = process.env.CLERK_SECRET_KEY ?? "";
+  const pk = process.env.VITE_CLERK_PK ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? process.env.CLERK_PUBLISHABLE_KEY ?? "";
+
+  let skDomain = "(not set)";
+  let pkDomain = "(not set)";
+  try {
+    if (sk) skDomain = Buffer.from(sk.replace(/^sk_(live|test)_/, ""), "base64").toString().replace(/\$$/, "").trim();
+    if (pk) pkDomain = Buffer.from(pk.replace(/^pk_(live|test)_/, ""), "base64").toString().replace(/\$$/, "").trim();
+  } catch { /* ignore */ }
+
+  const clerkKeysMatch = sk && pk && skDomain === pkDomain;
+  const clerkStatus = !sk
+    ? "❌ CLERK_SECRET_KEY not set"
+    : !pk
+    ? "❌ Publishable key not set"
+    : clerkKeysMatch
+    ? `✅ Keys match (${skDomain})`
+    : `❌ KEY MISMATCH — secret: ${skDomain} | publishable: ${pkDomain}`;
+
+  let dbStatus = "";
+  let dbMs: number | null = null;
+  try {
+    const start = Date.now();
+    await pool.query("SELECT 1");
+    dbMs = Date.now() - start;
+    dbStatus = `✅ Connected (${dbMs}ms)`;
+  } catch (e) {
+    dbStatus = `❌ ${String(e)}`;
+  }
+
+  res.json({
+    clerk: clerkStatus,
+    database: dbStatus,
+    env: {
+      NODE_ENV: process.env.NODE_ENV,
+      CLERK_FAPI_URL: process.env.CLERK_FAPI_URL ?? "(not set)",
+      CLERK_SECRET_KEY: sk ? sk.substring(0, 12) + "..." : "(not set)",
+      publishableKey: pk ? pk.substring(0, 20) + "..." : "(not set)",
+    },
+  });
 });
 
 export default router;
