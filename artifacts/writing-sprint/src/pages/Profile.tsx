@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser, useAuth } from "@clerk/react";
 import { useAuthedFetch } from "@/lib/authedFetch";
-import { ArrowLeft, Check, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ChevronUp, ExternalLink, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -124,6 +124,23 @@ interface Top10Entry { writerName: string; xp: number; position: number; }
 
 async function fetchTop10(): Promise<Top10Entry[]> {
   const res = await fetch(`${basePath}/api/rankings/top10`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+interface SprintRecord {
+  id: number;
+  roomCode: string;
+  wordCount: number;
+  roomMode: string;
+  wordGoal: number | null;
+  updatedAt: string;
+}
+
+async function fetchSprintHistory(
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<SprintRecord[]> {
+  const res = await af(`${basePath}/api/user/sprints`);
   if (!res.ok) return [];
   return res.json();
 }
@@ -348,6 +365,7 @@ export default function Profile() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [webhookInput, setWebhookInput] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["profile", name],
@@ -381,6 +399,13 @@ export default function Profile() {
     retry: 3,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
     placeholderData: (prev) => prev,
+  });
+
+  const { data: sprintHistory } = useQuery({
+    queryKey: ["sprint-history"],
+    queryFn: () => fetchSprintHistory(authedFetch),
+    enabled: !!user && advancedOpen && isLoaded,
+    staleTime: 60_000,
   });
 
   useEffect(() => {
@@ -560,9 +585,118 @@ export default function Profile() {
               </div>
 
               {data.sprintCount > 0 && (
-                <p style={{ textAlign: "center", fontSize: "0.88rem", color: "#7a7a92", marginBottom: 24 }}>
+                <p style={{ textAlign: "center", fontSize: "0.88rem", color: "#7a7a92", marginBottom: 16 }}>
                   Averaging <strong style={{ color: "#1a1a2e" }}>{Math.round(data.totalWords / data.sprintCount).toLocaleString()} words</strong> per sprint
                 </p>
+              )}
+
+              {/* Advanced Stats — collapsible */}
+              {data.sprintCount > 0 && (
+                <div style={{ ...CARD, marginBottom: 20, overflow: "hidden" }}>
+                  <button
+                    onClick={() => setAdvancedOpen((v) => !v)}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "14px 18px", background: "none", border: "none", cursor: "pointer",
+                      color: "#7a7a92", fontFamily: "'DM Sans', sans-serif",
+                    }}
+                  >
+                    <span style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                      Advanced Stats
+                    </span>
+                    {advancedOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                  </button>
+
+                  {advancedOpen && (() => {
+                    const avgWords = Math.round(data.totalWords / data.sprintCount);
+
+                    const MODE_LABELS: Record<string, string> = {
+                      regular: "Regular", goal: "Goal", kart: "Kart Race",
+                      gladiator: "Gladiator", boss: "Boss Battle",
+                    };
+                    const MODE_EMOJI: Record<string, string> = {
+                      regular: "✍️", goal: "🎯", kart: "🏎️", gladiator: "⚔️", boss: "👾",
+                    };
+
+                    const modeCounts: Record<string, number> = {};
+                    let goalTotal = 0;
+                    let goalMet = 0;
+                    let totalTracked = 0;
+
+                    if (sprintHistory) {
+                      for (const s of sprintHistory) {
+                        const m = s.roomMode ?? "regular";
+                        modeCounts[m] = (modeCounts[m] ?? 0) + 1;
+                        totalTracked++;
+                        if (m === "goal" && s.wordGoal != null) {
+                          goalTotal++;
+                          if (s.wordCount >= s.wordGoal) goalMet++;
+                        }
+                      }
+                    }
+
+                    const sortedModes = Object.entries(modeCounts).sort((a, b) => b[1] - a[1]);
+
+                    const rowStyle: React.CSSProperties = {
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "8px 0",
+                      borderTop: "1px solid rgba(107,143,212,0.1)",
+                      fontSize: "0.83rem",
+                    };
+
+                    return (
+                      <div style={{ padding: "4px 18px 16px" }}>
+                        <div style={rowStyle}>
+                          <span style={{ color: "#7a7a92" }}>Avg words / sprint</span>
+                          <span style={{ fontWeight: 700, color: "#1a1a2e" }}>{avgWords.toLocaleString()}</span>
+                        </div>
+
+                        {isOwnProfile && sprintHistory && totalTracked > 0 && (
+                          <>
+                            <div style={{ ...rowStyle, marginTop: 6, flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+                              <span style={{ color: "#7a7a92", marginBottom: 2 }}>Mode breakdown</span>
+                              <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 5 }}>
+                                {sortedModes.map(([mode, count]) => {
+                                  const pct = Math.round((count / totalTracked) * 100);
+                                  const label = MODE_LABELS[mode] ?? mode;
+                                  const emoji = MODE_EMOJI[mode] ?? "✍️";
+                                  return (
+                                    <div key={mode} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                      <span style={{ fontSize: "0.8rem", width: 20, textAlign: "center" }}>{emoji}</span>
+                                      <span style={{ flex: 1, color: "#1a1a2e", fontSize: "0.8rem" }}>{label}</span>
+                                      <div style={{ width: 80, height: 5, borderRadius: 99, background: "rgba(107,143,212,0.12)", overflow: "hidden" }}>
+                                        <div style={{ height: "100%", width: `${pct}%`, background: "#6B8FD4", borderRadius: 99 }} />
+                                      </div>
+                                      <span style={{ fontSize: "0.75rem", color: "#7a7a92", minWidth: 32, textAlign: "right" }}>
+                                        {count} <span style={{ opacity: 0.6 }}>({pct}%)</span>
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {goalTotal > 0 && (
+                              <div style={rowStyle}>
+                                <span style={{ color: "#7a7a92" }}>Goal completion</span>
+                                <span style={{ fontWeight: 700, color: goalMet / goalTotal >= 0.5 ? "#16a34a" : "#dc2626" }}>
+                                  {goalMet}/{goalTotal} <span style={{ fontWeight: 400, color: "#7a7a92", fontSize: "0.78rem" }}>({Math.round((goalMet / goalTotal) * 100)}%)</span>
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {isOwnProfile && !sprintHistory && (
+                          <div style={{ textAlign: "center", padding: "8px 0", color: "#7a7a92", fontSize: "0.8rem" }}>
+                            <Loader2 size={14} style={{ display: "inline", marginRight: 6, animation: "spin 1s linear infinite" }} />
+                            Loading…
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
               )}
 
               {/* Cultivation — only visible on own profile */}

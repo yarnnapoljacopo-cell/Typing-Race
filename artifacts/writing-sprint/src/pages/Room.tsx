@@ -314,14 +314,17 @@ export default function Room() {
 
     const caret = range.getBoundingClientRect();
 
-    // Degenerate rect (all zeros) means the browser hasn't laid out the cursor
-    // yet — most common after Enter on a fresh empty line. Skip rather than
-    // scrolling to the wrong place.
-    if (!caret.top && !caret.left && !caret.bottom) return;
+    // Degenerate rect: height===0 means the browser hasn't laid out the cursor
+    // yet (e.g. fresh empty line after Enter, or cursor off-screen top).
+    // Also skip when caret is above the viewport (top <= 0 with bottom <= 0).
+    if (caret.height === 0) return;
+    if (caret.bottom <= 0) return; // caret scrolled above visible area
 
     const divRect = div.getBoundingClientRect();
     const lineH = writingStyle.fontSize * writingStyle.lineHeight;
     const caretOffsetTop = caret.top - divRect.top + div.scrollTop;
+    // Sanity: offset must be inside the scrollable content
+    if (caretOffsetTop < 0 || caretOffsetTop > div.scrollHeight) return;
     div.scrollTop = Math.max(0, caretOffsetTop - div.clientHeight / 2 + lineH / 2);
   }, [writingStyle.fontSize, writingStyle.lineHeight]);
 
@@ -395,7 +398,9 @@ export default function Room() {
       if (prevStatusRef.current !== null) playStartSound();
 
       const restored = restoredNetWordsRef.current;
-      const currentTotalWords = countWords(currentTextRef.current);
+      // Use textContent (plain text) not innerHTML so HTML tags aren't
+      // counted as words and the baseline is accurate on retry.
+      const currentTotalWords = countWords(textareaRef.current?.textContent ?? "");
       if (prevStatusRef.current === null && restored > 0) {
         // Page-refresh reconnect: server knows our net word count.
         // Set baseline so the display resumes from the correct value.
@@ -809,6 +814,31 @@ export default function Room() {
     if (writingStyle.typewriterMode) requestAnimationFrame(scrollToCursor);
   }, [applyText, writingStyle.typewriterMode, scrollToCursor]);
 
+  // Insert a <br> at the current selection using the Range API (cross-browser).
+  // A lone <br> at the end of a contenteditable div leaves the cursor visually
+  // stuck; a trailing sentinel <br> makes the new line visible in all engines.
+  const insertBrAtCursor = useCallback((count: 1 | 2) => {
+    const div = textareaRef.current;
+    const sel = window.getSelection();
+    if (!div || !sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    const brs = Array.from({ length: count }, () => document.createElement("br"));
+    // Insert in reverse so the first br ends up first in the DOM
+    for (let i = brs.length - 1; i >= 0; i--) range.insertNode(brs[i]);
+    // Move caret after the last inserted br
+    const lastBr = brs[brs.length - 1];
+    range.setStartAfter(lastBr);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    // Ensure cursor is visible: if the last <br> is the final node in the div,
+    // browsers won't render a new visible line. Add a sentinel <br>.
+    if (lastBr === div.lastChild) {
+      div.appendChild(document.createElement("br"));
+    }
+  }, []);
+
   // Normalise Enter across browsers and apply paragraph mode
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Enter") return;
@@ -817,19 +847,17 @@ export default function Room() {
       // eslint-disable-next-line @typescript-eslint/no-deprecated
       document.execCommand("insertHTML", false, "<br>\u00a0\u00a0\u00a0\u00a0");
     } else if (writingStyle.paragraphMode === "double") {
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      document.execCommand("insertHTML", false, "<br><br>");
+      // Two line breaks for visual paragraph spacing (DOM API = cross-browser)
+      insertBrAtCursor(2);
     } else {
-      // insertHTML with a lone <br> leaves the cursor visually stuck when at
-      // end of content — the browser needs something after the <br> to render
-      // a new visible line.  insertLineBreak handles this correctly.
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      document.execCommand("insertLineBreak");
+      // Single line break — "none" mode.  Use DOM API because
+      // document.execCommand("insertLineBreak") is unsupported in Firefox.
+      insertBrAtCursor(1);
     }
     applyText();
     // rAF so the new line is in the DOM before we compute the caret rect
     if (writingStyle.typewriterMode) requestAnimationFrame(scrollToCursor);
-  }, [writingStyle.paragraphMode, writingStyle.typewriterMode, applyText, scrollToCursor]);
+  }, [writingStyle.paragraphMode, writingStyle.typewriterMode, applyText, scrollToCursor, insertBrAtCursor]);
 
   // Strip pasted HTML — keep only the plain text
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -1069,17 +1097,18 @@ export default function Room() {
           )}
 
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-            {/* Writer avatars + count */}
+            {/* Writer avatars + count — click to open profile */}
             <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "0.83rem", fontWeight: 500, color: "#7a7a92" }}>
               <div style={{ display: "flex" }}>
                 {room.participants.slice(0, 4).map((p) => (
-                  <div
+                  <button
                     key={p.id}
-                    title={p.name}
-                    style={{ width: 26, height: 26, borderRadius: "50%", background: "linear-gradient(135deg, #6B8FD4, #5a82d0)", color: "white", fontSize: "0.72rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", marginLeft: -6, border: "2px solid rgba(245,242,236,0.9)" }}
+                    title={`${p.name} — view profile`}
+                    onClick={() => setLocation(`/profile/${encodeURIComponent(p.name)}`)}
+                    style={{ width: 26, height: 26, borderRadius: "50%", background: "linear-gradient(135deg, #6B8FD4, #5a82d0)", color: "white", fontSize: "0.72rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", marginLeft: -6, border: "2px solid rgba(245,242,236,0.9)", cursor: "pointer", padding: 0 }}
                   >
                     {p.name.charAt(0).toUpperCase()}
-                  </div>
+                  </button>
                 ))}
                 {room.participants.length > 4 && (
                   <div style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(107,143,212,0.15)", fontSize: "0.65rem", fontWeight: 600, color: "#6B8FD4", display: "flex", alignItems: "center", justifyContent: "center", marginLeft: -6, border: "2px solid rgba(245,242,236,0.9)" }}>
@@ -1354,13 +1383,14 @@ export default function Room() {
                 </div>
                 {/* Slow Bitch notification — below the badge row */}
                 <div
-                  className="flex justify-center pt-1 transition-opacity duration-300"
-                  style={{ opacity: slowBitchVisible ? 1 : 0, pointerEvents: "none" }}
+                  className="flex justify-center pt-2 transition-all duration-300"
+                  style={{ opacity: slowBitchVisible ? 1 : 0, transform: slowBitchVisible ? "scale(1)" : "scale(0.85)", pointerEvents: "none" }}
                 >
                   <span
-                    className="inline-flex items-center gap-1.5 bg-foreground/90 text-background text-xs font-medium px-3 py-1 rounded-full select-none"
+                    className="inline-flex items-center gap-2 bg-red-600 text-white text-sm font-bold px-4 py-1.5 rounded-lg select-none shadow-lg"
+                    style={{ letterSpacing: "0.03em" }}
                   >
-                    🐢 Slow Bitch.
+                    🐢 You're the slow bitch.
                   </span>
                 </div>
               </div>

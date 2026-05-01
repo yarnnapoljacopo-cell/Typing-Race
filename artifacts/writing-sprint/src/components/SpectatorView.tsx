@@ -9,6 +9,23 @@ import { Eye, FileText, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getNameplateStyle } from "@/lib/nameplates";
 
+function htmlToPlain(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 const LANE_COLORS = [
   "#3b82f6", // blue
   "#ef4444", // red
@@ -27,23 +44,21 @@ interface SpectatorViewProps {
 }
 
 function WritingPreview({
-  text,
+  plainPreview,
+  plainFull,
   wordCount,
-  fullText,
+  isTruncated,
 }: {
-  text: string;
+  plainPreview: string;
+  plainFull: string;
   wordCount: number;
-  fullText: string;
+  isTruncated: boolean;
 }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    if (!fullText) return;
-    // Strip HTML tags so clipboard contains plain text
-    const tmp = document.createElement("div");
-    tmp.innerHTML = fullText;
-    const plain = tmp.innerText ?? tmp.textContent ?? fullText;
-    navigator.clipboard.writeText(plain).then(() => {
+    if (!plainFull) return;
+    navigator.clipboard.writeText(plainFull).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -57,7 +72,7 @@ function WritingPreview({
           <span className="font-mono font-semibold">{wordCount}</span>
           <span>words written</span>
         </div>
-        {fullText && (
+        {plainFull && (
           <Button
             size="sm"
             variant="outline"
@@ -72,12 +87,11 @@ function WritingPreview({
           </Button>
         )}
       </div>
-      {text ? (
+      {plainPreview ? (
         <div className="max-h-64 overflow-auto rounded border bg-muted/30 p-3">
-          <div
-            className="font-serif text-xs break-words leading-relaxed text-foreground"
-            dangerouslySetInnerHTML={{ __html: text }}
-          />
+          <p className="font-serif text-xs break-words leading-relaxed text-foreground whitespace-pre-wrap">
+            {plainPreview}{isTruncated && <span className="text-muted-foreground"> …</span>}
+          </p>
         </div>
       ) : (
         <p className="text-xs text-muted-foreground italic">Nothing written yet…</p>
@@ -112,10 +126,11 @@ export function SpectatorView({
       {sorted.map((p, i) => {
         const color = LANE_COLORS[i % LANE_COLORS.length];
         const pText = participantTexts[p.id];
-        const fullText = pText?.text ?? "";
-        const preview = fullText.length > 600
-          ? fullText.slice(0, 600) + "…"
-          : fullText;
+        const rawHtml = pText?.text ?? "";
+        const plainFull = htmlToPlain(rawHtml);
+        const PREVIEW_CHARS = 600;
+        const isTruncated = plainFull.length > PREVIEW_CHARS;
+        const plainPreview = isTruncated ? plainFull.slice(0, PREVIEW_CHARS) : plainFull;
         const isMe = p.id === currentParticipantId;
 
         return (
@@ -191,9 +206,10 @@ export function SpectatorView({
                   <span className="text-sm font-semibold">{p.name}</span>
                 </div>
                 <WritingPreview
-                  text={preview}
+                  plainPreview={plainPreview}
+                  plainFull={plainFull}
                   wordCount={p.wordCount}
-                  fullText={fullText}
+                  isTruncated={isTruncated}
                 />
               </div>
             </HoverCardContent>

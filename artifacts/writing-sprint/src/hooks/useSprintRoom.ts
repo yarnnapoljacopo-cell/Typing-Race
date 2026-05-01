@@ -249,7 +249,12 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
               if (!prev) return prev;
               const exists = prev.participants.some((p) => p.id === data.participant.id);
               const participants = exists
-                ? prev.participants.map((p) => p.id === data.participant.id ? data.participant : p)
+                // Merge so cosmetic fields (nameplate, xp, kartCarOffset) set by
+                // the full room_state broadcast are never overwritten by the
+                // lightweight participant_update event (which only carries live stats).
+                ? prev.participants.map((p) =>
+                    p.id === data.participant.id ? { ...p, ...data.participant } : p
+                  )
                 : [...prev.participants, data.participant];
               return { ...prev, participants };
             });
