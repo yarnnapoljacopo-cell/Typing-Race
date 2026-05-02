@@ -165,10 +165,69 @@ export default function MyFiles() {
     return stored !== todayStr() ? 0 : saved;
   });
 
-  // Editor live values (uncontrolled-ish for performance)
+  // Editor live values (uncontrolled-ish for performance).
+  // Title stays a textarea (auto-grow). Content is now a contentEditable
+  // <div> so bold/italic/underline render visually instead of leaving
+  // raw markdown like **text** in the document.
   const titleRef = useRef<HTMLTextAreaElement | null>(null);
-  const contentRef = useRef<HTMLTextAreaElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const [editorWordCount, setEditorWordCount] = useState(0);
+
+  // Plain text from the editor (used for word count, find, sprint seed, save).
+  const editorText = useCallback(
+    (): string => contentRef.current?.innerText ?? "",
+    [],
+  );
+
+  // We tag rich-text content saved by this editor with an explicit sentinel
+  // so we never accidentally re-interpret legacy plain text (which might
+  // contain stray "<" characters) as HTML on load.
+  const RICH_PREFIX = "<!--folio:rich-->";
+
+  // Defensive sanitizer for stored rich content: strip <script>/<style>
+  // blocks and on* event-handler attributes that could re-introduce XSS
+  // if a malicious paste ever made it into a saved doc before sanitation
+  // was tightened. We still also sanitize on paste below.
+  const sanitizeStoredHtml = (html: string): string => {
+    return html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
+      .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "")
+      .replace(/javascript:/gi, "");
+  };
+
+  // Decode any stored doc.content (rich or legacy plain) to plain text.
+  // Used by everything that needs human-readable text rather than HTML:
+  // word counts, project search, compile/export, sprint seed text. Keeps
+  // these flows correct after the contentEditable migration so users
+  // never see "<!--folio:rich-->" or raw <b>/<i>/<p> tags in exports
+  // or inflated word counts from HTML markup.
+  const docPlainText = useCallback((raw: string | undefined): string => {
+    if (!raw) return "";
+    if (!raw.startsWith(RICH_PREFIX)) return raw;
+    const html = sanitizeStoredHtml(raw.slice(RICH_PREFIX.length));
+    const tmp = document.createElement("div");
+    tmp.innerHTML = html;
+    // Preserve paragraph/line breaks roughly: convert block-level closers
+    // and <br> to newlines so word counting and exports behave sensibly.
+    return (tmp.innerText || tmp.textContent || "").replace(/\u00a0/g, " ");
+  }, []);
+
+  const loadEditorContent = useCallback((raw: string) => {
+    const div = contentRef.current;
+    if (!div) return;
+    if (!raw) {
+      div.innerHTML = "";
+    } else if (raw.startsWith(RICH_PREFIX)) {
+      // Saved by this editor — load HTML after defensive sanitation.
+      div.innerHTML = sanitizeStoredHtml(raw.slice(RICH_PREFIX.length));
+    } else {
+      // Legacy / plain text: load as text. The CSS rule white-space:
+      // pre-wrap on .editor-content preserves the user's newlines.
+      div.textContent = raw;
+    }
+  }, []);
 
   // Find bar
   const [findOpen, setFindOpen] = useState(false);
@@ -240,8 +299,13 @@ export default function MyFiles() {
   const saveCurrentDoc = useCallback(() => {
     if (!activeProjectId || !activeDocId) return;
     const titleVal = titleRef.current?.value || "";
-    const contentVal = contentRef.current?.value || "";
-    const newWC = wc(titleVal + " " + contentVal);
+    // Persist HTML so formatting survives reload; word count uses plain text.
+    // Tag with a sentinel so loadEditorContent can distinguish rich content
+    // from legacy plain text without using a brittle heuristic.
+    const html = contentRef.current?.innerHTML || "";
+    const contentVal = html ? RICH_PREFIX + html : "";
+    const contentPlain = contentRef.current?.innerText || "";
+    const newWC = wc(titleVal + " " + contentPlain);
     const oldWC = prevWordsRef.current;
     const gained = Math.max(0, newWC - oldWC);
     prevWordsRef.current = newWC;
@@ -291,7 +355,7 @@ export default function MyFiles() {
   }, [saveCurrentDoc]);
 
   const updateWordCount = useCallback(() => {
-    const t = (titleRef.current?.value || "") + " " + (contentRef.current?.value || "");
+    const t = (titleRef.current?.value || "") + " " + (contentRef.current?.innerText || "");
     setEditorWordCount(wc(t));
   }, []);
 
@@ -322,8 +386,8 @@ export default function MyFiles() {
         titleRef.current.value = doc.name;
         autoResize(titleRef.current);
       }
-      if (contentRef.current) contentRef.current.value = doc.content;
-      prevWordsRef.current = wc(doc.name + " " + doc.content);
+      loadEditorContent(doc.content);
+      prevWordsRef.current = wc(doc.name + " " + (contentRef.current?.innerText || docPlainText(doc.content)));
       updateWordCount();
       contentRef.current?.focus();
     }, 0);
@@ -355,17 +419,26 @@ export default function MyFiles() {
   };
 
   // ── Find in doc ─────────────────────────────────────────
+  // We match against the editor's *textContent* (concatenation of every text
+  // node) so the offsets line up exactly with the TreeWalker we use to
+  // build a Range during navigation. innerText would inject layout
+  // newlines that don't correspond to any actual text node, throwing off
+  // the index math.
   const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Track the query length used for the current match set, so navigation
+  // doesn't depend on stale React state from setFindQuery.
+  const findQueryLenRef = useRef(0);
   const findInDoc = (q: string) => {
     setFindQuery(q);
     findMatchesRef.current = [];
     findCurrentRef.current = -1;
+    findQueryLenRef.current = q.length;
     if (!q || !contentRef.current) {
       setMatchCount("");
       return;
     }
     const re = new RegExp(escRe(q), "gi");
-    const c = contentRef.current.value;
+    const c = contentRef.current.textContent ?? "";
     let m: RegExpExecArray | null;
     while ((m = re.exec(c)) !== null) findMatchesRef.current.push(m.index);
     if (!findMatchesRef.current.length) {
@@ -376,14 +449,45 @@ export default function MyFiles() {
     setMatchCount(`1 of ${findMatchesRef.current.length}`);
     scrollToMatch();
   };
+  const selectPlainTextRange = (root: HTMLElement, start: number, length: number) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let acc = 0;
+    let startNode: Node | null = null, endNode: Node | null = null;
+    let startOff = 0, endOff = 0;
+    let n: Node | null = walker.nextNode();
+    while (n) {
+      const len = (n.nodeValue ?? "").length;
+      if (!startNode && acc + len > start) {
+        startNode = n;
+        startOff = start - acc;
+      }
+      if (startNode && acc + len >= start + length) {
+        endNode = n;
+        endOff = (start + length) - acc;
+        break;
+      }
+      acc += len;
+      n = walker.nextNode();
+    }
+    if (!startNode || !endNode) return null;
+    const r = document.createRange();
+    r.setStart(startNode, startOff);
+    r.setEnd(endNode, endOff);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(r);
+    return r;
+  };
   const scrollToMatch = () => {
-    const ta = contentRef.current;
+    const div = contentRef.current;
     const idx = findMatchesRef.current[findCurrentRef.current];
-    if (!ta || idx === undefined) return;
-    ta.focus();
-    ta.setSelectionRange(idx, idx + findQuery.length);
-    const lines = ta.value.substring(0, idx).split("\n").length;
-    ta.scrollTop = Math.max(0, (lines - 3) * 28);
+    if (!div || idx === undefined) return;
+    div.focus();
+    // Use the ref so the very first findInDoc → scrollToMatch call has the
+    // correct length even before React has flushed setFindQuery.
+    const r = selectPlainTextRange(div, idx, findQueryLenRef.current);
+    const target = r?.startContainer.parentElement ?? div;
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
   };
   const navMatch = (dir: number) => {
     if (!findMatchesRef.current.length) return;
@@ -401,57 +505,122 @@ export default function MyFiles() {
   };
 
   // ── Toolbar editor helpers ──────────────────────────────
-  const wrapText = (before: string, after: string) => {
-    const ta = contentRef.current;
-    if (!ta) return;
-    const s = ta.selectionStart, e = ta.selectionEnd;
-    const sel = ta.value.slice(s, e) || "text";
-    ta.setRangeText(before + sel + after, s, e, "select");
-    ta.focus();
+  // The folio editor is a contentEditable div. We use the well-supported
+  // execCommand API for rich-text formatting so users see real
+  // bold/italic/underline instead of literal markdown characters.
+  // Force styleWithCSS=false so bold/italic emit semantic <b>/<i>/<u>
+  // tags rather than <span style="..."> wrappers (cleaner storage and
+  // simpler to detect/parse).
+  let _styleWithCssApplied = false;
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
+  const exec = (cmd: string, val?: string) => {
+    if (!_styleWithCssApplied) {
+      try { /* eslint-disable-next-line @typescript-eslint/no-deprecated */
+        document.execCommand("styleWithCSS", false, "false");
+      } catch { /* ignore */ }
+      _styleWithCssApplied = true;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    return document.execCommand(cmd, false, val);
+  };
+
+  // Toolbar buttons take focus on mousedown, which can collapse the editor's
+  // selection before our click handler runs. We continuously snapshot the
+  // last in-editor selection via a global selectionchange listener so that,
+  // however the toolbar button is invoked (real mouse, keyboard, scripted
+  // click), runFormat() always has the user's most recent editor selection
+  // to restore before calling execCommand.
+  const savedRangeRef = useRef<Range | null>(null);
+  useEffect(() => {
+    const onSelectionChange = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const r = sel.getRangeAt(0);
+      const div = contentRef.current;
+      if (!div) return;
+      if (div.contains(r.startContainer) && div.contains(r.endContainer)) {
+        savedRangeRef.current = r.cloneRange();
+      }
+    };
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => document.removeEventListener("selectionchange", onSelectionChange);
+  }, []);
+  const restoreSelection = () => {
+    const div = contentRef.current;
+    const saved = savedRangeRef.current;
+    if (!div) return;
+    div.focus();
+    if (!saved) return;
+    const sel = window.getSelection();
+    if (!sel) return;
+    sel.removeAllRanges();
+    sel.addRange(saved);
+  };
+  const runFormat = (cmd: string, val?: string) => {
+    restoreSelection();
+    exec(cmd, val);
     scheduleAutosave();
     updateWordCount();
   };
+  const wrapText = (before: string, _after: string) => {
+    // Map legacy markdown wrappers to real rich-text commands.
+    if (before === "**") runFormat("bold");
+    else if (before === "_") runFormat("italic");
+    else if (before === "__") runFormat("underline");
+    else if (before === "~~") runFormat("strikeThrough");
+  };
   const insertAtCursor = (text: string) => {
-    const ta = contentRef.current;
-    if (!ta) return;
-    const s = ta.selectionStart;
-    ta.setRangeText(text, s, s, "end");
-    ta.focus();
+    restoreSelection();
+    if (text === "> ") {
+      exec("formatBlock", "blockquote");
+    } else if (text === "[ ] ") {
+      // Plain text checkbox — keep as a literal character so it survives export.
+      exec("insertText", "☐ ");
+    } else if (text === "---\n" || text === "---\n\n") {
+      exec("insertHorizontalRule");
+    } else {
+      // Newlines / paragraph breaks: insert real paragraph separators.
+      exec("insertHTML", text.replace(/\n/g, "<br>"));
+    }
     scheduleAutosave();
     updateWordCount();
   };
   const insertAtLineStart = (prefix: string) => {
-    const ta = contentRef.current;
-    if (!ta) return;
-    const s = ta.selectionStart;
-    const lineStart = ta.value.lastIndexOf("\n", s - 1) + 1;
-    ta.setRangeText(prefix, lineStart, lineStart, "end");
-    ta.focus();
+    restoreSelection();
+    if (prefix === "- ") exec("insertUnorderedList");
+    else if (prefix === "1. ") exec("insertOrderedList");
+    else if (prefix === "---\n") exec("insertHorizontalRule");
     scheduleAutosave();
   };
   const applyHeading = (val: string) => {
-    const ta = contentRef.current;
-    if (!ta) return;
-    const s = ta.selectionStart;
-    const lineStart = ta.value.lastIndexOf("\n", s - 1) + 1;
-    const lineEnd = ta.value.indexOf("\n", s);
-    const end = lineEnd === -1 ? ta.value.length : lineEnd;
-    const line = ta.value.slice(lineStart, end).replace(/^#{1,3}\s*/, "");
-    const prefix = val === "h1" ? "# " : val === "h2" ? "## " : val === "h3" ? "### " : "";
-    ta.setRangeText(prefix + line, lineStart, end, "end");
-    ta.focus();
+    restoreSelection();
+    const tag = val === "h1" ? "h1" : val === "h2" ? "h2" : val === "h3" ? "h3" : "p";
+    exec("formatBlock", tag);
     scheduleAutosave();
   };
 
   // ── Typewriter scroll ───────────────────────────────────
+  // Use the live caret position via Selection/Range so this works for the
+  // rich contentEditable editor (it has no selectionStart).
   const typewriterScroll = () => {
     if (!typewriterMode) return;
-    const ta = contentRef.current;
+    const div = contentRef.current;
     const body = document.getElementById("folio-editor-body");
-    if (!ta || !body) return;
-    const lh = parseInt(getComputedStyle(ta).lineHeight) || 28;
-    const pos = ta.value.substr(0, ta.selectionStart).split("\n").length;
-    body.scrollTop = Math.max(0, pos * lh - body.clientHeight / 2);
+    if (!div || !body) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0).cloneRange();
+    range.collapse(true);
+    let rect = range.getBoundingClientRect();
+    if (rect.top === 0 && rect.bottom === 0) {
+      // Empty range (caret at start of empty line) — fall back to caret's parent.
+      const node = sel.anchorNode as HTMLElement | null;
+      const parent = node?.nodeType === 1 ? (node as HTMLElement) : node?.parentElement;
+      if (!parent) return;
+      rect = parent.getBoundingClientRect();
+    }
+    const bodyRect = body.getBoundingClientRect();
+    body.scrollTop += (rect.top - bodyRect.top) - body.clientHeight / 2;
   };
 
   // ── Status menu close on outside click ──────────────────
@@ -583,9 +752,9 @@ export default function MyFiles() {
       .filter(Boolean) as Doc[];
     let out = "";
     if (compileModal.format === "md") {
-      out = docs.map((d) => `# ${d.name}\n\n${d.content || ""}`).join("\n\n---\n\n");
+      out = docs.map((d) => `# ${d.name}\n\n${docPlainText(d.content)}`).join("\n\n---\n\n");
     } else {
-      out = docs.map((d) => `${d.name.toUpperCase()}\n\n${d.content || ""}`).join("\n\n* * *\n\n");
+      out = docs.map((d) => `${d.name.toUpperCase()}\n\n${docPlainText(d.content)}`).join("\n\n* * *\n\n");
     }
     const blob = new Blob([out], { type: "text/plain" });
     const a = document.createElement("a");
@@ -626,7 +795,7 @@ export default function MyFiles() {
   const visibleProjects = state.projects
     .map((proj) => {
       const visibleDocs = ql
-        ? proj.docs.filter((d) => d.name.toLowerCase().includes(ql) || (d.content || "").toLowerCase().includes(ql))
+        ? proj.docs.filter((d) => d.name.toLowerCase().includes(ql) || docPlainText(d.content).toLowerCase().includes(ql))
         : proj.docs;
       const projMatch = ql && proj.name.toLowerCase().includes(ql);
       if (ql && !projMatch && !visibleDocs.length) return null;
@@ -758,7 +927,7 @@ export default function MyFiles() {
               </div>
             ) : (
               visibleProjects.map(({ proj, visibleDocs, isOpen }) => {
-                const projWC = proj.docs.reduce((s, d) => s + wc((d.name || "") + (d.content || "")), 0);
+                const projWC = proj.docs.reduce((s, d) => s + wc((d.name || "") + " " + docPlainText(d.content)), 0);
                 const totalWC = projWC;
                 const lastEdited = proj.docs.reduce((max, d) => Math.max(max, d.updatedAt || 0), 0);
                 const statusCounts = { draft: 0, progress: 0, done: 0, edit: 0 };
@@ -830,7 +999,7 @@ export default function MyFiles() {
                       const matches = q
                         ? proj.docs
                             .map((d) => {
-                              const content = d.content || "";
+                              const content = docPlainText(d.content);
                               const lower = content.toLowerCase();
                               const idx = lower.indexOf(q);
                               const nameHit = d.name.toLowerCase().includes(q);
@@ -918,7 +1087,7 @@ export default function MyFiles() {
 
                     <div className={`folder-children${isOpen ? " open" : ""}`}>
                       {visibleDocs.map((doc) => {
-                        const dwc = wc((doc.name || "") + (doc.content || ""));
+                        const dwc = wc((doc.name || "") + " " + docPlainText(doc.content));
                         const st = (doc.status || "draft") as StatusKey;
                         return (
                           <div
@@ -1018,7 +1187,27 @@ export default function MyFiles() {
               </div>
 
               {/* Toolbar */}
-              <div className="writing-toolbar">
+              <div
+                className="writing-toolbar"
+                // preventDefault on mousedown for the buttons so they don't
+                // steal focus from the editor. The runFormat helpers also
+                // restore the latest in-editor Range (tracked via a global
+                // selectionchange listener) before calling execCommand, so
+                // formatting still applies even if the focus did shift.
+                onMouseDown={(e) => {
+                  const t = e.target as HTMLElement;
+                  if (t.tagName === "BUTTON" || t.closest("button")) e.preventDefault();
+                }}
+              >
+                {/*
+                  Toolbar buttons use onMouseDown + preventDefault (the
+                  canonical contentEditable pattern). This prevents the
+                  button from taking focus, so the editor's selection
+                  stays intact and execCommand applies to the user's
+                  selected text. Plain onClick would fire after focus has
+                  already shifted to the button (collapsing the
+                  selection), so bold/italic etc. would silently no-op.
+                */}
                 <select className="tb-select" defaultValue="p" onChange={(e) => { applyHeading(e.target.value); e.target.value = "p"; }} title="Paragraph style">
                   <option value="p">Paragraph</option>
                   <option value="h1">Heading 1</option>
@@ -1026,19 +1215,19 @@ export default function MyFiles() {
                   <option value="h3">Heading 3</option>
                 </select>
                 <div className="tb-sep" />
-                <button className="tb-btn" onClick={() => wrapText("**", "**")} title="Bold"><b>B</b></button>
-                <button className="tb-btn" onClick={() => wrapText("_", "_")} title="Italic"><i>I</i></button>
-                <button className="tb-btn" onClick={() => wrapText("__", "__")} title="Underline"><u>U</u></button>
-                <button className="tb-btn" onClick={() => wrapText("~~", "~~")} title="Strikethrough"><s>S</s></button>
+                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); wrapText("**", "**"); }} title="Bold"><b>B</b></button>
+                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); wrapText("_", "_"); }} title="Italic"><i>I</i></button>
+                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); wrapText("__", "__"); }} title="Underline"><u>U</u></button>
+                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); wrapText("~~", "~~"); }} title="Strikethrough"><s>S</s></button>
                 <div className="tb-sep" />
-                <button className="tb-btn" onClick={() => insertAtCursor("> ")} title="Block quote">❝</button>
-                <button className="tb-btn" onClick={() => insertAtLineStart("- ")} title="Bullet list">•≡</button>
-                <button className="tb-btn" onClick={() => insertAtLineStart("1. ")} title="Numbered list">1≡</button>
-                <button className="tb-btn" onClick={() => insertAtLineStart("---\n")} title="Divider">—</button>
+                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("> "); }} title="Block quote">❝</button>
+                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtLineStart("- "); }} title="Bullet list">•≡</button>
+                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtLineStart("1. "); }} title="Numbered list">1≡</button>
+                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtLineStart("---\n"); }} title="Divider">—</button>
                 <div className="tb-sep" />
-                <button className="tb-btn" onClick={() => insertAtCursor("\n\n")} title="Paragraph break">¶</button>
-                <button className="tb-btn" onClick={() => insertAtCursor("[ ] ")} title="Checkbox">☐</button>
-                <button className="tb-btn" onClick={() => insertAtCursor("---\n\n")} title="Scene break">···</button>
+                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("\n\n"); }} title="Paragraph break">¶</button>
+                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("[ ] "); }} title="Checkbox">☐</button>
+                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("---\n\n"); }} title="Scene break">···</button>
                 <div className="tb-sep" />
                 <button
                   className={`tb-btn${typewriterMode ? " active" : ""}`}
@@ -1095,11 +1284,23 @@ export default function MyFiles() {
                     scheduleAutosave();
                   }}
                 />
-                <textarea
+                <div
                   className="editor-content"
                   ref={contentRef}
-                  placeholder="Start writing…"
-                  defaultValue={activeDoc.content}
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-placeholder="Start writing…"
+                  // Initial content is loaded imperatively in openDoc() via
+                  // loadEditorContent so we can choose between innerHTML
+                  // (rich) and textContent (legacy plain) safely.
+                  onPaste={(e) => {
+                    // Strip pasted HTML — accept only plain text. This is
+                    // the primary XSS guard for the contentEditable editor.
+                    e.preventDefault();
+                    const text = e.clipboardData.getData("text/plain");
+                    // eslint-disable-next-line @typescript-eslint/no-deprecated
+                    document.execCommand("insertText", false, text);
+                  }}
                   onInput={() => {
                     updateWordCount();
                     scheduleAutosave();
@@ -1234,7 +1435,7 @@ export default function MyFiles() {
                           onChange={(e) => setCompileModal((c) => ({ ...c, checked: { ...c.checked, [id]: e.target.checked } }))}
                         />
                         <span className="compile-doc-name">{doc.name}</span>
-                        <span className="compile-doc-wc">{wc((doc.name || "") + (doc.content || ""))} w</span>
+                        <span className="compile-doc-wc">{wc((doc.name || "") + " " + docPlainText(doc.content))} w</span>
                       </div>
                     );
                   });
@@ -1326,7 +1527,7 @@ export default function MyFiles() {
         open={sprintModal}
         onClose={closeSprintModal}
         chapterTitle={activeDoc?.name ?? null}
-        chapterContent={activeDoc ? ((contentRef.current?.value ?? activeDoc.content) || "") : ""}
+        chapterContent={activeDoc ? (editorText() || docPlainText(activeDoc.content)) : ""}
       />
 
       {/* TOAST */}

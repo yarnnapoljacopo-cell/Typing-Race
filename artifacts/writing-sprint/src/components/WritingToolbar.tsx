@@ -49,6 +49,9 @@ interface WritingToolbarProps {
   style: WritingStyle;
   onChange: (style: Partial<WritingStyle>) => void;
   onFormat: (type: FormatType) => void;
+  /** Which inline formats are currently applied at the caret/selection.
+   * Drives the active visual state on the B/I/U chips. */
+  activeFormats?: { bold: boolean; italic: boolean; underline: boolean };
 }
 
 const dividerStyle: React.CSSProperties = {
@@ -108,13 +111,39 @@ const formatChipBase: React.CSSProperties = {
   color: C.muted, transition: "all 0.15s", background: "none",
 };
 
+function formatChipStyle(active: boolean): React.CSSProperties {
+  // Active = applied to current selection. Use the same blue used for the
+  // font/size chips so the toolbar reads consistently.
+  return {
+    ...formatChipBase,
+    background: active ? C.blue : "none",
+    color: active ? "white" : C.muted,
+    border: `1.5px solid ${active ? C.blue : C.border}`,
+    boxShadow: active ? "inset 0 0 0 1px rgba(255,255,255,0.25)" : "none",
+  };
+}
+
 export const WritingToolbar = memo(function WritingToolbar({
   style,
   onChange,
   onFormat,
+  activeFormats,
 }: WritingToolbarProps) {
+  const aBold = activeFormats?.bold ?? false;
+  const aItalic = activeFormats?.italic ?? false;
+  const aUnderline = activeFormats?.underline ?? false;
+  // Prevent toolbar buttons from stealing focus from the editor on mousedown
+  // — otherwise the click handler runs after the selection has already
+  // collapsed and execCommand("bold"|"italic"|...) has nothing to format.
+  const swallowButtonMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const t = e.target as HTMLElement;
+    if (t.tagName === "BUTTON" || t.closest("button")) e.preventDefault();
+  };
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, fontFamily: "'DM Sans', sans-serif" }}>
+    <div
+      style={{ display: "flex", flexDirection: "column", gap: 8, fontFamily: "'DM Sans', sans-serif" }}
+      onMouseDown={swallowButtonMouseDown}
+    >
 
       {/* Row 1: Font | Size | Line-height */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -173,30 +202,35 @@ export const WritingToolbar = memo(function WritingToolbar({
 
         <div style={dividerStyle} />
 
+        {/* B/I/U use onMouseDown + preventDefault so the editor's
+            selection stays intact when the chip is clicked. */}
         <button
-          onClick={() => onFormat("bold")}
+          onMouseDown={(e) => { e.preventDefault(); onFormat("bold"); }}
           title="Bold"
-          style={formatChipBase}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.blueLight; (e.currentTarget as HTMLElement).style.color = C.ink; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = C.muted; }}
+          aria-pressed={aBold}
+          style={formatChipStyle(aBold)}
+          onMouseEnter={e => { if (!aBold) { (e.currentTarget as HTMLElement).style.background = C.blueLight; (e.currentTarget as HTMLElement).style.color = C.ink; } }}
+          onMouseLeave={e => { if (!aBold) { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = C.muted; } }}
         >
           <strong>B</strong>
         </button>
         <button
-          onClick={() => onFormat("italic")}
+          onMouseDown={(e) => { e.preventDefault(); onFormat("italic"); }}
           title="Italic"
-          style={formatChipBase}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.blueLight; (e.currentTarget as HTMLElement).style.color = C.ink; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = C.muted; }}
+          aria-pressed={aItalic}
+          style={formatChipStyle(aItalic)}
+          onMouseEnter={e => { if (!aItalic) { (e.currentTarget as HTMLElement).style.background = C.blueLight; (e.currentTarget as HTMLElement).style.color = C.ink; } }}
+          onMouseLeave={e => { if (!aItalic) { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = C.muted; } }}
         >
           <em>I</em>
         </button>
         <button
-          onClick={() => onFormat("underline")}
+          onMouseDown={(e) => { e.preventDefault(); onFormat("underline"); }}
           title="Underline"
-          style={{ ...formatChipBase, textDecoration: "underline" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.blueLight; (e.currentTarget as HTMLElement).style.color = C.ink; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = C.muted; }}
+          aria-pressed={aUnderline}
+          style={{ ...formatChipStyle(aUnderline), textDecoration: "underline" }}
+          onMouseEnter={e => { if (!aUnderline) { (e.currentTarget as HTMLElement).style.background = C.blueLight; (e.currentTarget as HTMLElement).style.color = C.ink; } }}
+          onMouseLeave={e => { if (!aUnderline) { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = C.muted; } }}
         >
           U
         </button>

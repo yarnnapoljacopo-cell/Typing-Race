@@ -1,0 +1,2251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>Skins — Writing Sprint</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --cream: #F5F2EC;
+    --ink: #1a1a2e;
+    --blue: #3B5FDB;
+    --blue-soft: #6B8FD4;
+    --blue-light: #dce6f7;
+    --gold: #E8A838;
+    --gold-dark: #c8960c;
+    --muted: #7a7a92;
+    --border: rgba(107,143,212,0.13);
+    --card: rgba(255,255,255,0.9);
+  }
+
+  body {
+    background: var(--cream);
+    font-family: "DM Sans", sans-serif;
+    min-height: 100vh;
+    color: var(--ink);
+    overflow-x: hidden;
+  }
+
+  .bg-grid {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(107,143,212,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(107,143,212,0.04) 1px, transparent 1px);
+    background-size: 52px 52px;
+  }
+  .bg-orb { position: fixed; border-radius: 50%; filter: blur(110px); pointer-events: none; z-index: 0; }
+  .orb1 { width: 550px; height: 550px; background: radial-gradient(circle, rgba(107,143,212,0.12) 0%, transparent 70%); top: -150px; right: -120px; }
+  .orb2 { width: 420px; height: 420px; background: radial-gradient(circle, rgba(232,168,56,0.08) 0%, transparent 70%); bottom: -100px; left: -100px; }
+  .orb3 { width: 300px; height: 300px; background: radial-gradient(circle, rgba(239,68,68,0.05) 0%, transparent 70%); top: 50%; left: 30%; }
+
+  /* ── Nav ── */
+  .topnav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(245,242,236,0.94); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px; display: flex; align-items: center; gap: 14px;
+    height: 58px;
+  }
+  .nav-back { display: flex; align-items: center; gap: 6px; font-size: 0.84rem; font-weight: 500; color: var(--muted); cursor: pointer; background: none; border: none; font-family: "DM Sans", sans-serif; transition: color 0.18s; }
+  .nav-back:hover { color: var(--ink); }
+  .nav-title { font-family: "Playfair Display", serif; font-size: 1.1rem; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 9px; }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .coins-badge { display: flex; align-items: center; gap: 7px; background: white; border: 1px solid rgba(232,168,56,0.25); border-radius: 999px; padding: 5px 14px 5px 8px; font-weight: 700; font-size: 0.88rem; color: var(--ink); box-shadow: 0 2px 8px rgba(232,168,56,0.10); }
+  .coin-icon { width: 22px; height: 22px; background: linear-gradient(135deg, #f5c542, #e8933a); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; color: white; font-weight: 800; box-shadow: 0 1px 6px rgba(232,168,56,0.4); }
+  .nav-btn { display: flex; align-items: center; gap: 6px; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 7px 13px; font-size: 0.8rem; font-weight: 600; color: var(--ink); cursor: pointer; font-family: "DM Sans", sans-serif; transition: all 0.18s; box-shadow: 0 1px 4px rgba(107,143,212,0.07); }
+  .nav-btn:hover { border-color: rgba(107,143,212,0.28); box-shadow: 0 3px 10px rgba(107,143,212,0.12); }
+
+  /* ── Page ── */
+  .page { position: relative; z-index: 1; max-width: 1060px; margin: 0 auto; padding: 32px 28px 80px; }
+
+  /* ── Section header ── */
+  .section-wrap { margin-bottom: 48px; }
+  .section-top { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+  .section-eyebrow { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.16em; color: var(--gold-dark); text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .section-eyebrow::before { content: ''; width: 20px; height: 2px; background: linear-gradient(90deg, var(--gold), transparent); border-radius: 99px; }
+  .section-title { font-family: "Playfair Display", serif; font-size: 1.6rem; font-weight: 900; color: var(--ink); letter-spacing: -0.02em; }
+  .section-count { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+  .section-count strong { color: var(--ink); font-weight: 700; }
+
+  /* ── Skin grid ── */
+  .skin-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .track-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+
+  /* ── Skin card ── */
+  .skin-card {
+    background: white;
+    border: 2px solid rgba(255,255,255,0.8);
+    border-radius: 22px; overflow: hidden;
+    cursor: pointer; position: relative;
+    transition: all 0.28s cubic-bezier(.22,1,.36,1);
+    box-shadow: 0 4px 20px rgba(107,143,212,0.1), 0 1px 0 rgba(255,255,255,0.9) inset;
+  }
+  .skin-card:hover {
+    transform: translateY(-7px) scale(1.01);
+    box-shadow: 0 20px 50px rgba(107,143,212,0.18), 0 1px 0 rgba(255,255,255,0.9) inset;
+    border-color: rgba(107,143,212,0.35);
+  }
+  .skin-card.selected {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 4px rgba(59,95,219,0.15), 0 12px 36px rgba(59,95,219,0.25);
+    transform: translateY(-4px);
+  }
+  .skin-card.locked { cursor: default; }
+  .skin-card.locked:hover { transform: none; box-shadow: 0 4px 20px rgba(107,143,212,0.1); border-color: rgba(255,255,255,0.8); }
+
+  /* Selected check */
+  .selected-check {
+    position: absolute; top: 10px; right: 10px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--blue); display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s;
+    box-shadow: 0 2px 8px rgba(59,95,219,0.4);
+    z-index: 5;
+  }
+  .skin-card.selected .selected-check { opacity: 1; }
+
+  /* Lock overlay */
+  .lock-overlay {
+    position: absolute; inset: 0; z-index: 4;
+    background: rgba(10,8,20,0.55);
+    backdrop-filter: blur(3px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    opacity: 0; transition: opacity 0.22s;
+  }
+  .skin-card.locked:hover .lock-overlay { opacity: 1; }
+  .lock-icon { font-size: 1.6rem; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5)); }
+  .lock-price {
+    display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 800;
+    color: white; background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 999px; padding: 5px 14px;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  }
+  .lock-btn {
+    font-size: 0.72rem; font-weight: 700; color: white;
+    background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+    border: none; border-radius: 999px; padding: 5px 14px;
+    cursor: pointer; font-family: "DM Sans", sans-serif;
+    box-shadow: 0 3px 10px rgba(200,150,12,0.4);
+    transition: all 0.18s;
+  }
+  .lock-btn:hover { transform: scale(1.05); }
+
+  /* ── Kart preview area ── */
+  .kart-preview {
+    height: 100px; position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Track preview area */
+  .track-preview { height: 110px; position: relative; overflow: hidden; }
+
+  /* ── Card info ── */
+  .skin-info {
+    padding: 12px 14px 14px;
+    border-top: 1px solid rgba(107,143,212,0.08);
+    position: relative;
+  }
+  .skin-name { font-size: 0.9rem; font-weight: 800; color: var(--ink); margin-bottom: 5px; letter-spacing: -0.01em; }
+  .skin-meta { display: flex; align-items: center; justify-content: space-between; }
+  .skin-rarity { font-size: 0.65rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; display: flex; align-items: center; gap: 5px; }
+  .skin-rarity::before { content: ''; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .rarity-free { color: #15803d; } .rarity-free::before { background: #22c55e; box-shadow: 0 0 4px rgba(34,197,94,0.6); }
+  .rarity-rare { color: #1d4ed8; } .rarity-rare::before { background: #3b82f6; box-shadow: 0 0 4px rgba(59,130,246,0.6); }
+  .rarity-epic { color: #6d28d9; } .rarity-epic::before { background: #8b5cf6; box-shadow: 0 0 4px rgba(139,92,246,0.6); }
+  .rarity-mythic { color: #b45309; } .rarity-mythic::before { background: #f59e0b; box-shadow: 0 0 4px rgba(245,158,11,0.6); }
+  .rarity-legendary { color: #be123c; } .rarity-legendary::before { background: linear-gradient(135deg,#f59e0b,#ec4899); box-shadow: 0 0 6px rgba(236,72,153,0.5); }
+  .rarity-ultra {
+    background: linear-gradient(90deg, #ff0080, #ff8c00, #ffe000, #00ff88, #00cfff, #cc00ff);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text; font-weight: 900;
+    animation: ultraShift 3s linear infinite;
+    background-size: 200% 100%;
+  }
+  .rarity-ultra::before {
+    background: linear-gradient(135deg, #ff0080, #ff8c00, #ffe000, #00ff88, #00cfff, #cc00ff);
+    background-size: 200% 100%;
+    animation: ultraShift 3s linear infinite;
+    box-shadow: 0 0 8px rgba(255,0,128,0.8);
+  }
+  @keyframes ultraShift {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+  .tag-ultra {
+    background: linear-gradient(90deg,#ff0080,#ff8c00,#ffe000,#00ff88,#00cfff,#cc00ff);
+    background-size: 200% 100%;
+    animation: ultraShift 3s linear infinite;
+    color: white; border: none;
+    box-shadow: 0 0 10px rgba(255,0,128,0.5);
+  }
+
+  /* Ultra kart backgrounds */
+  .kart-celestial {
+    background: radial-gradient(ellipse at 30% 20%, #1a0050 0%, #000010 40%, #00001a 70%, #000005 100%);
+    position: relative;
+  }
+  .kart-celestial::before {
+    content: '';
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(2px 2px at 8% 15%, rgba(255,255,255,0.9) 0%, transparent 100%),
+      radial-gradient(1px 1px at 18% 35%, rgba(255,200,255,0.8) 0%, transparent 100%),
+      radial-gradient(2px 2px at 32% 10%, rgba(200,255,255,0.9) 0%, transparent 100%),
+      radial-gradient(1px 1px at 45% 40%, rgba(255,255,200,0.7) 0%, transparent 100%),
+      radial-gradient(2px 2px at 58% 18%, rgba(255,180,255,0.9) 0%, transparent 100%),
+      radial-gradient(1px 1px at 68% 32%, rgba(180,255,255,0.8) 0%, transparent 100%),
+      radial-gradient(2px 2px at 80% 12%, rgba(255,255,180,0.9) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 38%, rgba(255,180,200,0.7) 0%, transparent 100%),
+      radial-gradient(1px 1px at 25% 55%, rgba(200,200,255,0.6) 0%, transparent 100%),
+      radial-gradient(1px 1px at 75% 55%, rgba(255,200,200,0.6) 0%, transparent 100%),
+      radial-gradient(ellipse 120% 80% at 50% 50%, rgba(80,0,160,0.4) 0%, rgba(0,0,80,0.3) 40%, transparent 70%),
+      radial-gradient(ellipse 60% 40% at 20% 80%, rgba(0,100,255,0.2) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(200,0,255,0.2) 0%, transparent 60%);
+  }
+
+  .kart-inferno {
+    background: radial-gradient(ellipse at 50% 100%, #ff4400 0%, #cc0000 30%, #800000 60%, #200000 100%);
+    position: relative;
+  }
+  .kart-inferno::before {
+    content: '';
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,200,0,0.5) 0%, rgba(255,100,0,0.3) 40%, transparent 70%),
+      radial-gradient(ellipse 40% 30% at 20% 60%, rgba(255,50,0,0.3) 0%, transparent 50%),
+      radial-gradient(ellipse 40% 30% at 80% 60%, rgba(255,150,0,0.3) 0%, transparent 50%);
+  }
+
+  /* Ultra card special border */
+  .skin-card.ultra-card {
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    position: relative;
+  }
+  .skin-card.ultra-card::before {
+    content: '';
+    position: absolute; inset: -2px; border-radius: 24px; z-index: -1;
+    background: linear-gradient(135deg, #ff0080, #ff8c00, #ffe000, #00ff88, #00cfff, #cc00ff, #ff0080);
+    background-size: 300% 300%;
+    animation: ultraBorder 4s linear infinite;
+  }
+  @keyframes ultraBorder {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
+  }
+  .skin-card.ultra-card .kart-preview::after {
+    animation: speedLines 0.6s linear infinite;
+  }
+  .skin-tag { font-size: 0.63rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .tag-equipped { background: rgba(59,95,219,0.1); color: var(--blue); border: 1px solid rgba(59,95,219,0.22); }
+  .tag-owned { background: #f0fdf4; color: #15803d; border: 1px solid rgba(34,197,94,0.2); }
+  .tag-locked { background: rgba(107,143,212,0.06); color: var(--muted); border: 1px solid var(--border); }
+
+  /* ── KART preview backgrounds ── */
+  .kart-preview { position: relative; overflow: hidden; }
+
+  /* Shared speed line animation */
+  .kart-preview::after {
+    content: '';
+    position: absolute; top: 0; bottom: 0; left: 0; width: 100%;
+    background: repeating-linear-gradient(
+      90deg, transparent 0px, transparent 40px,
+      rgba(255,255,255,0.04) 40px, rgba(255,255,255,0.04) 80px
+    );
+    animation: speedLines 1.2s linear infinite;
+    pointer-events: none; z-index: 0;
+  }
+  @keyframes speedLines { from { background-position: 0 0; } to { background-position: -80px 0; } }
+
+  /* 1. Bluebird */
+  .kart-bluebird {
+    background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 35%, #3b82f6 65%, #60a5fa 100%);
+  }
+  .kart-bluebird::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(147,197,253,0.35) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* 2. Firebolt */
+  .kart-firebolt {
+    background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 30%, #f97316 65%, #fbbf24 100%);
+  }
+  .kart-firebolt::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 70% 30%, rgba(251,191,36,0.3) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 40% at 30% 70%, rgba(239,68,68,0.25) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  /* 3. Jade Rider */
+  .kart-jade {
+    background: linear-gradient(135deg, #052e16 0%, #166534 35%, #22c55e 70%, #4ade80 100%);
+  }
+  .kart-jade::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 70% 50% at 50% 20%, rgba(134,239,172,0.3) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  /* 4. Shadow */
+  .kart-shadow {
+    background: linear-gradient(135deg, #0f0a1e 0%, #1e1b4b 40%, #3730a3 70%, #4f46e5 100%);
+  }
+  .kart-shadow::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 50% 50% at 70% 40%, rgba(139,92,246,0.35) 0%, transparent 60%),
+      radial-gradient(ellipse 30% 30% at 20% 60%, rgba(99,102,241,0.2) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  /* 5. Crimson */
+  .kart-crimson {
+    background: linear-gradient(135deg, #450a0a 0%, #991b1b 35%, #dc2626 65%, #f87171 100%);
+  }
+  .kart-crimson::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 70% 50% at 50% 15%, rgba(252,165,165,0.3) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  /* 6. Royal */
+  .kart-royal {
+    background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 35%, #7c3aed 65%, #fcd34d 100%);
+  }
+  .kart-royal::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 40% 40% at 80% 20%, rgba(252,211,77,0.4) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 40% at 30% 70%, rgba(139,92,246,0.3) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  /* 7. Gilded */
+  .kart-gilded {
+    background: linear-gradient(135deg, #431407 0%, #92400e 30%, #d97706 60%, #fde68a 100%);
+  }
+  .kart-gilded::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 70% 50% at 50% 10%, rgba(254,240,138,0.5) 0%, transparent 60%),
+      radial-gradient(ellipse 30% 30% at 80% 80%, rgba(245,158,11,0.2) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  /* 8. Void */
+  .kart-void {
+    background: linear-gradient(135deg, #000000 0%, #0f0a1e 40%, #1e1040 70%, #2d1b69 100%);
+  }
+  .kart-void::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 50% 50% at 50% 50%, rgba(139,92,246,0.2) 0%, transparent 60%),
+      radial-gradient(2px 2px at 20% 20%, rgba(255,255,255,0.6) 0%, transparent 100%),
+      radial-gradient(2px 2px at 60% 35%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 15%, rgba(255,255,255,0.7) 0%, transparent 100%),
+      radial-gradient(1px 1px at 40% 75%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 75% 60%, rgba(255,255,255,0.5) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  /* ── TRACK previews ── */
+  /* Mushroom Kingdom */
+  .track-mushroom {
+    background: linear-gradient(180deg, #5BA3FF 0%, #87CEEB 50%, #7DC88A 80%, #5fba6e 100%);
+  }
+  /* Ghost House */
+  .track-ghost {
+    background: linear-gradient(180deg, #1a1228 0%, #2d1f4e 50%, #1a1228 100%);
+  }
+  /* Volcano */
+  .track-volcano {
+    background: linear-gradient(180deg, #7f1d1d 0%, #991b1b 40%, #3a1a00 100%);
+  }
+  /* Ice Palace */
+  .track-ice {
+    background: linear-gradient(180deg, #e0f2fe 0%, #bae6fd 50%, #e0f9ff 100%);
+  }
+  /* Rainbow Road */
+  .track-rainbow {
+    background: linear-gradient(160deg, #fce7f3 0%, #ede9fe 33%, #dbeafe 66%, #dcfce7 100%);
+  }
+  /* Desert Dunes */
+  .track-desert {
+    background: linear-gradient(180deg, #fed7aa 0%, #fbbf24 40%, #d97706 100%);
+  }
+
+  .track-underwater { background: linear-gradient(180deg, #001a3a 0%, #003d6b 30%, #0055a0 60%, #0077cc 100%); position:relative; }
+  .track-space { background: linear-gradient(180deg, #000005 0%, #050010 40%, #0a0520 80%, #050010 100%); position:relative; }
+  .track-autumn { background: linear-gradient(180deg, #7c2d12 0%, #c2410c 25%, #ea580c 50%, #fbbf24 80%, #92400e 100%); position:relative; }
+  .track-neon { background: linear-gradient(180deg, #020008 0%, #0a0014 40%, #120020 70%, #0a0014 100%); position:relative; }
+
+  /* ── Selected skin preview banner ── */
+  .preview-banner {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 20px 24px;
+    margin-bottom: 36px;
+    display: flex; align-items: center; gap: 20px;
+    box-shadow: 0 4px 20px rgba(107,143,212,0.08);
+    position: relative; overflow: hidden;
+  }
+  .preview-banner::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--blue), #818cf8, var(--blue));
+    border-radius: 20px 20px 0 0;
+  }
+  .preview-kart-area {
+    width: 160px; height: 80px; border-radius: 14px;
+    background: linear-gradient(160deg, #dbeafe, #eff6ff);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; position: relative; overflow: hidden;
+  }
+  .preview-info { flex: 1; }
+  .preview-label { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+  .preview-name { font-family: "Playfair Display", serif; font-size: 1.2rem; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+  .preview-badges { display: flex; gap: 6px; }
+  .preview-badge { font-size: 0.67rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .pbadge-blue { background: rgba(59,95,219,0.1); color: var(--blue); border: 1px solid rgba(59,95,219,0.2); }
+  .pbadge-green { background: #f0fdf4; color: #15803d; border: 1px solid rgba(34,197,94,0.2); }
+  .equip-btn {
+    background: linear-gradient(135deg, var(--blue), #5a82d0);
+    border: none; border-radius: 12px; padding: 12px 24px;
+    color: white; font-family: "DM Sans", sans-serif;
+    font-size: 0.9rem; font-weight: 700; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(59,95,219,0.3);
+    transition: all 0.22s; display: flex; align-items: center; gap: 8px;
+  }
+  .equip-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(59,95,219,0.4); }
+
+  /* Road preview for track cards */
+  .road-strip {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 36px;
+    display: flex; flex-direction: column;
+  }
+  .road-kerb-t { height: 5px; background: repeating-linear-gradient(90deg, #ef4444 0px, #ef4444 14px, white 14px, white 28px); }
+  .road-asphalt { flex: 1; background: #3a3a4a; position: relative; }
+  .road-dashes { position: absolute; top: 50%; left: 0; right: 0; height: 2px; transform: translateY(-50%); background: repeating-linear-gradient(90deg, rgba(255,255,255,0.5) 0px, rgba(255,255,255,0.5) 16px, transparent 16px, transparent 32px); }
+  .road-kerb-b { height: 5px; background: repeating-linear-gradient(90deg, #3b82f6 0px, #3b82f6 14px, white 14px, white 28px); }
+
+  /* Animated road for all cards */
+  .road-asphalt .road-dashes {
+    animation: roadScroll 0.8s linear infinite;
+  }
+  .road-asphalt.animated .road-dashes {
+    animation: roadScroll 0.6s linear infinite;
+  }
+  @keyframes roadScroll { from { background-position: 0 0; } to { background-position: -32px 0; } }
+
+  /* Track-specific kerb animations */
+  .track-kerb {
+    background-size: 40px 100%;
+    animation: kerbScroll 0.4s linear infinite;
+  }
+  .track-kerb.bottom {
+    animation: kerbScrollR 0.4s linear infinite;
+  }
+  @keyframes kerbScroll { from { background-position: 0 0; } to { background-position: -40px 0; } }
+  @keyframes kerbScrollR { from { background-position: 0 0; } to { background-position: 40px 0; } }
+
+  /* Mushroom Kingdom clouds drift */
+  .track-mushroom .cloud-anim {
+    animation: cloudDriftSlow 12s linear infinite;
+  }
+  @keyframes cloudDriftSlow { from { transform: translateX(0); } to { transform: translateX(60px); } }
+
+  /* Ghost House — subtle flicker on windows */
+  @keyframes windowFlicker {
+    0%,90%,100% { opacity: 1; }
+    92% { opacity: 0.3; }
+    95% { opacity: 1; }
+    97% { opacity: 0.5; }
+  }
+
+  /* Volcano — lava pulse */
+  @keyframes lavaPulse {
+    0%,100% { box-shadow: 0 0 16px rgba(249,115,22,0.8), 0 0 32px rgba(239,68,68,0.3); }
+    50% { box-shadow: 0 0 28px rgba(249,115,22,1), 0 0 56px rgba(239,68,68,0.6); }
+  }
+
+  /* Ice — shimmer */
+  @keyframes iceShimmer {
+    0%,100% { opacity: 0.7; }
+    50% { opacity: 1; }
+  }
+
+  /* Rainbow — hue shift */
+  @keyframes rainbowShift {
+    0% { filter: hue-rotate(0deg); }
+    100% { filter: hue-rotate(360deg); }
+  }
+
+  /* Neon city — sign flicker */
+  @keyframes neonFlicker {
+    0%,85%,100% { opacity: 1; }
+    87% { opacity: 0.2; }
+    90% { opacity: 1; }
+    93% { opacity: 0.4; }
+    96% { opacity: 1; }
+  }
+
+  /* Space — star twinkle */
+  @keyframes starTwinkle {
+    0%,100% { opacity: 0.9; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.6); }
+  }
+
+  /* Underwater — bubble rise */
+  @keyframes bubbleRise {
+    0% { transform: translateY(0) scale(1); opacity: 0.6; }
+    50% { opacity: 0.9; }
+    100% { transform: translateY(-30px) scale(1.3); opacity: 0; }
+  }
+
+  /* Autumn — leaves fall */
+  @keyframes leafFall {
+    0% { transform: translateY(0) rotate(0deg); opacity: 0.8; }
+    100% { transform: translateY(20px) rotate(180deg); opacity: 0; }
+  }
+
+  /* Neon road pulse */
+  @keyframes neonRoadPulse {
+    0%,100% { box-shadow: 0 0 8px rgba(232,121,249,0.5); }
+    50% { box-shadow: 0 0 16px rgba(232,121,249,0.9); }
+  }
+
+  /* Cyber road scan */
+  @keyframes cyberScan {
+    0% { background-position: 0 0; }
+    100% { background-position: 0 40px; }
+  }
+
+  /* ── Divider ── */
+  .section-divider {
+    height: 1px; margin: 0 0 48px;
+    background: linear-gradient(90deg, transparent, rgba(107,143,212,0.2), transparent);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .skin-grid { grid-template-columns: repeat(2, 1fr); }
+    .track-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-orb orb1"></div>
+<div class="bg-orb orb2"></div>
+<div class="bg-orb orb3"></div>
+
+<nav class="topnav">
+  <button class="nav-back">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Back
+  </button>
+  <div class="nav-title">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    Skins
+  </div>
+  <div class="nav-right">
+    <div class="coins-badge"><div class="coin-icon">✦</div>35,328</div>
+    <button class="nav-btn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      Shop
+    </button>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- Active preview banner -->
+  <div class="preview-banner" id="previewBanner">
+    <div class="preview-kart-area" id="previewKartArea">
+      <!-- Kart preview rendered here -->
+      <svg width="80" height="46" viewBox="0 0 64 38" fill="none" id="previewKartSvg">
+        <defs>
+          <linearGradient id="pb1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#2563eb"/></linearGradient>
+          <linearGradient id="pb2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient>
+        </defs>
+        <ellipse cx="32" cy="37" rx="24" ry="3" fill="rgba(0,0,0,0.2)"/>
+        <path d="M8 20 Q8 14 14 13 L48 13 Q54 13 56 18 L56 24 Q56 26 54 26 L10 26 Q8 26 8 24 Z" fill="url(#pb1)"/>
+        <path d="M16 13 L20 5 L42 5 L48 13 Z" fill="url(#pb2)"/>
+        <path d="M21 13 L24 6.5 L40 6.5 L44 13 Z" fill="rgba(180,220,255,0.75)"/>
+        <path d="M5 9 L5 19" stroke="#1e40af" stroke-width="3" stroke-linecap="round"/>
+        <rect x="1" y="8" width="9" height="3" rx="1.5" fill="#60a5fa"/>
+        <path d="M54 18 L62 15 L63 20 L56 22 Z" fill="#60a5fa"/>
+        <ellipse cx="18" cy="29" rx="7" ry="5.5" fill="#111827"/>
+        <ellipse cx="18" cy="29" rx="4.5" ry="3.5" fill="#374151"/>
+        <ellipse cx="18" cy="29" rx="1.8" ry="1.5" fill="#6b7280"/>
+        <ellipse cx="46" cy="29" rx="7" ry="5.5" fill="#111827"/>
+        <ellipse cx="46" cy="29" rx="4.5" ry="3.5" fill="#374151"/>
+        <ellipse cx="46" cy="29" rx="1.8" ry="1.5" fill="#6b7280"/>
+        <rect x="26" y="16" width="12" height="7" rx="2" fill="white" opacity="0.9"/>
+        <text x="32" y="22" text-anchor="middle" font-size="5.5" font-weight="900" fill="#1d4ed8" font-family="monospace">01</text>
+        <ellipse cx="58" cy="19" rx="2.5" ry="2" fill="#fef08a" opacity="0.9"/>
+      </svg>
+    </div>
+    <div class="preview-info">
+      <div class="preview-label">Currently Equipped</div>
+      <div class="preview-name" id="previewName">Bluebird</div>
+      <div class="preview-badges">
+        <span class="preview-badge pbadge-blue">Kart Skin</span>
+        <span class="preview-badge pbadge-green">Equipped</span>
+      </div>
+    </div>
+    <button class="equip-btn" id="equipBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      Equipped
+    </button>
+  </div>
+
+  <!-- ══ KART SKINS ══ -->
+  <div class="section-wrap">
+    <div class="section-top">
+      <div>
+        <div class="section-eyebrow">Garage</div>
+        <div class="section-title">Kart Skins</div>
+      </div>
+      <div class="section-count"><strong>3</strong> / 14 owned</div>
+    </div>
+
+    <div class="skin-grid">
+
+      <!-- 1. Bluebird — selected/equipped -->
+      <div class="skin-card selected" onclick="selectKart(this,'Bluebird','Free','#dbeafe','#eff6ff')">
+        <div class="selected-check">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="kart-preview kart-bluebird" style="background:linear-gradient(135deg,#1d4ed8 0%,#2563eb 35%,#3b82f6 65%,#60a5fa 100%);">
+          <svg width="88" height="52" viewBox="0 0 64 38" fill="none">
+            <defs>
+              <linearGradient id="k1a" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#93c5fd"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient>
+              <linearGradient id="k1b" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#2563eb"/></linearGradient>
+              <radialGradient id="k1glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="rgba(147,197,253,0.6)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+            </defs>
+            <!-- Ground glow -->
+            <ellipse cx="32" cy="37" rx="26" ry="3.5" fill="rgba(59,130,246,0.25)"/>
+            <!-- Shadow -->
+            <ellipse cx="32" cy="36" rx="22" ry="2" fill="rgba(0,0,0,0.25)"/>
+            <!-- Body -->
+            <path d="M8 20 Q8 14 14 13 L48 13 Q54 13 56 18 L56 24 Q56 26 54 26 L10 26 Q8 26 8 24 Z" fill="url(#k1a)"/>
+            <!-- Racing stripe white -->
+            <path d="M16 16 L50 16" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M16 19 L50 19" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-linecap="round"/>
+            <!-- Cabin top -->
+            <path d="M16 13 L20 5 L42 5 L48 13 Z" fill="url(#k1b)"/>
+            <!-- Windshield -->
+            <path d="M21 13 L24 6.5 L40 6.5 L44 13 Z" fill="rgba(186,230,253,0.85)"/>
+            <path d="M23 11 Q32 9 41 11" stroke="rgba(255,255,255,0.5)" stroke-width="0.8" fill="none"/>
+            <!-- Rear wing -->
+            <rect x="1" y="7" width="9" height="3" rx="1.5" fill="#60a5fa"/>
+            <rect x="4" y="7" width="3" height="10" rx="1.5" fill="#2563eb"/>
+            <rect x="1" y="10" width="9" height="1" rx="0.5" fill="rgba(0,0,0,0.2)"/>
+            <!-- Front wing -->
+            <path d="M54 17 L63 13 L64 19 L56 22 Z" fill="#93c5fd"/>
+            <path d="M56 17 L63 14" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+            <!-- Nose cone -->
+            <path d="M53 14 L63 18 L61 24 L52 24 Z" fill="#1e40af"/>
+            <!-- Wheels with rims -->
+            <ellipse cx="18" cy="29" rx="7" ry="5.5" fill="#0f172a"/>
+            <ellipse cx="18" cy="29" rx="5.5" ry="4.2" fill="#1e293b"/>
+            <ellipse cx="18" cy="29" rx="3.5" ry="2.8" fill="#334155"/>
+            <ellipse cx="18" cy="29" rx="1.8" ry="1.5" fill="#64748b"/>
+            <ellipse cx="16.5" cy="27.5" rx="1.2" ry="0.8" fill="rgba(255,255,255,0.2)" transform="rotate(-20 16.5 27.5)"/>
+            <ellipse cx="46" cy="29" rx="7" ry="5.5" fill="#0f172a"/>
+            <ellipse cx="46" cy="29" rx="5.5" ry="4.2" fill="#1e293b"/>
+            <ellipse cx="46" cy="29" rx="3.5" ry="2.8" fill="#334155"/>
+            <ellipse cx="46" cy="29" rx="1.8" ry="1.5" fill="#64748b"/>
+            <ellipse cx="44.5" cy="27.5" rx="1.2" ry="0.8" fill="rgba(255,255,255,0.2)" transform="rotate(-20 44.5 27.5)"/>
+            <!-- Number plate -->
+            <rect x="25" y="16" width="14" height="8" rx="2" fill="white" opacity="0.95"/>
+            <text x="32" y="22.5" text-anchor="middle" font-size="5.5" font-weight="900" fill="#1d4ed8" font-family="monospace">01</text>
+            <!-- Headlight with glow -->
+            <ellipse cx="60" cy="19" rx="2.5" ry="2" fill="#fef08a"/>
+            <ellipse cx="60" cy="19" rx="5" ry="4" fill="rgba(254,240,138,0.3)"/>
+            <!-- Exhaust glow -->
+            <circle cx="7" cy="22" r="2" fill="#f97316" opacity="0.8"/>
+            <circle cx="4" cy="23" r="1.2" fill="#fbbf24" opacity="0.5"/>
+            <!-- Body shine -->
+            <path d="M16 14 Q32 12 46 14" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Bluebird</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-free">Free</span>
+            <span class="skin-tag tag-equipped">Equipped</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Firebolt -->
+      <div class="skin-card" onclick="selectKart(this,'Firebolt','Rare','#fef3c7','#fff7ed')">
+        <div class="selected-check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="kart-preview kart-firebolt" style="background:linear-gradient(135deg,#7f1d1d 0%,#b91c1c 30%,#f97316 65%,#fbbf24 100%);">
+          <svg width="80" height="46" viewBox="0 0 64 38" fill="none">
+            <defs><linearGradient id="k2a" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fb923c"/><stop offset="100%" stop-color="#c2410c"/></linearGradient><linearGradient id="k2b" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f97316"/><stop offset="100%" stop-color="#ea580c"/></linearGradient></defs>
+            <ellipse cx="32" cy="37" rx="22" ry="2.5" fill="rgba(0,0,0,0.15)"/>
+            <path d="M8 20 Q8 14 14 13 L48 13 Q54 13 56 18 L56 24 Q56 26 54 26 L10 26 Q8 26 8 24 Z" fill="url(#k2a)"/>
+            <path d="M16 13 L20 5 L42 5 L48 13 Z" fill="url(#k2b)"/>
+            <path d="M21 13 L24 6.5 L40 6.5 L44 13 Z" fill="rgba(255,220,180,0.7)"/>
+            <!-- Flame stripe -->
+            <path d="M10 18 Q16 14 22 18 Q28 22 34 18 Q40 14 46 18" stroke="rgba(255,200,0,0.5)" stroke-width="1.5" fill="none"/>
+            <rect x="1" y="8" width="9" height="3" rx="1.5" fill="#f97316"/>
+            <path d="M5 9 L5 19" stroke="#c2410c" stroke-width="3" stroke-linecap="round"/>
+            <path d="M54 18 L62 15 L63 20 L56 22 Z" fill="#fb923c"/>
+            <ellipse cx="18" cy="29" rx="6" ry="4.5" fill="#1c0a00"/><ellipse cx="18" cy="29" rx="3.5" ry="3" fill="#431407"/><ellipse cx="18" cy="29" rx="1.5" ry="1.2" fill="#7c2d12"/>
+            <ellipse cx="46" cy="29" rx="6" ry="4.5" fill="#1c0a00"/><ellipse cx="46" cy="29" rx="3.5" ry="3" fill="#431407"/><ellipse cx="46" cy="29" rx="1.5" ry="1.2" fill="#7c2d12"/>
+            <rect x="26" y="16" width="12" height="7" rx="2" fill="#fef08a" opacity="0.9"/>
+            <text x="32" y="22" text-anchor="middle" font-size="5" font-weight="900" fill="#c2410c" font-family="monospace">02</text>
+            <ellipse cx="58" cy="19" rx="2" ry="1.5" fill="#fef08a" opacity="0.9"/>
+          </svg>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Firebolt</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-rare">Rare</span>
+            <span class="skin-tag tag-owned">Owned</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Jade Rider -->
+      <div class="skin-card" onclick="selectKart(this,'Jade Rider','Rare','#dcfce7','#f0fdf4')">
+        <div class="selected-check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="kart-preview kart-jade" style="background:linear-gradient(135deg,#052e16 0%,#166534 35%,#22c55e 70%,#4ade80 100%);">
+          <svg width="80" height="46" viewBox="0 0 64 38" fill="none">
+            <defs><linearGradient id="k3a" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#15803d"/></linearGradient><linearGradient id="k3b" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22c55e"/><stop offset="100%" stop-color="#166534"/></linearGradient></defs>
+            <ellipse cx="32" cy="37" rx="22" ry="2.5" fill="rgba(0,0,0,0.15)"/>
+            <path d="M8 20 Q8 14 14 13 L48 13 Q54 13 56 18 L56 24 Q56 26 54 26 L10 26 Q8 26 8 24 Z" fill="url(#k3a)"/>
+            <path d="M16 13 L20 5 L42 5 L48 13 Z" fill="url(#k3b)"/>
+            <path d="M21 13 L24 6.5 L40 6.5 L44 13 Z" fill="rgba(180,255,200,0.7)"/>
+            <rect x="1" y="8" width="9" height="3" rx="1.5" fill="#4ade80"/>
+            <path d="M5 9 L5 19" stroke="#166534" stroke-width="3" stroke-linecap="round"/>
+            <path d="M54 18 L62 15 L63 20 L56 22 Z" fill="#4ade80"/>
+            <ellipse cx="18" cy="29" rx="6" ry="4.5" fill="#052e16"/><ellipse cx="18" cy="29" rx="3.5" ry="3" fill="#14532d"/><ellipse cx="18" cy="29" rx="1.5" ry="1.2" fill="#166534"/>
+            <ellipse cx="46" cy="29" rx="6" ry="4.5" fill="#052e16"/><ellipse cx="46" cy="29" rx="3.5" ry="3" fill="#14532d"/><ellipse cx="46" cy="29" rx="1.5" ry="1.2" fill="#166534"/>
+            <rect x="26" y="16" width="12" height="7" rx="2" fill="white" opacity="0.9"/>
+            <text x="32" y="22" text-anchor="middle" font-size="5" font-weight="900" fill="#166534" font-family="monospace">07</text>
+            <ellipse cx="58" cy="19" rx="2" ry="1.5" fill="#fef08a" opacity="0.9"/>
+          </svg>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Jade Rider</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-rare">Rare</span>
+            <span class="skin-tag tag-owned">Owned</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Shadow — locked -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>4,000</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="kart-preview kart-shadow" style="background:linear-gradient(135deg,#0f0a1e 0%,#1e1b4b 40%,#3730a3 70%,#4f46e5 100%);">
+          <svg width="88" height="52" viewBox="0 0 70 42" fill="none">
+            <defs>
+              <linearGradient id="sh_body" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#18122e"/><stop offset="50%" stop-color="#0d0920"/><stop offset="100%" stop-color="#060410"/></linearGradient>
+              <linearGradient id="sh_top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2d1f5e"/><stop offset="100%" stop-color="#1a1040"/></linearGradient>
+              <radialGradient id="sh_glow" cx="50%" cy="100%" r="60%"><stop offset="0%" stop-color="rgba(139,92,246,0.6)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+              <filter id="sh_blur"><feGaussianBlur stdDeviation="1.5"/></filter>
+            </defs>
+            <!-- Underglow -->
+            <ellipse cx="35" cy="39" rx="28" ry="5" fill="url(#sh_glow)" filter="url(#sh_blur)"/>
+            <!-- Shadow -->
+            <ellipse cx="35" cy="38" rx="23" ry="2" fill="rgba(0,0,0,0.5)"/>
+            <!-- Body — ultra low wedge shape -->
+            <path d="M6 22 Q5 16 12 15 L52 15 Q58 15 60 19 L60 26 Q60 28 58 28 L8 28 Q6 28 6 26 Z" fill="url(#sh_body)"/>
+            <!-- Neon purple side stripes -->
+            <path d="M10 18 L54 18" stroke="#8b5cf6" stroke-width="1" opacity="0.8"/>
+            <path d="M10 22 L54 22" stroke="#7c3aed" stroke-width="0.5" opacity="0.5"/>
+            <!-- Neon underglow strip along bottom -->
+            <path d="M10 28 L56 28" stroke="#a855f7" stroke-width="1.5" opacity="0.9" filter="url(#sh_blur)"/>
+            <path d="M10 28 L56 28" stroke="#e879f9" stroke-width="0.5" opacity="0.6"/>
+            <!-- Cabin — dark smoked -->
+            <path d="M18 15 L22 5 L46 5 L52 15 Z" fill="url(#sh_top)"/>
+            <!-- Smoked windshield -->
+            <path d="M23 15 L26 7 L44 7 L48 15 Z" fill="rgba(80,50,180,0.45)"/>
+            <path d="M25 13 Q35 10 45 13" stroke="rgba(167,139,250,0.5)" stroke-width="0.8" fill="none"/>
+            <!-- Ghost-style rear wing — swept back dramatically -->
+            <path d="M1 5 L8 8 L8 18 L1 18 Z" fill="#2d1f5e" stroke="#7c3aed" stroke-width="0.5"/>
+            <rect x="0" y="5" width="10" height="2" rx="1" fill="#8b5cf6"/>
+            <rect x="0" y="15" width="10" height="2" rx="1" fill="#8b5cf6"/>
+            <!-- Neon wing glow -->
+            <rect x="0" y="5" width="10" height="2" rx="1" fill="#c084fc" opacity="0.5" filter="url(#sh_blur)"/>
+            <!-- Sharp knife-edge front wing -->
+            <path d="M58 16 L68 11 L70 16 L68 21 L60 24 Z" fill="#1a0f3e" stroke="#8b5cf6" stroke-width="0.8"/>
+            <path d="M60 14 L68 11" stroke="#c084fc" stroke-width="0.8" opacity="0.7"/>
+            <!-- Nose — sharp wedge -->
+            <path d="M57 16 L68 19 L66 26 L56 26 Z" fill="#0d0720" stroke="#6d28d9" stroke-width="0.8"/>
+            <!-- Purple headlights -->
+            <ellipse cx="66" cy="19" rx="2.5" ry="2" fill="#c084fc"/>
+            <ellipse cx="66" cy="19" rx="5" ry="4" fill="rgba(192,132,252,0.35)" filter="url(#sh_blur)"/>
+            <!-- Wheels — matte black with purple rim -->
+            <ellipse cx="20" cy="32" rx="7.5" ry="6" fill="#080612"/>
+            <ellipse cx="20" cy="32" rx="6" ry="4.8" fill="#120d22"/>
+            <ellipse cx="20" cy="32" rx="4" ry="3.2" fill="#1e1a3a"/>
+            <ellipse cx="20" cy="32" rx="2" ry="1.6" fill="#8b5cf6"/>
+            <!-- Purple rim glow -->
+            <ellipse cx="20" cy="32" rx="6" ry="4.8" fill="none" stroke="#7c3aed" stroke-width="0.8" opacity="0.7"/>
+            <ellipse cx="50" cy="32" rx="7.5" ry="6" fill="#080612"/>
+            <ellipse cx="50" cy="32" rx="6" ry="4.8" fill="#120d22"/>
+            <ellipse cx="50" cy="32" rx="4" ry="3.2" fill="#1e1a3a"/>
+            <ellipse cx="50" cy="32" rx="2" ry="1.6" fill="#8b5cf6"/>
+            <ellipse cx="50" cy="32" rx="6" ry="4.8" fill="none" stroke="#7c3aed" stroke-width="0.8" opacity="0.7"/>
+            <!-- Number plate — ghost purple -->
+            <rect x="28" y="18" width="14" height="8" rx="2" fill="#1e0a40" stroke="#8b5cf6" stroke-width="0.8"/>
+            <text x="35" y="24" text-anchor="middle" font-size="5.5" font-weight="900" fill="#c084fc" font-family="monospace">13</text>
+            <!-- Exhaust — purple plasma -->
+            <circle cx="7" cy="24" r="2" fill="#7c3aed" opacity="0.9"/>
+            <circle cx="4" cy="25" r="1.5" fill="#a855f7" opacity="0.6" filter="url(#sh_blur)"/>
+            <circle cx="2" cy="24" r="1" fill="#c084fc" opacity="0.4" filter="url(#sh_blur)"/>
+          </svg>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Shadow Racer</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-epic">Epic</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Crimson — locked -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>3,500</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="kart-preview kart-crimson" style="background:linear-gradient(135deg,#450a0a 0%,#991b1b 35%,#dc2626 65%,#f87171 100%);">
+          <svg width="88" height="52" viewBox="0 0 70 42" fill="none">
+            <defs>
+              <linearGradient id="cr_body" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#dc2626"/><stop offset="40%" stop-color="#991b1b"/><stop offset="100%" stop-color="#450a0a"/></linearGradient>
+              <linearGradient id="cr_top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f87171"/><stop offset="100%" stop-color="#b91c1c"/></linearGradient>
+              <linearGradient id="cr_flame" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#fbbf24"/><stop offset="50%" stop-color="#f97316"/><stop offset="100%" stop-color="#ef4444" stop-opacity="0"/></linearGradient>
+              <filter id="cr_blur"><feGaussianBlur stdDeviation="1.2"/></filter>
+            </defs>
+            <!-- Fire ground glow -->
+            <ellipse cx="35" cy="39" rx="28" ry="5" fill="rgba(239,68,68,0.3)" filter="url(#cr_blur)"/>
+            <ellipse cx="35" cy="38" rx="22" ry="2" fill="rgba(0,0,0,0.4)"/>
+            <!-- Wide body — muscle kart -->
+            <path d="M4 21 Q3 14 10 13 L56 13 Q63 13 65 19 L65 27 Q65 29 62 29 L7 29 Q4 29 4 27 Z" fill="url(#cr_body)"/>
+            <!-- Flame livery on body side -->
+            <path d="M8 16 Q14 11 20 16 Q24 19 28 15 Q32 11 36 15 Q40 19 44 15 Q48 11 52 15 L52 17 Q48 13 44 17 Q40 21 36 17 Q32 13 28 17 Q24 21 20 18 Q14 13 8 18 Z" fill="url(#cr_flame)" opacity="0.75"/>
+            <!-- Second flame layer -->
+            <path d="M6 19 Q10 14 14 19 Q18 23 22 18 Q26 13 30 18 Q34 23 38 18 Q42 13 46 18 L46 20 Q42 15 38 20 Q34 25 30 20 Q26 15 22 20 Q18 25 14 21 Q10 16 6 21 Z" fill="rgba(251,191,36,0.4)" opacity="0.6"/>
+            <!-- Wide air scoops on hood -->
+            <rect x="22" y="13" width="8" height="4" rx="1" fill="#3c0000" stroke="rgba(239,68,68,0.5)" stroke-width="0.5"/>
+            <rect x="36" y="13" width="8" height="4" rx="1" fill="#3c0000" stroke="rgba(239,68,68,0.5)" stroke-width="0.5"/>
+            <!-- Cabin — low and wide -->
+            <path d="M15 13 L19 4 L49 4 L55 13 Z" fill="url(#cr_top)"/>
+            <!-- Windshield with heat tint -->
+            <path d="M20 13 L23 5.5 L47 5.5 L51 13 Z" fill="rgba(255,100,50,0.5)"/>
+            <path d="M22 11 Q35 8 50 11" stroke="rgba(255,200,150,0.5)" stroke-width="0.8" fill="none"/>
+            <!-- Massive rear wing — double decker -->
+            <rect x="-1" y="4" width="12" height="3" rx="1.5" fill="#dc2626" stroke="#f87171" stroke-width="0.5"/>
+            <rect x="-1" y="8" width="12" height="3" rx="1.5" fill="#991b1b" stroke="#f87171" stroke-width="0.5"/>
+            <rect x="3" y="4" width="4" height="8" rx="1" fill="#7f1d1d"/>
+            <!-- Wing fire glow -->
+            <rect x="-1" y="4" width="12" height="3" rx="1.5" fill="#ef4444" opacity="0.4" filter="url(#cr_blur)"/>
+            <!-- Front splitter and wing -->
+            <path d="M63 14 L70 10 L70 15 L68 22 L62 26 Z" fill="#7f1d1d" stroke="#ef4444" stroke-width="0.6"/>
+            <path d="M64 13 L70 10" stroke="#fca5a5" stroke-width="0.8" opacity="0.7"/>
+            <!-- Exhaust pipes — dual -->
+            <ellipse cx="4" cy="23" rx="2.5" ry="1.8" fill="#3c0000" stroke="#dc2626" stroke-width="0.5"/>
+            <ellipse cx="4" cy="26" rx="2.5" ry="1.8" fill="#3c0000" stroke="#dc2626" stroke-width="0.5"/>
+            <!-- Exhaust fire -->
+            <path d="M1 22 Q-3 23 -2 25 Q-3 24 0 24 Z" fill="#f97316" opacity="0.9"/>
+            <path d="M1 25 Q-4 26 -2 28 Q-3 27 0 27 Z" fill="#fbbf24" opacity="0.7"/>
+            <!-- Wheels — wide racing slicks with red rims -->
+            <ellipse cx="19" cy="33" rx="8.5" ry="6.5" fill="#0a0a0a"/>
+            <ellipse cx="19" cy="33" rx="7" ry="5.2" fill="#1a0505"/>
+            <ellipse cx="19" cy="33" rx="5" ry="3.8" fill="#3c0000"/>
+            <ellipse cx="19" cy="33" rx="3" ry="2.3" fill="#dc2626"/>
+            <ellipse cx="19" cy="33" rx="1.5" ry="1.1" fill="#fca5a5"/>
+            <!-- Tire tread marks -->
+            <ellipse cx="19" cy="33" rx="7" ry="5.2" fill="none" stroke="#dc2626" stroke-width="0.5" opacity="0.5"/>
+            <ellipse cx="52" cy="33" rx="8.5" ry="6.5" fill="#0a0a0a"/>
+            <ellipse cx="52" cy="33" rx="7" ry="5.2" fill="#1a0505"/>
+            <ellipse cx="52" cy="33" rx="5" ry="3.8" fill="#3c0000"/>
+            <ellipse cx="52" cy="33" rx="3" ry="2.3" fill="#dc2626"/>
+            <ellipse cx="52" cy="33" rx="1.5" ry="1.1" fill="#fca5a5"/>
+            <ellipse cx="52" cy="33" rx="7" ry="5.2" fill="none" stroke="#dc2626" stroke-width="0.5" opacity="0.5"/>
+            <!-- Number plate — beast style -->
+            <rect x="28" y="17" width="14" height="9" rx="2" fill="#3c0000" stroke="#ef4444" stroke-width="1"/>
+            <text x="35" y="24" text-anchor="middle" font-size="6" font-weight="900" fill="#fca5a5" font-family="monospace">99</text>
+            <!-- Dual headlights -->
+            <ellipse cx="66" cy="18" rx="2" ry="1.5" fill="#fef08a"/>
+            <ellipse cx="66" cy="22" rx="2" ry="1.5" fill="#fef08a"/>
+            <ellipse cx="67" cy="20" rx="4" ry="5" fill="rgba(254,240,138,0.2)" filter="url(#cr_blur)"/>
+            <!-- Body shine -->
+            <path d="M14 14 Q35 12 52 14" stroke="rgba(255,150,150,0.3)" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Crimson Beast</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-epic">Epic</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Royal — locked -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>6,000</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="kart-preview kart-royal" style="background:linear-gradient(135deg,#1e1b4b 0%,#4c1d95 35%,#7c3aed 65%,#fcd34d 100%);">
+          <svg width="88" height="52" viewBox="0 0 70 42" fill="none">
+            <defs>
+              <linearGradient id="ro_body" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4c1d95"/><stop offset="45%" stop-color="#6d28d9"/><stop offset="100%" stop-color="#1e1b4b"/></linearGradient>
+              <linearGradient id="ro_top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#4c1d95"/></linearGradient>
+              <linearGradient id="ro_gold" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#92400e"/><stop offset="30%" stop-color="#d97706"/><stop offset="60%" stop-color="#fcd34d"/><stop offset="100%" stop-color="#d97706"/></linearGradient>
+              <filter id="ro_blur"><feGaussianBlur stdDeviation="1.2"/></filter>
+            </defs>
+            <!-- Gold ground glow -->
+            <ellipse cx="35" cy="39" rx="28" ry="5" fill="rgba(252,211,77,0.2)" filter="url(#ro_blur)"/>
+            <ellipse cx="35" cy="38" rx="22" ry="2" fill="rgba(0,0,0,0.35)"/>
+            <!-- Main body -->
+            <path d="M6 21 Q5 15 12 14 L52 14 Q59 14 61 19 L61 27 Q61 29 58 29 L8 29 Q6 29 6 27 Z" fill="url(#ro_body)"/>
+            <!-- Gold pinstripe — twin lines, elegant -->
+            <path d="M10 17 L56 17" stroke="url(#ro_gold)" stroke-width="1.5"/>
+            <path d="M10 19.5 L56 19.5" stroke="url(#ro_gold)" stroke-width="0.6" opacity="0.5"/>
+            <!-- Gold lower accent strip -->
+            <path d="M8 29 L58 29" stroke="url(#ro_gold)" stroke-width="2"/>
+            <path d="M8 29 L58 29" stroke="#fcd34d" stroke-width="0.5" opacity="0.6" filter="url(#ro_blur)"/>
+            <!-- Cabin -->
+            <path d="M16 14 L20 4 L48 4 L54 14 Z" fill="url(#ro_top)"/>
+            <!-- Crystal-clear windshield -->
+            <path d="M21 14 L24 6 L46 6 L50 14 Z" fill="rgba(196,181,253,0.5)"/>
+            <!-- Crown decal on hood -->
+            <text x="35" y="13" text-anchor="middle" font-size="7" fill="rgba(252,211,77,0.8)">♛</text>
+            <!-- Swept rear wing with gold endplates -->
+            <path d="M1 3 L9 6 L9 18 L1 18 Z" fill="#1e1b4b" stroke="url(#ro_gold)" stroke-width="1"/>
+            <rect x="0" y="3" width="11" height="2.5" rx="1.2" fill="url(#ro_gold)"/>
+            <rect x="0" y="14" width="11" height="2.5" rx="1.2" fill="url(#ro_gold)"/>
+            <!-- Gold glow on rear wing -->
+            <rect x="0" y="3" width="11" height="2.5" rx="1.2" fill="#fcd34d" opacity="0.3" filter="url(#ro_blur)"/>
+            <!-- Elegant front wing -->
+            <path d="M59 15 L69 10 L70 20 L68 24 L60 26 Z" fill="#1e1b4b" stroke="url(#ro_gold)" stroke-width="0.8"/>
+            <path d="M60 14 L69 10" stroke="#fcd34d" stroke-width="1" opacity="0.8"/>
+            <path d="M60 17 L68 13" stroke="#fcd34d" stroke-width="0.5" opacity="0.4"/>
+            <!-- Regal nose -->
+            <path d="M58 15 L69 19 L67 27 L56 27 Z" fill="#2e1065" stroke="#7c3aed" stroke-width="0.8"/>
+            <!-- Gold headlights -->
+            <ellipse cx="67" cy="19.5" rx="2.5" ry="2" fill="#fcd34d"/>
+            <ellipse cx="67" cy="19.5" rx="5" ry="4" fill="rgba(252,211,77,0.35)" filter="url(#ro_blur)"/>
+            <!-- Wheels — deep purple with gold rims -->
+            <ellipse cx="20" cy="33" rx="8" ry="6" fill="#080612"/>
+            <ellipse cx="20" cy="33" rx="6.5" ry="4.8" fill="#1e1b4b"/>
+            <ellipse cx="20" cy="33" rx="4.5" ry="3.4" fill="#312e81"/>
+            <ellipse cx="20" cy="33" rx="2.5" ry="1.9" fill="url(#ro_gold)"/>
+            <ellipse cx="20" cy="33" rx="1.2" ry="0.9" fill="#fcd34d"/>
+            <ellipse cx="20" cy="33" rx="6.5" ry="4.8" fill="none" stroke="url(#ro_gold)" stroke-width="1"/>
+            <ellipse cx="51" cy="33" rx="8" ry="6" fill="#080612"/>
+            <ellipse cx="51" cy="33" rx="6.5" ry="4.8" fill="#1e1b4b"/>
+            <ellipse cx="51" cy="33" rx="4.5" ry="3.4" fill="#312e81"/>
+            <ellipse cx="51" cy="33" rx="2.5" ry="1.9" fill="url(#ro_gold)"/>
+            <ellipse cx="51" cy="33" rx="1.2" ry="0.9" fill="#fcd34d"/>
+            <ellipse cx="51" cy="33" rx="6.5" ry="4.8" fill="none" stroke="url(#ro_gold)" stroke-width="1"/>
+            <!-- Gold number plate -->
+            <rect x="27" y="18" width="14" height="9" rx="2" fill="#1e1b4b" stroke="url(#ro_gold)" stroke-width="1.2"/>
+            <text x="34" y="25" text-anchor="middle" font-size="6" font-weight="900" fill="#fcd34d" font-family="monospace">VII</text>
+            <!-- Purple exhaust with gold shimmer -->
+            <circle cx="6" cy="24" r="2.5" fill="#4c1d95" opacity="0.9"/>
+            <circle cx="3" cy="25" r="1.5" fill="#7c3aed" opacity="0.6" filter="url(#ro_blur)"/>
+            <circle cx="1" cy="24" r="1" fill="#a855f7" opacity="0.4" filter="url(#ro_blur)"/>
+            <!-- Body shine -->
+            <path d="M15 15 Q35 13 52 15" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Royal Phantom</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-mythic">Mythic</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. Gilded — locked -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>8,000</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="kart-preview kart-gilded" style="background:linear-gradient(135deg,#431407 0%,#92400e 30%,#d97706 60%,#fde68a 100%);">
+          <svg width="88" height="52" viewBox="0 0 70 42" fill="none">
+            <defs>
+              <linearGradient id="gi_chrome" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fef9c3"/><stop offset="20%" stop-color="#fde68a"/><stop offset="50%" stop-color="#f59e0b"/><stop offset="80%" stop-color="#d97706"/><stop offset="100%" stop-color="#92400e"/></linearGradient>
+              <linearGradient id="gi_top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fef3c7"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+              <linearGradient id="gi_mirror" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#92400e"/><stop offset="25%" stop-color="#fde68a"/><stop offset="50%" stop-color="#fef9c3"/><stop offset="75%" stop-color="#fde68a"/><stop offset="100%" stop-color="#92400e"/></linearGradient>
+              <filter id="gi_glow"><feGaussianBlur stdDeviation="2"/></filter>
+              <filter id="gi_blur"><feGaussianBlur stdDeviation="1"/></filter>
+            </defs>
+            <!-- Radiant gold ground glow -->
+            <ellipse cx="35" cy="39" rx="30" ry="6" fill="rgba(245,158,11,0.4)" filter="url(#gi_glow)"/>
+            <ellipse cx="35" cy="38" rx="22" ry="2" fill="rgba(0,0,0,0.3)"/>
+            <!-- Body — chrome gold -->
+            <path d="M6 21 Q5 14 12 13 L52 13 Q60 13 62 18 L62 27 Q62 29 59 29 L8 29 Q6 29 6 27 Z" fill="url(#gi_chrome)"/>
+            <!-- Mirror chrome highlight — diagonal slash -->
+            <path d="M12 13 Q28 20 44 13" fill="rgba(255,255,255,0.25)"/>
+            <path d="M20 13 L36 29" stroke="rgba(255,255,255,0.2)" stroke-width="4" stroke-linecap="round"/>
+            <!-- White chrome reflection strip -->
+            <path d="M14 15 Q35 13 54 15" stroke="rgba(255,255,255,0.55)" stroke-width="2" stroke-linecap="round"/>
+            <path d="M14 18 Q35 16 54 18" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-linecap="round"/>
+            <!-- Gold lower body mirror -->
+            <path d="M8 26 L58 26" stroke="url(#gi_mirror)" stroke-width="1.5"/>
+            <!-- Hood ornament / imperial eagle shape -->
+            <path d="M28 13 Q35 8 42 13" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+            <path d="M31 13 Q35 9 39 13" fill="rgba(255,255,255,0.2)"/>
+            <!-- Crown on cabin roof -->
+            <text x="35" y="7" text-anchor="middle" font-size="8" fill="rgba(255,255,200,0.9)">♛</text>
+            <!-- Cabin — polished gold -->
+            <path d="M15 13 L19 3 L51 3 L57 13 Z" fill="url(#gi_top)"/>
+            <!-- Windshield — tinted gold -->
+            <path d="M20 13 L23 5 L49 5 L53 13 Z" fill="rgba(254,243,199,0.65)"/>
+            <path d="M22 11 Q37 8 52 11" stroke="rgba(255,255,255,0.7)" stroke-width="1" fill="none"/>
+            <!-- Imperial rear wing — sweeping double tier -->
+            <path d="M0 2 L10 5 L10 11 L0 11 Z" fill="url(#gi_chrome)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+            <path d="M0 12 L10 14 L10 19 L0 19 Z" fill="url(#gi_chrome)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+            <rect x="4" y="2" width="4" height="18" rx="1.5" fill="#b45309"/>
+            <!-- Wing glow -->
+            <rect x="0" y="2" width="10" height="3" rx="1" fill="#fef9c3" opacity="0.5" filter="url(#gi_blur)"/>
+            <!-- Gold front wing -->
+            <path d="M60 14 L70 8 L70 16 L69 22 L62 26 Z" fill="url(#gi_chrome)" stroke="rgba(255,255,255,0.3)" stroke-width="0.6"/>
+            <path d="M61 13 L70 8" stroke="rgba(255,255,255,0.6)" stroke-width="1"/>
+            <!-- Nose — sharp gold -->
+            <path d="M59 15 L70 19 L68 28 L57 27 Z" fill="#d97706" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>
+            <!-- Diamond headlights -->
+            <path d="M67 17 L70 19 L67 21 L64 19 Z" fill="#fef9c3"/>
+            <ellipse cx="67" cy="19" rx="5" ry="5" fill="rgba(254,249,195,0.3)" filter="url(#gi_glow)"/>
+            <!-- Wheels — polished gold chrome -->
+            <ellipse cx="20" cy="33" rx="8.5" ry="6.5" fill="#1c0a00"/>
+            <ellipse cx="20" cy="33" rx="7" ry="5.3" fill="#431407"/>
+            <ellipse cx="20" cy="33" rx="5" ry="3.8" fill="url(#gi_chrome)"/>
+            <ellipse cx="20" cy="33" rx="3" ry="2.3" fill="#fef9c3"/>
+            <ellipse cx="20" cy="33" rx="1.5" ry="1.1" fill="white"/>
+            <!-- Chrome rim reflection -->
+            <path d="M14 30 Q20 28 26 30" stroke="rgba(255,255,255,0.4)" stroke-width="0.8" fill="none"/>
+            <ellipse cx="51" cy="33" rx="8.5" ry="6.5" fill="#1c0a00"/>
+            <ellipse cx="51" cy="33" rx="7" ry="5.3" fill="#431407"/>
+            <ellipse cx="51" cy="33" rx="5" ry="3.8" fill="url(#gi_chrome)"/>
+            <ellipse cx="51" cy="33" rx="3" ry="2.3" fill="#fef9c3"/>
+            <ellipse cx="51" cy="33" rx="1.5" ry="1.1" fill="white"/>
+            <path d="M45 30 Q51 28 57 30" stroke="rgba(255,255,255,0.4)" stroke-width="0.8" fill="none"/>
+            <!-- Imperial number plate -->
+            <rect x="26" y="17" width="16" height="10" rx="2.5" fill="#92400e" stroke="#fde68a" stroke-width="1.2"/>
+            <text x="34" y="24.5" text-anchor="middle" font-size="7" font-weight="900" fill="#fef9c3" font-family="serif">✦</text>
+            <!-- Golden exhaust -->
+            <circle cx="6" cy="24" r="2.5" fill="#d97706" opacity="0.9"/>
+            <circle cx="3" cy="25" r="2" fill="#f59e0b" opacity="0.7" filter="url(#gi_blur)"/>
+            <circle cx="0" cy="23" r="1.5" fill="#fde68a" opacity="0.5" filter="url(#gi_glow)"/>
+          </svg>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Gilded Emperor</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-legendary">Legendary</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. Void — locked -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>12,000</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="kart-preview kart-void" style="background:linear-gradient(135deg,#000000 0%,#0f0a1e 40%,#1e1040 70%,#2d1b69 100%);">
+          <svg width="88" height="52" viewBox="0 0 70 42" fill="none">
+            <defs>
+              <linearGradient id="vo_body" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#000000"/><stop offset="40%" stop-color="#050310"/><stop offset="100%" stop-color="#000000"/></linearGradient>
+              <linearGradient id="vo_top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0d0920"/><stop offset="100%" stop-color="#020108"/></linearGradient>
+              <radialGradient id="vo_nebula" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="rgba(139,92,246,0.4)"/><stop offset="50%" stop-color="rgba(99,102,241,0.15)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+              <filter id="vo_glow"><feGaussianBlur stdDeviation="2.5"/></filter>
+              <filter id="vo_blur"><feGaussianBlur stdDeviation="1.2"/></filter>
+            </defs>
+            <!-- Void portal glow beneath -->
+            <ellipse cx="35" cy="40" rx="30" ry="7" fill="url(#vo_nebula)" filter="url(#vo_glow)"/>
+            <ellipse cx="35" cy="38" rx="22" ry="2" fill="rgba(0,0,0,0.7)"/>
+            <!-- Main body — pure void black -->
+            <path d="M6 21 Q5 15 12 14 L52 14 Q59 14 61 19 L61 27 Q61 29 58 29 L8 29 Q6 29 6 27 Z" fill="url(#vo_body)"/>
+            <!-- Constellation pattern on body — star dots connected -->
+            <circle cx="16" cy="20" r="0.8" fill="#e879f9" opacity="0.9"/>
+            <circle cx="22" cy="17" r="0.6" fill="#c084fc" opacity="0.8"/>
+            <circle cx="28" cy="21" r="0.8" fill="#a855f7" opacity="0.9"/>
+            <circle cx="34" cy="16" r="0.6" fill="#e879f9" opacity="0.8"/>
+            <circle cx="40" cy="19" r="0.8" fill="#c084fc" opacity="0.9"/>
+            <circle cx="46" cy="17" r="0.6" fill="#a855f7" opacity="0.8"/>
+            <circle cx="52" cy="21" r="0.8" fill="#e879f9" opacity="0.9"/>
+            <!-- Constellation lines -->
+            <line x1="16" y1="20" x2="22" y2="17" stroke="#c084fc" stroke-width="0.4" opacity="0.4"/>
+            <line x1="22" y1="17" x2="28" y2="21" stroke="#c084fc" stroke-width="0.4" opacity="0.4"/>
+            <line x1="28" y1="21" x2="34" y2="16" stroke="#c084fc" stroke-width="0.4" opacity="0.4"/>
+            <line x1="34" y1="16" x2="40" y2="19" stroke="#c084fc" stroke-width="0.4" opacity="0.4"/>
+            <line x1="40" y1="19" x2="46" y2="17" stroke="#c084fc" stroke-width="0.4" opacity="0.4"/>
+            <line x1="46" y1="17" x2="52" y2="21" stroke="#c084fc" stroke-width="0.4" opacity="0.4"/>
+            <!-- Purple energy stripe -->
+            <path d="M10 23 L55 23" stroke="#a855f7" stroke-width="0.8" opacity="0.5"/>
+            <!-- Void rift on lower body -->
+            <path d="M20 27 Q35 24 50 27" stroke="#7c3aed" stroke-width="1" opacity="0.6"/>
+            <path d="M20 27 Q35 24 50 27" stroke="#c084fc" stroke-width="0.4" opacity="0.8" filter="url(#vo_blur)"/>
+            <!-- Cabin — void dark -->
+            <path d="M16 14 L20 4 L48 4 L54 14 Z" fill="url(#vo_top)"/>
+            <!-- Windshield — cosmic void with star inside -->
+            <path d="M21 14 L24 6 L46 6 L50 14 Z" fill="rgba(79,70,229,0.35)"/>
+            <path d="M23 12 Q35 9 49 12" stroke="rgba(167,139,250,0.4)" stroke-width="0.8" fill="none"/>
+            <!-- Star inside windshield -->
+            <text x="35" y="12" text-anchor="middle" font-size="6" fill="rgba(232,121,249,0.6)">✦</text>
+            <!-- Blade rear wing — ultra thin cosmic -->
+            <path d="M0 4 L9 7 L9 10 L0 10 Z" fill="#000" stroke="#7c3aed" stroke-width="0.8"/>
+            <rect x="0" y="4" width="10" height="1.5" rx="0.7" fill="#a855f7"/>
+            <rect x="0" y="4" width="10" height="1.5" rx="0.7" fill="#e879f9" opacity="0.5" filter="url(#vo_blur)"/>
+            <rect x="0" y="9" width="10" height="1.5" rx="0.7" fill="#a855f7"/>
+            <rect x="0" y="9" width="10" height="1.5" rx="0.7" fill="#e879f9" opacity="0.5" filter="url(#vo_blur)"/>
+            <rect x="3" y="4" width="3" height="7" rx="1" fill="#0d0920"/>
+            <!-- Scythe-shaped front wing -->
+            <path d="M59 14 L70 7 L70 11 L68 22 L60 26 Q64 18 62 14 Z" fill="#000" stroke="#7c3aed" stroke-width="0.8"/>
+            <path d="M60 13 L70 7" stroke="#c084fc" stroke-width="1" opacity="0.8"/>
+            <path d="M60 13 L70 7" stroke="#e879f9" stroke-width="0.4" opacity="0.6" filter="url(#vo_blur)"/>
+            <!-- Void eye headlights -->
+            <ellipse cx="67" cy="18" rx="2.5" ry="3" fill="#e879f9"/>
+            <ellipse cx="67" cy="18" rx="1.5" ry="2" fill="#000"/>
+            <ellipse cx="67" cy="18" rx="1" ry="1.5" fill="#e879f9"/>
+            <ellipse cx="67" cy="18" rx="6" ry="7" fill="rgba(232,121,249,0.2)" filter="url(#vo_glow)"/>
+            <!-- Wheels — absolute black with glowing void rims -->
+            <ellipse cx="20" cy="33" rx="8" ry="6" fill="#000"/>
+            <ellipse cx="20" cy="33" rx="6.5" ry="4.9" fill="#050310"/>
+            <ellipse cx="20" cy="33" rx="4.5" ry="3.4" fill="#0d0920"/>
+            <ellipse cx="20" cy="33" rx="2.5" ry="1.9" fill="#1e1b4b"/>
+            <ellipse cx="20" cy="33" rx="1" ry="0.8" fill="#e879f9"/>
+            <!-- Void rim glow -->
+            <ellipse cx="20" cy="33" rx="6.5" ry="4.9" fill="none" stroke="#7c3aed" stroke-width="1" opacity="0.7"/>
+            <ellipse cx="20" cy="33" rx="6.5" ry="4.9" fill="none" stroke="#e879f9" stroke-width="0.5" opacity="0.5" filter="url(#vo_blur)"/>
+            <ellipse cx="51" cy="33" rx="8" ry="6" fill="#000"/>
+            <ellipse cx="51" cy="33" rx="6.5" ry="4.9" fill="#050310"/>
+            <ellipse cx="51" cy="33" rx="4.5" ry="3.4" fill="#0d0920"/>
+            <ellipse cx="51" cy="33" rx="2.5" ry="1.9" fill="#1e1b4b"/>
+            <ellipse cx="51" cy="33" rx="1" ry="0.8" fill="#e879f9"/>
+            <ellipse cx="51" cy="33" rx="6.5" ry="4.9" fill="none" stroke="#7c3aed" stroke-width="1" opacity="0.7"/>
+            <ellipse cx="51" cy="33" rx="6.5" ry="4.9" fill="none" stroke="#e879f9" stroke-width="0.5" opacity="0.5" filter="url(#vo_blur)"/>
+            <!-- ∞ number plate -->
+            <rect x="27" y="17" width="16" height="10" rx="2.5" fill="#000" stroke="#7c3aed" stroke-width="1"/>
+            <rect x="27" y="17" width="16" height="10" rx="2.5" fill="none" stroke="#e879f9" stroke-width="0.5" opacity="0.5" filter="url(#vo_blur)"/>
+            <text x="35" y="24.5" text-anchor="middle" font-size="8" font-weight="900" fill="#e879f9" font-family="monospace">∞</text>
+            <!-- Void exhaust — dark matter -->
+            <circle cx="6" cy="23" r="3" fill="#0d0920" stroke="#7c3aed" stroke-width="0.8"/>
+            <circle cx="3" cy="24" r="2" fill="#1e1b4b" opacity="0.8" filter="url(#vo_blur)"/>
+            <circle cx="0" cy="23" r="1.5" fill="#4c1d95" opacity="0.6" filter="url(#vo_glow)"/>
+          </svg>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Void Serpent</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-legendary">Legendary</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- 9. Arctic Storm -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>5,500</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="kart-preview kart-arctic" style="background:linear-gradient(135deg,#0c4a6e 0%,#0369a1 25%,#0ea5e9 55%,#38bdf8 80%,#7dd3fc 100%);">
+          <svg width="88" height="52" viewBox="0 0 70 42" fill="none">
+            <defs>
+              <linearGradient id="ar_body" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e0f9ff"/><stop offset="40%" stop-color="#38bdf8"/><stop offset="100%" stop-color="#0c4a6e"/></linearGradient>
+              <linearGradient id="ar_top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f0f9ff"/><stop offset="100%" stop-color="#7dd3fc"/></linearGradient>
+              <linearGradient id="ar_ice" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#e0f9ff"/><stop offset="50%" stop-color="#ffffff"/><stop offset="100%" stop-color="#bae6fd"/></linearGradient>
+              <filter id="ar_glow"><feGaussianBlur stdDeviation="2"/></filter>
+              <filter id="ar_blur"><feGaussianBlur stdDeviation="1"/></filter>
+            </defs>
+            <!-- Ice blue ground glow -->
+            <ellipse cx="35" cy="39" rx="28" ry="5" fill="rgba(56,189,248,0.35)" filter="url(#ar_glow)"/>
+            <ellipse cx="35" cy="38" rx="22" ry="2" fill="rgba(0,0,0,0.2)"/>
+            <!-- Body — glacial white-blue -->
+            <path d="M6 21 Q5 15 12 14 L52 14 Q59 14 61 19 L61 27 Q61 29 58 29 L8 29 Q6 29 6 27 Z" fill="url(#ar_body)"/>
+            <!-- Ice crystal facet lines -->
+            <path d="M15 14 L25 29" stroke="rgba(255,255,255,0.35)" stroke-width="0.8"/>
+            <path d="M28 14 L38 29" stroke="rgba(255,255,255,0.25)" stroke-width="0.6"/>
+            <path d="M42 14 L52 29" stroke="rgba(255,255,255,0.25)" stroke-width="0.6"/>
+            <!-- Snowflake livery -->
+            <text x="24" y="24" font-size="8" fill="rgba(255,255,255,0.35)" text-anchor="middle">❄</text>
+            <text x="40" y="22" font-size="6" fill="rgba(255,255,255,0.25)" text-anchor="middle">❄</text>
+            <!-- Ice blue racing stripe -->
+            <path d="M10 17 L56 17" stroke="#e0f9ff" stroke-width="1.2" opacity="0.7"/>
+            <path d="M10 25 L56 25" stroke="#7dd3fc" stroke-width="0.6" opacity="0.5"/>
+            <!-- Frosted cabin -->
+            <path d="M16 14 L20 4 L48 4 L54 14 Z" fill="url(#ar_top)"/>
+            <!-- Frosted windshield -->
+            <path d="M21 14 L24 6 L46 6 L50 14 Z" fill="rgba(224,249,255,0.8)"/>
+            <path d="M23 12 Q35 9 49 12" stroke="white" stroke-width="1" fill="none" opacity="0.8"/>
+            <!-- Ice shard rear wing -->
+            <path d="M0 3 L10 5 L10 20 L0 18 Z" fill="url(#ar_ice)" stroke="#7dd3fc" stroke-width="0.6"/>
+            <rect x="0" y="3" width="11" height="2" rx="1" fill="white" opacity="0.9"/>
+            <rect x="0" y="17" width="11" height="2" rx="1" fill="white" opacity="0.9"/>
+            <!-- Icicle spikes on wing -->
+            <path d="M2 20 L3 26 L4 20" fill="#bae6fd" opacity="0.7"/>
+            <path d="M6 20 L7 24 L8 20" fill="#e0f9ff" opacity="0.6"/>
+            <!-- Crystal front wing -->
+            <path d="M59 15 L70 9 L70 17 L68 23 L60 26 Z" fill="url(#ar_ice)" stroke="#7dd3fc" stroke-width="0.6"/>
+            <path d="M60 14 L70 9" stroke="white" stroke-width="1" opacity="0.8"/>
+            <!-- Nose -->
+            <path d="M58 15 L70 19 L68 28 L56 27 Z" fill="#0c4a6e" stroke="#38bdf8" stroke-width="0.6"/>
+            <!-- Ice headlights — pale blue -->
+            <ellipse cx="67" cy="20" rx="2.5" ry="2" fill="#e0f9ff"/>
+            <ellipse cx="67" cy="20" rx="5" ry="4" fill="rgba(224,249,255,0.4)" filter="url(#ar_glow)"/>
+            <!-- Wheels — ice white with blue rim -->
+            <ellipse cx="20" cy="33" rx="8" ry="6" fill="#0a1628"/>
+            <ellipse cx="20" cy="33" rx="6.5" ry="4.8" fill="#0c4a6e"/>
+            <ellipse cx="20" cy="33" rx="4.5" ry="3.4" fill="#0369a1"/>
+            <ellipse cx="20" cy="33" rx="2.5" ry="1.9" fill="#7dd3fc"/>
+            <ellipse cx="20" cy="33" rx="1.2" ry="0.9" fill="white"/>
+            <ellipse cx="20" cy="33" rx="6.5" ry="4.8" fill="none" stroke="#38bdf8" stroke-width="1" opacity="0.8"/>
+            <ellipse cx="51" cy="33" rx="8" ry="6" fill="#0a1628"/>
+            <ellipse cx="51" cy="33" rx="6.5" ry="4.8" fill="#0c4a6e"/>
+            <ellipse cx="51" cy="33" rx="4.5" ry="3.4" fill="#0369a1"/>
+            <ellipse cx="51" cy="33" rx="2.5" ry="1.9" fill="#7dd3fc"/>
+            <ellipse cx="51" cy="33" rx="1.2" ry="0.9" fill="white"/>
+            <ellipse cx="51" cy="33" rx="6.5" ry="4.8" fill="none" stroke="#38bdf8" stroke-width="1" opacity="0.8"/>
+            <!-- Number plate -->
+            <rect x="27" y="17" width="16" height="10" rx="2" fill="#0c4a6e" stroke="#38bdf8" stroke-width="1"/>
+            <text x="35" y="24.5" text-anchor="middle" font-size="6" font-weight="900" fill="#e0f9ff" font-family="monospace">❄ 8</text>
+            <!-- Ice crystal exhaust -->
+            <circle cx="6" cy="24" r="2" fill="#7dd3fc" opacity="0.8"/>
+            <circle cx="3" cy="25" r="1.5" fill="#e0f9ff" opacity="0.6" filter="url(#ar_blur)"/>
+            <!-- Body shine -->
+            <path d="M15 15 Q35 13 52 15" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+          </svg>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Arctic Storm</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-epic">Epic</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 10. Sakura Drift -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>4,500</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="kart-preview kart-sakura" style="background:linear-gradient(135deg,#9d174d 0%,#be185d 25%,#db2777 50%,#f472b6 75%,#fce7f3 100%);">
+          <svg width="88" height="52" viewBox="0 0 70 42" fill="none">
+            <defs>
+              <linearGradient id="sk_body" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fce7f3"/><stop offset="40%" stop-color="#f472b6"/><stop offset="100%" stop-color="#9d174d"/></linearGradient>
+              <linearGradient id="sk_top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fdf2f8"/><stop offset="100%" stop-color="#ec4899"/></linearGradient>
+              <linearGradient id="sk_petal" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#fce7f3"/><stop offset="50%" stop-color="#fbcfe8"/><stop offset="100%" stop-color="#fce7f3"/></linearGradient>
+              <filter id="sk_glow"><feGaussianBlur stdDeviation="1.8"/></filter>
+              <filter id="sk_blur"><feGaussianBlur stdDeviation="1"/></filter>
+            </defs>
+            <!-- Blossom ground glow -->
+            <ellipse cx="35" cy="39" rx="28" ry="5" fill="rgba(236,72,153,0.25)" filter="url(#sk_glow)"/>
+            <ellipse cx="35" cy="38" rx="22" ry="2" fill="rgba(0,0,0,0.15)"/>
+            <!-- Body — soft pink with white base -->
+            <path d="M6 21 Q5 15 12 14 L52 14 Q59 14 61 19 L61 27 Q61 29 58 29 L8 29 Q6 29 6 27 Z" fill="url(#sk_body)"/>
+            <!-- Sakura petal livery — painted petals -->
+            <path d="M18 18 Q20 14 22 18 Q20 22 18 18 Z" fill="rgba(255,255,255,0.4)"/>
+            <path d="M22 16 Q24 12 26 16 Q24 20 22 16 Z" fill="rgba(255,255,255,0.3)"/>
+            <path d="M34 19 Q36 15 38 19 Q36 23 34 19 Z" fill="rgba(255,255,255,0.35)"/>
+            <path d="M44 17 Q46 13 48 17 Q46 21 44 17 Z" fill="rgba(255,255,255,0.3)"/>
+            <!-- White pinstripe -->
+            <path d="M10 17 L56 17" stroke="rgba(255,255,255,0.8)" stroke-width="1.2"/>
+            <path d="M10 25 L56 25" stroke="rgba(255,255,255,0.4)" stroke-width="0.6"/>
+            <!-- Cabin — white pearl -->
+            <path d="M16 14 L20 4 L48 4 L54 14 Z" fill="url(#sk_top)"/>
+            <!-- Rose-tinted windshield -->
+            <path d="M21 14 L24 6 L46 6 L50 14 Z" fill="rgba(252,231,243,0.8)"/>
+            <path d="M23 12 Q35 9 49 12" stroke="white" stroke-width="0.8" fill="none" opacity="0.9"/>
+            <!-- Cherry blossom wing — graceful curve -->
+            <path d="M0 8 Q5 4 10 6 L10 18 Q5 20 0 16 Z" fill="url(#sk_top)" stroke="#f9a8d4" stroke-width="0.8"/>
+            <rect x="0" y="7" width="11" height="2" rx="1" fill="white" opacity="0.9"/>
+            <rect x="0" y="16" width="11" height="2" rx="1" fill="white" opacity="0.9"/>
+            <!-- Falling petals on wing -->
+            <path d="M3 8 Q4 6 5 8 Q4 10 3 8Z" fill="#fce7f3" opacity="0.8"/>
+            <path d="M7 7 Q8 5 9 7 Q8 9 7 7Z" fill="#fbcfe8" opacity="0.7"/>
+            <!-- Elegant front wing -->
+            <path d="M59 15 L70 10 L70 19 L68 24 L60 26 Z" fill="url(#sk_top)" stroke="#f9a8d4" stroke-width="0.8"/>
+            <path d="M60 14 L70 10" stroke="white" stroke-width="1" opacity="0.8"/>
+            <!-- Nose — white pearl -->
+            <path d="M58 15 L70 19 L68 28 L56 27 Z" fill="#9d174d" stroke="#f472b6" stroke-width="0.6"/>
+            <!-- Pink headlights -->
+            <ellipse cx="67" cy="20" rx="2.5" ry="2" fill="#fce7f3"/>
+            <ellipse cx="67" cy="20" rx="5" ry="4" fill="rgba(252,231,243,0.35)" filter="url(#sk_glow)"/>
+            <!-- Wheels — rose gold -->
+            <ellipse cx="20" cy="33" rx="8" ry="6" fill="#1a0510"/>
+            <ellipse cx="20" cy="33" rx="6.5" ry="4.8" fill="#4a0520"/>
+            <ellipse cx="20" cy="33" rx="4.5" ry="3.4" fill="#9d174d"/>
+            <ellipse cx="20" cy="33" rx="2.5" ry="1.9" fill="#f472b6"/>
+            <ellipse cx="20" cy="33" rx="1.2" ry="0.9" fill="#fce7f3"/>
+            <ellipse cx="20" cy="33" rx="6.5" ry="4.8" fill="none" stroke="#f9a8d4" stroke-width="1" opacity="0.8"/>
+            <ellipse cx="51" cy="33" rx="8" ry="6" fill="#1a0510"/>
+            <ellipse cx="51" cy="33" rx="6.5" ry="4.8" fill="#4a0520"/>
+            <ellipse cx="51" cy="33" rx="4.5" ry="3.4" fill="#9d174d"/>
+            <ellipse cx="51" cy="33" rx="2.5" ry="1.9" fill="#f472b6"/>
+            <ellipse cx="51" cy="33" rx="1.2" ry="0.9" fill="#fce7f3"/>
+            <ellipse cx="51" cy="33" rx="6.5" ry="4.8" fill="none" stroke="#f9a8d4" stroke-width="1" opacity="0.8"/>
+            <!-- Number plate — blossom pink -->
+            <rect x="27" y="17" width="16" height="10" rx="2" fill="#9d174d" stroke="#f9a8d4" stroke-width="1"/>
+            <text x="35" y="24.5" text-anchor="middle" font-size="6" font-weight="900" fill="#fce7f3" font-family="monospace">🌸 3</text>
+            <!-- Pink exhaust -->
+            <circle cx="6" cy="24" r="2" fill="#f472b6" opacity="0.8"/>
+            <circle cx="3" cy="25" r="1.5" fill="#fce7f3" opacity="0.5" filter="url(#sk_blur)"/>
+            <!-- Body shine -->
+            <path d="M15 15 Q35 13 52 15" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+          </svg>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Sakura Drift</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-rare">Rare</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 11. Thunder God -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>9,000</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="kart-preview kart-storm" style="background:linear-gradient(135deg,#0c0a09 0%,#1c1917 30%,#44403c 55%,#78716c 75%,#fbbf24 100%);">
+          <svg width="88" height="52" viewBox="0 0 70 42" fill="none">
+            <defs>
+              <linearGradient id="st_body" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#44403c"/><stop offset="50%" stop-color="#1c1917"/><stop offset="100%" stop-color="#0c0a09"/></linearGradient>
+              <linearGradient id="st_top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#57534e"/><stop offset="100%" stop-color="#292524"/></linearGradient>
+              <linearGradient id="st_bolt" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fef08a"/><stop offset="50%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+              <filter id="st_glow"><feGaussianBlur stdDeviation="2.5"/></filter>
+              <filter id="st_blur"><feGaussianBlur stdDeviation="1.2"/></filter>
+            </defs>
+            <!-- Thunder ground glow -->
+            <ellipse cx="35" cy="39" rx="28" ry="5" fill="rgba(251,191,36,0.4)" filter="url(#st_glow)"/>
+            <ellipse cx="35" cy="38" rx="22" ry="2" fill="rgba(0,0,0,0.5)"/>
+            <!-- Body — matte dark charcoal -->
+            <path d="M6 21 Q5 15 12 14 L52 14 Q59 14 61 19 L61 27 Q61 29 58 29 L8 29 Q6 29 6 27 Z" fill="url(#st_body)"/>
+            <!-- Lightning bolt livery — giant bolt across side -->
+            <path d="M38 14 L28 22 L34 22 L24 29 L36 29 L26 22 L32 22 L42 14 Z" fill="url(#st_bolt)" opacity="0.85"/>
+            <path d="M38 14 L28 22 L34 22 L24 29 L36 29 L26 22 L32 22 L42 14 Z" fill="rgba(254,240,138,0.4)" filter="url(#st_glow)"/>
+            <!-- Gold accent lines -->
+            <path d="M10 17 L20 17" stroke="#fbbf24" stroke-width="1.5" opacity="0.8"/>
+            <path d="M45 17 L56 17" stroke="#fbbf24" stroke-width="1.5" opacity="0.8"/>
+            <path d="M10 25 L20 25" stroke="#f59e0b" stroke-width="1" opacity="0.6"/>
+            <path d="M45 25 L56 25" stroke="#f59e0b" stroke-width="1" opacity="0.6"/>
+            <!-- Cabin — brushed metal -->
+            <path d="M16 14 L20 4 L48 4 L54 14 Z" fill="url(#st_top)"/>
+            <!-- Dark windshield with lightning reflection -->
+            <path d="M21 14 L24 6 L46 6 L50 14 Z" fill="rgba(30,25,20,0.85)"/>
+            <path d="M33 7 L30 11 L32 11 L29 14" stroke="#fbbf24" stroke-width="0.8" opacity="0.7"/>
+            <!-- Aggressive rear wing — triple tier -->
+            <rect x="-1" y="2" width="12" height="2.5" rx="1" fill="#1c1917" stroke="#fbbf24" stroke-width="0.8"/>
+            <rect x="-1" y="6" width="12" height="2.5" rx="1" fill="#1c1917" stroke="#fbbf24" stroke-width="0.8"/>
+            <rect x="-1" y="10" width="12" height="2.5" rx="1" fill="#1c1917" stroke="#fbbf24" stroke-width="0.8"/>
+            <rect x="3" y="2" width="4" height="11" rx="1.5" fill="#0c0a09"/>
+            <!-- Wing glow -->
+            <rect x="-1" y="2" width="12" height="2.5" rx="1" fill="#fbbf24" opacity="0.3" filter="url(#st_blur)"/>
+            <!-- Beast front wing -->
+            <path d="M59 13 L70 6 L70 14 L68 22 L60 26 Z" fill="#1c1917" stroke="#fbbf24" stroke-width="0.8"/>
+            <path d="M60 12 L70 6" stroke="#fbbf24" stroke-width="1.2" opacity="0.9"/>
+            <!-- Lightning headlights -->
+            <ellipse cx="67" cy="18" rx="3" ry="2.5" fill="#fef08a"/>
+            <ellipse cx="67" cy="18" rx="6" ry="5" fill="rgba(254,240,138,0.4)" filter="url(#st_glow)"/>
+            <!-- Wheels — dark with gold rims -->
+            <ellipse cx="20" cy="33" rx="8.5" ry="6.5" fill="#0a0805"/>
+            <ellipse cx="20" cy="33" rx="7" ry="5.3" fill="#1c1917"/>
+            <ellipse cx="20" cy="33" rx="5" ry="3.8" fill="#44403c"/>
+            <ellipse cx="20" cy="33" rx="3" ry="2.3" fill="#fbbf24"/>
+            <ellipse cx="20" cy="33" rx="1.5" ry="1.1" fill="#fef08a"/>
+            <ellipse cx="20" cy="33" rx="7" ry="5.3" fill="none" stroke="#f59e0b" stroke-width="1.2" opacity="0.8"/>
+            <!-- Lightning spoke -->
+            <path d="M20 29 L19 26 L20 24 L21 26 L20 29Z" fill="#fbbf24" opacity="0.5"/>
+            <ellipse cx="51" cy="33" rx="8.5" ry="6.5" fill="#0a0805"/>
+            <ellipse cx="51" cy="33" rx="7" ry="5.3" fill="#1c1917"/>
+            <ellipse cx="51" cy="33" rx="5" ry="3.8" fill="#44403c"/>
+            <ellipse cx="51" cy="33" rx="3" ry="2.3" fill="#fbbf24"/>
+            <ellipse cx="51" cy="33" rx="1.5" ry="1.1" fill="#fef08a"/>
+            <ellipse cx="51" cy="33" rx="7" ry="5.3" fill="none" stroke="#f59e0b" stroke-width="1.2" opacity="0.8"/>
+            <!-- Number plate -->
+            <rect x="26" y="17" width="17" height="10" rx="2" fill="#0c0a09" stroke="#fbbf24" stroke-width="1.2"/>
+            <text x="35" y="24.5" text-anchor="middle" font-size="6" font-weight="900" fill="#fef08a" font-family="monospace">⚡ 7</text>
+            <!-- Electric exhaust -->
+            <path d="M5 22 L2 24 L5 24 L2 27" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+            <path d="M5 22 L2 24 L5 24 L2 27" stroke="#fef08a" stroke-width="0.5" opacity="0.6" filter="url(#st_blur)"/>
+          </svg>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Thunder God</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-mythic">Mythic</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 12. Cyber Grid -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>15,000</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="kart-preview kart-cyber" style="background:linear-gradient(135deg,#000000 0%,#001a0a 30%,#003d1a 55%,#006633 75%,#00ff88 100%);">
+          <svg width="88" height="52" viewBox="0 0 70 42" fill="none">
+            <defs>
+              <linearGradient id="cy_body" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#001a0a"/><stop offset="50%" stop-color="#003d1a"/><stop offset="100%" stop-color="#001a0a"/></linearGradient>
+              <linearGradient id="cy_top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#00ff88"/><stop offset="100%" stop-color="#00cc6a"/></linearGradient>
+              <filter id="cy_glow"><feGaussianBlur stdDeviation="2.5"/></filter>
+              <filter id="cy_blur"><feGaussianBlur stdDeviation="1.2"/></filter>
+            </defs>
+            <!-- Cyber grid ground glow -->
+            <ellipse cx="35" cy="39" rx="30" ry="6" fill="rgba(0,255,136,0.35)" filter="url(#cy_glow)"/>
+            <ellipse cx="35" cy="38" rx="22" ry="2" fill="rgba(0,0,0,0.6)"/>
+            <!-- Body — dark with matrix grid -->
+            <path d="M6 21 Q5 15 12 14 L52 14 Q59 14 61 19 L61 27 Q61 29 58 29 L8 29 Q6 29 6 27 Z" fill="url(#cy_body)"/>
+            <!-- Matrix grid overlay on body -->
+            <path d="M15 14 L15 29" stroke="rgba(0,255,136,0.12)" stroke-width="0.5"/>
+            <path d="M22 14 L22 29" stroke="rgba(0,255,136,0.10)" stroke-width="0.5"/>
+            <path d="M29 14 L29 29" stroke="rgba(0,255,136,0.12)" stroke-width="0.5"/>
+            <path d="M36 14 L36 29" stroke="rgba(0,255,136,0.10)" stroke-width="0.5"/>
+            <path d="M43 14 L43 29" stroke="rgba(0,255,136,0.12)" stroke-width="0.5"/>
+            <path d="M50 14 L50 29" stroke="rgba(0,255,136,0.10)" stroke-width="0.5"/>
+            <path d="M8 18 L57 18" stroke="rgba(0,255,136,0.08)" stroke-width="0.5"/>
+            <path d="M8 22 L57 22" stroke="rgba(0,255,136,0.08)" stroke-width="0.5"/>
+            <path d="M8 26 L57 26" stroke="rgba(0,255,136,0.06)" stroke-width="0.5"/>
+            <!-- Neon green scan line -->
+            <path d="M8 17 L56 17" stroke="#00ff88" stroke-width="1.2" opacity="0.9"/>
+            <path d="M8 17 L56 17" stroke="#00ff88" stroke-width="3" opacity="0.2" filter="url(#cy_blur)"/>
+            <path d="M8 27 L56 27" stroke="#00cc6a" stroke-width="0.8" opacity="0.7"/>
+            <!-- Cabin — neon green top -->
+            <path d="M16 14 L20 4 L48 4 L54 14 Z" fill="#001a0a" stroke="#00ff88" stroke-width="0.8"/>
+            <!-- Digital windshield -->
+            <path d="M21 14 L24 6 L46 6 L50 14 Z" fill="rgba(0,255,136,0.2)"/>
+            <path d="M23 12 Q35 9 49 12" stroke="#00ff88" stroke-width="0.8" fill="none" opacity="0.8"/>
+            <!-- Digital text on windshield -->
+            <text x="35" y="12" text-anchor="middle" font-size="4" fill="rgba(0,255,136,0.7)" font-family="monospace">SYS.OK</text>
+            <!-- Angular cyber rear wing -->
+            <path d="M0 3 L11 3 L11 8 L7 8 L7 18 L11 18 L11 21 L0 21 Z" fill="#001a0a" stroke="#00ff88" stroke-width="0.8"/>
+            <rect x="0" y="3" width="12" height="2" rx="0" fill="#00ff88" opacity="0.9"/>
+            <rect x="0" y="19" width="12" height="2" rx="0" fill="#00ff88" opacity="0.9"/>
+            <rect x="0" y="3" width="12" height="2" fill="#00ff88" opacity="0.4" filter="url(#cy_glow)"/>
+            <!-- Sharp cyber front wing -->
+            <path d="M59 13 L70 7 L70 21 L67 24 L59 21 L60 17 Z" fill="#001a0a" stroke="#00ff88" stroke-width="0.8"/>
+            <path d="M59 13 L70 7" stroke="#00ff88" stroke-width="1.2" opacity="0.9"/>
+            <path d="M59 21 L70 21" stroke="#00ff88" stroke-width="1" opacity="0.7"/>
+            <!-- Scanning headlight -->
+            <rect x="62" y="14" width="6" height="2" rx="0" fill="#00ff88"/>
+            <rect x="62" y="20" width="6" height="2" rx="0" fill="#00ff88"/>
+            <rect x="62" y="14" width="6" height="8" fill="rgba(0,255,136,0.15)" filter="url(#cy_blur)"/>
+            <!-- Wheels — black with neon green rim -->
+            <ellipse cx="20" cy="33" rx="8.5" ry="6.5" fill="#000"/>
+            <ellipse cx="20" cy="33" rx="7" ry="5.3" fill="#001a0a"/>
+            <ellipse cx="20" cy="33" rx="5" ry="3.8" fill="#003d1a"/>
+            <ellipse cx="20" cy="33" rx="3" ry="2.3" fill="#00ff88"/>
+            <ellipse cx="20" cy="33" rx="1.5" ry="1.1" fill="white"/>
+            <ellipse cx="20" cy="33" rx="7" ry="5.3" fill="none" stroke="#00ff88" stroke-width="1.5" opacity="0.9"/>
+            <ellipse cx="20" cy="33" rx="7" ry="5.3" fill="none" stroke="#00ff88" stroke-width="4" opacity="0.2" filter="url(#cy_glow)"/>
+            <ellipse cx="51" cy="33" rx="8.5" ry="6.5" fill="#000"/>
+            <ellipse cx="51" cy="33" rx="7" ry="5.3" fill="#001a0a"/>
+            <ellipse cx="51" cy="33" rx="5" ry="3.8" fill="#003d1a"/>
+            <ellipse cx="51" cy="33" rx="3" ry="2.3" fill="#00ff88"/>
+            <ellipse cx="51" cy="33" rx="1.5" ry="1.1" fill="white"/>
+            <ellipse cx="51" cy="33" rx="7" ry="5.3" fill="none" stroke="#00ff88" stroke-width="1.5" opacity="0.9"/>
+            <ellipse cx="51" cy="33" rx="7" ry="5.3" fill="none" stroke="#00ff88" stroke-width="4" opacity="0.2" filter="url(#cy_glow)"/>
+            <!-- Digital number plate -->
+            <rect x="26" y="17" width="18" height="10" rx="0" fill="#000" stroke="#00ff88" stroke-width="1.2"/>
+            <text x="35" y="24.5" text-anchor="middle" font-size="5.5" font-weight="900" fill="#00ff88" font-family="monospace">00_1</text>
+            <!-- Matrix exhaust -->
+            <rect x="3" y="21" width="2" height="8" rx="0" fill="#00ff88" opacity="0.5"/>
+            <rect x="6" y="23" width="2" height="6" rx="0" fill="#00ff88" opacity="0.4"/>
+            <rect x="3" y="21" width="5" height="8" fill="rgba(0,255,136,0.2)" filter="url(#cy_glow)"/>
+          </svg>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Cyber Grid</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-legendary">Legendary</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ULTRA 1: Celestial Titan -->
+      <div class="skin-card locked ultra-card">
+        <div class="lock-overlay">
+          <div class="lock-icon" style="font-size:2rem;filter:drop-shadow(0 0 12px gold);">👑</div>
+          <div class="lock-price" style="background:linear-gradient(135deg,rgba(255,0,128,0.3),rgba(0,200,255,0.3));border:1px solid rgba(255,255,255,0.4);font-size:0.9rem;"><div class="coin-icon" style="width:18px;height:18px;font-size:9px;background:linear-gradient(135deg,#ff0080,#cc00ff);">✦</div>50,000</div>
+          <button class="lock-btn" style="background:linear-gradient(90deg,#ff0080,#ff8c00,#ffe000,#00ff88,#00cfff,#cc00ff);background-size:200%;animation:ultraShift 2s linear infinite;font-size:0.75rem;font-weight:900;letter-spacing:0.05em;">Unlock ULTRA</button>
+        </div>
+        <div class="kart-preview kart-celestial" style="background:radial-gradient(ellipse at 30% 20%,#1a0050 0%,#000010 40%,#00001a 70%,#000005 100%);height:120px;">
+          <!-- Animated nebula layers -->
+          <div style="position:absolute;inset:0;background:radial-gradient(ellipse 100% 80% at 50% 50%,rgba(80,0,160,0.5),rgba(0,0,80,0.3),transparent 70%);animation:ultraShift 8s ease-in-out infinite;pointer-events:none;"></div>
+          <!-- Stars -->
+          <div style="position:absolute;top:8%;left:10%;width:2px;height:2px;border-radius:50%;background:#fff;box-shadow:0 0 6px #fff;animation:starTwinkle 1.2s infinite;"></div>
+          <div style="position:absolute;top:20%;left:30%;width:1.5px;height:1.5px;border-radius:50%;background:#c4b5fd;box-shadow:0 0 4px #c4b5fd;animation:starTwinkle 2s infinite 0.4s;"></div>
+          <div style="position:absolute;top:12%;left:55%;width:2px;height:2px;border-radius:50%;background:#fde68a;box-shadow:0 0 5px #fde68a;animation:starTwinkle 1.8s infinite 0.9s;"></div>
+          <div style="position:absolute;top:30%;left:75%;width:1.5px;height:1.5px;border-radius:50%;background:#a5f3fc;box-shadow:0 0 4px #a5f3fc;animation:starTwinkle 2.4s infinite 0.2s;"></div>
+          <div style="position:absolute;top:8%;left:88%;width:2px;height:2px;border-radius:50%;background:#f0abfc;box-shadow:0 0 5px #f0abfc;animation:starTwinkle 1.5s infinite 1.1s;"></div>
+          <svg width="100" height="60" viewBox="0 0 80 46" fill="none" style="position:relative;z-index:2;filter:drop-shadow(0 0 14px rgba(200,150,255,0.9)) drop-shadow(0 0 28px rgba(100,50,255,0.6));">
+            <defs>
+              <linearGradient id="cel_body" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1a0050"/><stop offset="25%" stop-color="#2d0080"/><stop offset="50%" stop-color="#4400b3"/><stop offset="75%" stop-color="#6600cc"/><stop offset="100%" stop-color="#0d0030"/></linearGradient>
+              <linearGradient id="cel_accent" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#ff0080"/><stop offset="16%" stop-color="#ff8c00"/><stop offset="33%" stop-color="#ffe000"/><stop offset="50%" stop-color="#00ff88"/><stop offset="66%" stop-color="#00cfff"/><stop offset="83%" stop-color="#cc00ff"/><stop offset="100%" stop-color="#ff0080"/></linearGradient>
+              <linearGradient id="cel_top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3d0099"/><stop offset="100%" stop-color="#1a0050"/></linearGradient>
+              <linearGradient id="cel_wheel" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff0080"/><stop offset="33%" stop-color="#ffe000"/><stop offset="66%" stop-color="#00cfff"/><stop offset="100%" stop-color="#cc00ff"/></linearGradient>
+              <filter id="cel_glow"><feGaussianBlur stdDeviation="3"/></filter>
+              <filter id="cel_blur"><feGaussianBlur stdDeviation="1.5"/></filter>
+            </defs>
+            <!-- Cosmic ground aurora -->
+            <ellipse cx="40" cy="45" rx="36" ry="6" fill="rgba(100,0,255,0.3)" filter="url(#cel_glow)"/>
+            <ellipse cx="40" cy="43" rx="28" ry="2.5" fill="rgba(0,0,0,0.6)"/>
+            <!-- Body — deep cosmic purple -->
+            <path d="M6 24 Q5 17 13 16 L60 16 Q68 16 70 22 L70 31 Q70 34 67 34 L9 34 Q6 34 6 31 Z" fill="url(#cel_body)"/>
+            <!-- Rainbow energy stripe — animated -->
+            <path d="M10 20 L65 20" stroke="url(#cel_accent)" stroke-width="2" opacity="0.95" stroke-linecap="round"/>
+            <path d="M10 20 L65 20" stroke="url(#cel_accent)" stroke-width="5" opacity="0.25" filter="url(#cel_blur)" stroke-linecap="round"/>
+            <path d="M10 29 L65 29" stroke="url(#cel_accent)" stroke-width="1.2" opacity="0.7" stroke-linecap="round"/>
+            <!-- Constellation dots on body -->
+            <circle cx="18" cy="24" r="1" fill="#e879f9" opacity="0.9"/><circle cx="25" cy="21" r="0.8" fill="#60a5fa" opacity="0.8"/><circle cx="32" cy="25" r="1" fill="#34d399" opacity="0.9"/><circle cx="40" cy="20" r="0.8" fill="#fbbf24" opacity="0.8"/><circle cx="48" cy="24" r="1" fill="#f472b6" opacity="0.9"/><circle cx="56" cy="21" r="0.8" fill="#a78bfa" opacity="0.8"/>
+            <line x1="18" y1="24" x2="25" y2="21" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>
+            <line x1="25" y1="21" x2="32" y2="25" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>
+            <line x1="32" y1="25" x2="40" y2="20" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>
+            <line x1="40" y1="20" x2="48" y2="24" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>
+            <line x1="48" y1="24" x2="56" y2="21" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>
+            <!-- Cabin — royal arch -->
+            <path d="M18 16 L23 4 L56 4 L62 16 Z" fill="url(#cel_top)"/>
+            <!-- Prismatic windshield -->
+            <path d="M24 16 L28 6 L52 6 L57 16 Z" fill="rgba(100,50,200,0.5)"/>
+            <!-- Rainbow reflection in windshield -->
+            <path d="M26 13 L30 7 L50 7 L54 13" stroke="url(#cel_accent)" stroke-width="1" fill="none" opacity="0.8"/>
+            <path d="M27 15 Q40 10 55 15" stroke="rgba(255,255,255,0.4)" stroke-width="0.8" fill="none"/>
+            <!-- Crown ornament on cabin -->
+            <text x="40" y="10" text-anchor="middle" font-size="8" fill="rgba(255,215,0,0.9)" style="filter:drop-shadow(0 0 4px gold)">♛</text>
+            <!-- Sweeping double rear wing with rainbow tips -->
+            <path d="M-2 2 L12 5 L12 12 L-2 12 Z" fill="#1a0050" stroke="url(#cel_accent)" stroke-width="1"/>
+            <path d="M-2 14 L12 16 L12 22 L-2 22 Z" fill="#1a0050" stroke="url(#cel_accent)" stroke-width="1"/>
+            <rect x="-2" y="2" width="15" height="2.5" rx="1" fill="url(#cel_accent)" opacity="0.9"/>
+            <rect x="-2" y="2" width="15" height="2.5" rx="1" fill="url(#cel_accent)" filter="url(#cel_blur)" opacity="0.6"/>
+            <rect x="-2" y="20" width="15" height="2.5" rx="1" fill="url(#cel_accent)" opacity="0.9"/>
+            <rect x="-2" y="20" width="15" height="2.5" rx="1" fill="url(#cel_accent)" filter="url(#cel_blur)" opacity="0.6"/>
+            <rect x="4" y="2" width="4" height="21" rx="2" fill="#0d0030"/>
+            <!-- Celestial front wing — spreading like wings -->
+            <path d="M68 14 L80 5 L80 14 L79 26 L70 30 Q75 22 72 16 Z" fill="#1a0050" stroke="url(#cel_accent)" stroke-width="1"/>
+            <path d="M68 13 L80 5" stroke="url(#cel_accent)" stroke-width="1.5" opacity="0.9"/>
+            <path d="M68 13 L80 5" stroke="url(#cel_accent)" stroke-width="4" opacity="0.2" filter="url(#cel_blur)"/>
+            <!-- Nose — prismatic tip -->
+            <path d="M67 16 L80 22 L78 32 L65 31 Z" fill="#0d0030" stroke="url(#cel_accent)" stroke-width="0.8"/>
+            <!-- Prismatic headlights -->
+            <path d="M76 19 L80 22 L76 25 L72 22 Z" fill="url(#cel_accent)"/>
+            <ellipse cx="76" cy="22" rx="7" ry="7" fill="rgba(200,100,255,0.25)" filter="url(#cel_glow)"/>
+            <!-- Wheels — spinning cosmic rims -->
+            <ellipse cx="22" cy="38" rx="9" ry="7" fill="#000"/>
+            <ellipse cx="22" cy="38" rx="7.5" ry="5.8" fill="#0d0030"/>
+            <ellipse cx="22" cy="38" rx="5.5" ry="4.2" fill="#1a0050"/>
+            <ellipse cx="22" cy="38" rx="3.5" ry="2.7" fill="url(#cel_wheel)"/>
+            <ellipse cx="22" cy="38" rx="1.5" ry="1.2" fill="white"/>
+            <ellipse cx="22" cy="38" rx="7.5" ry="5.8" fill="none" stroke="url(#cel_accent)" stroke-width="1.5"/>
+            <ellipse cx="22" cy="38" rx="7.5" ry="5.8" fill="none" stroke="url(#cel_accent)" stroke-width="5" opacity="0.2" filter="url(#cel_glow)"/>
+            <!-- Wheel spokes rainbow -->
+            <line x1="22" y1="32" x2="22" y2="38" stroke="#ff0080" stroke-width="1" opacity="0.8"/>
+            <line x1="27" y1="35" x2="22" y2="38" stroke="#ffe000" stroke-width="1" opacity="0.8"/>
+            <line x1="27" y1="41" x2="22" y2="38" stroke="#00ff88" stroke-width="1" opacity="0.8"/>
+            <line x1="22" y1="44" x2="22" y2="38" stroke="#00cfff" stroke-width="1" opacity="0.8"/>
+            <line x1="17" y1="41" x2="22" y2="38" stroke="#cc00ff" stroke-width="1" opacity="0.8"/>
+            <line x1="17" y1="35" x2="22" y2="38" stroke="#ff8c00" stroke-width="1" opacity="0.8"/>
+            <ellipse cx="57" cy="38" rx="9" ry="7" fill="#000"/>
+            <ellipse cx="57" cy="38" rx="7.5" ry="5.8" fill="#0d0030"/>
+            <ellipse cx="57" cy="38" rx="5.5" ry="4.2" fill="#1a0050"/>
+            <ellipse cx="57" cy="38" rx="3.5" ry="2.7" fill="url(#cel_wheel)"/>
+            <ellipse cx="57" cy="38" rx="1.5" ry="1.2" fill="white"/>
+            <ellipse cx="57" cy="38" rx="7.5" ry="5.8" fill="none" stroke="url(#cel_accent)" stroke-width="1.5"/>
+            <ellipse cx="57" cy="38" rx="7.5" ry="5.8" fill="none" stroke="url(#cel_accent)" stroke-width="5" opacity="0.2" filter="url(#cel_glow)"/>
+            <line x1="57" y1="32" x2="57" y2="38" stroke="#ff0080" stroke-width="1" opacity="0.8"/>
+            <line x1="62" y1="35" x2="57" y2="38" stroke="#ffe000" stroke-width="1" opacity="0.8"/>
+            <line x1="62" y1="41" x2="57" y2="38" stroke="#00ff88" stroke-width="1" opacity="0.8"/>
+            <line x1="57" y1="44" x2="57" y2="38" stroke="#00cfff" stroke-width="1" opacity="0.8"/>
+            <line x1="52" y1="41" x2="57" y2="38" stroke="#cc00ff" stroke-width="1" opacity="0.8"/>
+            <line x1="52" y1="35" x2="57" y2="38" stroke="#ff8c00" stroke-width="1" opacity="0.8"/>
+            <!-- Ultra number plate -->
+            <rect x="31" y="20" width="18" height="11" rx="3" fill="#000" stroke="url(#cel_accent)" stroke-width="1.5"/>
+            <rect x="31" y="20" width="18" height="11" rx="3" fill="none" stroke="url(#cel_accent)" stroke-width="5" opacity="0.2" filter="url(#cel_blur)"/>
+            <text x="40" y="28" text-anchor="middle" font-size="6" font-weight="900" fill="url(#cel_accent)" font-family="monospace">∞-1</text>
+            <!-- Cosmic exhaust — aurora streams -->
+            <path d="M5 26 Q-2 25 -4 28 Q-2 30 3 29 Q-4 29 -6 32 Q-4 33 2 32" stroke="#cc00ff" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.9"/>
+            <path d="M5 26 Q-2 25 -4 28 Q-2 30 3 29" stroke="#00cfff" stroke-width="0.8" fill="none" opacity="0.7" filter="url(#cel_blur)"/>
+            <!-- Body main shine -->
+            <path d="M17 17 Q40 14 60 17" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="skin-info" style="background:linear-gradient(180deg,rgba(26,0,80,0.04),transparent);">
+          <div class="skin-name" style="background:linear-gradient(90deg,#ff0080,#ff8c00,#ffe000,#00ff88,#00cfff,#cc00ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200%;animation:ultraShift 3s linear infinite;">Celestial Titan</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-ultra">Ultra</span>
+            <span class="skin-tag tag-ultra">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ULTRA 2: Inferno God -->
+      <div class="skin-card locked ultra-card">
+        <div class="lock-overlay">
+          <div class="lock-icon" style="font-size:2rem;filter:drop-shadow(0 0 12px #ff4400);">🔥</div>
+          <div class="lock-price" style="background:linear-gradient(135deg,rgba(255,68,0,0.3),rgba(255,200,0,0.3));border:1px solid rgba(255,150,0,0.5);font-size:0.9rem;"><div class="coin-icon" style="width:18px;height:18px;font-size:9px;background:linear-gradient(135deg,#ff4400,#ff0080);">✦</div>50,000</div>
+          <button class="lock-btn" style="background:linear-gradient(90deg,#ff4400,#ff8c00,#ffe000,#ff0080,#ff4400);background-size:200%;animation:ultraShift 2s linear infinite;font-size:0.75rem;font-weight:900;letter-spacing:0.05em;">Unlock ULTRA</button>
+        </div>
+        <div class="kart-preview kart-inferno" style="background:radial-gradient(ellipse at 50% 100%,#ff6600 0%,#cc2200 25%,#880000 55%,#330000 80%,#0a0000 100%);height:120px;">
+          <!-- Lava cracks in background -->
+          <div style="position:absolute;inset:0;background:radial-gradient(ellipse 120% 60% at 50% 100%,rgba(255,100,0,0.4),rgba(200,50,0,0.2),transparent 60%);pointer-events:none;animation:lavaPulse 2s ease-in-out infinite;"></div>
+          <!-- Embers floating up -->
+          <div style="position:absolute;top:15%;left:15%;width:3px;height:3px;border-radius:50%;background:#ff6600;box-shadow:0 0 6px #ff6600;animation:bubbleRise 2s ease-in-out infinite;"></div>
+          <div style="position:absolute;top:25%;left:40%;width:2px;height:2px;border-radius:50%;background:#fbbf24;box-shadow:0 0 4px #fbbf24;animation:bubbleRise 3s ease-in-out infinite 0.7s;"></div>
+          <div style="position:absolute;top:10%;left:65%;width:2.5px;height:2.5px;border-radius:50%;background:#ff4400;box-shadow:0 0 5px #ff4400;animation:bubbleRise 2.5s ease-in-out infinite 1.2s;"></div>
+          <div style="position:absolute;top:20%;left:82%;width:2px;height:2px;border-radius:50%;background:#fde68a;box-shadow:0 0 4px #fde68a;animation:bubbleRise 3.5s ease-in-out infinite 0.3s;"></div>
+          <svg width="100" height="60" viewBox="0 0 80 46" fill="none" style="position:relative;z-index:2;filter:drop-shadow(0 0 16px rgba(255,80,0,0.9)) drop-shadow(0 0 32px rgba(255,50,0,0.5));">
+            <defs>
+              <linearGradient id="inf_body" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#cc2200"/><stop offset="30%" stop-color="#880000"/><stop offset="70%" stop-color="#550000"/><stop offset="100%" stop-color="#1a0000"/></linearGradient>
+              <linearGradient id="inf_top" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ff4400"/><stop offset="50%" stop-color="#cc2200"/><stop offset="100%" stop-color="#880000"/></linearGradient>
+              <linearGradient id="inf_flame" x1="0" y1="1" x2="0" y2="0"><stop offset="0%" stop-color="#ff0000"/><stop offset="30%" stop-color="#ff4400"/><stop offset="60%" stop-color="#ff8800"/><stop offset="85%" stop-color="#ffcc00"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0.8"/></linearGradient>
+              <linearGradient id="inf_lava" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#ff0000"/><stop offset="25%" stop-color="#ff6600"/><stop offset="50%" stop-color="#ffaa00"/><stop offset="75%" stop-color="#ff6600"/><stop offset="100%" stop-color="#ff0000"/></linearGradient>
+              <linearGradient id="inf_wheel" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff4400"/><stop offset="50%" stop-color="#ff8800"/><stop offset="100%" stop-color="#ffcc00"/></linearGradient>
+              <filter id="inf_glow"><feGaussianBlur stdDeviation="3"/></filter>
+              <filter id="inf_blur"><feGaussianBlur stdDeviation="1.5"/></filter>
+            </defs>
+            <!-- Inferno ground glow -->
+            <ellipse cx="40" cy="45" rx="38" ry="7" fill="rgba(255,50,0,0.5)" filter="url(#inf_glow)"/>
+            <ellipse cx="40" cy="43" rx="26" ry="2.5" fill="rgba(0,0,0,0.5)"/>
+            <!-- Lava cracks on body underside -->
+            <path d="M15 34 Q22 32 28 34 Q35 36 42 33 Q50 31 56 34 Q62 36 67 33" stroke="rgba(255,150,0,0.3)" stroke-width="1" fill="none"/>
+            <!-- Main body — obsidian + fire -->
+            <path d="M6 24 Q5 17 13 16 L60 16 Q68 16 70 22 L70 31 Q70 34 67 34 L9 34 Q6 34 6 31 Z" fill="url(#inf_body)"/>
+            <!-- Lava vein stripe across body -->
+            <path d="M10 20 L65 20" stroke="url(#inf_lava)" stroke-width="2.5" opacity="0.95"/>
+            <path d="M10 20 L65 20" stroke="url(#inf_lava)" stroke-width="7" opacity="0.3" filter="url(#inf_blur)"/>
+            <path d="M10 29 L65 29" stroke="#ff4400" stroke-width="1" opacity="0.6"/>
+            <!-- Dragon scale texture -->
+            <path d="M16 16 Q20 20 16 24" stroke="rgba(255,80,0,0.2)" stroke-width="1" fill="none"/>
+            <path d="M23 16 Q27 20 23 24" stroke="rgba(255,80,0,0.2)" stroke-width="1" fill="none"/>
+            <path d="M30 16 Q34 20 30 24" stroke="rgba(255,80,0,0.2)" stroke-width="1" fill="none"/>
+            <path d="M37 16 Q41 20 37 24" stroke="rgba(255,80,0,0.2)" stroke-width="1" fill="none"/>
+            <path d="M44 16 Q48 20 44 24" stroke="rgba(255,80,0,0.2)" stroke-width="1" fill="none"/>
+            <path d="M51 16 Q55 20 51 24" stroke="rgba(255,80,0,0.2)" stroke-width="1" fill="none"/>
+            <!-- Cabin — molten top -->
+            <path d="M18 16 L23 4 L56 4 L62 16 Z" fill="url(#inf_top)"/>
+            <!-- Flame thrower windshield -->
+            <path d="M24 16 L28 6 L52 6 L57 16 Z" fill="rgba(200,50,0,0.6)"/>
+            <path d="M27 14 Q40 10 55 14" stroke="#ff8800" stroke-width="1" fill="none" opacity="0.7"/>
+            <!-- Flame burst from cabin top -->
+            <path d="M30 4 Q32 -2 34 4" fill="url(#inf_flame)" opacity="0.85"/>
+            <path d="M37 4 Q40 -4 43 4" fill="url(#inf_flame)" opacity="0.9"/>
+            <path d="M46 4 Q48 -2 50 4" fill="url(#inf_flame)" opacity="0.8"/>
+            <!-- Flame glow -->
+            <path d="M37 4 Q40 -4 43 4" fill="#ffcc00" opacity="0.3" filter="url(#inf_glow)"/>
+            <!-- Dragon skull on cabin -->
+            <text x="40" y="11" text-anchor="middle" font-size="8" fill="rgba(255,200,0,0.9)" style="filter:drop-shadow(0 0 5px #ff4400)">💀</text>
+            <!-- Triple rear wing — fury fins -->
+            <path d="M-2 1 L12 4 L12 9 L-2 9 Z" fill="#330000" stroke="#ff4400" stroke-width="0.8"/>
+            <path d="M-2 11 L12 13 L12 18 L-2 18 Z" fill="#330000" stroke="#ff6600" stroke-width="0.8"/>
+            <path d="M-2 20 L12 21 L12 25 L-2 25 Z" fill="#330000" stroke="#ff8800" stroke-width="0.8"/>
+            <rect x="-2" y="1" width="15" height="2.5" rx="1" fill="url(#inf_lava)" opacity="0.9"/>
+            <rect x="-2" y="11" width="15" height="2" rx="1" fill="#ff6600" opacity="0.8"/>
+            <rect x="-2" y="22" width="15" height="2" rx="1" fill="#ff8800" opacity="0.8"/>
+            <rect x="4" y="1" width="4" height="25" rx="1.5" fill="#1a0000"/>
+            <!-- Wing fire -->
+            <rect x="-2" y="1" width="15" height="2.5" rx="1" fill="url(#inf_lava)" opacity="0.5" filter="url(#inf_blur)"/>
+            <!-- Demonic front wing — curved horns -->
+            <path d="M68 13 L80 4 L80 10 Q76 14 74 18 L79 26 L70 30 Q72 22 70 17 Z" fill="#330000" stroke="url(#inf_lava)" stroke-width="1"/>
+            <path d="M68 12 L80 4" stroke="#ff6600" stroke-width="1.5" opacity="0.9"/>
+            <path d="M68 12 L80 4" stroke="#ff4400" stroke-width="4" opacity="0.25" filter="url(#inf_blur)"/>
+            <!-- Nose — lava tip -->
+            <path d="M67 16 L80 22 L78 32 L65 31 Z" fill="#330000" stroke="#ff4400" stroke-width="0.8"/>
+            <!-- Dual fire headlights -->
+            <ellipse cx="77" cy="18" rx="2.5" ry="2" fill="#ffcc00"/>
+            <ellipse cx="77" cy="24" rx="2.5" ry="2" fill="#ff8800"/>
+            <ellipse cx="77" cy="21" rx="6" ry="8" fill="rgba(255,100,0,0.3)" filter="url(#inf_glow)"/>
+            <!-- Wheels — obsidian with fire rims -->
+            <ellipse cx="22" cy="38" rx="9" ry="7" fill="#0a0000"/>
+            <ellipse cx="22" cy="38" rx="7.5" ry="5.8" fill="#1a0000"/>
+            <ellipse cx="22" cy="38" rx="5.5" ry="4.2" fill="#330000"/>
+            <ellipse cx="22" cy="38" rx="3.5" ry="2.7" fill="url(#inf_wheel)"/>
+            <ellipse cx="22" cy="38" rx="1.5" ry="1.2" fill="#ffcc00"/>
+            <ellipse cx="22" cy="38" rx="7.5" ry="5.8" fill="none" stroke="url(#inf_lava)" stroke-width="1.5"/>
+            <ellipse cx="22" cy="38" rx="7.5" ry="5.8" fill="none" stroke="#ff4400" stroke-width="5" opacity="0.25" filter="url(#inf_glow)"/>
+            <!-- Fire spokes -->
+            <line x1="22" y1="32" x2="22" y2="38" stroke="#ff4400" stroke-width="1.2"/><line x1="27" y1="35" x2="22" y2="38" stroke="#ff8800" stroke-width="1.2"/><line x1="27" y1="41" x2="22" y2="38" stroke="#ffcc00" stroke-width="1.2"/><line x1="22" y1="44" x2="22" y2="38" stroke="#ff4400" stroke-width="1.2"/><line x1="17" y1="41" x2="22" y2="38" stroke="#ff8800" stroke-width="1.2"/><line x1="17" y1="35" x2="22" y2="38" stroke="#ffcc00" stroke-width="1.2"/>
+            <ellipse cx="57" cy="38" rx="9" ry="7" fill="#0a0000"/>
+            <ellipse cx="57" cy="38" rx="7.5" ry="5.8" fill="#1a0000"/>
+            <ellipse cx="57" cy="38" rx="5.5" ry="4.2" fill="#330000"/>
+            <ellipse cx="57" cy="38" rx="3.5" ry="2.7" fill="url(#inf_wheel)"/>
+            <ellipse cx="57" cy="38" rx="1.5" ry="1.2" fill="#ffcc00"/>
+            <ellipse cx="57" cy="38" rx="7.5" ry="5.8" fill="none" stroke="url(#inf_lava)" stroke-width="1.5"/>
+            <ellipse cx="57" cy="38" rx="7.5" ry="5.8" fill="none" stroke="#ff4400" stroke-width="5" opacity="0.25" filter="url(#inf_glow)"/>
+            <line x1="57" y1="32" x2="57" y2="38" stroke="#ff4400" stroke-width="1.2"/><line x1="62" y1="35" x2="57" y2="38" stroke="#ff8800" stroke-width="1.2"/><line x1="62" y1="41" x2="57" y2="38" stroke="#ffcc00" stroke-width="1.2"/><line x1="57" y1="44" x2="57" y2="38" stroke="#ff4400" stroke-width="1.2"/><line x1="52" y1="41" x2="57" y2="38" stroke="#ff8800" stroke-width="1.2"/><line x1="52" y1="35" x2="57" y2="38" stroke="#ffcc00" stroke-width="1.2"/>
+            <!-- Number plate — hellfire -->
+            <rect x="31" y="20" width="18" height="11" rx="2" fill="#0a0000" stroke="url(#inf_lava)" stroke-width="1.5"/>
+            <rect x="31" y="20" width="18" height="11" rx="2" fill="none" stroke="#ff4400" stroke-width="5" opacity="0.2" filter="url(#inf_blur)"/>
+            <text x="40" y="28" text-anchor="middle" font-size="6" font-weight="900" fill="#ffcc00" font-family="monospace">666</text>
+            <!-- Dragon exhaust — triple flame jets -->
+            <path d="M5 22 Q0 19 -3 22 Q0 24 4 23 Z" fill="url(#inf_flame)" opacity="0.95"/>
+            <path d="M5 27 Q-1 24 -4 27 Q-1 30 4 29 Z" fill="url(#inf_flame)" opacity="0.85"/>
+            <path d="M5 32 Q0 29 -2 32 Q0 35 4 33 Z" fill="#ff8800" opacity="0.75"/>
+            <!-- Exhaust glow -->
+            <ellipse cx="-1" cy="27" rx="5" ry="7" fill="rgba(255,80,0,0.3)" filter="url(#inf_glow)"/>
+            <!-- Body shine -->
+            <path d="M17 17 Q40 15 62 17" stroke="rgba(255,150,100,0.2)" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="skin-info" style="background:linear-gradient(180deg,rgba(80,0,0,0.05),transparent);">
+          <div class="skin-name" style="background:linear-gradient(90deg,#ff0000,#ff6600,#ffaa00,#ff6600,#ff0000);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200%;animation:ultraShift 2s linear infinite;">Inferno God</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-ultra">Ultra</span>
+            <span class="skin-tag tag-ultra">Locked</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- ══ TRACK SKINS ══ -->
+  <div class="section-wrap">
+    <div class="section-top">
+      <div>
+        <div class="section-eyebrow">Circuit</div>
+        <div class="section-title">Track Skins</div>
+      </div>
+      <div class="section-count"><strong>2</strong> / 10 owned</div>
+    </div>
+
+    <div class="track-grid">
+
+      <!-- 1. Mushroom Kingdom — selected -->
+      <div class="skin-card selected" onclick="selectTrack(this,'Mushroom Kingdom','Free')">
+        <div class="selected-check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="track-preview track-mushroom">
+          <!-- Sky depth -->
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,#1e6fdb 0%,#5BA3FF 25%,#87CEEB 55%,#a8d8a8 72%,#5fba6e 100%);"></div>
+          <!-- Sun with rays -->
+          <div style="position:absolute;top:7px;right:9%;width:24px;height:24px;border-radius:50%;background:radial-gradient(circle,#fffde7,#ffe066);box-shadow:0 0 16px rgba(255,220,0,0.7),0 0 32px rgba(255,200,0,0.3);animation:lavaPulse 3s ease-in-out infinite;"></div>
+          <!-- Clouds layered -->
+          <div style="position:absolute;top:6px;left:8%;width:42px;height:13px;background:white;border-radius:999px;opacity:0.95;box-shadow:0 2px 8px rgba(255,255,255,0.5);animation:cloudDriftSlow 10s linear infinite;"></div>
+          <div style="position:absolute;top:3px;left:12%;width:20px;height:18px;background:white;border-radius:50%;opacity:0.95;"></div>
+          <div style="position:absolute;top:4px;left:22%;width:16px;height:14px;background:white;border-radius:50%;opacity:0.9;"></div>
+          <div style="position:absolute;top:9px;right:22%;width:32px;height:11px;background:white;border-radius:999px;opacity:0.9;animation:cloudDriftSlow 14s linear infinite 3s;"></div>
+          <div style="position:absolute;top:6px;right:26%;width:16px;height:15px;background:white;border-radius:50%;opacity:0.9;"></div>
+          <!-- Mountain silhouette -->
+          <div style="position:absolute;bottom:28px;left:55%;width:0;border-left:22px solid transparent;border-right:22px solid transparent;border-bottom:30px solid rgba(60,100,60,0.5);"></div>
+          <div style="position:absolute;bottom:28px;left:68%;width:0;border-left:16px solid transparent;border-right:16px solid transparent;border-bottom:22px solid rgba(50,90,50,0.4);"></div>
+          <!-- Trees with mushrooms -->
+          <div style="position:absolute;bottom:28px;left:4%;">
+            <div style="width:20px;height:24px;background:linear-gradient(180deg,#ef4444,#dc2626);border-radius:50% 50% 40% 40%;margin:0 auto;border:2px solid rgba(255,255,255,0.5);"></div>
+            <div style="position:absolute;top:6px;left:2px;width:3px;height:3px;border-radius:50%;background:white;opacity:0.9;"></div>
+            <div style="position:absolute;top:10px;left:12px;width:2px;height:2px;border-radius:50%;background:white;opacity:0.9;"></div>
+            <div style="width:5px;height:10px;background:#8B4513;margin:0 auto;border-radius:1px;"></div>
+          </div>
+          <div style="position:absolute;bottom:28px;left:18%;">
+            <div style="width:18px;height:22px;background:linear-gradient(180deg,#2d7a3a,#1f5c2a);border-radius:50% 50% 40% 40%;margin:0 auto;box-shadow:0 2px 6px rgba(0,0,0,0.2);"></div>
+            <div style="width:4px;height:8px;background:#5c3d1e;margin:0 auto;border-radius:1px;"></div>
+          </div>
+          <div style="position:absolute;bottom:28px;right:18%;">
+            <div style="width:22px;height:26px;background:linear-gradient(180deg,#ef4444,#b91c1c);border-radius:50% 50% 40% 40%;margin:0 auto;border:2px solid rgba(255,255,255,0.4);"></div>
+            <div style="position:absolute;top:8px;left:3px;width:3px;height:3px;border-radius:50%;background:white;opacity:0.9;"></div>
+            <div style="width:5px;height:10px;background:#8B4513;margin:0 auto;border-radius:1px;"></div>
+          </div>
+          <!-- Grass -->
+          <div style="position:absolute;bottom:14px;left:0;right:0;height:14px;background:linear-gradient(180deg,#5fba6e,#3d8a4a);"></div>
+          <div class="road-strip">
+            <div class="road-kerb-t"></div>
+            <div class="road-asphalt animated"><div class="road-dashes"></div></div>
+            <div class="road-kerb-b"></div>
+          </div>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Mushroom Kingdom</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-free">Free</span>
+            <span class="skin-tag tag-equipped">Equipped</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Ghost House -->
+      <div class="skin-card" onclick="selectTrack(this,'Ghost House','Rare')">
+        <div class="selected-check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="track-preview track-ghost">
+          <!-- Deep night sky -->
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,#03010a 0%,#0d0720 40%,#130d26 70%,#1a0f30 100%);"></div>
+          <!-- Stars -->
+          <div style="position:absolute;top:5px;left:10%;width:2px;height:2px;border-radius:50%;background:white;box-shadow:0 0 4px white;opacity:0.9;"></div>
+          <div style="position:absolute;top:12px;left:28%;width:1.5px;height:1.5px;border-radius:50%;background:white;opacity:0.7;"></div>
+          <div style="position:absolute;top:4px;left:55%;width:2px;height:2px;border-radius:50%;background:#e0d0ff;box-shadow:0 0 3px #c4b5fd;opacity:0.8;"></div>
+          <div style="position:absolute;top:14px;right:28%;width:1px;height:1px;border-radius:50%;background:white;opacity:0.6;"></div>
+          <div style="position:absolute;top:8px;right:12%;width:2px;height:2px;border-radius:50%;background:white;opacity:0.8;"></div>
+          <div style="position:absolute;top:18px;left:42%;width:1px;height:1px;border-radius:50%;background:white;opacity:0.5;"></div>
+          <!-- Moon with glow -->
+          <div style="position:absolute;top:6px;right:10%;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#f8fafc,#e2e8f0);box-shadow:0 0 16px rgba(200,210,255,0.5),0 0 32px rgba(180,190,255,0.2);animation:iceShimmer 5s ease-in-out infinite;"></div>
+          <!-- Moon crater -->
+          <div style="position:absolute;top:10px;right:16%;width:5px;height:5px;border-radius:50%;background:rgba(0,0,0,0.1);"></div>
+          <!-- Haunted mansion -->
+          <div style="position:absolute;bottom:28px;left:6%;">
+            <!-- Main building -->
+            <div style="width:32px;height:36px;background:linear-gradient(180deg,#1e0d3e,#160928);border:1px solid rgba(139,92,246,0.4);border-radius:3px 3px 0 0;position:relative;">
+              <!-- Windows with glow -->
+              <div style="position:absolute;top:6px;left:4px;width:8px;height:10px;background:rgba(250,204,21,0.4);border:1px solid rgba(250,204,21,0.6);border-radius:1px;box-shadow:0 0 6px rgba(250,204,21,0.4);animation:windowFlicker 4s ease-in-out infinite;"></div>
+              <div style="position:absolute;top:6px;right:4px;width:8px;height:10px;background:rgba(139,92,246,0.4);border:1px solid rgba(167,139,250,0.5);border-radius:1px;box-shadow:0 0 6px rgba(167,139,250,0.4);animation:windowFlicker 5s ease-in-out infinite 1.5s;"></div>
+              <div style="position:absolute;top:22px;left:50%;transform:translateX(-50%);width:9px;height:14px;background:rgba(30,15,60,0.9);border:1px solid rgba(139,92,246,0.3);border-radius:1px 1px 0 0;"></div>
+            </div>
+            <!-- Roof -->
+            <div style="position:absolute;bottom:36px;left:-3px;width:0;border-left:19px solid transparent;border-right:19px solid transparent;border-bottom:16px solid #12072a;"></div>
+            <!-- Chimney -->
+            <div style="position:absolute;bottom:48px;left:5px;width:5px;height:8px;background:#12072a;border:1px solid rgba(139,92,246,0.3);"></div>
+          </div>
+          <!-- Boo ghost animated -->
+          <div style="position:absolute;top:16px;left:48%;font-size:20px;animation:ghostBob 2s ease-in-out infinite;filter:drop-shadow(0 0 8px rgba(200,200,255,0.6));transition:all 0.3s;">👻</div>
+          <!-- Second smaller ghost -->
+          <div style="position:absolute;top:25px;right:20%;font-size:14px;animation:ghostBob 2.5s ease-in-out infinite 0.8s;opacity:0.7;filter:drop-shadow(0 0 5px rgba(200,200,255,0.5));">👻</div>
+          <!-- Purple mist on ground -->
+          <div style="position:absolute;bottom:14px;left:0;right:0;height:16px;background:linear-gradient(180deg,rgba(60,20,100,0.8),rgba(30,10,60,0.95));"></div>
+          <div style="position:absolute;bottom:20px;left:0;right:0;height:8px;background:radial-gradient(ellipse at 50% 50%,rgba(139,92,246,0.2),transparent);filter:blur(4px);"></div>
+          <div class="road-strip">
+            <div class="road-kerb-t" style="background:repeating-linear-gradient(90deg,#6d28d9 0px,#6d28d9 14px,rgba(196,181,253,0.7) 14px,rgba(196,181,253,0.7) 28px);"></div>
+            <div class="road-asphalt" style="background:#0d0720;"><div class="road-dashes" style="background:repeating-linear-gradient(90deg,rgba(167,139,250,0.55) 0px,rgba(167,139,250,0.55) 16px,transparent 16px,transparent 32px);"></div></div>
+            <div class="road-kerb-b" style="background:repeating-linear-gradient(90deg,#6d28d9 0px,#6d28d9 14px,rgba(196,181,253,0.7) 14px,rgba(196,181,253,0.7) 28px);"></div>
+          </div>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Ghost House</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-rare">Rare</span>
+            <span class="skin-tag tag-owned">Owned</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Volcano — locked -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>5,000</div>
+        </div>
+        <div class="track-preview track-volcano" style="opacity:0.75;">
+          <!-- Volcano -->
+          <div style="position:absolute;bottom:28px;left:50%;transform:translateX(-50%);width:0;border-left:24px solid transparent;border-right:24px solid transparent;border-bottom:40px solid #1f1010;opacity:0.9;"></div>
+          <!-- Lava glow -->
+          <div style="position:absolute;bottom:28px;left:50%;transform:translateX(-50%);width:12px;height:12px;border-radius:50%;background:radial-gradient(circle,#f97316,#dc2626);box-shadow:0 0 16px rgba(249,115,22,0.8);animation:lavaPulse 1.5s ease-in-out infinite;"></div>
+          <!-- Embers -->
+          <div style="position:absolute;top:12px;left:45%;font-size:8px;color:#f97316;opacity:0.8;">✦</div>
+          <div style="position:absolute;top:18px;left:55%;font-size:6px;color:#fbbf24;opacity:0.7;">✦</div>
+          <div style="position:absolute;bottom:28px;left:0;right:0;height:16px;background:linear-gradient(180deg,#7f1d1d,#450a0a);"></div>
+          <div class="road-strip">
+            <div class="road-kerb-t" style="background:repeating-linear-gradient(90deg,#b91c1c 0px,#b91c1c 14px,#57534e 14px,#57534e 28px);"></div>
+            <div class="road-asphalt" style="background:#292524;"><div class="road-dashes" style="background:repeating-linear-gradient(90deg,rgba(251,146,60,0.5) 0px,rgba(251,146,60,0.5) 16px,transparent 16px,transparent 32px);"></div></div>
+            <div class="road-kerb-b" style="background:repeating-linear-gradient(90deg,#b91c1c 0px,#b91c1c 14px,#57534e 14px,#57534e 28px);"></div>
+          </div>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Volcano Peak</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-epic">Epic</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Ice Palace — locked -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>4,500</div>
+        </div>
+        <div class="track-preview track-ice" style="opacity:0.75;">
+          <!-- Snowflakes -->
+          <div style="position:absolute;top:10px;left:20%;font-size:14px;color:rgba(186,230,253,0.8);animation:iceShimmer 2s ease-in-out infinite;">❄</div>
+          <div style="position:absolute;top:16px;left:60%;font-size:10px;color:rgba(186,230,253,0.7);animation:iceShimmer 3s ease-in-out infinite 1s;">❄</div>
+          <div style="position:absolute;top:8px;right:15%;font-size:12px;color:rgba(186,230,253,0.9);animation:iceShimmer 2.5s ease-in-out infinite 0.5s;">❄</div>
+          <!-- Ice crystals on ground -->
+          <div style="position:absolute;bottom:28px;left:0;right:0;height:18px;background:linear-gradient(180deg,#bae6fd,#7dd3fc);"></div>
+          <div class="road-strip">
+            <div class="road-kerb-t" style="background:repeating-linear-gradient(90deg,#bae6fd 0px,#bae6fd 14px,white 14px,white 28px);"></div>
+            <div class="road-asphalt" style="background:linear-gradient(180deg,#e0f9ff,#bae6fd);"><div class="road-dashes" style="background:repeating-linear-gradient(90deg,rgba(14,165,233,0.5) 0px,rgba(14,165,233,0.5) 16px,transparent 16px,transparent 32px);"></div></div>
+            <div class="road-kerb-b" style="background:repeating-linear-gradient(90deg,#7dd3fc 0px,#7dd3fc 14px,white 14px,white 28px);"></div>
+          </div>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Ice Palace</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-epic">Epic</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Rainbow Road — locked -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>10,000</div>
+        </div>
+        <div class="track-preview track-rainbow" style="opacity:0.75;">
+          <!-- Deep cosmos -->
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,#020008 0%,#0a0520 35%,#120a30 70%,#1a0f40 100%);"></div>
+          <!-- Star field -->
+          <div style="position:absolute;top:4px;left:8%;width:2px;height:2px;border-radius:50%;background:#ef4444;box-shadow:0 0 4px #ef4444;opacity:0.9;"></div>
+          <div style="position:absolute;top:10px;left:22%;width:1.5px;height:1.5px;border-radius:50%;background:#f97316;box-shadow:0 0 3px #f97316;opacity:0.8;"></div>
+          <div style="position:absolute;top:6px;left:38%;width:2px;height:2px;border-radius:50%;background:#eab308;box-shadow:0 0 4px #eab308;opacity:0.9;"></div>
+          <div style="position:absolute;top:14px;left:55%;width:1.5px;height:1.5px;border-radius:50%;background:#22c55e;box-shadow:0 0 3px #22c55e;opacity:0.8;"></div>
+          <div style="position:absolute;top:5px;left:70%;width:2px;height:2px;border-radius:50%;background:#3b82f6;box-shadow:0 0 4px #3b82f6;opacity:0.9;"></div>
+          <div style="position:absolute;top:12px;right:15%;width:2px;height:2px;border-radius:50%;background:#8b5cf6;box-shadow:0 0 4px #8b5cf6;opacity:0.9;"></div>
+          <div style="position:absolute;top:8px;right:5%;width:1.5px;height:1.5px;border-radius:50%;background:#ec4899;box-shadow:0 0 3px #ec4899;opacity:0.8;"></div>
+          <div style="position:absolute;top:3px;left:50%;width:1px;height:1px;border-radius:50%;background:white;opacity:0.6;"></div>
+          <!-- Planet -->
+          <div style="position:absolute;top:6px;right:8%;width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#a78bfa,#4c1d95);box-shadow:0 0 10px rgba(139,92,246,0.5);"></div>
+          <div style="position:absolute;top:12px;right:5%;width:26px;height:6px;border-radius:50%;border:2px solid rgba(167,139,250,0.5);transform:rotate(-20deg);"></div>
+          <!-- Rainbow road surface -->
+          <div style="position:absolute;bottom:0;left:0;right:0;height:38px;">
+            <div style="height:7px;background:linear-gradient(90deg,#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#8b5cf6,#ec4899);animation:rainbowShift 3s linear infinite;"></div><div style="</div>
+            <div style="height:20px;background:linear-gradient(180deg,rgba(99,102,241,0.5),rgba(79,70,229,0.3));position:relative;box-shadow:0 0 20px rgba(139,92,246,0.3);">
+              <div style="position:absolute;top:50%;left:0;right:0;height:2px;transform:translateY(-50%);background:repeating-linear-gradient(90deg,rgba(255,255,255,0.7) 0px,rgba(255,255,255,0.7) 14px,transparent 14px,transparent 28px);"></div>
+            </div>
+            <div style="height:7px;background:linear-gradient(90deg,#ec4899,#8b5cf6,#3b82f6,#22c55e,#eab308,#f97316,#ef4444);animation:rainbowShift 3s linear infinite reverse;"></div>
+          </div>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Rainbow Road</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-legendary">Legendary</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Desert Dunes — locked -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>3,000</div>
+        </div>
+        <div class="track-preview track-desert" style="opacity:0.75;">
+          <!-- Sun -->
+          <div style="position:absolute;top:8px;right:10%;width:24px;height:24px;border-radius:50%;background:radial-gradient(circle,#fef08a,#f59e0b);box-shadow:0 0 14px rgba(245,158,11,0.6);"></div>
+          <!-- Dunes -->
+          <div style="position:absolute;bottom:28px;left:0;right:0;height:22px;background:linear-gradient(180deg,#fbbf24,#d97706);border-radius:60% 60% 0 0 / 30px 30px 0 0;"></div>
+          <div style="position:absolute;bottom:34px;left:30%;width:50%;height:18px;background:#f59e0b;border-radius:60% 60% 0 0 / 25px 25px 0 0;"></div>
+          <!-- Cactus -->
+          <div style="position:absolute;bottom:28px;left:12%;width:6px;height:20px;background:#166534;border-radius:3px;"></div>
+          <div style="position:absolute;bottom:40px;left:9%;width:12px;height:4px;background:#166534;border-radius:2px;"></div>
+          <div class="road-strip">
+            <div class="road-kerb-t" style="background:repeating-linear-gradient(90deg,#d97706 0px,#d97706 14px,#fde68a 14px,#fde68a 28px);"></div>
+            <div class="road-asphalt" style="background:#44403c;"><div class="road-dashes" style="background:repeating-linear-gradient(90deg,rgba(253,230,138,0.6) 0px,rgba(253,230,138,0.6) 16px,transparent 16px,transparent 32px);"></div></div>
+            <div class="road-kerb-b" style="background:repeating-linear-gradient(90deg,#d97706 0px,#d97706 14px,#fde68a 14px,#fde68a 28px);"></div>
+          </div>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Desert Dunes</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-rare">Rare</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- 7. Underwater Reef -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>5,500</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="track-preview track-underwater" style="opacity:0.9;">
+          <!-- Deep ocean gradient -->
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,#001a3a 0%,#003d6b 25%,#0055a0 55%,#006bb3 75%,#0077cc 100%);"></div>
+          <!-- Caustic light patterns -->
+          <div style="position:absolute;inset:0;background:repeating-radial-gradient(ellipse 30px 20px at 20% 30%,rgba(0,170,255,0.12),transparent 30px),repeating-radial-gradient(ellipse 25px 15px at 60% 50%,rgba(0,200,255,0.10),transparent 25px),repeating-radial-gradient(ellipse 20px 12px at 80% 20%,rgba(0,150,220,0.12),transparent 20px);pointer-events:none;"></div>
+          <!-- Bubbles -->
+          <div style="position:absolute;top:8px;left:15%;width:6px;height:8px;border-radius:50%;background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.4);animation:bubbleRise 3s ease-in-out infinite;"></div>
+          <div style="position:absolute;top:4px;left:35%;width:4px;height:5px;border-radius:50%;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.35);animation:bubbleRise 4s ease-in-out infinite 1s;"></div>
+          <div style="position:absolute;top:12px;left:55%;width:5px;height:6px;border-radius:50%;background:rgba(255,255,255,0.22);border:1px solid rgba(255,255,255,0.38);animation:bubbleRise 3.5s ease-in-out infinite 0.5s;"></div>
+          <div style="position:absolute;top:6px;right:15%;width:4px;height:5px;border-radius:50%;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.3);animation:bubbleRise 4.5s ease-in-out infinite 2s;"></div>
+          <!-- Coral formations -->
+          <div style="position:absolute;bottom:28px;left:5%;">
+            <div style="width:6px;height:22px;background:linear-gradient(180deg,#f97316,#dc2626);border-radius:3px 3px 1px 1px;"></div>
+            <div style="position:absolute;top:4px;left:-3px;width:5px;height:14px;background:linear-gradient(180deg,#f97316,#ea580c);border-radius:3px;transform:rotate(-20deg);"></div>
+            <div style="position:absolute;top:2px;left:6px;width:4px;height:12px;background:linear-gradient(180deg,#fb923c,#f97316);border-radius:3px;transform:rotate(15deg);"></div>
+          </div>
+          <!-- Seaweed -->
+          <div style="position:absolute;bottom:28px;left:22%;width:5px;height:26px;background:linear-gradient(180deg,#22c55e,#15803d);border-radius:2px;transform:rotate(-8deg);"></div>
+          <div style="position:absolute;bottom:28px;left:25%;width:4px;height:20px;background:linear-gradient(180deg,#4ade80,#22c55e);border-radius:2px;transform:rotate(10deg);"></div>
+          <!-- Fish -->
+          <div style="position:absolute;top:22px;right:25%;font-size:14px;opacity:0.8;animation:cloudDriftSlow 8s linear infinite reverse;">🐠</div>
+          <div style="position:absolute;top:14px;left:45%;font-size:10px;opacity:0.6;">🐡</div>
+          <!-- Sandy ground -->
+          <div style="position:absolute;bottom:14px;left:0;right:0;height:14px;background:linear-gradient(180deg,#d97706,#92400e);"></div>
+          <div class="road-strip">
+            <div class="road-kerb-t" style="background:repeating-linear-gradient(90deg,#0077cc 0px,#0077cc 14px,rgba(0,200,255,0.7) 14px,rgba(0,200,255,0.7) 28px);"></div>
+            <div class="road-asphalt" style="background:linear-gradient(180deg,#003d6b,#002d52);"><div class="road-dashes" style="background:repeating-linear-gradient(90deg,rgba(0,200,255,0.6) 0px,rgba(0,200,255,0.6) 16px,transparent 16px,transparent 32px);"></div></div>
+            <div class="road-kerb-b" style="background:repeating-linear-gradient(90deg,#0284c7 0px,#0284c7 14px,rgba(186,230,253,0.7) 14px,rgba(186,230,253,0.7) 28px);"></div>
+          </div>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Underwater Reef</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-epic">Epic</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. Deep Space -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>8,000</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="track-preview track-space" style="opacity:0.9;">
+          <!-- Pure void space -->
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,#000005 0%,#050010 40%,#0a0520 80%,#050010 100%);"></div>
+          <!-- Nebula cloud -->
+          <div style="position:absolute;top:0;left:20%;right:20%;height:60px;background:radial-gradient(ellipse at 50% 30%,rgba(139,92,246,0.18),rgba(99,102,241,0.10),transparent 70%);pointer-events:none;"></div>
+          <!-- Stars -->
+          <div style="position:absolute;top:3px;left:8%;width:2px;height:2px;border-radius:50%;background:white;box-shadow:0 0 4px white;animation:starTwinkle 2s ease-in-out infinite;"></div>
+          <div style="position:absolute;top:9px;left:22%;width:1.5px;height:1.5px;border-radius:50%;background:white;opacity:0.8;"></div>
+          <div style="position:absolute;top:5px;left:38%;width:2px;height:2px;border-radius:50%;background:#bfdbfe;box-shadow:0 0 4px #93c5fd;animation:starTwinkle 3s ease-in-out infinite 0.8s;"></div>
+          <div style="position:absolute;top:14px;left:52%;width:1px;height:1px;border-radius:50%;background:white;opacity:0.6;"></div>
+          <div style="position:absolute;top:7px;left:68%;width:2px;height:2px;border-radius:50%;background:#ddd6fe;box-shadow:0 0 4px #a5b4fc;animation:starTwinkle 2.5s ease-in-out infinite 1.2s;"></div>
+          <div style="position:absolute;top:11px;right:18%;width:1.5px;height:1.5px;border-radius:50%;background:white;opacity:0.7;"></div>
+          <div style="position:absolute;top:4px;right:8%;width:2px;height:2px;border-radius:50%;background:#fde68a;box-shadow:0 0 4px #fbbf24;animation:starTwinkle 4s ease-in-out infinite 0.3s;"></div>
+          <!-- Distant galaxies -->
+          <div style="position:absolute;top:18px;left:42%;width:20px;height:8px;border-radius:50%;background:radial-gradient(ellipse,rgba(167,139,250,0.25),transparent);transform:rotate(-20deg);"></div>
+          <!-- Large planet -->
+          <div style="position:absolute;top:4px;right:8%;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#7dd3fc,#0ea5e9,#0c4a6e);box-shadow:0 0 16px rgba(14,165,233,0.5);animation:iceShimmer 4s ease-in-out infinite;"></div>
+          <!-- Planet ring -->
+          <div style="position:absolute;top:15px;right:4%;width:38px;height:8px;border-radius:50%;border:2px solid rgba(14,165,233,0.4);transform:rotate(-15deg);"></div>
+          <!-- Space station -->
+          <div style="position:absolute;bottom:28px;left:6%;opacity:0.7;">
+            <div style="width:24px;height:8px;background:#334155;border-radius:2px;border:1px solid rgba(148,163,184,0.4);position:relative;">
+              <div style="position:absolute;top:-4px;left:50%;transform:translateX(-50%);width:4px;height:4px;background:#0ea5e9;border-radius:50%;box-shadow:0 0 4px #0ea5e9;"></div>
+              <div style="position:absolute;top:2px;left:-8px;width:8px;height:3px;background:#1e293b;border:1px solid rgba(148,163,184,0.3);"></div>
+              <div style="position:absolute;top:2px;right:-8px;width:8px;height:3px;background:#1e293b;border:1px solid rgba(148,163,184,0.3);"></div>
+            </div>
+          </div>
+          <!-- Asteroid -->
+          <div style="position:absolute;top:20px;left:30%;font-size:12px;opacity:0.5;">🪨</div>
+          <!-- Asteroid belt ground -->
+          <div style="position:absolute;bottom:14px;left:0;right:0;height:14px;background:linear-gradient(180deg,rgba(30,15,60,0.95),rgba(10,5,20,1));"></div>
+          <div class="road-strip">
+            <div class="road-kerb-t" style="background:repeating-linear-gradient(90deg,#4338ca 0px,#4338ca 14px,rgba(165,180,252,0.6) 14px,rgba(165,180,252,0.6) 28px);"></div>
+            <div class="road-asphalt" style="background:linear-gradient(180deg,#0f0a2e,#080516);"><div class="road-dashes" style="background:repeating-linear-gradient(90deg,rgba(165,180,252,0.7) 0px,rgba(165,180,252,0.7) 16px,transparent 16px,transparent 32px);"></div></div>
+            <div class="road-kerb-b" style="background:repeating-linear-gradient(90deg,#6366f1 0px,#6366f1 14px,rgba(199,210,254,0.6) 14px,rgba(199,210,254,0.6) 28px);"></div>
+          </div>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Deep Space</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-mythic">Mythic</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9. Autumn Festival -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>3,500</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="track-preview track-autumn" style="opacity:0.9;">
+          <!-- Autumn sunset sky -->
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,#431407 0%,#7c2d12 20%,#c2410c 40%,#ea580c 58%,#f97316 72%,#fbbf24 85%,#92400e 100%);"></div>
+          <!-- Sun setting -->
+          <div style="position:absolute;top:4px;right:12%;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle,#fef9c3,#fbbf24,#f97316);box-shadow:0 0 20px rgba(251,191,36,0.6),0 0 40px rgba(249,115,22,0.3);animation:lavaPulse 4s ease-in-out infinite;"></div>
+          <!-- Horizontal light rays -->
+          <div style="position:absolute;top:16px;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(251,191,36,0.2),rgba(251,191,36,0.4),rgba(251,191,36,0.2),transparent);"></div>
+          <!-- Japanese pagoda silhouette -->
+          <div style="position:absolute;bottom:28px;right:8%;opacity:0.85;">
+            <div style="width:28px;height:10px;background:#431407;border-radius:4px 4px 0 0;margin:0 auto;position:relative;">
+              <div style="position:absolute;top:-4px;left:-4px;right:-4px;height:5px;background:#7c2d12;border-radius:3px;"></div>
+            </div>
+            <div style="width:22px;height:16px;background:#431407;margin:0 auto;"></div>
+            <div style="width:18px;height:8px;background:#7c2d12;border-radius:3px 3px 0 0;margin:0 auto;position:relative;">
+              <div style="position:absolute;top:-3px;left:-3px;right:-3px;height:4px;background:#c2410c;border-radius:2px;"></div>
+            </div>
+            <div style="width:14px;height:14px;background:#431407;margin:0 auto;"></div>
+            <div style="width:4px;height:8px;background:#431407;margin:0 auto;border-radius:1px;"></div>
+          </div>
+          <!-- Autumn trees -->
+          <div style="position:absolute;bottom:28px;left:5%;">
+            <div style="width:22px;height:26px;background:linear-gradient(180deg,#dc2626,#f97316,#eab308);border-radius:50% 50% 40% 40%;margin:0 auto;"></div>
+            <div style="width:5px;height:10px;background:#7c2d12;margin:0 auto;border-radius:1px;"></div>
+          </div>
+          <div style="position:absolute;bottom:28px;left:20%;">
+            <div style="width:18px;height:22px;background:linear-gradient(180deg,#f97316,#eab308,#dc2626);border-radius:50% 50% 40% 40%;margin:0 auto;"></div>
+            <div style="width:4px;height:8px;background:#92400e;margin:0 auto;border-radius:1px;"></div>
+          </div>
+          <!-- Falling leaves -->
+          <div style="position:absolute;top:16px;left:38%;font-size:10px;opacity:0.8;transform:rotate(20deg);animation:leafFall 2s ease-in-out infinite;">🍂</div>
+          <div style="position:absolute;top:22px;left:58%;font-size:8px;opacity:0.6;animation:leafFall 3s ease-in-out infinite 0.8s;">🍁</div>
+          <div style="position:absolute;top:10px;left:68%;font-size:9px;opacity:0.7;animation:leafFall 2.5s ease-in-out infinite 1.5s;">🍂</div>
+          <!-- Ground — fallen leaves -->
+          <div style="position:absolute;bottom:14px;left:0;right:0;height:14px;background:linear-gradient(180deg,#c2410c,#7c2d12);"></div>
+          <div class="road-strip">
+            <div class="road-kerb-t" style="background:repeating-linear-gradient(90deg,#dc2626 0px,#dc2626 14px,#fbbf24 14px,#fbbf24 28px);"></div>
+            <div class="road-asphalt" style="background:#292524;"><div class="road-dashes" style="background:repeating-linear-gradient(90deg,rgba(251,191,36,0.6) 0px,rgba(251,191,36,0.6) 16px,transparent 16px,transparent 32px);"></div></div>
+            <div class="road-kerb-b" style="background:repeating-linear-gradient(90deg,#ea580c 0px,#ea580c 14px,#fde68a 14px,#fde68a 28px);"></div>
+          </div>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Autumn Festival</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-rare">Rare</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 10. Neon City -->
+      <div class="skin-card locked">
+        <div class="lock-overlay">
+          <div class="lock-icon">🔒</div>
+          <div class="lock-price"><div class="coin-icon" style="width:16px;height:16px;font-size:8px;">✦</div>11,000</div>
+          <button class="lock-btn">Unlock in Shop</button>
+        </div>
+        <div class="track-preview track-neon" style="opacity:0.9;">
+          <!-- Deep night city -->
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,#020008 0%,#0a0014 35%,#12001e 65%,#0a0014 100%);"></div>
+          <!-- City building silhouettes -->
+          <div style="position:absolute;bottom:28px;left:0;right:0;display:flex;align-items:flex-end;">
+            <div style="width:18px;height:35px;background:#0a0010;margin:0 1px;position:relative;">
+              <div style="position:absolute;top:5px;left:3px;width:4px;height:4px;background:rgba(251,191,36,0.6);box-shadow:0 0 4px rgba(251,191,36,0.5);"></div>
+              <div style="position:absolute;top:14px;left:3px;width:4px;height:4px;background:rgba(59,130,246,0.6);box-shadow:0 0 4px rgba(59,130,246,0.5);"></div>
+              <div style="position:absolute;top:24px;left:3px;width:4px;height:4px;background:rgba(239,68,68,0.6);box-shadow:0 0 4px rgba(239,68,68,0.5);"></div>
+            </div>
+            <div style="width:12px;height:28px;background:#050010;margin:0 1px;position:relative;">
+              <div style="position:absolute;top:6px;left:2px;width:3px;height:3px;background:rgba(139,92,246,0.7);box-shadow:0 0 3px rgba(139,92,246,0.6);"></div>
+            </div>
+            <div style="width:22px;height:42px;background:#080014;margin:0 1px;position:relative;">
+              <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#e879f9;box-shadow:0 0 6px #e879f9;animation:neonFlicker 6s ease-in-out infinite;"></div>
+              <div style="position:absolute;top:8px;left:3px;width:6px;height:5px;background:rgba(232,121,249,0.4);box-shadow:0 0 4px rgba(232,121,249,0.4);"></div>
+              <div style="position:absolute;top:18px;left:3px;width:6px;height:5px;background:rgba(96,165,250,0.4);box-shadow:0 0 4px rgba(96,165,250,0.4);"></div>
+              <div style="position:absolute;top:30px;left:3px;width:6px;height:5px;background:rgba(232,121,249,0.4);box-shadow:0 0 4px rgba(232,121,249,0.4);"></div>
+            </div>
+            <div style="width:14px;height:32px;background:#060010;margin:0 1px;position:relative;">
+              <div style="position:absolute;top:0;right:0;width:2px;height:100%;background:rgba(0,255,136,0.2);"></div>
+            </div>
+            <div style="width:20px;height:38px;background:#07000f;margin:0 1px;position:relative;">
+              <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#00ff88;box-shadow:0 0 8px #00ff88;animation:neonFlicker 5s ease-in-out infinite 2s;"></div>
+              <div style="position:absolute;top:6px;left:2px;right:2px;height:3px;background:rgba(0,255,136,0.3);"></div>
+            </div>
+            <div style="flex:1;height:20px;background:#040008;margin:0 1px;"></div>
+            <div style="width:16px;height:36px;background:#080014;margin:0 1px;position:relative;">
+              <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#f472b6;box-shadow:0 0 6px #f472b6;animation:neonFlicker 7s ease-in-out infinite 1s;"></div>
+            </div>
+          </div>
+          <!-- Neon reflections on ground -->
+          <div style="position:absolute;bottom:14px;left:0;right:0;height:16px;background:linear-gradient(180deg,rgba(10,0,20,0.95),rgba(5,0,10,1));"></div>
+          <!-- Neon puddle reflections -->
+          <div style="position:absolute;bottom:16px;left:15%;width:30px;height:4px;border-radius:50%;background:rgba(232,121,249,0.3);filter:blur(2px);animation:iceShimmer 2s ease-in-out infinite;"></div>
+          <div style="position:absolute;bottom:16px;left:55%;width:20px;height:3px;border-radius:50%;background:rgba(0,255,136,0.25);filter:blur(1px);animation:iceShimmer 3s ease-in-out infinite 1s;"></div>
+          <div class="road-strip">
+            <div class="road-kerb-t" style="background:repeating-linear-gradient(90deg,#e879f9 0px,#e879f9 14px,rgba(232,121,249,0.3) 14px,rgba(232,121,249,0.3) 28px);box-shadow:0 0 8px rgba(232,121,249,0.5);"></div>
+            <div class="road-asphalt" style="background:#0a000f;"><div class="road-dashes" style="background:repeating-linear-gradient(90deg,rgba(0,255,136,0.7) 0px,rgba(0,255,136,0.7) 16px,transparent 16px,transparent 32px);box-shadow:0 0 6px rgba(0,255,136,0.5);"></div></div>
+            <div class="road-kerb-b" style="background:repeating-linear-gradient(90deg,#00ff88 0px,#00ff88 14px,rgba(0,255,136,0.3) 14px,rgba(0,255,136,0.3) 28px);box-shadow:0 0 8px rgba(0,255,136,0.5);"></div>
+          </div>
+        </div>
+        <div class="skin-info">
+          <div class="skin-name">Neon City</div>
+          <div class="skin-meta">
+            <span class="skin-rarity rarity-legendary">Legendary</span>
+            <span class="skin-tag tag-locked">Locked</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<style>
+  @keyframes rainbowShift {
+    0% { filter: hue-rotate(0deg); }
+    100% { filter: hue-rotate(360deg); }
+  }
+  @keyframes ghostBob {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+</style>
+
+<script>
+  let selectedKart = document.querySelector('.skin-grid .skin-card.selected');
+  let selectedTrack = document.querySelector('.track-grid .skin-card.selected');
+
+  function selectKart(el, name, rarity, bgA, bgB) {
+    if (el.classList.contains('locked')) return;
+    document.querySelectorAll('.skin-grid .skin-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    // Update preview
+    document.getElementById('previewName').textContent = name;
+    document.querySelector('.preview-kart-area').style.background = `linear-gradient(160deg, ${bgA}, ${bgB})`;
+    const svg = el.querySelector('.kart-preview svg');
+    if (svg) {
+      const clone = svg.cloneNode(true);
+      clone.setAttribute('width', '80');
+      clone.setAttribute('height', '46');
+      const area = document.getElementById('previewKartArea');
+      area.innerHTML = '';
+      area.appendChild(clone);
+    }
+  }
+
+  function selectTrack(el, name, rarity) {
+    if (el.classList.contains('locked')) return;
+    document.querySelectorAll('.track-grid .skin-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+</script>
+</body>
+</html>

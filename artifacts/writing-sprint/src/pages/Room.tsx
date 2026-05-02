@@ -1009,6 +1009,44 @@ export default function Room() {
     });
   };
 
+  // Track which inline formats are active at the current selection so the
+  // toolbar's B/I/U chips can light up. queryCommandState is the standard
+  // way to read this from a contentEditable region.
+  const [activeFormats, setActiveFormats] = useState({ bold: false, italic: false, underline: false });
+
+  const refreshActiveFormats = useCallback(() => {
+    const div = textareaRef.current;
+    if (!div) return;
+    const sel = window.getSelection();
+    const anchor = sel?.anchorNode;
+    const inEditor = !!anchor && div.contains(
+      anchor.nodeType === 1 ? (anchor as Element) : anchor.parentElement,
+    );
+    // When the selection isn't inside our editor, clear the chips instead
+    // of leaving them stuck on the previous editor state.
+    if (!inEditor) {
+      setActiveFormats({ bold: false, italic: false, underline: false });
+      return;
+    }
+    try {
+      setActiveFormats({
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        bold: document.queryCommandState("bold"),
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        italic: document.queryCommandState("italic"),
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        underline: document.queryCommandState("underline"),
+      });
+    } catch {
+      /* ignore — older browsers without queryCommandState */
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener("selectionchange", refreshActiveFormats);
+    return () => document.removeEventListener("selectionchange", refreshActiveFormats);
+  }, [refreshActiveFormats]);
+
   const handleFormat = useCallback((type: FormatType) => {
     const div = textareaRef.current;
     if (!div) return;
@@ -1017,7 +1055,8 @@ export default function Room() {
     // eslint-disable-next-line @typescript-eslint/no-deprecated
     document.execCommand(command, false, undefined);
     applyText();
-  }, [applyText]);
+    refreshActiveFormats();
+  }, [applyText, refreshActiveFormats]);
 
   const copyRoomCode = () => {
     navigator.clipboard.writeText(code);
@@ -1421,7 +1460,7 @@ export default function Room() {
               )}
               {!readMode && (
                 <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: "12px 16px", boxShadow: "0 4px 20px rgba(107,143,212,0.08)", marginBottom: 8 }}>
-                  <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} />
+                  <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} activeFormats={activeFormats} />
                 </div>
               )}
 
