@@ -52,16 +52,20 @@ async function getActiveEffects(client: PoolClient, userId: string) {
   return rows;
 }
 
-async function grantXp(userId: string, amount: number): Promise<number> {
-  const client = await pool.connect();
-  try {
-    const { rows } = await client.query<{ xp: number }>(
+async function grantXp(userId: string, amount: number, existingClient?: PoolClient): Promise<number> {
+  const runQuery = async (c: PoolClient): Promise<number> => {
+    const { rows } = await c.query<{ xp: number }>(
       `UPDATE user_profiles SET xp = xp + $1, updated_at = NOW()
        WHERE clerk_user_id = $2
        RETURNING xp`,
       [amount, userId],
     );
     return rows[0]?.xp ?? 0;
+  };
+  if (existingClient) return runQuery(existingClient);
+  const client = await pool.connect();
+  try {
+    return await runQuery(client);
   } finally {
     client.release();
   }
@@ -74,136 +78,143 @@ router.get("/user/bag", async (req, res): Promise<void> => {
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const client = await pool.connect();
-  try {
-    // ── Phase 1: mutations (parallel where safe) ──────────────────────────
-    // Delete expired overflow items and expired active effects simultaneously.
-    // getBagSlots also does an upsert so run it now too using the same client.
-    await Promise.all([
-      client.query(
-        `DELETE FROM user_inventory
-         WHERE user_id = $1
-           AND overflow_since IS NOT NULL
-           AND overflow_since < NOW() - INTERVAL '24 hours'`,
-        [userId],
-      ),
-      client.query(
-        `DELETE FROM active_effects WHERE user_id = $1 AND expires_at < NOW()`,
-        [userId],
-      ),
-      client.query(
-        `INSERT INTO equipped_storage (user_id, item_id, slot_count)
-         VALUES ($1, NULL, 20) ON CONFLICT (user_id) DO NOTHING`,
-        [userId],
-      ),
-    ]);
+  // ── Connection A: fast mutations + slot/effect reads ─────────────────────
+  // Released before the slow window-function UPDATE so we don't hold a pool
+  // slot while the overflow recalculation runs on potentially large tables.
+  let totalSlots: number = DEFAULT_BAG_SLOTS;
+  let effects: Record<string, unknown>[] = [];
+  {
+    const clientA = await pool.connect();
+    try {
+      await Promise.all([
+        clientA.query(
+          `DELETE FROM user_inventory
+           WHERE user_id = $1
+             AND overflow_since IS NOT NULL
+             AND overflow_since < NOW() - INTERVAL '24 hours'`,
+          [userId],
+        ),
+        clientA.query(
+          `DELETE FROM active_effects WHERE user_id = $1 AND expires_at < NOW()`,
+          [userId],
+        ),
+        clientA.query(
+          `INSERT INTO equipped_storage (user_id, item_id, slot_count)
+           VALUES ($1, NULL, 20) ON CONFLICT (user_id) DO NOTHING`,
+          [userId],
+        ),
+      ]);
 
-    // ── Phase 2: reads that can run in parallel after phase 1 ─────────────
-    const [
-      { rows: slotsRows },
-      { rows: effectRows },
-    ] = await Promise.all([
-      client.query<{ slot_count: number }>(
-        `SELECT slot_count FROM equipped_storage WHERE user_id = $1`,
-        [userId],
-      ),
-      client.query(
-        `SELECT ae.*, im.name AS item_name, im.icon, im.rarity
-         FROM active_effects ae
-         JOIN items_master im ON im.id = ae.item_id
-         WHERE ae.user_id = $1
-         ORDER BY ae.expires_at ASC`,
-        [userId],
-      ),
-    ]);
+      const [{ rows: slotsRows }, { rows: effectRows }] = await Promise.all([
+        clientA.query<{ slot_count: number }>(
+          `SELECT slot_count FROM equipped_storage WHERE user_id = $1`,
+          [userId],
+        ),
+        clientA.query(
+          `SELECT ae.*, im.name AS item_name, im.icon, im.rarity
+           FROM active_effects ae
+           JOIN items_master im ON im.id = ae.item_id
+           WHERE ae.user_id = $1
+           ORDER BY ae.expires_at ASC`,
+          [userId],
+        ),
+      ]);
 
-    const totalSlots: number = slotsRows[0]?.slot_count ?? DEFAULT_BAG_SLOTS;
-    const effects = effectRows;
+      totalSlots = slotsRows[0]?.slot_count ?? DEFAULT_BAG_SLOTS;
+      effects = effectRows as Record<string, unknown>[];
+    } finally {
+      clientA.release();
+    }
+  }
 
-    // ── Phase 3: recompute overflow markers (needs totalSlots) ─────────────
-    await client.query(
-      `WITH ranked AS (
-         SELECT ui.id,
-           ROW_NUMBER() OVER (
-             ORDER BY
-               CASE im.rarity
-                 WHEN 'common'    THEN 0
-                 WHEN 'uncommon'  THEN 1
-                 WHEN 'rare'      THEN 2
-                 WHEN 'epic'      THEN 3
-                 WHEN 'mythic'    THEN 4
-                 WHEN 'legendary' THEN 5
-                 ELSE 0
-               END ASC,
-               ui.acquired_at ASC
-           ) AS rk
-         FROM user_inventory ui
-         JOIN items_master im ON im.id = ui.item_id
-         WHERE ui.user_id = $1
-       )
-       UPDATE user_inventory
-       SET overflow_since = CASE
-         WHEN rk > $2 THEN COALESCE(user_inventory.overflow_since, NOW())
-         ELSE NULL
-       END
-       FROM ranked
-       WHERE user_inventory.id = ranked.id`,
-      [userId, totalSlots],
-    );
+  // ── Connection B: overflow recalculation + inventory reads ────────────────
+  // Acquired fresh after Connection A is fully released.
+  {
+    const clientB = await pool.connect();
+    try {
+      await clientB.query(
+        `WITH ranked AS (
+           SELECT ui.id,
+             ROW_NUMBER() OVER (
+               ORDER BY
+                 CASE im.rarity
+                   WHEN 'common'    THEN 0
+                   WHEN 'uncommon'  THEN 1
+                   WHEN 'rare'      THEN 2
+                   WHEN 'epic'      THEN 3
+                   WHEN 'mythic'    THEN 4
+                   WHEN 'legendary' THEN 5
+                   ELSE 0
+                 END ASC,
+                 ui.acquired_at ASC
+             ) AS rk
+           FROM user_inventory ui
+           JOIN items_master im ON im.id = ui.item_id
+           WHERE ui.user_id = $1
+         )
+         UPDATE user_inventory
+         SET overflow_since = CASE
+           WHEN rk > $2 THEN COALESCE(user_inventory.overflow_since, NOW())
+           ELSE NULL
+         END
+         FROM ranked
+         WHERE user_inventory.id = ranked.id`,
+        [userId, totalSlots],
+      );
 
-    // ── Phase 4: independent reads — all parallel ─────────────────────────
-    const [
-      { rows: inventory },
-      { rows: ashRows },
-      { rows: cooldownRows },
-    ] = await Promise.all([
-      client.query(
-        `SELECT ui.id, ui.item_id, ui.quantity, ui.acquired_at, ui.overflow_since,
-                im.name, im.description, im.category, im.rarity,
-                im.effect_type, im.effect_value, im.effect_duration,
-                im.is_craftable, im.is_tradeable, im.icon, im.stack_limit,
-                im.sell_value, im.is_storage_item, im.storage_slot_count
-         FROM user_inventory ui
-         JOIN items_master im ON im.id = ui.item_id
-         WHERE ui.user_id = $1
-         ORDER BY ui.overflow_since DESC NULLS LAST, im.rarity DESC, im.category, im.name`,
-        [userId],
-      ),
-      client.query(
-        `SELECT count FROM failure_ashes WHERE user_id = $1`,
-        [userId],
-      ),
-      client.query(
-        `SELECT item_id, MAX(used_at) AS last_used, im.effect_duration
-         FROM item_use_log iul
-         JOIN items_master im ON im.id = iul.item_id
-         WHERE iul.user_id = $1 AND iul.used_at > NOW() - INTERVAL '7 days'
-         GROUP BY item_id, im.effect_duration`,
-        [userId],
-      ),
-    ]);
+      const [
+        { rows: inventory },
+        { rows: ashRows },
+        { rows: cooldownRows },
+      ] = await Promise.all([
+        clientB.query(
+          `SELECT ui.id, ui.item_id, ui.quantity, ui.acquired_at, ui.overflow_since,
+                  im.name, im.description, im.category, im.rarity,
+                  im.effect_type, im.effect_value, im.effect_duration,
+                  im.is_craftable, im.is_tradeable, im.icon, im.stack_limit,
+                  im.sell_value, im.is_storage_item, im.storage_slot_count
+           FROM user_inventory ui
+           JOIN items_master im ON im.id = ui.item_id
+           WHERE ui.user_id = $1
+           ORDER BY ui.overflow_since DESC NULLS LAST, im.rarity DESC, im.category, im.name`,
+          [userId],
+        ),
+        clientB.query(
+          `SELECT count FROM failure_ashes WHERE user_id = $1`,
+          [userId],
+        ),
+        clientB.query(
+          `SELECT item_id, MAX(used_at) AS last_used, im.effect_duration
+           FROM item_use_log iul
+           JOIN items_master im ON im.id = iul.item_id
+           WHERE iul.user_id = $1 AND iul.used_at > NOW() - INTERVAL '7 days'
+           GROUP BY item_id, im.effect_duration`,
+          [userId],
+        ),
+      ]);
 
-    const failureAshes = ashRows[0]?.count ?? 0;
+      const failureAshes = ashRows[0]?.count ?? 0;
 
-    const cooldowns: Record<number, Date> = {};
-    for (const row of cooldownRows) {
-      if (row.effect_duration && row.effect_duration >= 60) {
-        const cooldownEnd = new Date(row.last_used.getTime() + row.effect_duration * 60_000);
-        if (cooldownEnd > new Date()) {
-          cooldowns[row.item_id] = cooldownEnd;
+      const cooldowns: Record<number, Date> = {};
+      for (const row of cooldownRows) {
+        if (row.effect_duration && row.effect_duration >= 60) {
+          const cooldownEnd = new Date(row.last_used.getTime() + row.effect_duration * 60_000);
+          if (cooldownEnd > new Date()) {
+            cooldowns[row.item_id] = cooldownEnd;
+          }
         }
       }
-    }
 
-    res.json({
-      inventory,
-      activeEffects: effects,
-      totalSlots,
-      failureAshes,
-      cooldowns,
-    });
-  } finally {
-    client.release();
+      res.json({
+        inventory,
+        activeEffects: effects,
+        totalSlots,
+        failureAshes,
+        cooldowns,
+      });
+    } finally {
+      clientB.release();
+    }
   }
 });
 
@@ -267,13 +278,13 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
 
     if (effectType === "xp_instant") {
       xpGained = effectValue ?? 0;
-      newXp = await grantXp(userId, xpGained);
+      newXp = await grantXp(userId, xpGained, client);
       message = `+${xpGained} XP`;
 
     } else if (effectType === "impure_pill") {
       if (Math.random() > 0.2) {
         xpGained = effectValue ?? 0;
-        newXp = await grantXp(userId, xpGained);
+        newXp = await grantXp(userId, xpGained, client);
         message = `+${xpGained} XP (refined successfully)`;
       } else {
         message = "The pill crumbled to ash... (20% failure — nothing gained)";
@@ -282,7 +293,7 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
     } else if (effectType === "chaos_random") {
       if (Math.random() < 0.70) {
         xpGained = 50000;
-        newXp = await grantXp(userId, xpGained);
+        newXp = await grantXp(userId, xpGained, client);
         message = `The chaos aligned in your favour! +50,000 XP`;
       } else {
         // Cancel all active effects
@@ -376,7 +387,7 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
       const karmaPayout = Math.min(effectValue ?? 10000, Number(karmaRows[0]?.total ?? 0));
       if (karmaPayout > 0) {
         xpGained = karmaPayout;
-        newXp = await grantXp(userId, xpGained);
+        newXp = await grantXp(userId, xpGained, client);
         await client.query(`DELETE FROM karma_pill_log WHERE user_id = $1`, [userId]);
         message = `Karma recovered! +${xpGained} XP (all crafting failures forgiven)`;
       } else {
@@ -389,7 +400,7 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
       const xpNeeded = Math.max(0, nextThreshold - currentXp);
       xpGained = Math.min(effectValue ?? 5000, Math.floor(xpNeeded * 0.2));
       if (xpGained > 0) {
-        newXp = await grantXp(userId, xpGained);
+        newXp = await grantXp(userId, xpGained, client);
         message = `False tribulation surge! +${xpGained} XP (20% of ${xpNeeded} needed for next rank)`;
       } else {
         message = "Already at max rank — no tribulation XP gained.";
@@ -399,7 +410,7 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
       const rankIdx = getRankIndex(currentXp);
       xpGained = rankIdx * (effectValue ?? 200);
       if (xpGained > 0) {
-        newXp = await grantXp(userId, xpGained);
+        newXp = await grantXp(userId, xpGained, client);
         message = `Dao Fruit consumed! +${xpGained} XP (rank tier ${rankIdx} × ${effectValue ?? 200})`;
       } else {
         message = "Rank 0 — Dao Fruit grants no XP yet. Keep writing!";
@@ -415,7 +426,7 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
         const tenPct = nextThreshold * 0.10;
         if (xpNeeded <= tenPct) {
           xpGained = xpNeeded;
-          newXp = await grantXp(userId, xpGained);
+          newXp = await grantXp(userId, xpGained, client);
           message = `Tribulation passed! Rank breakthrough! +${xpGained} XP`;
         } else {
           message = `Too far from the next rank (${xpNeeded} XP away — need to be within ${Math.floor(tenPct)}).`;
@@ -431,7 +442,7 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
         const target = Math.floor(nextThreshold * 0.9);
         if (target > currentXp) {
           xpGained = target - currentXp;
-          newXp = await grantXp(userId, xpGained);
+          newXp = await grantXp(userId, xpGained, client);
           message = `Heaven Destroying Talisman! +${xpGained} XP (filled to 90% of next rank)`;
         } else {
           message = "Already past 90% of the next rank threshold.";
@@ -665,7 +676,7 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
       const sprintXp = Math.ceil(Number(sprintRows[0]?.total ?? 0) / 5);
       xpGained = Math.floor(sprintXp * ((effectValue ?? 50) / 100));
       if (xpGained > 0) {
-        newXp = await grantXp(userId, xpGained);
+        newXp = await grantXp(userId, xpGained, client);
         message = `World Sealing Monument releases +${xpGained} XP (50% of your 7-day sprint XP)!`;
       } else {
         message = "No sprint XP recorded in the last 7 days.";
@@ -680,7 +691,7 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
       );
       xpGained = lastSprint[0]?.word_count ?? 0;
       if (xpGained > 0) {
-        newXp = await grantXp(userId, xpGained);
+        newXp = await grantXp(userId, xpGained, client);
         message = `Dao Carving Sword! +${xpGained} XP (equal to your last sprint's word count)!`;
       } else {
         message = "No sprint on record to draw from.";
@@ -876,7 +887,7 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
         const bonusPct = karmicRows[0].effect_value ?? 10;
         const karmaBonus = Math.floor(xpGained * (bonusPct / 100));
         if (karmaBonus > 0) {
-          newXp = await grantXp(userId, karmaBonus);
+          newXp = await grantXp(userId, karmaBonus, client);
           xpGained += karmaBonus;
           message += ` (+${karmaBonus} Karmic Ring bonus)`;
         }

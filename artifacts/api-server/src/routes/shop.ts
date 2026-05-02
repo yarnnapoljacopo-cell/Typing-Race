@@ -139,7 +139,7 @@ router.post("/shop/buy", async (req, res): Promise<void> => {
       quantity_added: listing.quantity,
     });
   } catch (err) {
-    await client.query("ROLLBACK");
+    await client.query("ROLLBACK").catch(() => undefined);
     throw err;
   } finally {
     client.release();

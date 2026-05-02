@@ -170,7 +170,7 @@ router.post("/coins/sell", async (req, res): Promise<void> => {
     await client.query("COMMIT");
     res.json({ new_balance: newBalance, coins_earned: credited, daily_coins_earned: newDailyEarned });
   } catch (err) {
-    await client.query("ROLLBACK");
+    await client.query("ROLLBACK").catch(() => undefined);
     throw err;
   } finally {
     client.release();

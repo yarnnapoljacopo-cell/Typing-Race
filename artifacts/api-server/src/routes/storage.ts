@@ -180,7 +180,7 @@ router.post("/storage/equip", async (req, res): Promise<void> => {
       equipped_item: { item_id: inv.item_id, name: inv.name, storage_slot_count: newSlots, rarity: inv.rarity },
     });
   } catch (err) {
-    await client.query("ROLLBACK");
+    await client.query("ROLLBACK").catch(() => undefined);
     throw err;
   } finally {
     client.release();
@@ -260,7 +260,7 @@ router.post("/storage/unequip", async (req, res): Promise<void> => {
       returned_item: { item_id: equipped.item_id, name: prevItem.name },
     });
   } catch (err) {
-    await client.query("ROLLBACK");
+    await client.query("ROLLBACK").catch(() => undefined);
     throw err;
   } finally {
     client.release();

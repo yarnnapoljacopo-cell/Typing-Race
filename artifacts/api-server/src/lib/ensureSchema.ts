@@ -104,7 +104,6 @@ export async function ensureSchema(): Promise<void> {
         acquired_at  TIMESTAMP     NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS user_inventory_user_idx ON user_inventory (user_id);
-      CREATE INDEX IF NOT EXISTS user_inventory_overflow_idx ON user_inventory (user_id, overflow_since) WHERE overflow_since IS NOT NULL;
 
       CREATE TABLE IF NOT EXISTS user_chests (
         id          SERIAL        PRIMARY KEY,
@@ -273,6 +272,9 @@ export async function ensureSchema(): Promise<void> {
 
       ALTER TABLE user_inventory
         ADD COLUMN IF NOT EXISTS overflow_since TIMESTAMP NULL;
+      CREATE INDEX IF NOT EXISTS user_inventory_overflow_idx
+        ON user_inventory (user_id, overflow_since)
+        WHERE overflow_since IS NOT NULL;
 
       ALTER TABLE active_effects
         ADD COLUMN IF NOT EXISTS metadata TEXT;
