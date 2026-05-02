@@ -29,13 +29,20 @@
 .sb-logo {
   width: 28px;
   height: 28px;
-  background: #1a1520;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   margin-bottom: 8px;
+  overflow: hidden;
+}
+.sb-logo img {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
 }
 
 /* Divider */

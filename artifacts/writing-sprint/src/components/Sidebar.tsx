@@ -49,7 +49,7 @@ export function Sidebar() {
     staleTime: 5 * 60_000,
   });
 
-  if (shouldHide(location)) return null;
+  if (!isSignedIn || shouldHide(location)) return null;
 
   const active = getActiveKey(location);
   const writerName = ownPrefs?.writerName ?? "";
@@ -69,12 +69,7 @@ export function Sidebar() {
   return (
     <aside className="sb">
       <div className="sb-logo">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c8b8f0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 19l7-7-7-7-7 7 7 7z"/>
-          <path d="M12 5v14"/>
-          <path d="M2 12h3"/>
-          <path d="M19 12h3"/>
-        </svg>
+        <img src={`${basePath}/logo-icon.png`} alt="Writing Sprint" />
       </div>
 
       <Link href="/portal" className={`ni${active === "sprint" ? " active" : ""}`}>
