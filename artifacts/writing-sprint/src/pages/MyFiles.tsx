@@ -86,16 +86,23 @@ const Ico = {
   ),
   Logo: () => (
     <span className="folio-logo-mark" aria-hidden="true">
-      <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+      <span className="folio-logo-shine" />
+      <svg width="20" height="20" viewBox="0 0 32 32" fill="none" style={{ position: "relative", zIndex: 2 }}>
         <defs>
-          <linearGradient id="folio-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#5e7bbd" />
+          <linearGradient id="folio-bg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#a78bfa" />
+            <stop offset="50%" stopColor="#7c93d0" />
             <stop offset="100%" stopColor="#3b6ea5" />
           </linearGradient>
+          <linearGradient id="folio-stroke" x1="9" y1="8" x2="23" y2="25" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="100%" stopColor="#dde7ff" />
+          </linearGradient>
         </defs>
-        <rect x="0" y="0" width="32" height="32" rx="8" fill="url(#folio-grad)" />
-        <path d="M9 8h11.5A2.5 2.5 0 0 1 23 10.5v13.7a.8.8 0 0 1-1.18.7L17 22.4l-4.82 2.5a.8.8 0 0 1-1.18-.7V10A2 2 0 0 1 13 8" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="rgba(255,255,255,0.08)" />
+        <rect x="0" y="0" width="32" height="32" rx="9" fill="url(#folio-bg)" />
+        <path d="M9 8h11.5A2.5 2.5 0 0 1 23 10.5v13.7a.8.8 0 0 1-1.18.7L17 22.4l-4.82 2.5a.8.8 0 0 1-1.18-.7V10A2 2 0 0 1 13 8" stroke="url(#folio-stroke)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="rgba(255,255,255,0.10)" />
         <path d="M13 13h6M13 16h4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" opacity="0.9" />
+        <circle className="folio-logo-spark" cx="24.5" cy="7.5" r="1.6" fill="#fde68a" />
       </svg>
     </span>
   ),
