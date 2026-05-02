@@ -104,10 +104,13 @@ const ROOM_STATE_DEFAULTS = {
   creatorXp: 0,
 };
 
-// Exponential backoff: 500ms, 1s, 2s, 4s, 8s, capped at 10s
+// Exponential backoff: 500ms, 1s, 2s, 4s, 8s, capped at 30s
 function nextDelay(attempt: number): number {
-  return Math.min(500 * Math.pow(2, attempt), 10_000);
+  return Math.min(500 * Math.pow(2, attempt), 30_000);
 }
+
+// Hard cap: stop reconnecting after this many attempts (~3.5 min total window)
+const MAX_RECONNECT_ATTEMPTS = 10;
 
 // How long to keep retrying "Room not found" — covers server restart window
 const ROOM_NOT_FOUND_RETRY_MS = 90_000;
@@ -277,6 +280,11 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
               if (!prev) return prev;
               return { ...prev, status: "finished", participants: data.results };
             });
+            // Sprint is over — no reason to keep the connection or reconnect.
+            // Clearing hasJoinedRef before closing prevents the onclose handler
+            // from scheduling any reconnect attempts.
+            hasJoinedRef.current = false;
+            ws.close();
             break;
 
           case "chest_awarded":
@@ -464,7 +472,7 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
       if (unmountedRef.current) return;
       setIsConnected(false);
 
-      if (hasJoinedRef.current) {
+      if (hasJoinedRef.current && reconnectAttemptRef.current < MAX_RECONNECT_ATTEMPTS) {
         if (disconnectedAtRef.current === null) {
           disconnectedAtRef.current = Date.now();
         }
@@ -477,6 +485,10 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
         reconnectTimeoutRef.current = window.setTimeout(() => {
           connect();
         }, delay);
+      } else if (hasJoinedRef.current) {
+        // Hit the retry cap — stop reconnecting and surface a connection error.
+        setIsReconnecting(false);
+        setError("Connection lost. Please refresh the page to rejoin.");
       }
     };
 
