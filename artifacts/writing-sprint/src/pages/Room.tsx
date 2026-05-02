@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { ChestAwardModal } from "@/components/ChestAwardModal";
+import FolioSaveDialog, { type FolioTarget } from "./FolioSaveDialog";
 
 const CAPSULE_INTERVAL = 200;
 
@@ -184,6 +185,15 @@ export default function Room() {
   const [capsules, setCapsules] = useState<Capsule[]>(() => loadCapsules(code));
   const [writingStyle, setWritingStyle] = useState<WritingStyle>(loadWritingStyle);
   const [savedToMyFiles, setSavedToMyFiles] = useState(false);
+  const [folioSaveOpen, setFolioSaveOpen] = useState(false);
+  const [folioTarget, setFolioTarget] = useState<FolioTarget | null>(() => {
+    if (!code) return null;
+    try {
+      const raw = sessionStorage.getItem(`folio_save_target_${code}`);
+      return raw ? (JSON.parse(raw) as FolioTarget) : null;
+    } catch { return null; }
+  });
+  const [folioTargetLabel, setFolioTargetLabel] = useState<string>("");
   const [distractionFree, setDistractionFree] = useState(false);
   const [readMode, setReadMode] = useState(false);
   const [graceCountdown, setGraceCountdown] = useState<number | null>(null);
@@ -274,27 +284,57 @@ export default function Room() {
 
   const chapterCountRef = useRef<number>(1);
 
-  const saveToMyFiles = useCallback(async () => {
-    const plainText = textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
-    const wc = netWordCountRef.current;
+  const getCurrentPlainText = useCallback(() => {
+    return textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
+  }, []);
+
+  const saveSilentlyToFolio = useCallback((target: FolioTarget): { ok: boolean; label: string } => {
     try {
-      const res = await authedFetch(`/api/user/files`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomCode: code, participantName: name, text: plainText, wordCount: wc }),
-      });
-      if (res.ok) {
-        setSavedToMyFiles(true);
-        toast({ title: "Saved to My Files" });
-      } else if (res.status === 401) {
-        toast({ title: "Sign in to save to My Files", variant: "destructive" });
-      } else {
-        toast({ title: "Couldn't save", variant: "destructive" });
-      }
+      const raw = localStorage.getItem("folio_v3");
+      if (!raw) return { ok: false, label: "" };
+      const state = JSON.parse(raw) as { projects: Array<{ id: string; name: string; docs: Array<{ id: string; name: string; content: string; status: string; updatedAt: number }> }> };
+      const proj = state.projects.find((p) => p.id === target.projectId);
+      const doc = proj?.docs.find((d) => d.id === target.docId);
+      if (!proj || !doc) return { ok: false, label: "" };
+      doc.content = getCurrentPlainText();
+      doc.updatedAt = Date.now();
+      if (doc.status === "draft") doc.status = "progress";
+      localStorage.setItem("folio_v3", JSON.stringify(state));
+      return { ok: true, label: `${proj.name} · ${doc.name}` };
     } catch {
-      toast({ title: "Couldn't save", variant: "destructive" });
+      return { ok: false, label: "" };
     }
-  }, [code, name, toast, authedFetch]);
+  }, [getCurrentPlainText]);
+
+  const saveToMyFiles = useCallback(() => {
+    if (folioTarget) {
+      const { ok, label } = saveSilentlyToFolio(folioTarget);
+      if (ok) {
+        setSavedToMyFiles(true);
+        toast({ title: `Updated · ${label || "Folio chapter"}` });
+        return;
+      }
+      // Target was deleted from Folio — clear it and reopen the picker.
+      try { sessionStorage.removeItem(`folio_save_target_${code}`); } catch { /* ignore */ }
+      setFolioTarget(null);
+    }
+    setFolioSaveOpen(true);
+  }, [folioTarget, saveSilentlyToFolio, toast, code]);
+
+  const handleFolioSaved = useCallback((target: FolioTarget, label: string) => {
+    setFolioTarget(target);
+    setFolioTargetLabel(label);
+    setSavedToMyFiles(true);
+    try { sessionStorage.setItem(`folio_save_target_${code}`, JSON.stringify(target)); } catch { /* ignore */ }
+    toast({ title: `Saved to ${label}` });
+  }, [code, toast]);
+
+  const changeFolioTarget = useCallback(() => {
+    setFolioSaveOpen(true);
+  }, []);
+
+  // Keep authedFetch reachable so the import doesn't go unused (used by other features).
+  void authedFetch;
 
   const downloadWriting = useCallback(() => {
     const plainText = textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
@@ -1578,23 +1618,50 @@ export default function Room() {
           padding: "10px 20px",
           display: "flex", justifyContent: "flex-end", gap: 10,
         }}>
-          <button
-            onClick={saveToMyFiles}
-            style={{
-              padding: "9px 18px", borderRadius: 10,
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "0.85rem", fontWeight: 600, cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 7,
-              transition: "all 0.18s",
-              background: "var(--color-card)", border: "1.5px solid var(--color-border)", color: "var(--color-muted-foreground)",
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#6B8FD4"; (e.currentTarget as HTMLElement).style.color = "#1a1a2e"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(107,143,212,0.15)"; (e.currentTarget as HTMLElement).style.color = "#7a7a92"; }}
-            title={savedToMyFiles ? "Saved to Files" : "Save to Files"}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-            {savedToMyFiles ? "Saved" : "Save to Files"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+            <button
+              onClick={saveToMyFiles}
+              style={{
+                padding: "9px 14px", borderRadius: folioTarget ? "10px 0 0 10px" : 10,
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "0.85rem", fontWeight: 600, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 7,
+                transition: "all 0.18s",
+                background: "var(--color-card)", border: "1.5px solid var(--color-border)", color: "var(--color-muted-foreground)",
+                borderRight: folioTarget ? "none" : "1.5px solid var(--color-border)",
+                maxWidth: 280,
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#6B8FD4"; (e.currentTarget as HTMLElement).style.color = "#1a1a2e"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(107,143,212,0.15)"; (e.currentTarget as HTMLElement).style.color = "#7a7a92"; }}
+              title={folioTarget ? `Save to ${folioTargetLabel || "the chosen Folio chapter"}` : "Save to Folio"}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {folioTarget
+                  ? (savedToMyFiles ? "Saved" : "Save")
+                  : "Save to Folio"}
+              </span>
+            </button>
+            {folioTarget && (
+              <button
+                onClick={changeFolioTarget}
+                style={{
+                  padding: "9px 10px", borderRadius: "0 10px 10px 0",
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "0.75rem", fontWeight: 600, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 4,
+                  transition: "all 0.18s",
+                  background: "var(--color-card)", border: "1.5px solid var(--color-border)", color: "var(--color-muted-foreground)",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#6B8FD4"; (e.currentTarget as HTMLElement).style.color = "#1a1a2e"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(107,143,212,0.15)"; (e.currentTarget as HTMLElement).style.color = "#7a7a92"; }}
+                title="Change save destination"
+                aria-label="Change Folio save destination"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+            )}
+          </div>
 
           {(isWaiting || isCountdown) && (
             <button
@@ -1638,6 +1705,15 @@ export default function Room() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Folio save destination picker ────────────────────────────── */}
+      <FolioSaveDialog
+        open={folioSaveOpen}
+        onClose={() => setFolioSaveOpen(false)}
+        onSaved={handleFolioSaved}
+        text={getCurrentPlainText()}
+        initialTarget={folioTarget}
+      />
 
       {/* ── Leave sprint confirmation ────────────────────────────────── */}
       <AlertDialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>

@@ -429,3 +429,51 @@
 .dark .sp-switch.on{background:#7c93d0}
 .dark .sp-input{background:#1c1b26;border-color:#3a3845;color:#ececf1}
 .dark .sp-input::placeholder{color:#6c6878}
+
+/* ── Folio Save dialog (used from Room) ───────────────────── */
+.fsv-overlay{position:fixed;inset:0;background:rgba(20,16,12,.55);backdrop-filter:blur(4px);z-index:400;display:flex;align-items:flex-start;justify-content:center;padding:60px 20px;overflow-y:auto;font-family:'DM Sans',sans-serif}
+.fsv-card{position:relative;width:100%;max-width:460px;background:#fff;border-radius:18px;padding:26px 26px 22px;box-shadow:0 30px 80px rgba(0,0,0,.28);color:#1a1714}
+.fsv-close{position:absolute;top:12px;right:12px;width:30px;height:30px;border:0;background:transparent;font-size:22px;line-height:1;color:#6b6560;cursor:pointer;border-radius:8px}
+.fsv-close:hover{background:#f0ece7;color:#1a1714}
+.fsv-title{margin:0 0 4px;font-family:'DM Sans',sans-serif;font-size:20px;font-weight:700;color:#1a1714}
+.fsv-sub{margin:0 0 18px;font-size:13px;color:#6b6560}
+.fsv-section{margin-bottom:14px}
+.fsv-label{font-size:11px;font-weight:700;color:#6b6560;text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px}
+.fsv-row{display:flex;align-items:center;gap:8px}
+.fsv-input{flex:1;height:40px;padding:0 12px;border:1.5px solid #e8e3dd;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:13.5px;color:#1a1714;background:#fff;outline:none;transition:border-color .15s}
+.fsv-input:focus{border-color:#3b6ea5}
+select.fsv-input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b6560' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+.fsv-link{background:none;border:0;color:#3b6ea5;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 4px;white-space:nowrap}
+.fsv-link:hover{text-decoration:underline}
+.fsv-doclist{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;padding:2px}
+.fsv-doc{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid #e8e3dd;border-radius:9px;background:#fff;font-family:'DM Sans',sans-serif;font-size:13px;color:#1a1714;cursor:pointer;text-align:left;transition:all .12s}
+.fsv-doc:hover{border-color:#3b6ea5}
+.fsv-doc.active{border-color:#3b6ea5;background:#eef3f9;color:#3b6ea5}
+.fsv-doc-icon{font-size:14px;flex-shrink:0;width:16px;text-align:center}
+.fsv-doc-name{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fsv-doc-meta{font-size:11px;color:#a09890;font-weight:500;flex-shrink:0}
+.fsv-doc.active .fsv-doc-meta{color:#7a93b8}
+.fsv-warn{font-size:12px;color:#a07020;background:rgba(232,168,56,0.10);border:1px solid rgba(232,168,56,.25);border-radius:8px;padding:8px 10px;margin-bottom:12px}
+.fsv-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+.fsv-btn{height:40px;padding:0 18px;border-radius:10px;border:0;font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:600;cursor:pointer;transition:all .15s}
+.fsv-btn--ghost{background:transparent;color:#6b6560}
+.fsv-btn--ghost:hover{background:#f0ece7;color:#1a1714}
+.fsv-btn--primary{background:linear-gradient(180deg,#7c93d0 0%,#5e7bbd 100%);color:#fff;box-shadow:0 4px 12px rgba(94,123,189,.28)}
+.fsv-btn--primary:hover{background:linear-gradient(180deg,#8aa0d8 0%,#6b87c7 100%)}
+
+/* Dark mode */
+.dark .fsv-card{background:#26252f;color:#ececf1;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.dark .fsv-close{color:#a39fab}
+.dark .fsv-close:hover{background:#33323e;color:#ececf1}
+.dark .fsv-title{color:#ececf1}
+.dark .fsv-sub,.dark .fsv-label{color:#a39fab}
+.dark .fsv-input{background:#1c1b26;border-color:#3a3845;color:#ececf1}
+.dark select.fsv-input{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23a39fab' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>")}
+.dark .fsv-link{color:#9badde}
+.dark .fsv-doc{background:#26252f;border-color:#3a3845;color:#ececf1}
+.dark .fsv-doc:hover{border-color:#7c93d0}
+.dark .fsv-doc.active{background:#2a2f44;border-color:#7c93d0;color:#9badde}
+.dark .fsv-doc-meta{color:#6c6878}
+.dark .fsv-warn{color:#e8c178;background:rgba(232,168,56,0.12);border-color:rgba(232,168,56,.25)}
+.dark .fsv-btn--ghost{color:#a39fab}
+.dark .fsv-btn--ghost:hover{background:#33323e;color:#ececf1}
