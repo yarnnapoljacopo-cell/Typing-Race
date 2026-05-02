@@ -278,3 +278,68 @@
 .folio-root ::-webkit-scrollbar-track{background:transparent}
 .folio-root ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 .folio-root ::-webkit-scrollbar-thumb:hover{background:#ccc5bc}
+
+/* ── Dark mode overrides ──────────────────────────────────── */
+.dark .folio-root{
+  --bg:#1c1b26;
+  --surface:#26252f;
+  --surface-hover:#2e2d38;
+  --border:#3a3845;
+  --border-light:#322f3c;
+  --text-primary:#ececf1;
+  --text-secondary:#a39fab;
+  --text-muted:#6c6878;
+  --accent:#7c93d0;
+  --accent-light:#2a2f44;
+  --accent-hover:#9badde;
+  --danger:#e36655;
+  --danger-light:#3a2522;
+  --sidebar-bg:#201f29;
+  --sidebar-active:#33323e;
+  --status-draft:#7e7888;
+  --status-progress:#e3b15a;
+  --status-done:#5fb38a;
+  --status-edit:#e36655;
+  background:var(--bg);
+  color:var(--text-primary);
+}
+.dark .folio-root .folio-topbar{background:var(--surface)}
+.dark .folio-root .topbar-search input{background:var(--bg);color:var(--text-primary)}
+.dark .folio-root .topbar-search input::placeholder{color:var(--text-muted)}
+.dark .folio-root .editor-topbar{background:var(--surface);border-bottom-color:var(--border)}
+.dark .folio-root .editor-body textarea,
+.dark .folio-root .editor-body{background:var(--bg);color:var(--text-primary)}
+.dark .folio-root textarea{background:var(--surface);color:var(--text-primary)}
+.dark .folio-root textarea::placeholder{color:var(--text-muted)}
+.dark .folio-root input,
+.dark .folio-root select{background:var(--surface);color:var(--text-primary);border-color:var(--border)}
+.dark .folio-root input::placeholder{color:var(--text-muted)}
+.dark .folio-root .btn-primary{color:#0e0d14}
+.dark .folio-root .btn-danger{color:#fff}
+.dark .folio-root .sprint-primary-btn,
+.dark .folio-root .sprint-enter-btn{color:#0e0d14}
+.dark .folio-root .folio-toast{background:#0e0d14;color:#ececf1;border:1px solid var(--border)}
+.dark .folio-root .sticky-note,
+.dark .folio-root .sprint-modal,
+.dark .folio-root .confirm-box,
+.dark .folio-root .compile-box,
+.dark .folio-root .doc-modal-box,
+.dark .folio-root .goal-modal-box{background:var(--surface);color:var(--text-primary);border-color:var(--border)}
+.dark .folio-root .sticky-note-header{background:var(--bg)}
+.dark .folio-root .sprint-overlay{background:rgba(0,0,0,.55)}
+.dark .folio-root .confirm-overlay{background:rgba(0,0,0,.55)}
+/* Sticky note + popup live OUTSIDE .folio-root in the DOM (portaled to body via fixed position).
+   They're rendered inside the Folio component subtree, so .folio-root selector still applies. */
+.dark .folio-root .sprint-tab.active{background:var(--accent-light);color:var(--accent)}
+.dark .folio-root .sprint-duration-chip{background:var(--surface);color:var(--text-primary);border-color:var(--border)}
+.dark .folio-root .sprint-duration-chip.active{background:var(--accent-light);color:var(--accent);border-color:var(--accent)}
+.dark .folio-root .sprint-input{background:var(--surface);color:var(--text-primary);border-color:var(--border)}
+.dark .folio-root .sprint-tabs{background:var(--bg);border-color:var(--border)}
+.dark .folio-root .writing-toolbar{background:var(--surface);border-bottom-color:var(--border)}
+.dark .folio-root .tb-btn{color:var(--text-primary)}
+.dark .folio-root .tb-btn:hover{background:var(--surface-hover)}
+.dark .folio-root .tb-btn.active{background:var(--accent-light);color:var(--accent)}
+.dark .folio-root .crumb-doc,
+.dark .folio-root .editor-word-count{color:var(--text-secondary)}
+.dark .folio-root ::-webkit-scrollbar-thumb{background:var(--border)}
+.dark .folio-root ::-webkit-scrollbar-thumb:hover{background:#4a4856}
