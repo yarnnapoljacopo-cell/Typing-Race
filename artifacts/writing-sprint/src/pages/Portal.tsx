@@ -124,6 +124,12 @@ export default function Portal() {
 
   const isGuest = !isSignedIn && !!guestName;
 
+  // Embedded inside the Folio sprint modal? Hide global chrome.
+  const isFolioEmbed = (typeof window !== "undefined") && (
+    new URLSearchParams(window.location.search).get("embed") === "folio" ||
+    sessionStorage.getItem("folio_sprint_embed") === "1"
+  );
+
   const initialTab = new URLSearchParams(window.location.search).get("tab") ?? "sprint";
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [joinMode, setJoinMode] = useState<"join" | "create">("join");
@@ -299,7 +305,7 @@ export default function Portal() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-      <Navbar />
+      {!isFolioEmbed && <Navbar />}
 
       {/* ── Fixed background ── */}
       <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "var(--bg-solid)" }} />
@@ -321,7 +327,7 @@ export default function Portal() {
       <div style={{ position: "fixed", width: 500, height: 500, borderRadius: "50%", border: "1.5px solid var(--bg-ring2)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 0, pointerEvents: "none" }} />
 
       {/* ── Scrollable content ── */}
-      <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto", paddingTop: 80, paddingBottom: 32 }}>
+      <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto", paddingTop: isFolioEmbed ? 24 : 80, paddingBottom: 32 }}>
         <div className="portal-fade-up" style={{ width: "100%", maxWidth: 460, padding: "0 20px", fontFamily: "'DM Sans', sans-serif" }}>
 
           {/* Logo */}

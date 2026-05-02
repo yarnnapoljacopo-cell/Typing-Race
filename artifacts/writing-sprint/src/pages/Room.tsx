@@ -150,6 +150,10 @@ export default function Room() {
   const name = searchParams.get("name") || "";
   const isCreatorParams = searchParams.get("isCreator") === "true";
 
+  // When the Folio sprint modal embeds /portal in an iframe, this flag is set
+  // by Folio in sessionStorage so the Room can post the final text back.
+  const isFolioEmbed = (typeof window !== "undefined") && sessionStorage.getItem("folio_sprint_embed") === "1";
+
   // Read room password from sessionStorage (set by Portal before navigating here)
   const [roomPassword] = useState<string | null>(() => {
     if (!code) return null;
@@ -1526,6 +1530,20 @@ export default function Room() {
                 >
                   <Maximize2 className="w-4 h-4 mr-2" />
                   Focus Mode
+                </Button>
+              )}
+
+              {/* Folio embed: save current text back to the chapter */}
+              {isFolioEmbed && (
+                <Button
+                  className="w-full"
+                  style={{ borderRadius: 12, background: "var(--color-foreground)", color: "var(--color-background)" }}
+                  onClick={() => {
+                    const text = textareaRef.current ? (textareaRef.current.innerText ?? "") : "";
+                    window.parent.postMessage({ type: "folio:save", content: text }, window.location.origin);
+                  }}
+                >
+                  Save to Folio chapter
                 </Button>
               )}
 
