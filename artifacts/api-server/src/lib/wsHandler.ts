@@ -18,8 +18,9 @@ import {
   Room,
 } from "./roomManager";
 import { getWriting } from "./writingStore";
-import { db, userProfilesTable } from "@workspace/db";
+import { db, userProfilesTable, guildMembersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { markOnline, markOffline } from "./guildPresence";
 import { rollItem, rollMysteryItems, ITEM_EMOJIS } from "./kartItems";
 import {
   initGladiatorParticipant,
@@ -70,6 +71,8 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
 
     let participantId: string | null = null;
     let roomCode: string | null = null;
+    let presenceUserId: string | null = null;
+    let presenceGuildId: number | null = null;
 
     ws.on("message", async (data: Buffer) => {
       let message: Record<string, unknown>;
@@ -262,6 +265,24 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
 
         // Update creatorXp when the creator joins
         if (isCreator) room.creatorXp = userXp;
+
+        // ── Guild presence: mark this user online in their guild ───────────
+        if (resolvedClerkUserId) {
+          try {
+            const memRows = await db
+              .select({ guildId: guildMembersTable.guildId })
+              .from(guildMembersTable)
+              .where(eq(guildMembersTable.userId, resolvedClerkUserId))
+              .limit(1);
+            if (memRows[0]) {
+              presenceUserId = resolvedClerkUserId;
+              presenceGuildId = memRows[0].guildId;
+              markOnline(presenceGuildId, presenceUserId);
+            }
+          } catch (err) {
+            logger.warn({ err }, "guild presence lookup failed");
+          }
+        }
 
         const currentParticipants = Array.from(room.participants.values())
           .filter((p) => !p.isSpectator)
@@ -641,6 +662,13 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
     });
 
     ws.on("close", () => {
+      // ── Guild presence: mark offline ────────────────────────────────────
+      if (presenceUserId && presenceGuildId !== null) {
+        markOffline(presenceGuildId, presenceUserId);
+        presenceUserId = null;
+        presenceGuildId = null;
+      }
+
       if (!participantId || !roomCode) return;
       const room = getRoom(roomCode);
       if (!room) return;

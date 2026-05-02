@@ -284,6 +284,50 @@ export async function ensureSchema(): Promise<void> {
 
       ALTER TABLE crafting_recipes
         ADD COLUMN IF NOT EXISTS recipe_type VARCHAR(20) NOT NULL DEFAULT 'alchemy';
+
+      -- ── Guild system tables ───────────────────────────────────────────
+      CREATE TABLE IF NOT EXISTS guilds (
+        id           SERIAL       PRIMARY KEY,
+        name         VARCHAR(40)  NOT NULL UNIQUE,
+        tag          VARCHAR(6)   NOT NULL,
+        leader_id    VARCHAR(100) NOT NULL
+          REFERENCES user_profiles(clerk_user_id) ON DELETE CASCADE,
+        description  TEXT         NOT NULL DEFAULT '',
+        created_at   TIMESTAMP    NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS guild_members (
+        guild_id   INTEGER      NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+        user_id    VARCHAR(100) NOT NULL REFERENCES user_profiles(clerk_user_id) ON DELETE CASCADE,
+        role       VARCHAR(10)  NOT NULL DEFAULT 'member',
+        joined_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (guild_id, user_id)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS guild_members_user_idx ON guild_members (user_id);
+
+      CREATE TABLE IF NOT EXISTS guild_messages (
+        id           SERIAL       PRIMARY KEY,
+        guild_id     INTEGER      NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+        user_id      VARCHAR(100) NOT NULL,
+        writer_name  VARCHAR(50)  NOT NULL,
+        content      TEXT         NOT NULL,
+        type         VARCHAR(10)  NOT NULL DEFAULT 'chat',
+        sent_at      TIMESTAMP    NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS guild_messages_guild_sent_idx
+        ON guild_messages (guild_id, sent_at DESC);
+
+      CREATE TABLE IF NOT EXISTS guild_invites (
+        id          SERIAL       PRIMARY KEY,
+        guild_id    INTEGER      NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+        invitee_id  VARCHAR(100) NOT NULL,
+        invited_by  VARCHAR(100) NOT NULL,
+        status      VARCHAR(10)  NOT NULL DEFAULT 'pending',
+        expires_at  TIMESTAMP    NOT NULL,
+        created_at  TIMESTAMP    NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS guild_invites_invitee_idx
+        ON guild_invites (invitee_id, status);
     `);
 
     // ── Phase 3: seed static data ─────────────────────────────────────────

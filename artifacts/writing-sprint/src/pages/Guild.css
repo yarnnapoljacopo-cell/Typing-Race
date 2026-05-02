@@ -1,0 +1,158 @@
+.g-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 24px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.g-topbar { display: flex; align-items: center; gap: 12px; }
+.g-page-title {
+  font-size: 1.4rem; font-weight: 700; margin: 0;
+  color: #2D3142;
+}
+.g-card { border-radius: 14px; }
+.g-loading { padding: 40px; text-align: center; color: #68708A; }
+
+/* No-guild card */
+.g-create-card {
+  background: linear-gradient(180deg, #FAF8F4, #fff);
+  border: 1px solid #E5DFD2;
+}
+.g-create-header { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 18px; color: #5C5346; }
+.g-h1 { font-size: 1.5rem; font-weight: 700; margin: 0; color: #2D3142; }
+.g-h2 { font-size: 1.15rem; font-weight: 700; margin: 0 0 6px; color: #2D3142; }
+.g-h3 { font-size: 0.85rem; font-weight: 700; margin: 0 0 12px; color: #2D3142; display: flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: .04em; }
+.g-sub { color: #68708A; font-size: .9rem; margin: 0; }
+.g-form { display: flex; flex-direction: column; gap: 12px; }
+.g-label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: #5C5346; font-weight: 600; }
+.g-label-sm { font-size: .75rem; color: #68708A; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; display: block; }
+.g-hint { color: #A0A8C0; font-style: normal; font-weight: 400; font-size: .75rem; }
+.g-textarea {
+  width: 100%; resize: vertical; padding: 8px 12px;
+  border: 1px solid #E5DFD2; border-radius: 8px; font-family: inherit;
+  font-size: .9rem; background: #fff;
+}
+.g-error { color: #b91c1c; background: #fef2f2; padding: 8px 12px; border-radius: 8px; font-size: .85rem; }
+.g-error-sm { color: #b91c1c; font-size: .8rem; margin-top: 6px; }
+
+/* Invites */
+.g-invites-card { background: #FFF7E1; border: 1px solid #f7e2a4; }
+.g-invite-list { display: flex; flex-direction: column; gap: 10px; }
+.g-invite-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.g-invite-meta { font-size: .8rem; color: #68708A; margin-top: 2px; }
+.g-invite-actions { display: flex; gap: 6px; }
+.g-tag-pill {
+  display: inline-block; padding: 1px 6px; border-radius: 4px;
+  background: #2D3142; color: #fff; font-size: .7rem; font-weight: 700;
+  letter-spacing: .04em; vertical-align: middle;
+}
+
+/* Layout */
+.g-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+}
+@media (max-width: 800px) { .g-grid { grid-template-columns: 1fr; } }
+
+.g-main { display: flex; flex-direction: column; gap: 16px; }
+
+/* Header */
+.g-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.g-title-row { display: flex; align-items: center; gap: 10px; }
+.g-tag-big {
+  background: #2D3142; color: #FAF8F4; padding: 3px 8px;
+  border-radius: 6px; font-size: .85rem; font-weight: 700;
+  letter-spacing: .05em;
+}
+.g-desc { color: #68708A; margin: 6px 0 0; font-size: .9rem; }
+
+/* Members */
+.g-members-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.g-online-pill {
+  font-size: .7rem; padding: 2px 8px; border-radius: 999px;
+  background: #ecfdf5; color: #047857; font-weight: 600;
+}
+.g-member-list { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; padding-right: 4px; }
+.g-member {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 8px;
+  transition: background .15s;
+}
+.g-member:hover { background: #F5F2EA; }
+.g-member-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #d4d4d8;
+}
+.g-member-dot[data-online="1"] { background: #22c55e; box-shadow: 0 0 4px #22c55e80; }
+.g-member-name { display: flex; align-items: center; gap: 6px; font-size: .88rem; min-width: 0; }
+.g-member-name > span:first-of-type { font-weight: 600; color: #2D3142; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-leader-icon { color: #d4a017; }
+.g-member-rank { font-size: .7rem; color: #68708A; }
+.g-member-actions { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; }
+.g-member:hover .g-member-actions { opacity: 1; }
+.g-icon-btn {
+  background: transparent; border: none; padding: 4px; border-radius: 4px;
+  cursor: pointer; color: #68708A;
+}
+.g-icon-btn:hover { background: #E5DFD2; color: #2D3142; }
+.g-icon-btn-danger:hover { color: #b91c1c; background: #fef2f2; }
+
+.g-invite-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid #E5DFD2; }
+.g-invite-row-form { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.g-bottom-actions { margin-top: 14px; padding-top: 14px; border-top: 1px solid #E5DFD2; display: flex; gap: 8px; }
+
+/* Chat */
+.g-chat-card { display: flex; flex-direction: column; }
+.g-chat-card > div { display: flex; flex-direction: column; height: 480px; }
+.g-chat-head {
+  padding: 10px 16px; font-weight: 700; font-size: .85rem;
+  color: #2D3142; border-bottom: 1px solid #E5DFD2; text-transform: uppercase; letter-spacing: .05em;
+}
+.g-chat-scroll {
+  flex: 1; overflow-y: auto; padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+  background: #FAF8F4;
+}
+.g-msg { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.g-msg-name { font-weight: 700; color: #2D3142; font-size: .85rem; }
+.g-msg-text { color: #2D3142; font-size: .9rem; word-break: break-word; }
+.g-msg-system {
+  align-self: center; font-size: .75rem; color: #68708A; font-style: italic;
+  background: #fff; padding: 2px 10px; border-radius: 999px;
+  border: 1px solid #E5DFD2;
+}
+.g-msg-sprint {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: #FFF7E1; border: 1px solid #f7e2a4;
+  padding: 8px 12px; border-radius: 8px; font-size: .85rem; color: #5C5346;
+}
+.g-msg-sprint > svg { color: #d4a017; }
+
+.g-chat-input {
+  padding: 10px 12px; border-top: 1px solid #E5DFD2;
+  display: grid; grid-template-columns: 1fr auto; gap: 6px;
+  background: #fff;
+}
+
+/* Sprint modal */
+.g-modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 50; padding: 16px;
+}
+.g-modal {
+  background: #fff; border-radius: 14px; padding: 24px;
+  width: 100%; max-width: 380px;
+  display: flex; flex-direction: column; gap: 14px;
+  position: relative;
+}
+.g-modal-close {
+  position: absolute; top: 10px; right: 10px;
+  background: transparent; border: none; padding: 6px;
+  border-radius: 6px; cursor: pointer; color: #68708A;
+}
+.g-modal-close:hover { background: #F5F2EA; color: #2D3142; }

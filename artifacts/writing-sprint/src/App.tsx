@@ -16,6 +16,7 @@ import Room from "@/pages/Room";
 import MyFiles from "@/pages/MyFiles";
 import Profile from "@/pages/Profile";
 import Friends from "@/pages/Friends";
+import Guild from "@/pages/Guild";
 import GlobalRanking from "@/pages/GlobalRanking";
 import OfflineSprint from "@/pages/OfflineSprint";
 import Shop from "@/pages/Shop";
@@ -388,6 +389,15 @@ function FriendsGuard() {
   return <Redirect to="/" />;
 }
 
+function GuildGuard() {
+  const { isSignedIn, isLoaded } = useAuth();
+  const clerkTimedOut = useDevTimeout();
+
+  if (!isLoaded && !clerkTimedOut) return null;
+  if (isSignedIn) return <Guild />;
+  return <Redirect to="/" />;
+}
+
 function GlobalRankingGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const clerkTimedOut = useDevTimeout();
@@ -578,6 +588,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/room" component={RoomGuard} />
               <Route path="/my-files" component={MyFilesGuard} />
               <Route path="/friends" component={FriendsGuard} />
+              <Route path="/guild" component={GuildGuard} />
               <Route path="/global-ranking" component={GlobalRankingGuard} />
               <Route path="/profile/:name" component={Profile} />
               <Route path="/offline-sprint" component={OfflineSprint} />

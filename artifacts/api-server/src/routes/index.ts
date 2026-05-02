@@ -8,6 +8,7 @@ import craftingRouter from "./crafting";
 import coinsRouter from "./coins";
 import shopRouter from "./shop";
 import storageRouter from "./storage";
+import guildsRouter from "./guilds";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(craftingRouter);
 router.use(coinsRouter);
 router.use(shopRouter);
 router.use(storageRouter);
+router.use(guildsRouter);
 
 export default router;

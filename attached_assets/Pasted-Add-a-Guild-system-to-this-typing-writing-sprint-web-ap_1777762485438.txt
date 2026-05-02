@@ -1,0 +1,71 @@
+Add a Guild system to this typing/writing sprint web app. Here is the full specification:
+DATABASE — add 4 new tables to the existing Drizzle schema and Postgres database:
+
+guilds — id (serial PK), name (varchar 40, unique), tag (varchar 6), leader_id (varchar 100, FK to user_profiles.clerk_user_id), description (text, default empty), created_at (timestamp)
+guild_members — guild_id (FK to guilds), user_id (FK to user_profiles.clerk_user_id), role (varchar 10, either 'leader' or 'member'), joined_at (timestamp). Primary key is (guild_id, user_id). Add a unique index on user_id alone — one guild per user max.
+guild_messages — id (serial PK), guild_id (FK), user_id (varchar 100), writer_name (varchar 50), content (text), type (varchar 10, either 'chat' or 'system'), sent_at (timestamp)
+guild_invites — id (serial PK), guild_id (FK), invitee_id (varchar 100), invited_by (varchar 100), status (varchar 10: 'pending', 'accepted', or 'declined'), expires_at (timestamp, default 7 days from now)
+
+
+SERVER — new files to create inside artifacts/api-server/src/:
+Create lib/guildManager.ts with these functions:
+
+createGuild(leaderId, name, tag, description) — insert into guilds, then insert leader into guild_members with role 'leader'
+inviteMember(guildId, inviterId, inviteeId) — first check that guild_members count for this guild is under 20, then check invitee is not already in a guild, then insert into guild_invites
+acceptInvite(inviteId, userId) — validate invite belongs to this user and is still pending and not expired, then insert into guild_members as 'member', update invite status to 'accepted'
+declineInvite(inviteId, userId) — update invite status to 'declined'
+kickMember(guildId, leaderId, targetId) — verify caller is leader, delete target from guild_members, insert a system message into guild_messages saying the member was removed
+leaveGuild(guildId, userId) — if user is leader, block and return an error saying they must transfer leadership first. Otherwise delete from guild_members.
+transferLeadership(guildId, currentLeaderId, newMemberId) — update both rows in guild_members, update guilds.leader_id
+disbandGuild(guildId, leaderId) — verify caller is leader, then delete the guild (cascade handles members, messages, invites)
+
+Create lib/guildPresence.ts:
+
+An in-memory Map called onlineByGuild of type Map<number, Set<string>> (guildId to Set of userIds)
+Export functions: markOnline(guildId, userId), markOffline(guildId, userId), getOnlineMembers(guildId): string[]
+
+Create routes/guilds.ts with these REST endpoints, all requiring a valid Clerk session:
+
+GET /guilds/me — return the current user's guild, members, and online status from guildPresence
+GET /guilds/:id — public guild info, member list, online dots
+GET /guilds/:id/messages — return last 100 messages ordered by sent_at desc
+POST /guilds — create a guild, body: { name, tag, description }
+POST /guilds/:id/invites — leader sends invite, body: { inviteeId }
+PATCH /guilds/invites/:inviteId — accept or decline, body: { action: 'accept' | 'decline' }
+DELETE /guilds/:id/members/:userId — kick a member (leader only) or leave (self)
+GET /guilds/invites/pending — return pending invites for the current user
+PATCH /guilds/:id/transfer — transfer leadership, body: { newLeaderId }
+DELETE /guilds/:id — disband (leader only)
+
+Register all these routes in routes/index.ts.
+
+WEBSOCKET — extend the existing wsHandler.ts:
+When a user sends join_room and has a guild (look up guild_members by their clerkUserId), call markOnline and broadcast { type: 'guild_member_online', userId } to all other online guild members.
+Add handling for these new message types:
+
+guild_chat — save message to guild_messages table (prune to last 200 rows after insert), then broadcast { type: 'guild_chat', writerId, writerName, content, sentAt } to all online guild members via guildPresence
+guild_sprint_start — leader only. Create a new room using the existing createRoom() function with the guild tag prepended to the creator name. Then broadcast { type: 'guild_sprint_invite', roomCode, guildName, creatorName } to all online guild members so they get a one-click join notification.
+
+On WebSocket close, call markOffline if the user had a guild, and broadcast { type: 'guild_member_offline', userId } to online guild members.
+
+CLIENT — new UI to build:
+Create a Guild Panel page/tab accessible from the main navigation. It has two states:
+If the user has no guild: show a "Create Guild" form (name, tag, description fields) and a browseable list of existing guilds showing name, tag, member count, and description. Guilds are invite-only so the list is for discovery only.
+If the user is in a guild: show the full guild view with three sections:
+
+Member list — each member shown with their writer name, role badge, and a green online dot if they appear in the guildPresence map. Leader sees a kick button next to each member. Leader also sees an "Invite member" button that searches by username.
+Chat box — loads the last 100 messages on mount, new messages arrive via WebSocket in real time. System messages (joins, kicks, sprint starts) displayed in a muted italic style, distinct from regular chat. Show sender name and timestamp on each message.
+Sprint launcher — visible to leader only. A "Start Guild Sprint" button that opens a small modal to pick duration and mode, then sends guild_sprint_start over WebSocket. All online members get a banner notification with a join button.
+
+When a guild_sprint_invite WebSocket message arrives, show a dismissable banner at the top of the screen: "[GuildName] is sprinting! → Join" that links directly to the room.
+Add the guild tag (e.g. [INK]) next to the writer's name in sprint rooms if they belong to a guild. Fetch this from the user profile when they join a room.
+Add a notification bell to the nav that shows a badge count for pending guild invites. Clicking it opens a dropdown listing each invite with Accept and Decline buttons that call the PATCH endpoint.
+
+CONSTRAINTS to enforce:
+
+Maximum 20 members per guild, enforced in inviteMember() — return a clear error if the guild is full
+One guild per user — enforced by the unique index on guild_members.user_id
+Only the leader can start sprints, invite members, kick members, and disband
+Leader cannot leave without transferring leadership first
+Invites older than 7 days are ignored even if status is still 'pending' — check expires_at in acceptInvite()
+When a guild is disbanded, insert a system message to the chat before deleting so members see it on next load (though cascade will clean it up — so actually just send a WebSocket broadcast to online members before the delete)

@@ -4,6 +4,7 @@ import { useAuth, useUser } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { useGuest } from "@/lib/guestContext";
+import { GuildBell } from "@/components/GuildBell";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -19,6 +20,7 @@ function getActiveKey(path: string): string {
   if (path.startsWith("/portal")) return "sprint";
   if (path.startsWith("/my-files")) return "my-files";
   if (path.startsWith("/friends")) return "friends";
+  if (path.startsWith("/guild")) return "guild";
   if (path.startsWith("/global-ranking")) return "rankings";
   if (path.startsWith("/shop") || path.startsWith("/bag") || path.startsWith("/chests") || path.startsWith("/crafting")) return "shop";
   if (path.startsWith("/profile")) return "profile";
@@ -110,6 +112,16 @@ export function Sidebar() {
           </svg>
         </span>
         <span className="ni-lbl">Friends</span>
+      </Link>
+
+      <Link href="/guild" className={`ni${active === "guild" ? " active" : ""}`}>
+        <span className="ni-ico" style={{ position: "relative" }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </span>
+        <span className="ni-lbl">Guild</span>
+        <span style={{ marginLeft: "auto" }}><GuildBell /></span>
       </Link>
 
       <Link href="/global-ranking" className={`ni${active === "rankings" ? " active" : ""}`}>
