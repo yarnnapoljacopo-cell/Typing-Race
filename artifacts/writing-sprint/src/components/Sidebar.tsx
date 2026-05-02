@@ -70,11 +70,13 @@ export function Sidebar() {
 
   return (
     <aside className="sb">
-      <div className="sb-logo">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <div className="sb-logo" aria-hidden="true">
+        <span className="sb-logo-shine" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "relative", zIndex: 2 }}>
           <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
           <path d="m15 5 4 4"/>
         </svg>
+        <span className="sb-logo-spark" />
       </div>
 
       <Link href="/portal" className={`ni${active === "sprint" ? " active" : ""}`}>
