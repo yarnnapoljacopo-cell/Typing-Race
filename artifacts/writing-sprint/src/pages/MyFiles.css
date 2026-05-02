@@ -25,8 +25,11 @@
 .folio-root.typewriter-mode .editor-body{display:flex;flex-direction:column;padding-bottom:50vh}
 
 .folio-topbar{height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:10px;flex-shrink:0;z-index:100}
-.topbar-logo{display:flex;align-items:center;gap:8px;font-family:'Lora',serif;font-size:16px;font-weight:600;color:var(--text-primary);text-decoration:none;cursor:pointer;background:none;border:none}
-.topbar-logo svg{color:var(--accent)}
+.topbar-logo{display:flex;align-items:center;gap:10px;font-family:'Lora',serif;font-size:17px;font-weight:600;color:var(--text-primary);text-decoration:none;cursor:pointer;background:none;border:none;padding:4px 10px 4px 4px;border-radius:10px;transition:background .15s,transform .15s;letter-spacing:-.2px}
+.topbar-logo:hover{background:var(--surface-hover)}
+.topbar-logo:hover .folio-logo-mark{transform:rotate(-3deg) scale(1.04)}
+.folio-logo-mark{display:inline-flex;width:30px;height:30px;align-items:center;justify-content:center;border-radius:8px;box-shadow:0 4px 10px rgba(59,110,165,.28),inset 0 1px 0 rgba(255,255,255,.18);transition:transform .2s ease}
+.folio-logo-mark svg{display:block}
 .topbar-spacer{flex:1}
 .topbar-search{position:relative;display:flex;align-items:center}
 .topbar-search input{width:210px;height:32px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0 10px 0 32px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-primary);outline:none;transition:border-color .2s,width .2s}

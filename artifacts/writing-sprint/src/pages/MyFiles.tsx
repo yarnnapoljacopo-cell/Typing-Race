@@ -85,7 +85,19 @@ const Ico = {
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
   ),
   Logo: () => (
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
+    <span className="folio-logo-mark" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+        <defs>
+          <linearGradient id="folio-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#5e7bbd" />
+            <stop offset="100%" stopColor="#3b6ea5" />
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="32" height="32" rx="8" fill="url(#folio-grad)" />
+        <path d="M9 8h11.5A2.5 2.5 0 0 1 23 10.5v13.7a.8.8 0 0 1-1.18.7L17 22.4l-4.82 2.5a.8.8 0 0 1-1.18-.7V10A2 2 0 0 1 13 8" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="rgba(255,255,255,0.08)" />
+        <path d="M13 13h6M13 16h4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" opacity="0.9" />
+      </svg>
+    </span>
   ),
   Focus: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></svg>
