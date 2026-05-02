@@ -249,19 +249,22 @@
 .sprint-runner-actions .sprint-secondary-btn{height:42px}
 .sprint-runner-actions .sprint-primary-btn{height:42px}
 
-/* Sticky note (draggable, resizable) */
-.sticky-note{position:fixed;z-index:240;background:#fff7c2;border:1px solid #e5d68a;border-radius:6px;box-shadow:0 8px 28px rgba(80,60,10,.22),0 2px 6px rgba(80,60,10,.12);display:flex;flex-direction:column;overflow:hidden;font-family:'DM Sans',sans-serif}
-.sticky-note-header{display:flex;align-items:center;justify-content:space-between;padding:6px 8px 6px 12px;background:#f0e08a;border-bottom:1px solid #d6c46f;cursor:move;user-select:none;flex-shrink:0}
-.sticky-note-title{font-size:12px;font-weight:700;color:#5b4a10;text-transform:uppercase;letter-spacing:.5px}
-.sticky-note-close{border:0;background:transparent;font-size:20px;line-height:1;color:#5b4a10;cursor:pointer;padding:0 4px;border-radius:4px}
-.sticky-note-close:hover{background:rgba(0,0,0,.08)}
-.sticky-note-textarea{flex:1;border:0;outline:none;resize:none;background:transparent;padding:12px 14px;font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.55;color:#3a2f08}
-.sticky-note-textarea::placeholder{color:#8a7a3a;opacity:.7}
-.sticky-note-resize{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 0,transparent 50%,#b89c3a 50%,#b89c3a 60%,transparent 60%,transparent 70%,#b89c3a 70%,#b89c3a 80%,transparent 80%)}
+/* Floating notes panel (draggable, resizable) */
+.sticky-note{position:fixed;z-index:240;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 20px 48px rgba(20,16,12,.18),0 4px 12px rgba(20,16,12,.08);display:flex;flex-direction:column;overflow:hidden;font-family:'DM Sans',sans-serif;backdrop-filter:saturate(1.05)}
+.sticky-note-header{display:flex;align-items:center;justify-content:space-between;padding:10px 10px 10px 16px;background:var(--bg);border-bottom:1px solid var(--border);cursor:move;user-select:none;flex-shrink:0;gap:8px}
+.sticky-note-title{font-size:12.5px;font-weight:600;color:var(--text-primary);letter-spacing:.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sticky-note-title::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:8px;vertical-align:middle;opacity:.85}
+.sticky-note-close{border:0;background:transparent;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:18px;line-height:1;color:var(--text-secondary);cursor:pointer;border-radius:6px;transition:all .15s;flex-shrink:0}
+.sticky-note-close:hover{background:var(--sidebar-active);color:var(--text-primary)}
+.sticky-note-textarea{flex:1;border:0;outline:none;resize:none;background:transparent;padding:14px 18px 18px;font-family:'DM Sans',sans-serif;font-size:13.5px;line-height:1.6;color:var(--text-primary)}
+.sticky-note-textarea::placeholder{color:var(--text-secondary);opacity:.55}
+.sticky-note-resize{position:absolute;right:2px;bottom:2px;width:14px;height:14px;cursor:nwse-resize;border-radius:0 0 12px 0;color:var(--text-secondary);opacity:.45}
+.sticky-note-resize::after{content:"";position:absolute;right:3px;bottom:3px;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;border-radius:0 0 2px 0}
+.sticky-note-resize:hover{opacity:.85}
 
 .sticky-note-toggle{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:var(--text-primary);cursor:pointer;transition:all .15s}
-.sticky-note-toggle:hover{border-color:#e5d68a;background:#fff7c2;color:#5b4a10}
-.sticky-note-toggle.active{border-color:#e5d68a;background:#fff7c2;color:#5b4a10}
+.sticky-note-toggle:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.sticky-note-toggle.active{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
 .sprint-secondary-btn{padding:7px 12px;border:1px solid var(--border);background:var(--bg);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12.5px;color:var(--text-secondary);cursor:pointer;transition:background .15s,border-color .15s}
 .sprint-secondary-btn:hover{background:var(--surface);border-color:var(--text-muted)}
 
