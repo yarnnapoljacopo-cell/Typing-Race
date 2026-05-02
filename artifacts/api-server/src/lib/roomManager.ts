@@ -580,17 +580,34 @@ export function endSprint(room: Room, naturalEnd = true): void {
     }
   }
 
+  // Compute final WPM as words / actual elapsed minutes (not the live EMA,
+  // which only updates when wordCount changes — so a writer who blasts a
+  // burst then pauses ends with an artificially low EMA). Use the real
+  // elapsed time bounded by the configured duration; clamp to ≥1 second to
+  // avoid division blow-ups for instantly-ended sprints.
+  const sprintEndedAt = Date.now();
+  const elapsedMs = room.startTime
+    ? Math.min(sprintEndedAt - room.startTime, room.durationMinutes * 60_000)
+    : room.durationMinutes * 60_000;
+  const elapsedMinutes = Math.max(elapsedMs / 60_000, 1 / 60);
+
   const participants = Array.from(room.participants.values())
     .filter((p) => !p.isSpectator)
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      wordCount: p.wordCount,
-      wpm: p.wpm,
-      isCreator: p.isCreator,
-      kartBonusWords: room.mode === "kart" ? p.kartBonusWords : 0,
-      kartCarOffset: room.mode === "kart" ? p.kartCarOffset : 0,
-    }))
+    .map((p) => {
+      const finalWpm = Math.round(p.wordCount / elapsedMinutes);
+      // Update the in-memory participant so subsequent broadcasts
+      // (results screen, persisted stats) use the accurate value.
+      p.wpm = finalWpm;
+      return {
+        id: p.id,
+        name: p.name,
+        wordCount: p.wordCount,
+        wpm: finalWpm,
+        isCreator: p.isCreator,
+        kartBonusWords: room.mode === "kart" ? p.kartBonusWords : 0,
+        kartCarOffset: room.mode === "kart" ? p.kartCarOffset : 0,
+      };
+    })
     .sort((a, b) =>
       (b.wordCount + b.kartCarOffset) - (a.wordCount + a.kartCarOffset)
     );
