@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Folio</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f5f2ee;--surface:#fff;--surface-hover:#f9f7f5;
+  --border:#e8e3dd;--border-light:#f0ece7;
+  --text-primary:#1a1714;--text-secondary:#6b6560;--text-muted:#a09890;
+  --accent:#3b6ea5;--accent-light:#eef3f9;--accent-hover:#2d5a8e;
+  --danger:#c0392b;--danger-light:#fdf2f1;
+  --sidebar-bg:#eeeae4;--sidebar-active:#ddd8d1;
+  --sidebar-w:240px;--topbar-h:52px;
+  --status-draft:#a09890;--status-progress:#e6a817;--status-done:#2e7d5e;--status-edit:#c0392b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text-primary);display:flex;flex-direction:column}
+
+/* ── FOCUS MODE ── */
+body.focus-mode .topbar{display:none}
+body.focus-mode .sidebar{display:none}
+body.focus-mode .editor-topbar{opacity:0;transition:opacity .3s}
+body.focus-mode .editor-topbar:hover{opacity:1}
+body.focus-mode .editor-body{padding:60px 160px}
+body.focus-mode .sprint-trigger-row{opacity:0;transition:opacity .3s}
+body.focus-mode .sprint-trigger-row:hover{opacity:1}
+body.focus-mode .focus-exit{display:flex!important}
+
+/* ── TYPEWRITER MODE ── */
+body.typewriter-mode .editor-body{display:flex;flex-direction:column;padding-bottom:50vh}
+
+/* ── TOPBAR ── */
+.topbar{height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:10px;flex-shrink:0;z-index:100;transition:all .3s}
+.topbar-logo{display:flex;align-items:center;gap:8px;font-family:'Lora',serif;font-size:16px;font-weight:600;color:var(--text-primary);text-decoration:none}
+.topbar-logo svg{color:var(--accent)}
+.topbar-spacer{flex:1}
+.topbar-search{position:relative;display:flex;align-items:center}
+.topbar-search input{width:210px;height:32px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0 10px 0 32px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-primary);outline:none;transition:border-color .2s,width .2s}
+.topbar-search input:focus{border-color:var(--accent);width:260px}
+.topbar-search input::placeholder{color:var(--text-muted)}
+.search-icon{position:absolute;left:9px;color:var(--text-muted);pointer-events:none}
+.daily-goal-wrap{display:flex;align-items:center;gap:8px;padding:0 4px}
+.daily-goal-label{font-size:12px;color:var(--text-muted);white-space:nowrap}
+.daily-goal-bar-outer{width:80px;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.daily-goal-bar-inner{height:100%;background:var(--accent);border-radius:3px;transition:width .4s}
+.daily-goal-pct{font-size:11px;color:var(--text-muted);min-width:28px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:0 12px;height:32px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-ghost{background:transparent;color:var(--text-secondary);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--surface-hover);color:var(--text-primary)}
+.btn-icon{width:32px;height:32px;padding:0;justify-content:center;background:transparent;color:var(--text-secondary);border:1px solid var(--border)}
+.btn-icon:hover{background:var(--surface-hover);color:var(--text-primary)}
+.focus-exit{display:none;position:fixed;top:16px;right:16px;z-index:9999}
+
+/* ── LAYOUT ── */
+.app-body{display:flex;flex:1;overflow:hidden}
+
+/* ── SIDEBAR ── */
+.sidebar{width:var(--sidebar-w);background:var(--sidebar-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;transition:width .25s}
+.sidebar-header{padding:12px 12px 8px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.sidebar-header-label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+.sidebar-header-actions{display:flex;gap:2px}
+.sidebar-add-btn{width:22px;height:22px;border-radius:5px;border:none;background:none;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}
+.sidebar-add-btn:hover{background:var(--border);color:var(--text-primary)}
+.sidebar-tree{flex:1;overflow-y:auto;padding:6px 4px}
+
+/* Recent section */
+.sidebar-section-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);padding:8px 10px 4px;display:flex;align-items:center;gap:5px}
+.recent-row{display:flex;align-items:center;gap:6px;padding:4px 8px 4px 10px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text-secondary);transition:background .12s}
+.recent-row:hover{background:var(--sidebar-active);color:var(--text-primary)}
+
+/* Folder row */
+.folder-row{display:flex;align-items:center;border-radius:7px;cursor:pointer;position:relative;transition:background .12s;user-select:none}
+.folder-row:hover{background:var(--sidebar-active)}
+.folder-chevron{width:20px;height:30px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:transform .18s}
+.folder-row.open .folder-chevron{transform:rotate(90deg)}
+.folder-icon{flex-shrink:0;color:var(--accent);opacity:.75;margin-right:5px}
+.folder-name{flex:1;font-size:13px;font-weight:500;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 0;line-height:1}
+.folder-row:hover .folder-name{color:var(--text-primary)}
+.folder-wc{font-size:11px;color:var(--text-muted);margin-right:4px;flex-shrink:0}
+.folder-actions{display:none;align-items:center;gap:1px;padding-right:4px;flex-shrink:0}
+.folder-row:hover .folder-actions{display:flex}
+.row-icon-btn{width:22px;height:22px;border-radius:4px;border:none;background:none;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,color .12s}
+.row-icon-btn:hover{background:rgba(0,0,0,.07);color:var(--text-primary)}
+.row-icon-btn.danger:hover{background:var(--danger-light);color:var(--danger)}
+
+/* Doc row */
+.folder-children{display:none}
+.folder-children.open{display:block}
+.doc-row{display:flex;align-items:center;border-radius:7px;cursor:pointer;margin-left:20px;transition:background .12s;position:relative}
+.doc-row:hover{background:var(--sidebar-active)}
+.doc-row.active{background:var(--sidebar-active)}
+.doc-status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin:0 5px 0 6px}
+.doc-name{flex:1;font-size:12.5px;color:var(--text-secondary);padding:5px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-row.active .doc-name{color:var(--text-primary);font-weight:500}
+.doc-row:hover .doc-name{color:var(--text-primary)}
+.doc-wc{font-size:11px;color:var(--text-muted);flex-shrink:0;margin-right:3px}
+.doc-actions{display:none;align-items:center;gap:1px;padding-right:4px;flex-shrink:0}
+.doc-row:hover .doc-actions,.doc-row.active .doc-actions{display:flex}
+.add-doc-row{display:flex;align-items:center;gap:5px;margin-left:28px;padding:4px 6px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text-muted);transition:color .12s,background .12s}
+.add-doc-row:hover{background:var(--sidebar-active);color:var(--accent)}
+
+/* ── PROJECT STATS PANEL ── */
+.proj-stats{display:none;margin:0 8px 6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12px}
+.proj-stats.visible{display:block}
+.proj-stats-title{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
+.proj-stat-row{display:flex;justify-content:space-between;padding:3px 0;color:var(--text-secondary)}
+.proj-stat-row span:last-child{font-weight:600;color:var(--text-primary)}
+
+/* ── MAIN ── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.welcome-panel{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-muted);gap:10px}
+.welcome-panel svg{opacity:.2}
+.welcome-panel h2{font-family:'Lora',serif;font-size:20px;color:var(--text-secondary)}
+.welcome-panel p{font-size:13px;text-align:center;max-width:260px;line-height:1.7}
+
+/* ── EDITOR ── */
+.editor-panel{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.editor-topbar{padding:0 16px;height:50px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:8px;flex-shrink:0;transition:opacity .3s}
+.breadcrumb{font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:5px;min-width:0}
+.crumb-project{color:var(--accent);font-weight:500;white-space:nowrap}
+.crumb-doc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.sep{opacity:.4}
+.editor-topbar-spacer{flex:1}
+.autosave-indicator{font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:4px;opacity:0;transition:opacity .4s;white-space:nowrap}
+.autosave-indicator.show{opacity:1}
+.editor-word-count{font-size:12.5px;color:var(--text-muted);white-space:nowrap}
+
+/* Status pill in topbar */
+.status-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:12px;font-size:11.5px;font-weight:600;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all .15s}
+.status-pill:hover{filter:brightness(.93)}
+.status-dot-sm{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* ── WRITING TOOLBAR ── */
+.writing-toolbar{display:flex;align-items:center;gap:1px;padding:6px 16px;border-bottom:1px solid var(--border-light);background:var(--surface);flex-shrink:0;flex-wrap:wrap}
+.tb-btn{width:30px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;border-radius:5px;cursor:pointer;color:var(--text-secondary);font-size:13px;font-family:'DM Sans',sans-serif;font-weight:600;transition:background .12s,color .12s;flex-shrink:0}
+.tb-btn:hover{background:var(--bg);color:var(--text-primary)}
+.tb-btn.active{background:var(--accent-light);color:var(--accent)}
+.tb-sep{width:1px;height:18px;background:var(--border);margin:0 3px;flex-shrink:0}
+.tb-select{height:26px;border:1px solid var(--border);border-radius:5px;background:var(--bg);font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-secondary);padding:0 6px;outline:none;cursor:pointer}
+.tb-select:focus{border-color:var(--accent)}
+
+/* Find bar */
+.search-bar{display:none;align-items:center;gap:8px;padding:8px 16px;background:var(--accent-light);border-bottom:1px solid #c8daf0;flex-shrink:0}
+.search-bar.open{display:flex}
+.search-bar input{flex:1;height:30px;border:1px solid var(--border);border-radius:6px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;background:#fff}
+.search-bar input:focus{border-color:var(--accent)}
+.match-count{font-size:12px;color:var(--text-muted);white-space:nowrap}
+.icon-btn{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;transition:background .15s,color .15s}
+.icon-btn:hover{background:var(--bg);color:var(--text-primary)}
+
+
+/* Editor body */
+.editor-body{flex:1;overflow-y:auto;padding:44px 88px;background:var(--bg);transition:padding .3s}
+.sprint-trigger-row{display:flex;align-items:center;gap:10px;margin-bottom:22px;transition:opacity .3s}
+.sprint-trigger-btn{display:inline-flex;align-items:center;gap:7px;padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);color:var(--text-secondary);font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .18s}
+.sprint-trigger-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.editor-title-input{font-family:'Lora',serif;font-size:26px;font-weight:600;color:var(--text-primary);border:none;outline:none;background:transparent;width:100%;margin-bottom:28px;line-height:1.3;resize:none;overflow:hidden}
+.editor-title-input::placeholder{color:var(--text-muted)}
+.editor-content{font-family:'Lora',serif;font-size:15px;line-height:1.9;color:var(--text-primary);border:none;outline:none;background:transparent;width:100%;min-height:400px;resize:none}
+.editor-content::placeholder{color:var(--text-muted)}
+
+/* ── MODALS ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:14px;width:420px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;animation:modalIn .18s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-header{padding:18px 20px 14px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-family:'Lora',serif;font-size:16px;font-weight:600}
+.modal-close{background:none;border:none;cursor:pointer;color:var(--text-muted);border-radius:6px;padding:4px;transition:background .15s}
+.modal-close:hover{background:var(--bg)}
+.modal-body{padding:18px 20px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px}
+.field input,.field select{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 11px;font-family:'DM Sans',sans-serif;font-size:13.5px;color:var(--text-primary);outline:none;background:var(--bg);transition:border-color .15s;appearance:none}
+.field input:focus,.field select:focus{border-color:var(--accent);background:#fff}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px}
+
+/* Status picker in modal */
+.status-options{display:flex;gap:8px;flex-wrap:wrap}
+.status-opt{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;border:1.5px solid var(--border);cursor:pointer;font-size:13px;color:var(--text-secondary);background:var(--bg);transition:all .15s;font-family:'DM Sans',sans-serif}
+.status-opt.active{border-color:currentColor;background:rgba(0,0,0,.04)}
+
+/* Compile modal */
+.compile-doc-list{max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+.compile-doc-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .12s}
+.compile-doc-item:last-child{border-bottom:none}
+.compile-doc-item:hover{background:var(--surface-hover)}
+.compile-doc-item input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;flex-shrink:0}
+.compile-doc-name{flex:1;font-size:13px;color:var(--text-primary)}
+.compile-doc-wc{font-size:11.5px;color:var(--text-muted)}
+.drag-handle{cursor:grab;color:var(--text-muted);display:flex;align-items:center}
+.drag-handle:active{cursor:grabbing}
+
+/* Confirm */
+.confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.confirm-overlay.open{display:flex}
+.confirm-box{background:var(--surface);border-radius:14px;width:340px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.18);padding:28px 24px 20px;animation:modalIn .18s ease;text-align:center}
+.confirm-box h3{font-family:'Lora',serif;font-size:16px;margin-bottom:8px}
+.confirm-box p{font-size:13px;color:var(--text-secondary);margin-bottom:20px;line-height:1.6}
+.confirm-actions{display:flex;gap:8px;justify-content:center}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{background:#a93226}
+
+/* Status menu popup */
+.status-menu{position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.14);padding:5px;z-index:400;min-width:150px;animation:modalIn .15s ease;display:none}
+.status-menu.open{display:block}
+.status-menu-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:13px;color:var(--text-secondary);transition:background .12s}
+.status-menu-item:hover{background:var(--bg);color:var(--text-primary)}
+.status-menu-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* ── SPRINT MODAL ── */
+.sprint-overlay{display:none;position:fixed;inset:0;background:rgba(20,16,12,.42);z-index:250;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.sprint-overlay.open{display:flex}
+.sprint-modal{background:var(--surface);border-radius:20px;width:430px;max-width:92vw;box-shadow:0 24px 70px rgba(0,0,0,.22);overflow:hidden;animation:modalIn .2s ease}
+.sprint-tabs{display:flex;align-items:center;gap:2px;background:var(--bg);border-radius:12px;padding:4px;margin:20px 20px 0}
+.sprint-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 6px;border-radius:9px;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;color:var(--text-muted);cursor:pointer;transition:all .15s;white-space:nowrap}
+.sprint-tab.active{background:var(--surface);color:var(--text-primary);box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.sprint-body{padding:20px 20px 22px}
+.sprint-status-badge{display:inline-flex;align-items:center;gap:6px;background:#dde8f7;color:#3b6ea5;padding:5px 12px;border-radius:20px;font-size:11.5px;font-weight:600;letter-spacing:.05em;margin-bottom:14px}
+.sprint-status-dot{width:7px;height:7px;border-radius:50%;background:#3b6ea5;animation:pulse 1.8s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.75)}}
+.sprint-heading{font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:3px}
+.sprint-sub{font-size:13.5px;color:var(--text-secondary);margin-bottom:18px}
+.sprint-sub strong{color:var(--text-primary)}
+.sprint-mode-toggle{display:flex;background:var(--bg);border-radius:10px;padding:3px;margin-bottom:16px}
+.sprint-mode-btn{flex:1;padding:9px;border:none;border-radius:8px;background:transparent;font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:600;color:var(--text-muted);cursor:pointer;transition:all .15s}
+.sprint-mode-btn.active{background:var(--surface);color:var(--text-primary);box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.sprint-field-label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:7px}
+.sprint-code-input{width:100%;height:52px;border:1.5px solid var(--border);border-radius:10px;background:var(--bg);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;letter-spacing:.12em;text-align:center;color:var(--text-primary);outline:none;transition:border-color .18s;text-transform:uppercase;margin-bottom:14px}
+.sprint-code-input:focus{border-color:var(--accent);background:#fff}
+.sprint-code-input::placeholder{color:var(--text-muted);font-weight:400;letter-spacing:.06em}
+.sprint-options{display:none;margin-bottom:14px}
+.sprint-options.visible{display:block}
+.sprint-option-row{display:flex;gap:8px;margin-bottom:8px}
+.sprint-option{flex:1;padding:9px 6px;border:1.5px solid var(--border);border-radius:9px;background:var(--bg);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-secondary);outline:none;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+.sprint-option.active{border-color:var(--accent);background:var(--accent-light);color:var(--accent);font-weight:600}
+.sprint-enter-btn{width:100%;height:50px;border:none;border-radius:12px;background:#b8cde8;color:#fff;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background .18s;display:flex;align-items:center;justify-content:center;gap:8px}
+.sprint-enter-btn.ready{background:var(--accent)}
+.sprint-enter-btn.ready:hover{background:var(--accent-hover)}
+
+/* Past sprints list */
+.past-sprint-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light)}
+.past-sprint-row:last-child{border-bottom:none}
+.past-sprint-chart{display:flex;align-items:flex-end;gap:3px;height:48px;margin-bottom:14px}
+.chart-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.chart-bar{width:100%;background:var(--accent);border-radius:3px 3px 0 0;min-height:2px;transition:height .3s}
+.chart-bar-label{font-size:9px;color:var(--text-muted)}
+
+/* Daily goal modal */
+.goal-big-input{width:100%;height:60px;border:1.5px solid var(--border);border-radius:10px;background:var(--bg);font-family:'DM Sans',sans-serif;font-size:24px;font-weight:700;text-align:center;color:var(--text-primary);outline:none;transition:border-color .18s}
+.goal-big-input:focus{border-color:var(--accent);background:#fff}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--text-primary);color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;transition:all .22s;z-index:999;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Celebration */
+.confetti-wrap{position:fixed;inset:0;pointer-events:none;z-index:9998;overflow:hidden}
+.confetti-piece{position:absolute;width:8px;height:8px;border-radius:2px;animation:confetti-fall 2.2s ease-in forwards}
+@keyframes confetti-fall{0%{opacity:1;transform:translateY(-20px) rotate(0deg)}100%{opacity:0;transform:translateY(100vh) rotate(720deg)}}
+
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#ccc5bc}
+</style>
+</head>
+<body>
+
+<!-- FOCUS EXIT -->
+<button class="btn btn-ghost focus-exit" onclick="toggleFocusMode()">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  Exit Focus
+</button>
+
+<!-- TOP BAR -->
+<div class="topbar" id="topbar">
+  <span class="topbar-logo">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    Folio
+  </span>
+  <div class="topbar-spacer"></div>
+  <!-- Daily goal bar -->
+  <div class="daily-goal-wrap" id="dailyGoalWrap" title="Click to set daily word goal" style="cursor:pointer" onclick="openDailyGoalModal()">
+    <span class="daily-goal-label" id="dailyGoalLabel">Daily: 0 / 500</span>
+    <div class="daily-goal-bar-outer"><div class="daily-goal-bar-inner" id="dailyGoalBar" style="width:0%"></div></div>
+    <span class="daily-goal-pct" id="dailyGoalPct">0%</span>
+  </div>
+  <div class="topbar-search">
+    <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="globalSearch" placeholder="Search projects…" oninput="handleGlobalSearch(this.value)">
+  </div>
+  <button class="btn btn-icon" id="focusBtn" onclick="toggleFocusMode()" title="Focus mode" style="display:none">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  </button>
+  <button class="btn btn-ghost" id="compileBtn" onclick="openCompileModal()" style="display:none">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    Export
+  </button>
+  <button class="btn btn-ghost" onclick="toggleFindInDoc()" id="findBtn" style="display:none">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    Find
+  </button>
+  <button class="btn btn-primary" onclick="saveDoc()" id="saveBtn" style="display:none">Save</button>
+</div>
+
+<div class="app-body">
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-header-label">Projects</span>
+      <div class="sidebar-header-actions">
+        <button class="sidebar-add-btn" onclick="openNewProjectModal()" title="New Project">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="sidebar-tree" id="sidebarTree"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main" id="mainPanel">
+    <div class="welcome-panel" id="welcomePanel">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <h2>No document open</h2>
+      <p>Create a project in the sidebar, then add chapters or scenes to start writing.</p>
+    </div>
+
+    <div class="editor-panel" id="editorPanel" style="display:none">
+      <div class="editor-topbar" id="editorTopbar">
+        <div class="breadcrumb">
+          <span class="crumb-project" id="crumbProject"></span>
+          <span class="sep">›</span>
+          <span class="crumb-doc" id="crumbDoc"></span>
+        </div>
+        <!-- status pill -->
+        <button class="status-pill" id="statusPill" onclick="openStatusMenu(event)"></button>
+        <div class="editor-topbar-spacer"></div>
+        <div class="autosave-indicator" id="autosaveIndicator">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Saved
+        </div>
+        <span class="editor-word-count" id="editorWordCount">0 words</span>
+        <button class="btn btn-ghost" id="typewriterBtn" onclick="toggleTypewriter()" title="Typewriter mode" style="font-size:11px;padding:0 8px">⌨ TW</button>
+      </div>
+
+      <!-- Writing toolbar -->
+      <div class="writing-toolbar" id="writingToolbar">
+        <!-- Text style -->
+        <select class="tb-select" id="headingSelect" onchange="applyHeading(this.value)" title="Paragraph style">
+          <option value="p">Paragraph</option>
+          <option value="h1">Heading 1</option>
+          <option value="h2">Heading 2</option>
+          <option value="h3">Heading 3</option>
+        </select>
+        <div class="tb-sep"></div>
+        <button class="tb-btn" id="tbBold" onclick="wrapText('**','**')" title="Bold (⌘B)"><b>B</b></button>
+        <button class="tb-btn" id="tbItalic" onclick="wrapText('_','_')" title="Italic (⌘I)"><i>I</i></button>
+        <button class="tb-btn" id="tbUnder" onclick="wrapText('__','__')" title="Underline"><u>U</u></button>
+        <button class="tb-btn" id="tbStrike" onclick="wrapText('~~','~~')" title="Strikethrough"><s>S</s></button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn" onclick="insertAtCursor('> ')" title="Block quote">❝</button>
+        <button class="tb-btn" onclick="insertAtLineStart('- ')" title="Bullet list">•≡</button>
+        <button class="tb-btn" onclick="insertNumberedList()" title="Numbered list">1≡</button>
+        <button class="tb-btn" onclick="insertAtLineStart('---\n')" title="Divider">—</button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn" onclick="insertAtCursor('\n\n')" title="Paragraph break">¶</button>
+        <button class="tb-btn" onclick="openLinkDialog()" title="Insert link">🔗</button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn" onclick="insertAtCursor('[ ] ')" title="Checkbox">☐</button>
+        <button class="tb-btn" onclick="insertAtCursor('---\n\n')" title="Scene break">···</button>
+        <div class="tb-sep"></div>
+        <button class="tb-btn" id="tbTypewriter" onclick="toggleTypewriter()" title="Typewriter mode" style="font-size:11px;letter-spacing:-.5px">⌨</button>
+        <button class="tb-btn" id="tbFocus" onclick="toggleFocusMode()" title="Focus mode">⛶</button>
+      </div>
+      <!-- Find bar -->
+      <div class="search-bar" id="findBar">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent);flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="findInput" placeholder="Find in document…" oninput="findInDoc(this.value)" onkeydown="findKeyNav(event)">
+        <span class="match-count" id="matchCount"></span>
+        <div style="display:flex;gap:2px">
+          <button class="icon-btn" onclick="navMatch(-1)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <button class="icon-btn" onclick="navMatch(1)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+        </div>
+        <button class="icon-btn" onclick="closeFindBar()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+
+      <div class="editor-body" id="editorBody">
+        <div class="sprint-trigger-row">
+          <button class="sprint-trigger-btn" onclick="openSprintModal()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Start Sprint
+          </button>
+        </div>
+        <textarea class="editor-title-input" id="editorTitle" placeholder="Chapter title…" rows="1" oninput="autoResize(this);updateWordCount();scheduleAutosave()"></textarea>
+        <textarea class="editor-content" id="editorContent" placeholder="Start writing…" oninput="updateWordCount();scheduleAutosave();typewriterScroll()"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS MENU -->
+<div class="status-menu" id="statusMenu">
+  <div class="status-menu-item" onclick="setDocStatus('draft')"><div class="status-menu-dot" style="background:var(--status-draft)"></div>Draft</div>
+  <div class="status-menu-item" onclick="setDocStatus('progress')"><div class="status-menu-dot" style="background:var(--status-progress)"></div>In Progress</div>
+  <div class="status-menu-item" onclick="setDocStatus('done')"><div class="status-menu-dot" style="background:var(--status-done)"></div>Done</div>
+  <div class="status-menu-item" onclick="setDocStatus('edit')"><div class="status-menu-dot" style="background:var(--status-edit)"></div>Needs Edit</div>
+</div>
+
+<!-- NEW PROJECT MODAL -->
+<div class="modal-overlay" id="projectModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="projectModalTitle">New Project</span>
+      <button class="modal-close" onclick="closeModal('projectModal')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Project Name</label><input type="text" id="projectNameInput" placeholder="e.g. The Midnight Draft" maxlength="80"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('projectModal')">Cancel</button>
+      <button class="btn btn-primary" id="projectModalBtn" onclick="saveProject()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- NEW / RENAME DOC MODAL -->
+<div class="modal-overlay" id="docModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="docModalTitle">New Document</span>
+      <button class="modal-close" onclick="closeModal('docModal')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Document Name</label><input type="text" id="docNameInput" placeholder="e.g. Chapter One" maxlength="80"></div>
+      <div class="field" id="docStatusField" style="display:none">
+        <label>Status</label>
+        <div class="status-options" id="docStatusOptions">
+          <button class="status-opt active" data-s="draft" onclick="selectDocStatus(this)" style="color:var(--status-draft)"><span class="status-menu-dot" style="background:var(--status-draft)"></span>Draft</button>
+          <button class="status-opt" data-s="progress" onclick="selectDocStatus(this)" style="color:var(--status-progress)"><span class="status-menu-dot" style="background:var(--status-progress)"></span>In Progress</button>
+          <button class="status-opt" data-s="done" onclick="selectDocStatus(this)" style="color:var(--status-done)"><span class="status-menu-dot" style="background:var(--status-done)"></span>Done</button>
+          <button class="status-opt" data-s="edit" onclick="selectDocStatus(this)" style="color:var(--status-edit)"><span class="status-menu-dot" style="background:var(--status-edit)"></span>Needs Edit</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('docModal')">Cancel</button>
+      <button class="btn btn-primary" id="docModalBtn" onclick="saveDocModal()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPILE / EXPORT MODAL -->
+<div class="modal-overlay" id="compileModal">
+  <div class="modal" style="width:500px">
+    <div class="modal-header">
+      <span class="modal-title">Export Project</span>
+      <button class="modal-close" onclick="closeModal('compileModal')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Project</label><select id="compileProjectSelect" onchange="renderCompileList()"></select></div>
+      <div class="field"><label>Include chapters (drag to reorder)</label><div class="compile-doc-list" id="compileDocList"></div></div>
+      <div class="field"><label>Format</label>
+        <div style="display:flex;gap:8px">
+          <button class="sprint-option active" data-fmt="txt" onclick="selectCompileFmt(this)">Plain text</button>
+          <button class="sprint-option" data-fmt="md" onclick="selectCompileFmt(this)">Markdown</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('compileModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="runCompile()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- DAILY GOAL MODAL -->
+<div class="modal-overlay" id="dailyGoalModal">
+  <div class="modal" style="width:340px">
+    <div class="modal-header">
+      <span class="modal-title">Daily Word Goal</span>
+      <button class="modal-close" onclick="closeModal('dailyGoalModal')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Words per day</label><input class="goal-big-input" type="number" id="dailyGoalInput" min="0" max="99999" placeholder="500"></div>
+      <p style="font-size:12.5px;color:var(--text-muted);line-height:1.6">Set to 0 to hide the progress bar. Progress resets at midnight.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('dailyGoalModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDailyGoal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <h3 id="confirmTitle">Delete?</h3>
+    <p id="confirmText"></p>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDeleteAction()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- SPRINT MODAL — redirects to sprint website -->
+<div class="sprint-overlay" id="sprintOverlay" onclick="if(event.target===this)closeSprintModal()">
+  <div class="sprint-modal">
+    <div class="sprint-body">
+      <div class="sprint-status-badge"><span class="sprint-status-dot"></span>SESSION OPEN</div>
+      <div class="sprint-heading">Start a Sprint</div>
+      <div class="sprint-sub" style="margin-bottom:20px">You're about to leave Folio and join the sprint room. Your chapter will be passed along automatically.</div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:14px 16px;margin-bottom:18px;border:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">Chapter being sent</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:2px" id="sprintChapterTitle">—</div>
+        <div style="font-size:12.5px;color:var(--text-muted)"><span id="sprintChapterWC">0</span> words</div>
+      </div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:14px 16px;margin-bottom:20px;border:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">Writing as</div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:14px;font-weight:600;color:var(--text-primary)" id="sprintUsername">Titan</span>
+          <button onclick="promptRename()" style="font-size:11.5px;background:none;border:none;color:var(--accent);cursor:pointer;text-decoration:underline;font-family:'DM Sans',sans-serif">change</button>
+        </div>
+      </div>
+
+      <button class="sprint-enter-btn ready" onclick="goToSprintSite()">
+        Go to Sprint Room
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+      <button onclick="closeSprintModal()" style="width:100%;margin-top:10px;padding:10px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-muted);cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- LINK DIALOG (lightweight inline) -->
+<div class="modal-overlay" id="linkModal">
+  <div class="modal" style="width:360px">
+    <div class="modal-header"><span class="modal-title">Insert Link</span><button class="modal-close" onclick="closeModal('linkModal')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="modal-body">
+      <div class="field"><label>Display text</label><input type="text" id="linkText" placeholder="Link text"></div>
+      <div class="field"><label>URL</label><input type="text" id="linkUrl" placeholder="https://…"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('linkModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="insertLink()">Insert</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="confetti-wrap" id="confettiWrap"></div>
+
+<script>
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+let state = JSON.parse(localStorage.getItem('folio_v3')||'null') || {projects:[]};
+let activeDocId=null, activeProjectId=null;
+let editingProjectId=null, editingDocId=null, newDocProjectId=null;
+let pendingDocStatus='draft';
+let findMatches=[], findCurrent=-1;
+let autosaveTimer=null;
+let typewriterMode=false, focusMode=false;
+let compileFmt='txt';
+let compileDocOrder=[];
+
+// Daily goal
+let dailyGoal = parseInt(localStorage.getItem('folio_daily_goal')||'500');
+let dailyDate = localStorage.getItem('folio_daily_date')||'';
+let dailyWords = parseInt(localStorage.getItem('folio_daily_words')||'0');
+function todayStr(){return new Date().toISOString().slice(0,10)}
+if(dailyDate !== todayStr()){dailyDate=todayStr();dailyWords=0;localStorage.setItem('folio_daily_date',dailyDate);localStorage.setItem('folio_daily_words','0')}
+
+// Sprint
+let sprintUsername=localStorage.getItem('folio_username')||'Titan';
+
+// Recent docs
+let recentDocs=JSON.parse(localStorage.getItem('folio_recent')||'[]'); // [{projectId,docId}]
+
+// Status config
+const STATUS={
+  draft:{label:'Draft',color:'var(--status-draft)'},
+  progress:{label:'In Progress',color:'var(--status-progress)'},
+  done:{label:'Done',color:'var(--status-done)'},
+  edit:{label:'Needs Edit',color:'var(--status-edit)'}
+};
+
+function persist(){localStorage.setItem('folio_v3',JSON.stringify(state))}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function wc(t){return t.trim()?t.trim().split(/\s+/).length:0}
+function escH(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+// ── TOAST ──
+function toast(msg){const e=document.getElementById('toast');e.textContent=msg;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200)}
+
+// ── DAILY GOAL ──
+function updateDailyGoalUI(){
+  if(!dailyGoal){document.getElementById('dailyGoalWrap').style.display='none';return}
+  document.getElementById('dailyGoalWrap').style.display='';
+  const pct=Math.min(100,Math.round(dailyWords/dailyGoal*100));
+  document.getElementById('dailyGoalLabel').textContent=`Daily: ${dailyWords.toLocaleString()} / ${dailyGoal.toLocaleString()}`;
+  document.getElementById('dailyGoalBar').style.width=pct+'%';
+  document.getElementById('dailyGoalPct').textContent=pct+'%';
+}
+function openDailyGoalModal(){document.getElementById('dailyGoalInput').value=dailyGoal||'';document.getElementById('dailyGoalModal').classList.add('open')}
+function saveDailyGoal(){
+  dailyGoal=parseInt(document.getElementById('dailyGoalInput').value)||0;
+  localStorage.setItem('folio_daily_goal',dailyGoal);
+  closeModal('dailyGoalModal');updateDailyGoalUI();toast('Goal updated')
+}
+function addDailyWords(n){
+  if(n<=0)return;
+  dailyWords+=n;
+  localStorage.setItem('folio_daily_words',dailyWords);
+  updateDailyGoalUI();
+  if(dailyGoal&&dailyWords>=dailyGoal&&dailyWords-n<dailyGoal){confetti();toast('Daily goal reached! 🎉')}
+}
+
+// ── RENDER SIDEBAR ──
+function renderSidebar(q=''){
+  const tree=document.getElementById('sidebarTree');
+  const ql=q.toLowerCase();
+  let html='';
+
+  // Recent docs
+  if(!q&&recentDocs.length){
+    html+='<div class="sidebar-section-label"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 0 .5-3"/></svg>Recent</div>';
+    const shown=recentDocs.slice(0,3);
+    for(const r of shown){
+      const proj=state.projects.find(p=>p.id===r.projectId);
+      const doc=proj?.docs.find(d=>d.id===r.docId);
+      if(!proj||!doc)continue;
+      html+=`<div class="recent-row" onclick="openDoc('${r.projectId}','${r.docId}')">
+        <div class="status-menu-dot" style="background:${STATUS[doc.status||'draft'].color};flex-shrink:0"></div>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(doc.name)}</span>
+        <span style="font-size:10.5px;color:var(--text-muted)">${escH(proj.name.slice(0,10))}</span>
+      </div>`;
+    }
+    html+='<div style="height:6px"></div>';
+  }
+
+  if(!state.projects.length){
+    tree.innerHTML=html+'<div style="padding:14px 12px;font-size:12.5px;color:var(--text-muted);line-height:1.6">No projects yet.<br>Click + to create one.</div>';
+    return;
+  }
+
+  html+=state.projects.map(proj=>{
+    const visibleDocs=ql?proj.docs.filter(d=>d.name.toLowerCase().includes(ql)||(d.content||'').toLowerCase().includes(ql)):proj.docs;
+    const projMatch=ql&&proj.name.toLowerCase().includes(ql);
+    if(ql&&!projMatch&&!visibleDocs.length)return'';
+    const isOpen=proj.open||(ql&&visibleDocs.length>0);
+    const projWC=proj.docs.reduce((s,d)=>s+wc((d.title||'')+(d.content||'')),0);
+    return`<div class="folder-item">
+      <div class="folder-row${isOpen?' open':''}" onclick="toggleFolder('${proj.id}')">
+        <span class="folder-chevron"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+        <svg class="folder-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span class="folder-name">${escH(proj.name)}</span>
+        <span class="folder-wc">${projWC>0?projWC.toLocaleString():''}</span>
+        <div class="folder-actions" onclick="event.stopPropagation()">
+          <button class="row-icon-btn" title="Stats" onclick="toggleProjStats('${proj.id}')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></button>
+          <button class="row-icon-btn" title="Add doc" onclick="openNewDocModal('${proj.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <button class="row-icon-btn" title="Rename" onclick="openRenameProject('${proj.id}')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+          <button class="row-icon-btn danger" title="Delete" onclick="promptDeleteProject('${proj.id}')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+        </div>
+      </div>
+      <div class="proj-stats" id="stats_${proj.id}">
+        <div class="proj-stats-title">Project Overview</div>
+        ${renderProjStats(proj)}
+      </div>
+      <div class="folder-children${isOpen?' open':''}">
+        ${visibleDocs.map(doc=>{
+          const dwc=wc((doc.title||doc.name||'')+(doc.content||''));
+          const st=doc.status||'draft';
+          return`<div class="doc-row${doc.id===activeDocId?' active':''}" onclick="openDoc('${proj.id}','${doc.id}')">
+            <div class="doc-status-dot" style="background:${STATUS[st].color}"></div>
+            <span class="doc-name">${escH(doc.name)}</span>
+            <span class="doc-wc">${dwc||''}</span>
+            <div class="doc-actions" onclick="event.stopPropagation()">
+              <button class="row-icon-btn" title="Rename" onclick="openRenameDoc('${proj.id}','${doc.id}')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+              <button class="row-icon-btn danger" title="Delete" onclick="promptDeleteDoc('${proj.id}','${doc.id}')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+            </div>
+          </div>`;
+        }).join('')}
+        ${!ql?`<div class="add-doc-row" onclick="openNewDocModal('${proj.id}')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add document</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  tree.innerHTML=html;
+}
+
+function renderProjStats(proj){
+  const totalWC=proj.docs.reduce((s,d)=>s+wc((d.title||d.name||'')+(d.content||'')),0);
+  const lastEdited=proj.docs.reduce((max,d)=>Math.max(max,d.updatedAt||0),0);
+  const statusCounts={draft:0,progress:0,done:0,edit:0};
+  proj.docs.forEach(d=>statusCounts[d.status||'draft']++);
+  const lastStr=lastEdited?new Date(lastEdited).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'—';
+  return`<div class="proj-stat-row"><span>Documents</span><span>${proj.docs.length}</span></div>
+    <div class="proj-stat-row"><span>Total words</span><span>${totalWC.toLocaleString()}</span></div>
+    <div class="proj-stat-row"><span>Last edited</span><span>${lastStr}</span></div>
+    <div class="proj-stat-row"><span>Done</span><span>${statusCounts.done} / ${proj.docs.length}</span></div>`;
+}
+
+function toggleProjStats(projId){
+  const el=document.getElementById('stats_'+projId);
+  el.classList.toggle('visible');
+}
+
+// ── FOLDER TOGGLE ──
+function toggleFolder(projId){
+  const p=state.projects.find(x=>x.id===projId);
+  if(p){p.open=!p.open;persist()}
+  renderSidebar(document.getElementById('globalSearch').value);
+}
+
+// ── OPEN DOC ──
+function openDoc(projId,docId){
+  if(activeDocId)_saveCurrentDoc();
+  const proj=state.projects.find(p=>p.id===projId);
+  const doc=proj?.docs.find(d=>d.id===docId);
+  if(!proj||!doc)return;
+  activeProjectId=projId; activeDocId=docId;
+  proj.open=true; persist();
+
+  // Update recent
+  recentDocs=recentDocs.filter(r=>r.docId!==docId);
+  recentDocs.unshift({projectId:projId,docId});
+  recentDocs=recentDocs.slice(0,6);
+  localStorage.setItem('folio_recent',JSON.stringify(recentDocs));
+
+  document.getElementById('crumbProject').textContent=proj.name;
+  document.getElementById('crumbDoc').textContent=doc.name;
+  document.getElementById('editorTitle').value=doc.name;
+  document.getElementById('editorContent').value=doc.content||'';
+  autoResize(document.getElementById('editorTitle'));
+  updateWordCount(); closeFindBar(); renderStatusPill(doc.status||'draft');
+
+  document.getElementById('welcomePanel').style.display='none';
+  document.getElementById('editorPanel').style.display='flex';
+  document.getElementById('findBtn').style.display='';
+  document.getElementById('saveBtn').style.display='';
+  document.getElementById('focusBtn').style.display='';
+  document.getElementById('compileBtn').style.display='';
+
+  renderSidebar(document.getElementById('globalSearch').value);
+  document.getElementById('editorContent').focus();
+}
+
+// ── STATUS ──
+function renderStatusPill(status){
+  const s=STATUS[status]||STATUS.draft;
+  const pill=document.getElementById('statusPill');
+  pill.innerHTML=`<span class="status-dot-sm" style="color:${s.color}"></span>${s.label}`;
+  pill.style.background=s.color+'22';
+  pill.style.color=s.color;
+}
+function openStatusMenu(e){
+  const menu=document.getElementById('statusMenu');
+  const rect=e.target.closest('button').getBoundingClientRect();
+  menu.style.top=(rect.bottom+6)+'px'; menu.style.left=rect.left+'px';
+  menu.classList.toggle('open'); e.stopPropagation();
+}
+function setDocStatus(status){
+  document.getElementById('statusMenu').classList.remove('open');
+  if(!activeDocId)return;
+  const proj=state.projects.find(p=>p.id===activeProjectId);
+  const doc=proj?.docs.find(d=>d.id===activeDocId);
+  if(doc){doc.status=status;doc.updatedAt=Date.now();persist();renderStatusPill(status);renderSidebar(document.getElementById('globalSearch').value)}
+}
+function selectDocStatus(btn){
+  document.querySelectorAll('#docStatusOptions .status-opt').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  pendingDocStatus=btn.dataset.s;
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#statusMenu')&&!e.target.closest('#statusPill'))document.getElementById('statusMenu').classList.remove('open');
+});
+
+// ── SAVE ──
+let _prevWC=0;
+function _saveCurrentDoc(){
+  if(!activeDocId||!activeProjectId)return;
+  const proj=state.projects.find(p=>p.id===activeProjectId);
+  const doc=proj?.docs.find(d=>d.id===activeDocId);
+  if(!doc)return;
+  const oldWC=wc((doc.name||'')+(doc.content||''));
+  doc.name=document.getElementById('editorTitle').value.trim()||doc.name;
+  doc.content=document.getElementById('editorContent').value;
+  doc.updatedAt=Date.now();
+  const newWC=wc((doc.name||'')+(doc.content||''));
+  const gained=Math.max(0,newWC-oldWC);
+  if(gained>0)addDailyWords(gained);
+  persist();
+}
+function saveDoc(){_saveCurrentDoc();const proj=state.projects.find(p=>p.id===activeProjectId);const doc=proj?.docs.find(d=>d.id===activeDocId);if(doc){document.getElementById('crumbDoc').textContent=doc.name}renderSidebar(document.getElementById('globalSearch').value);toast('Saved')}
+function scheduleAutosave(){
+  clearTimeout(autosaveTimer);
+  autosaveTimer=setTimeout(()=>{
+    _saveCurrentDoc();
+    renderSidebar(document.getElementById('globalSearch').value);
+    const ind=document.getElementById('autosaveIndicator');
+    ind.classList.add('show');
+    setTimeout(()=>ind.classList.remove('show'),2000);
+  },1500);
+}
+function updateWordCount(){
+  const t=document.getElementById('editorTitle').value+' '+document.getElementById('editorContent').value;
+  const n=wc(t);
+  document.getElementById('editorWordCount').textContent=n.toLocaleString()+' word'+(n!==1?'s':'');
+}
+function autoResize(el){el.style.height='auto';el.style.height=el.scrollHeight+'px'}
+
+// ── SEARCH ──
+function handleGlobalSearch(v){renderSidebar(v)}
+function toggleFindInDoc(){const b=document.getElementById('findBar');if(b.classList.contains('open'))closeFindBar();else{b.classList.add('open');document.getElementById('findInput').focus()}}
+function closeFindBar(){document.getElementById('findBar').classList.remove('open');document.getElementById('findInput').value='';document.getElementById('matchCount').textContent='';findMatches=[];findCurrent=-1}
+function findInDoc(q){findMatches=[];findCurrent=-1;const c=document.getElementById('editorContent').value;if(!q){document.getElementById('matchCount').textContent='';return}const re=new RegExp(escRe(q),'gi');let m;while((m=re.exec(c))!==null)findMatches.push(m.index);const mc=document.getElementById('matchCount');if(!findMatches.length){mc.textContent='No matches';return}findCurrent=0;mc.textContent=`1 of ${findMatches.length}`;scrollToMatch()}
+function navMatch(dir){if(!findMatches.length)return;findCurrent=(findCurrent+dir+findMatches.length)%findMatches.length;document.getElementById('matchCount').textContent=`${findCurrent+1} of ${findMatches.length}`;scrollToMatch()}
+function scrollToMatch(){const ta=document.getElementById('editorContent');const idx=findMatches[findCurrent];const q=document.getElementById('findInput').value;ta.focus();ta.setSelectionRange(idx,idx+q.length);const lines=ta.value.substring(0,idx).split('\n').length;ta.scrollTop=Math.max(0,(lines-3)*28)}
+function findKeyNav(e){if(e.key==='Enter'){navMatch(e.shiftKey?-1:1);e.preventDefault()}if(e.key==='Escape')closeFindBar()}
+function escRe(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
+
+// ── WRITING TOOLBAR ──
+function getTextarea(){return document.getElementById('editorContent')}
+function wrapText(before,after){
+  const ta=getTextarea();const s=ta.selectionStart,e=ta.selectionEnd;
+  const sel=ta.value.slice(s,e)||'text';
+  const rep=before+sel+after;
+  ta.setRangeText(rep,s,e,'select');ta.focus();scheduleAutosave();updateWordCount();
+}
+function insertAtCursor(text){
+  const ta=getTextarea();const s=ta.selectionStart;
+  ta.setRangeText(text,s,s,'end');ta.focus();scheduleAutosave();updateWordCount();
+}
+function insertAtLineStart(prefix){
+  const ta=getTextarea();const s=ta.selectionStart;
+  const lineStart=ta.value.lastIndexOf('\n',s-1)+1;
+  ta.setRangeText(prefix,lineStart,lineStart,'end');ta.focus();scheduleAutosave();
+}
+function insertNumberedList(){
+  const ta=getTextarea();const s=ta.selectionStart;
+  const lineStart=ta.value.lastIndexOf('\n',s-1)+1;
+  ta.setRangeText('1. ',lineStart,lineStart,'end');ta.focus();scheduleAutosave();
+}
+function applyHeading(val){
+  const ta=getTextarea();const s=ta.selectionStart;
+  const lineStart=ta.value.lastIndexOf('\n',s-1)+1;
+  const lineEnd=ta.value.indexOf('\n',s);const end=lineEnd===-1?ta.value.length:lineEnd;
+  let line=ta.value.slice(lineStart,end).replace(/^#{1,3}\s*/,'');
+  const prefix=val==='h1'?'# ':val==='h2'?'## ':val==='h3'?'### ':'';
+  ta.setRangeText(prefix+line,lineStart,end,'end');ta.focus();scheduleAutosave();
+  document.getElementById('headingSelect').value='p';
+}
+function openLinkDialog(){document.getElementById('linkText').value='';document.getElementById('linkUrl').value='';document.getElementById('linkModal').classList.add('open');setTimeout(()=>document.getElementById('linkText').focus(),80)}
+function insertLink(){const text=document.getElementById('linkText').value||'link';const url=document.getElementById('linkUrl').value||'#';insertAtCursor(`[${text}](${url})`);closeModal('linkModal')}
+
+// ── FOCUS & TYPEWRITER ──
+function toggleFocusMode(){
+  focusMode=!focusMode;
+  document.body.classList.toggle('focus-mode',focusMode);
+}
+function toggleTypewriter(){
+  typewriterMode=!typewriterMode;
+  document.body.classList.toggle('typewriter-mode',typewriterMode);
+  document.getElementById('tbTypewriter').classList.toggle('active',typewriterMode);
+  document.getElementById('tbFocus').classList.toggle('active',focusMode);
+  if(typewriterMode)typewriterScroll();
+}
+function typewriterScroll(){
+  if(!typewriterMode)return;
+  const ta=document.getElementById('editorContent');
+  const body=document.getElementById('editorBody');
+  const lh=parseInt(getComputedStyle(ta).lineHeight)||28;
+  const pos=ta.value.substr(0,ta.selectionStart).split('\n').length;
+  body.scrollTop=Math.max(0,(pos*lh)-(body.clientHeight/2));
+}
+
+// ── PROJECT MODALS ──
+function openNewProjectModal(){editingProjectId=null;document.getElementById('projectModalTitle').textContent='New Project';document.getElementById('projectModalBtn').textContent='Create';document.getElementById('projectNameInput').value='';document.getElementById('projectModal').classList.add('open');setTimeout(()=>document.getElementById('projectNameInput').focus(),80)}
+function openRenameProject(id){const p=state.projects.find(x=>x.id===id);if(!p)return;editingProjectId=id;document.getElementById('projectModalTitle').textContent='Rename Project';document.getElementById('projectModalBtn').textContent='Save';document.getElementById('projectNameInput').value=p.name;document.getElementById('projectModal').classList.add('open');setTimeout(()=>{const i=document.getElementById('projectNameInput');i.focus();i.select()},80)}
+function saveProject(){
+  const name=document.getElementById('projectNameInput').value.trim();if(!name)return;
+  if(editingProjectId){const p=state.projects.find(x=>x.id===editingProjectId);if(p){p.name=name;if(activeProjectId===editingProjectId)document.getElementById('crumbProject').textContent=name}toast('Project renamed')}
+  else{state.projects.push({id:uid(),name,open:true,docs:[]});toast('Project created')}
+  persist();closeModal('projectModal');renderSidebar();
+}
+
+// ── DOC MODALS ──
+function openNewDocModal(projId){newDocProjectId=projId;editingDocId=null;pendingDocStatus='draft';document.getElementById('docModalTitle').textContent='New Document';document.getElementById('docModalBtn').textContent='Create';document.getElementById('docNameInput').value='';document.getElementById('docStatusField').style.display='';document.querySelectorAll('#docStatusOptions .status-opt').forEach(b=>b.classList.toggle('active',b.dataset.s==='draft'));document.getElementById('docModal').classList.add('open');const p=state.projects.find(x=>x.id===projId);if(p)p.open=true;setTimeout(()=>document.getElementById('docNameInput').focus(),80)}
+function openRenameDoc(projId,docId){newDocProjectId=projId;editingDocId=docId;const proj=state.projects.find(p=>p.id===projId);const doc=proj?.docs.find(d=>d.id===docId);if(!doc)return;document.getElementById('docModalTitle').textContent='Rename Document';document.getElementById('docModalBtn').textContent='Save';document.getElementById('docNameInput').value=doc.name;document.getElementById('docStatusField').style.display='none';document.getElementById('docModal').classList.add('open');setTimeout(()=>{const i=document.getElementById('docNameInput');i.focus();i.select()},80)}
+function saveDocModal(){
+  const name=document.getElementById('docNameInput').value.trim();if(!name)return;
+  const proj=state.projects.find(p=>p.id===newDocProjectId);if(!proj)return;
+  if(editingDocId){const doc=proj.docs.find(d=>d.id===editingDocId);if(doc){doc.name=name;if(doc.id===activeDocId){document.getElementById('crumbDoc').textContent=name;document.getElementById('editorTitle').value=name;autoResize(document.getElementById('editorTitle'))}}toast('Renamed')}
+  else{const nd={id:uid(),name,content:'',status:pendingDocStatus,updatedAt:Date.now()};proj.docs.push(nd);persist();closeModal('docModal');renderSidebar();openDoc(proj.id,nd.id);return}
+  persist();closeModal('docModal');renderSidebar();
+}
+
+// ── DELETE ──
+let _deleteAction=null;
+function promptDeleteProject(id){const p=state.projects.find(x=>x.id===id);document.getElementById('confirmTitle').textContent='Delete Project?';document.getElementById('confirmText').textContent=`"${p?.name}" and all its documents will be permanently deleted.`;_deleteAction=()=>{if(activeProjectId===id){activeProjectId=null;activeDocId=null;document.getElementById('welcomePanel').style.display='';document.getElementById('editorPanel').style.display='none';['findBtn','saveBtn','focusBtn','compileBtn'].forEach(b=>document.getElementById(b).style.display='none')}state.projects=state.projects.filter(p=>p.id!==id);persist();renderSidebar();toast('Project deleted')};document.getElementById('confirmOverlay').classList.add('open')}
+function promptDeleteDoc(projId,docId){const proj=state.projects.find(p=>p.id===projId);const doc=proj?.docs.find(d=>d.id===docId);document.getElementById('confirmTitle').textContent='Delete Document?';document.getElementById('confirmText').textContent=`"${doc?.name}" will be permanently deleted.`;_deleteAction=()=>{if(activeDocId===docId){activeDocId=null;activeProjectId=null;document.getElementById('welcomePanel').style.display='';document.getElementById('editorPanel').style.display='none'}if(proj)proj.docs=proj.docs.filter(d=>d.id!==docId);persist();renderSidebar();toast('Deleted')};document.getElementById('confirmOverlay').classList.add('open')}
+function confirmDeleteAction(){if(_deleteAction)_deleteAction();closeConfirm()}
+function closeConfirm(){document.getElementById('confirmOverlay').classList.remove('open');_deleteAction=null}
+
+// ── COMPILE / EXPORT ──
+let compileChecked={};
+function openCompileModal(){
+  const sel=document.getElementById('compileProjectSelect');
+  sel.innerHTML=state.projects.map(p=>`<option value="${p.id}">${escH(p.name)}</option>`).join('');
+  if(activeProjectId)sel.value=activeProjectId;
+  renderCompileList();
+  document.getElementById('compileModal').classList.add('open');
+}
+function renderCompileList(){
+  const projId=document.getElementById('compileProjectSelect').value;
+  const proj=state.projects.find(p=>p.id===projId);
+  if(!proj){document.getElementById('compileDocList').innerHTML='';return}
+  compileDocOrder=proj.docs.map(d=>d.id);
+  document.getElementById('compileDocList').innerHTML=proj.docs.map(doc=>{
+    const checked=compileChecked[doc.id]!==false;
+    return`<div class="compile-doc-item" draggable="true" data-id="${doc.id}">
+      <div class="drag-handle"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="18" x2="16" y2="18"/></svg></div>
+      <input type="checkbox" ${checked?'checked':''} onchange="compileChecked['${doc.id}']=this.checked">
+      <span class="compile-doc-name">${escH(doc.name)}</span>
+      <span class="compile-doc-wc">${wc((doc.name||'')+(doc.content||''))} w</span>
+    </div>`;
+  }).join('');
+  initDragDrop();
+}
+function selectCompileFmt(btn){compileFmt=btn.dataset.fmt;document.querySelectorAll('[data-fmt]').forEach(b=>b.classList.remove('active'));btn.classList.add('active')}
+function runCompile(){
+  const projId=document.getElementById('compileProjectSelect').value;
+  const proj=state.projects.find(p=>p.id===projId);if(!proj)return;
+  const items=Array.from(document.querySelectorAll('.compile-doc-item'));
+  const orderedIds=items.map(el=>el.dataset.id);
+  const checked=items.filter(el=>el.querySelector('input').checked).map(el=>el.dataset.id);
+  const docs=orderedIds.filter(id=>checked.includes(id)).map(id=>proj.docs.find(d=>d.id===id)).filter(Boolean);
+  let out='';
+  if(compileFmt==='md'){
+    out=docs.map(d=>`# ${d.name}\n\n${d.content||''}`).join('\n\n---\n\n');
+  } else {
+    out=docs.map(d=>`${d.name.toUpperCase()}\n\n${d.content||''}`).join('\n\n* * *\n\n');
+  }
+  const blob=new Blob([out],{type:'text/plain'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`${proj.name.replace(/\s+/g,'_')}.${compileFmt==='md'?'md':'txt'}`;
+  a.click();URL.revokeObjectURL(a.href);
+  closeModal('compileModal');toast('Downloaded!');
+}
+// Drag to reorder compile list
+function initDragDrop(){
+  const list=document.getElementById('compileDocList');let dragging=null;
+  list.querySelectorAll('.compile-doc-item').forEach(item=>{
+    item.addEventListener('dragstart',()=>{dragging=item;item.style.opacity='.5'});
+    item.addEventListener('dragend',()=>{dragging.style.opacity='';dragging=null});
+    item.addEventListener('dragover',e=>{e.preventDefault();if(dragging&&dragging!==item){const r=item.getBoundingClientRect();const mid=r.top+r.height/2;if(e.clientY<mid)list.insertBefore(dragging,item);else list.insertBefore(dragging,item.nextSibling)}});
+  });
+}
+
+// ── SPRINT ──
+function openSprintModal(){
+  const title = document.getElementById('editorTitle').value.trim() || 'Untitled';
+  const words = wc(document.getElementById('editorContent').value);
+  document.getElementById('sprintUsername').textContent = sprintUsername;
+  document.getElementById('sprintChapterTitle').textContent = title;
+  document.getElementById('sprintChapterWC').textContent = words.toLocaleString() + ' word' + (words !== 1 ? 's' : '');
+  document.getElementById('sprintOverlay').classList.add('open');
+}
+function closeSprintModal(){document.getElementById('sprintOverlay').classList.remove('open')}
+function goToSprintSite(){
+  // Pass chapter data to your sprint site via URL params or sessionStorage
+  const title = document.getElementById('editorTitle').value.trim() || 'Untitled';
+  const content_text = document.getElementById('editorContent').value;
+  const words = wc(content_text);
+  // Store in sessionStorage so the sprint site can pick it up
+  sessionStorage.setItem('sprint_chapter_title', title);
+  sessionStorage.setItem('sprint_chapter_content', content_text);
+  sessionStorage.setItem('sprint_chapter_words', words);
+  sessionStorage.setItem('sprint_username', sprintUsername);
+  // 👇 Replace this URL with your actual sprint site URL
+  const SPRINT_URL = 'https://your-sprint-site.replit.app';
+  window.open(SPRINT_URL + '?from=folio&title=' + encodeURIComponent(title) + '&words=' + words + '&user=' + encodeURIComponent(sprintUsername), '_blank');
+  closeSprintModal();
+}
+
+
+
+
+
+
+function startSprintTimer(){
+  if(sprintInterval)clearInterval(sprintInterval);
+  const mins=sprintMode==='create'?sprintDuration:25;
+  sprintTotalSeconds=mins*60;sprintSecondsLeft=sprintTotalSeconds;
+  sprintWordsAtStart=wc(document.getElementById('editorContent').value);
+  sprintStartTime=Date.now();
+  const gpct=document.getElementById('sprintGoalPct');
+  gpct.style.display=sprintGoal>0?'':'none';
+  document.getElementById('sprintActiveBar').classList.add('visible');
+  updateSprintDisplay();
+  sprintInterval=setInterval(()=>{sprintSecondsLeft--;if(sprintSecondsLeft<=0){sprintSecondsLeft=0;endSprint(false)}else updateSprintDisplay()},1000);
+}
+
+
+function endSprint(manual){
+  if(sprintInterval){clearInterval(sprintInterval);sprintInterval=null}
+  document.getElementById('sprintActiveBar').classList.remove('visible');
+  const gained=Math.max(0,wc(document.getElementById('editorContent').value)-sprintWordsAtStart);
+  const elapsed=Math.round((Date.now()-sprintStartTime)/1000);
+  if(elapsed>5){pastSprints.unshift({date:Date.now(),duration:Math.round(elapsed/60),words:gained,doc:document.getElementById('crumbDoc').textContent,project:document.getElementById('crumbProject').textContent});localStorage.setItem('folio_sprints',JSON.stringify(pastSprints.slice(0,50)))}
+  if(!manual&&gained>0)toast('Sprint done! +'+gained+' words ✨');
+  else if(!manual)toast('Sprint complete!');
+}
+
+function promptRename(){const n=prompt('Your writing name:',sprintUsername);if(n&&n.trim()){sprintUsername=n.trim();localStorage.setItem('folio_username',sprintUsername);document.getElementById('sprintUsername').textContent=sprintUsername}}
+
+// ── CONFETTI ──
+function confetti(){
+  const wrap=document.getElementById('confettiWrap');
+  const colors=['#3b6ea5','#e6a817','#2e7d5e','#f5f2ee','#c0392b','#f0ece7'];
+  for(let i=0;i<60;i++){const p=document.createElement('div');p.className='confetti-piece';p.style.cssText=`left:${Math.random()*100}%;background:${colors[Math.floor(Math.random()*colors.length)]};animation-delay:${Math.random()*0.6}s;animation-duration:${1.8+Math.random()*1}s;transform:rotate(${Math.random()*360}deg)`;wrap.appendChild(p);setTimeout(()=>p.remove(),3000)}
+}
+
+// ── MODALS ──
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+
+// ── KEYBOARD ──
+document.addEventListener('keydown',e=>{
+  const mod=e.metaKey||e.ctrlKey;
+  if(mod&&e.key==='s'){e.preventDefault();if(activeDocId)saveDoc()}
+  if(mod&&e.key==='f'){e.preventDefault();if(activeDocId)toggleFindInDoc()}
+  if(mod&&e.key==='b'){e.preventDefault();if(activeDocId)wrapText('**','**')}
+  if(mod&&e.key==='i'){e.preventDefault();if(activeDocId)wrapText('_','_')}
+  if(e.key==='Escape'){
+    if(document.getElementById('projectModal').classList.contains('open'))closeModal('projectModal');
+    else if(document.getElementById('docModal').classList.contains('open'))closeModal('docModal');
+    else if(document.getElementById('compileModal').classList.contains('open'))closeModal('compileModal');
+    else if(document.getElementById('dailyGoalModal').classList.contains('open'))closeModal('dailyGoalModal');
+    else if(document.getElementById('linkModal').classList.contains('open'))closeModal('linkModal');
+    else if(document.getElementById('confirmOverlay').classList.contains('open'))closeConfirm();
+    else if(document.getElementById('findBar').classList.contains('open'))closeFindBar();
+    else if(document.getElementById('sprintOverlay').classList.contains('open'))closeSprintModal();
+    else if(focusMode)toggleFocusMode();
+  }
+});
+document.getElementById('projectNameInput').addEventListener('keydown',e=>{if(e.key==='Enter')saveProject()});
+document.getElementById('docNameInput').addEventListener('keydown',e=>{if(e.key==='Enter')saveDocModal()});
+
+// ── SEED DATA ──
+if(!state.projects.length){
+  const p1=uid(),p2=uid(),d1=uid(),d2=uid(),d3=uid(),d4=uid();
+  state.projects=[
+    {id:p1,name:'The Midnight Draft',open:true,docs:[
+      {id:d1,name:'Chapter One',status:'progress',updatedAt:Date.now()-5e5,content:'The music continued to drift through the air, its soft tune threading through the surroundings in a way that felt almost hypnotic. It wasn\'t loud or overwhelming, yet it clung to the mind long after the last note faded.\n\nShe pressed her fingertips against the cold glass, watching the city below breathe its amber light into the fog. Three years she had lived here and still the view surprised her, this improbable island of warmth against the dark expanse of the estuary.'},
+      {id:d2,name:'Chapter Two',status:'draft',updatedAt:Date.now()-2e5,content:'The morning arrived without ceremony. Grey light pushed under the curtains and pooled on the floorboards, indifferent to the plans she had made the night before.'}
+    ]},
+    {id:p2,name:'Notes on Structure',open:false,docs:[
+      {id:d3,name:'Three-Act Model',status:'done',updatedAt:Date.now()-2e6,content:'Every story is a negotiation between revelation and concealment. The reader must always feel they know slightly less than the narrator — but only by degrees small enough not to be felt as manipulation.'},
+      {id:d4,name:'Scene vs Summary',status:'edit',updatedAt:Date.now()-1e6,content:'Scene is immediate; summary is retrospective. The best writers know when to slow time to a crawl and when to skip years in a sentence.'}
+    ]}
+  ];persist();
+}
+
+// ── INIT ──
+updateDailyGoalUI();
+renderSidebar();
+</script>
+</body>
+</html>

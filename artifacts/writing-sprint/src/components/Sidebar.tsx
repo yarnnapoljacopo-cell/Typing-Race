@@ -8,7 +8,7 @@ import { useGuest } from "@/lib/guestContext";
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const HIDE_EXACT = new Set(["", "/"]);
-const HIDE_PREFIX = ["/room", "/sign-in", "/sign-up", "/offline-sprint"];
+const HIDE_PREFIX = ["/room", "/sign-in", "/sign-up", "/offline-sprint", "/my-files"];
 
 function shouldHide(path: string): boolean {
   if (HIDE_EXACT.has(path)) return true;
