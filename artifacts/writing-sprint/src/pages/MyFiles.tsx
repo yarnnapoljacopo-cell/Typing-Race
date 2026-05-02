@@ -186,6 +186,9 @@ export default function MyFiles() {
   const [compileModal, setCompileModal] = useState<{ open: boolean; projectId: string; format: "txt" | "md"; checked: Record<string, boolean>; order: string[] }>({ open: false, projectId: "", format: "txt", checked: {}, order: [] });
   const [sprintModal, setSprintModal] = useState(false);
   const [stickyOpen, setStickyOpen] = useState(false);
+  // Per-project in-folder search query. Empty string means panel is closed.
+  const [projSearch, setProjSearch] = useState<Record<string, string>>({});
+  const [projSearchOpen, setProjSearchOpen] = useState<Record<string, boolean>>({});
 
   // Toast
   const [toastMsg, setToastMsg] = useState("");
@@ -547,16 +550,20 @@ export default function MyFiles() {
   };
 
   // ── Compile / export ────────────────────────────────────
-  const openCompile = () => {
-    const projId = activeProjectId || state.projects[0]?.id || "";
+  const openCompileFor = (projId: string) => {
     const proj = state.projects.find((p) => p.id === projId);
+    if (!proj) return;
     setCompileModal({
       open: true,
       projectId: projId,
       format: "txt",
-      checked: Object.fromEntries((proj?.docs || []).map((d) => [d.id, true])),
-      order: (proj?.docs || []).map((d) => d.id),
+      checked: Object.fromEntries(proj.docs.map((d) => [d.id, true])),
+      order: proj.docs.map((d) => d.id),
     });
+  };
+  const openCompile = () => {
+    const projId = activeProjectId || state.projects[0]?.id || "";
+    openCompileFor(projId);
   };
   const updateCompileProject = (projId: string) => {
     const proj = state.projects.find((p) => p.id === projId);
@@ -769,6 +776,25 @@ export default function MyFiles() {
                       <div className="folder-actions" onClick={(e) => e.stopPropagation()}>
                         <button
                           className="row-icon-btn"
+                          title="Search in project"
+                          onClick={() => {
+                            setProjSearchOpen((s) => ({ ...s, [proj.id]: !s[proj.id] }));
+                            setState((prev) => ({
+                              projects: prev.projects.map((p) => (p.id === proj.id ? { ...p, open: true } : p)),
+                            }));
+                          }}
+                        >
+                          <Ico.Search size={11} />
+                        </button>
+                        <button
+                          className="row-icon-btn"
+                          title="Export project"
+                          onClick={() => openCompileFor(proj.id)}
+                        >
+                          <Ico.Download />
+                        </button>
+                        <button
+                          className="row-icon-btn"
                           title="Stats"
                           onClick={() => setStatsOpen((s) => ({ ...s, [proj.id]: !s[proj.id] }))}
                         >
@@ -799,11 +825,92 @@ export default function MyFiles() {
                       </div>
                     </div>
 
+                    {projSearchOpen[proj.id] && (() => {
+                      const q = (projSearch[proj.id] || "").toLowerCase().trim();
+                      const matches = q
+                        ? proj.docs
+                            .map((d) => {
+                              const content = d.content || "";
+                              const lower = content.toLowerCase();
+                              const idx = lower.indexOf(q);
+                              const nameHit = d.name.toLowerCase().includes(q);
+                              if (idx === -1 && !nameHit) return null;
+                              const total = (lower.match(new RegExp(q.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&"), "g")) || []).length;
+                              let snippet = "";
+                              if (idx !== -1) {
+                                const start = Math.max(0, idx - 28);
+                                const end = Math.min(content.length, idx + q.length + 28);
+                                snippet = (start > 0 ? "…" : "") + content.slice(start, end) + (end < content.length ? "…" : "");
+                              }
+                              return { doc: d, snippet, total, nameHit };
+                            })
+                            .filter(Boolean) as Array<{ doc: Doc; snippet: string; total: number; nameHit: boolean }>
+                        : [];
+                      const totalMatches = matches.reduce((s, m) => s + m.total, 0);
+                      return (
+                        <div className="proj-search visible">
+                          <div className="proj-search-row">
+                            <span className="proj-search-icon"><Ico.Search size={12} /></span>
+                            <input
+                              className="proj-search-input"
+                              type="text"
+                              placeholder={`Search ${proj.name}…`}
+                              value={projSearch[proj.id] || ""}
+                              onChange={(e) => setProjSearch((s) => ({ ...s, [proj.id]: e.target.value }))}
+                              autoFocus
+                            />
+                            <span className="proj-search-meta">{projWC.toLocaleString()} words</span>
+                          </div>
+                          {q && (
+                            <div className="proj-search-results">
+                              {matches.length === 0 ? (
+                                <div className="proj-search-empty">No matches in this project.</div>
+                              ) : (
+                                <>
+                                  <div className="proj-search-summary">
+                                    {totalMatches} match{totalMatches === 1 ? "" : "es"} in {matches.length} chapter{matches.length === 1 ? "" : "s"}
+                                  </div>
+                                  {matches.map((m) => (
+                                    <div
+                                      key={m.doc.id}
+                                      className="proj-search-hit"
+                                      onClick={() => openDoc(proj.id, m.doc.id)}
+                                    >
+                                      <div className="proj-search-hit-name">
+                                        {m.doc.name}
+                                        {m.total > 0 && <span className="proj-search-hit-count">{m.total}</span>}
+                                      </div>
+                                      {m.snippet && (
+                                        <div className="proj-search-hit-snippet">
+                                          {(() => {
+                                            const lower = m.snippet.toLowerCase();
+                                            const i = lower.indexOf(q);
+                                            if (i === -1) return m.snippet;
+                                            return (
+                                              <>
+                                                {m.snippet.slice(0, i)}
+                                                <mark>{m.snippet.slice(i, i + q.length)}</mark>
+                                                {m.snippet.slice(i + q.length)}
+                                              </>
+                                            );
+                                          })()}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {statsOpen[proj.id] && (
                       <div className="proj-stats visible">
                         <div className="proj-stats-title">Project Overview</div>
                         <div className="proj-stat-row"><span>Documents</span><span>{proj.docs.length}</span></div>
-                        <div className="proj-stat-row"><span>Total words</span><span>{totalWC.toLocaleString()}</span></div>
+                        <div className="proj-stat-row proj-stat-total"><span>Total words</span><span>{totalWC.toLocaleString()}</span></div>
                         <div className="proj-stat-row"><span>Last edited</span><span>{lastStr}</span></div>
                         <div className="proj-stat-row"><span>Done</span><span>{statusCounts.done} / {proj.docs.length}</span></div>
                       </div>

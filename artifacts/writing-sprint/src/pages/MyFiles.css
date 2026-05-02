@@ -490,3 +490,28 @@ select.fsv-input{appearance:none;background-image:url("data:image/svg+xml;utf8,<
 .dark .fsv-warn{color:#e8c178;background:rgba(232,168,56,0.12);border-color:rgba(232,168,56,.25)}
 .dark .fsv-btn--ghost{color:#a39fab}
 .dark .fsv-btn--ghost:hover{background:#33323e;color:#ececf1}
+
+/* ── Per-project search panel ─────────────────────────── */
+.proj-search{margin:2px 8px 6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:12px}
+.proj-search-row{display:flex;align-items:center;gap:8px}
+.proj-search-icon{color:var(--text-muted);display:flex;flex-shrink:0}
+.proj-search-input{flex:1;min-width:0;height:28px;padding:0 6px;border:0;background:transparent;font-family:inherit;font-size:12.5px;color:var(--text-primary);outline:none}
+.proj-search-input::placeholder{color:var(--text-muted)}
+.proj-search-meta{font-size:10.5px;font-weight:600;color:var(--text-muted);background:rgba(0,0,0,.04);padding:3px 7px;border-radius:6px;white-space:nowrap;flex-shrink:0}
+.proj-search-results{margin-top:6px;border-top:1px solid var(--border);padding-top:6px;max-height:240px;overflow-y:auto}
+.proj-search-summary{font-size:10.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;padding:4px 4px 6px}
+.proj-search-empty{font-size:12px;color:var(--text-muted);padding:8px 4px;font-style:italic}
+.proj-search-hit{padding:7px 8px;border-radius:7px;cursor:pointer;transition:background .12s;margin-bottom:2px}
+.proj-search-hit:hover{background:rgba(0,0,0,.05)}
+.proj-search-hit-name{font-size:12.5px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.proj-search-hit-count{font-size:10px;font-weight:700;color:#3b6ea5;background:rgba(59,110,165,.12);padding:1px 6px;border-radius:8px}
+.proj-search-hit-snippet{font-size:11.5px;color:var(--text-muted);line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-search-hit-snippet mark{background:#fde68a;color:#1a1714;padding:0 2px;border-radius:2px;font-weight:600}
+
+.proj-stat-total{font-weight:700;color:var(--text-primary);padding-top:2px;padding-bottom:2px}
+
+/* Dark mode */
+.dark .proj-search-meta{background:rgba(255,255,255,.06)}
+.dark .proj-search-hit:hover{background:rgba(255,255,255,.05)}
+.dark .proj-search-hit-count{color:#9badde;background:rgba(155,173,222,.16)}
+.dark .proj-search-hit-snippet mark{background:#7c6a2b;color:#ffe9b0}
