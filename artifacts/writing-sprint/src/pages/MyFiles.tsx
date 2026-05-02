@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import SprintPopup from "./SprintPopup";
+import StickyNote from "./StickyNote";
 import "./MyFiles.css";
 
 type StatusKey = "draft" | "progress" | "done" | "edit";
@@ -165,6 +166,7 @@ export default function MyFiles() {
   const [dailyGoalModal, setDailyGoalModal] = useState<{ open: boolean; value: string }>({ open: false, value: "" });
   const [compileModal, setCompileModal] = useState<{ open: boolean; projectId: string; format: "txt" | "md"; checked: Record<string, boolean>; order: string[] }>({ open: false, projectId: "", format: "txt", checked: {}, order: [] });
   const [sprintModal, setSprintModal] = useState(false);
+  const [stickyOpen, setStickyOpen] = useState(false);
 
   // Toast
   const [toastMsg, setToastMsg] = useState("");
@@ -904,6 +906,16 @@ export default function MyFiles() {
                 >
                   ⌨ TW
                 </button>
+                <button
+                  className={`sticky-note-toggle${stickyOpen ? " active" : ""}`}
+                  onClick={() => setStickyOpen((v) => !v)}
+                  title="Sticky note (outline, ideas)"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 3v6h6" /><path d="M20 9v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8z" />
+                  </svg>
+                  Notes
+                </button>
               </div>
 
               {/* Toolbar */}
@@ -1201,6 +1213,14 @@ export default function MyFiles() {
           </div>
         </div>
       </div>
+
+      {/* STICKY NOTE — draggable, resizable, per-chapter */}
+      <StickyNote
+        open={stickyOpen}
+        onClose={() => setStickyOpen(false)}
+        noteKey={activeDocId ?? "global"}
+        title={activeDoc ? `Notes · ${activeDoc.name}` : "Notes"}
+      />
 
       {/* SPRINT POPUP — native room creator/joiner + runner */}
       <SprintPopup
