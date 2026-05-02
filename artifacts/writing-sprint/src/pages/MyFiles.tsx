@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useAuth } from "@clerk/react";
-import { useGuest } from "@/lib/guestContext";
+import SprintPopup from "./SprintPopup";
 import "./MyFiles.css";
 
 type StatusKey = "draft" | "progress" | "done" | "edit";
@@ -118,8 +117,6 @@ const Ico = {
 
 export default function MyFiles() {
   const [, setLocation] = useLocation();
-  const { isSignedIn } = useAuth();
-  const { guestName, updateGuestName } = useGuest();
 
   // ── State ───────────────────────────────────────────────
   const [state, setState] = useState<FolioState>(() => loadState());
@@ -589,81 +586,35 @@ export default function MyFiles() {
     });
   };
 
-  // ── Sprint (embedded /portal) ───────────────────────────
-  // Keep latest active doc/project ids in a ref so the message listener can
-  // resolve them without re-binding on every keystroke.
-  const activeIdsRef = useRef<{ projectId: string | null; docId: string | null }>({ projectId: null, docId: null });
-  useEffect(() => {
-    activeIdsRef.current = { projectId: activeProjectId, docId: activeDocId };
-  }, [activeProjectId, activeDocId]);
-
-  // When the modal opens, stash chapter context for the embedded Portal/Room.
-  useEffect(() => {
-    if (!sprintModal) return;
-    sessionStorage.setItem("folio_sprint_embed", "1");
-    if (activeDoc) {
-      sessionStorage.setItem("sprint_chapter_title", activeDoc.name);
-      sessionStorage.setItem("sprint_chapter_content", contentRef.current?.value || "");
-      sessionStorage.setItem("sprint_chapter_words", String(editorWordCount));
-    } else {
-      sessionStorage.removeItem("sprint_chapter_title");
-      sessionStorage.removeItem("sprint_chapter_content");
-      sessionStorage.removeItem("sprint_chapter_words");
-    }
-    return () => {
-      sessionStorage.removeItem("folio_sprint_embed");
-    };
-  }, [sprintModal, activeDoc, editorWordCount]);
-
-  // Listen for save-back / close messages from the embedded Room.
-  useEffect(() => {
-    function onMsg(e: MessageEvent) {
-      if (e.origin !== window.location.origin) return;
-      const data = e.data;
-      if (!data || typeof data !== "object") return;
-      if (data.type === "folio:save" && typeof data.content === "string") {
-        const { projectId, docId } = activeIdsRef.current;
-        if (!projectId || !docId) {
-          showToast("No active chapter to save to");
-          return;
-        }
-        const newContent: string = data.content;
-        setState((prev) => ({
-          ...prev,
-          projects: prev.projects.map((p) =>
-            p.id !== projectId
-              ? p
-              : {
-                  ...p,
-                  docs: p.docs.map((d) =>
-                    d.id !== docId ? d : { ...d, content: newContent, updatedAt: Date.now() },
-                  ),
-                },
-          ),
-        }));
-        if (contentRef.current && activeDocId === docId) {
-          contentRef.current.value = newContent;
-          updateWordCount();
-        }
-        showToast("Saved to chapter");
-        setSprintModal(false);
-      } else if (data.type === "folio:close") {
-        setSprintModal(false);
-      }
-    }
-    window.addEventListener("message", onMsg);
-    return () => window.removeEventListener("message", onMsg);
-  }, [activeDocId, showToast, updateWordCount]);
-
+  // ── Sprint (native popup) ───────────────────────────────
   const closeSprintModal = () => setSprintModal(false);
+  const openSprintModal = () => setSprintModal(true);
 
-  // Ensure the embedded /portal has an auth identity. If the user is fully
-  // logged out, drop them into a temporary guest session (matches Home flow).
-  const openSprintModal = () => {
-    if (!isSignedIn && !guestName) {
-      updateGuestName(`Writer${Math.floor(Math.random() * 9000) + 1000}`);
+  const handleSprintSave = (newContent: string) => {
+    if (!activeProjectId || !activeDocId) {
+      showToast("No active chapter to save to");
+      return;
     }
-    setSprintModal(true);
+    const projectId = activeProjectId;
+    const docId = activeDocId;
+    setState((prev) => ({
+      ...prev,
+      projects: prev.projects.map((p) =>
+        p.id !== projectId
+          ? p
+          : {
+              ...p,
+              docs: p.docs.map((d) =>
+                d.id !== docId ? d : { ...d, content: newContent, updatedAt: Date.now() },
+              ),
+            },
+      ),
+    }));
+    if (contentRef.current) {
+      contentRef.current.value = newContent;
+      updateWordCount();
+    }
+    showToast("Saved to chapter");
   };
 
   // ── Daily goal ──────────────────────────────────────────
@@ -1251,28 +1202,14 @@ export default function MyFiles() {
         </div>
       </div>
 
-      {/* SPRINT MODAL — embeds the real /portal page */}
-      <div
-        className={`sprint-overlay${sprintModal ? " open" : ""}`}
-        onClick={(e) => { if (e.target === e.currentTarget) closeSprintModal(); }}
-      >
-        <div className="sprint-modal sprint-modal--embed">
-          <div className="sprint-embed-bar">
-            <div className="sprint-embed-title">
-              Sprint{activeDoc ? <> · <span className="sprint-embed-chapter">{activeDoc.name}</span></> : null}
-            </div>
-            <button className="sprint-secondary-btn" onClick={closeSprintModal}>Close</button>
-          </div>
-          {sprintModal && (
-            <iframe
-              key={String(sprintModal)}
-              title="Writing Sprint"
-              className="sprint-embed-iframe"
-              src={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/portal?embed=folio`}
-            />
-          )}
-        </div>
-      </div>
+      {/* SPRINT POPUP — native room creator/joiner + runner */}
+      <SprintPopup
+        open={sprintModal}
+        onClose={closeSprintModal}
+        chapterTitle={activeDoc?.name ?? null}
+        chapterContent={contentRef.current?.value ?? activeDoc?.content ?? ""}
+        onSave={handleSprintSave}
+      />
 
       {/* TOAST */}
       <div className={`folio-toast${toastShow ? " show" : ""}`}>{toastMsg}</div>
