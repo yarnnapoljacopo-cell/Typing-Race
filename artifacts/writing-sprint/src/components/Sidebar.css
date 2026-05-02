@@ -1,0 +1,113 @@
+/* ── Floating pill sidebar ── */
+.sb {
+  position: fixed;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 24px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.09);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  gap: 4px;
+  z-index: 300;
+  overflow: hidden;
+  transition: width 0.24s cubic-bezier(.4,0,.2,1), border-radius 0.24s cubic-bezier(.4,0,.2,1);
+}
+.sb:hover {
+  width: 172px;
+  border-radius: 16px;
+}
+
+/* Logo */
+.sb-logo {
+  width: 28px;
+  height: 28px;
+  background: #1a1520;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-bottom: 8px;
+}
+
+/* Divider */
+.sb-sep {
+  width: 24px;
+  height: 1px;
+  background: rgba(0,0,0,0.08);
+  margin: 4px 0;
+  flex-shrink: 0;
+  transition: width 0.24s cubic-bezier(.4,0,.2,1);
+}
+.sb:hover .sb-sep {
+  width: calc(100% - 16px);
+}
+
+/* Nav items */
+.ni {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #8a8680;
+  white-space: nowrap;
+  text-decoration: none;
+  width: calc(100% - 8px);
+  transition: background 0.24s, color 0.24s, box-shadow 0.24s;
+}
+.ni:hover { background: rgba(0,0,0,0.04); color: #1a1813; }
+.ni.active { background: #ffffff; color: #4a54e8; box-shadow: 0 1px 6px rgba(0,0,0,0.09); }
+
+/* Icon */
+.ni-ico {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+.sb:hover .ni-ico { margin: 0; }
+
+/* Label */
+.ni-lbl {
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  transition: opacity 0.24s;
+  pointer-events: none;
+}
+.sb:hover .ni-lbl { opacity: 1; width: auto; }
+
+/* Avatar footer */
+.sb-foot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.06);
+  color: #9a968e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 4px;
+  text-decoration: none;
+  transition: background 0.24s, color 0.24s;
+}
+.sb-foot:hover { background: #eceeff; color: #4a54e8; }

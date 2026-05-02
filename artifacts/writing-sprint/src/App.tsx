@@ -26,6 +26,7 @@ import { GuestProvider, useGuest } from "@/lib/guestContext";
 import { VillainModeProvider } from "@/lib/villainModeContext";
 import { SkinProvider } from "@/lib/skinContext";
 import { DarkModeProvider } from "@/lib/darkModeContext";
+import { Sidebar } from "@/components/Sidebar";
 
 const queryClient = new QueryClient();
 
@@ -568,6 +569,7 @@ function ClerkProviderWithRoutes() {
           <VillainModeProvider>
           <ClerkQueryClientCacheInvalidator />
           <TooltipProvider>
+            <Sidebar />
             <Switch>
               <Route path="/" component={HomeRedirect} />
               <Route path="/portal" component={PortalGuard} />
