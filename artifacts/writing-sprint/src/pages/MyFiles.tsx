@@ -164,6 +164,14 @@ export default function MyFiles() {
   const [dailyGoalModal, setDailyGoalModal] = useState<{ open: boolean; value: string }>({ open: false, value: "" });
   const [compileModal, setCompileModal] = useState<{ open: boolean; projectId: string; format: "txt" | "md"; checked: Record<string, boolean>; order: string[] }>({ open: false, projectId: "", format: "txt", checked: {}, order: [] });
   const [sprintModal, setSprintModal] = useState(false);
+  const [sprintPhase, setSprintPhase] = useState<"idle" | "sprinting" | "done">("idle");
+  const [sprintDuration, setSprintDuration] = useState(20);
+  const [sprintCustomMin, setSprintCustomMin] = useState("");
+  const [sprintText, setSprintText] = useState("");
+  const [sprintTimeLeft, setSprintTimeLeft] = useState(0);
+  const [sprintIncludeChapter, setSprintIncludeChapter] = useState(true);
+  const [sprintStartWords, setSprintStartWords] = useState(0);
+  const sprintTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Toast
   const [toastMsg, setToastMsg] = useState("");
@@ -585,16 +593,83 @@ export default function MyFiles() {
     });
   };
 
-  // ── Sprint hand-off ─────────────────────────────────────
-  const goToSprintRoom = () => {
-    if (activeDoc) {
-      sessionStorage.setItem("sprint_chapter_title", activeDoc.name);
-      sessionStorage.setItem("sprint_chapter_content", contentRef.current?.value || "");
-      sessionStorage.setItem("sprint_chapter_words", String(editorWordCount));
+  // ── Sprint (in-place) ───────────────────────────────────
+  // Reset whenever the modal opens
+  useEffect(() => {
+    if (sprintModal) {
+      setSprintPhase("idle");
+      setSprintCustomMin("");
+      setSprintText("");
+      setSprintIncludeChapter(true);
+    }
+  }, [sprintModal]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (sprintPhase !== "sprinting") return;
+    const id = setInterval(() => {
+      setSprintTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(id);
+          setSprintPhase("done");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [sprintPhase]);
+
+  const sprintWordCount = wc(sprintText);
+  const sprintWordsWritten = Math.max(0, sprintWordCount - sprintStartWords);
+
+  const startSprintNow = () => {
+    const mins = sprintCustomMin ? parseInt(sprintCustomMin, 10) : sprintDuration;
+    if (!mins || mins < 1 || mins > 300) {
+      showToast("Pick 1–300 minutes");
+      return;
+    }
+    const initial = sprintIncludeChapter && activeDoc ? (contentRef.current?.value || "") : "";
+    setSprintText(initial);
+    setSprintStartWords(wc(initial));
+    setSprintTimeLeft(mins * 60);
+    setSprintPhase("sprinting");
+    setTimeout(() => {
+      const ta = sprintTextareaRef.current;
+      if (!ta) return;
+      ta.focus();
+      // place cursor at end so user keeps writing where chapter left off
+      const end = ta.value.length;
+      ta.setSelectionRange(end, end);
+      ta.scrollTop = ta.scrollHeight;
+    }, 60);
+  };
+
+  const endSprintEarly = () => {
+    if (!confirm("End the sprint early?")) return;
+    setSprintPhase("done");
+  };
+
+  const saveSprintToChapter = () => {
+    if (!activeDoc || !contentRef.current) {
+      showToast("No chapter to save to");
+      return;
+    }
+    contentRef.current.value = sprintText;
+    saveCurrentDoc();
+    updateWordCount();
+    setSprintModal(false);
+    showToast(`Saved · +${sprintWordsWritten.toLocaleString()} word${sprintWordsWritten === 1 ? "" : "s"}`);
+  };
+
+  const closeSprintModal = () => {
+    if (sprintPhase === "sprinting") {
+      if (!confirm("Close the sprint? Your in-progress writing will be lost.")) return;
     }
     setSprintModal(false);
-    setLocation("/portal");
   };
+
+  const fmtTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
   // ── Daily goal ──────────────────────────────────────────
   const dailyPct = dailyGoal ? Math.min(100, Math.round((dailyWords / dailyGoal) * 100)) : 0;
@@ -1184,38 +1259,159 @@ export default function MyFiles() {
       {/* SPRINT MODAL */}
       <div
         className={`sprint-overlay${sprintModal ? " open" : ""}`}
-        onClick={(e) => { if (e.target === e.currentTarget) setSprintModal(false); }}
+        onClick={(e) => { if (e.target === e.currentTarget) closeSprintModal(); }}
       >
-        <div className="sprint-modal">
-          <div className="sprint-body">
-            <div className="sprint-status-badge"><span className="sprint-status-dot" />SESSION OPEN</div>
-            <div className="sprint-heading">Start a Sprint</div>
-            <div className="sprint-sub" style={{ marginBottom: 20 }}>
-              You're about to head to the sprint room. Your chapter will be passed along automatically.
-            </div>
+        <div className={`sprint-modal sprint-modal--${sprintPhase}`}>
+          {sprintPhase === "idle" && (
+            <div className="sprint-body">
+              <div className="sprint-status-badge"><span className="sprint-status-dot" />READY</div>
+              <div className="sprint-heading">Start a Sprint</div>
+              <div className="sprint-sub" style={{ marginBottom: 20 }}>
+                Pick a length, then write in the sprint area. Save back to your chapter when you're done.
+              </div>
 
-            <div style={{ background: "var(--bg)", borderRadius: 12, padding: "14px 16px", marginBottom: 18, border: "1px solid var(--border)" }}>
+              {activeDoc && (
+                <div style={{ background: "var(--bg)", borderRadius: 12, padding: "14px 16px", marginBottom: 16, border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>
+                    Active chapter
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>
+                    {activeDoc.name || "Untitled"}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+                    {editorWordCount.toLocaleString()} word{editorWordCount === 1 ? "" : "s"}
+                  </div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, color: "var(--text-secondary)", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={sprintIncludeChapter}
+                      onChange={(e) => setSprintIncludeChapter(e.target.checked)}
+                    />
+                    Continue from chapter text
+                  </label>
+                </div>
+              )}
+
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>
-                Chapter being sent
+                Duration
               </div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>
-                {activeDoc?.name || "Untitled"}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 12 }}>
+                {[5, 10, 15, 20, 30, 45, 60].map((d) => {
+                  const selected = sprintDuration === d && !sprintCustomMin;
+                  return (
+                    <button
+                      key={d}
+                      onClick={() => { setSprintDuration(d); setSprintCustomMin(""); }}
+                      style={{
+                        padding: "12px 0",
+                        borderRadius: 10,
+                        border: `1px solid ${selected ? "var(--text-primary)" : "var(--border)"}`,
+                        background: selected ? "var(--text-primary)" : "var(--surface)",
+                        color: selected ? "var(--surface)" : "var(--text-primary)",
+                        fontFamily: "'DM Sans',sans-serif",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {d}m
+                    </button>
+                  );
+                })}
               </div>
-              <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-                {editorWordCount.toLocaleString()} word{editorWordCount === 1 ? "" : "s"}
+              <input
+                type="number"
+                min={1}
+                max={300}
+                placeholder="Custom minutes"
+                value={sprintCustomMin}
+                onChange={(e) => setSprintCustomMin(e.target.value)}
+                style={{
+                  width: "100%", padding: "10px 12px", borderRadius: 10,
+                  border: "1px solid var(--border)", background: "var(--bg)",
+                  fontFamily: "'DM Sans',sans-serif", fontSize: 14, marginBottom: 16,
+                }}
+              />
+
+              <button className="sprint-enter-btn" onClick={startSprintNow}>
+                Start Sprint <Ico.Arrow />
+              </button>
+              <button
+                onClick={closeSprintModal}
+                style={{ width: "100%", marginTop: 10, padding: 10, border: "none", background: "none", fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "var(--text-muted)", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {sprintPhase === "sprinting" && (
+            <div className="sprint-run">
+              <div className="sprint-run-bar">
+                <div className="sprint-run-bar-left">
+                  <span className="sprint-timer">{fmtTime(sprintTimeLeft)}</span>
+                  <span className="sprint-meta">
+                    +{sprintWordsWritten.toLocaleString()} word{sprintWordsWritten === 1 ? "" : "s"} this sprint
+                  </span>
+                  {activeDoc && <span className="sprint-meta sprint-meta--dim">· {activeDoc.name}</span>}
+                </div>
+                <div className="sprint-run-bar-right">
+                  <button className="sprint-secondary-btn" onClick={endSprintEarly}>End early</button>
+                  <button className="sprint-secondary-btn" onClick={closeSprintModal}>Close</button>
+                </div>
+              </div>
+              <textarea
+                ref={sprintTextareaRef}
+                className="sprint-textarea"
+                value={sprintText}
+                onChange={(e) => setSprintText(e.target.value)}
+                placeholder="Just keep writing…"
+                spellCheck
+              />
+              <div className="sprint-progress">
+                <div
+                  className="sprint-progress-fill"
+                  style={{
+                    width: `${100 - (sprintTimeLeft / Math.max(1, (sprintCustomMin ? parseInt(sprintCustomMin, 10) : sprintDuration) * 60)) * 100}%`,
+                  }}
+                />
               </div>
             </div>
+          )}
 
-            <button className="sprint-enter-btn" onClick={goToSprintRoom}>
-              Go to Sprint Room <Ico.Arrow />
-            </button>
-            <button
-              onClick={() => setSprintModal(false)}
-              style={{ width: "100%", marginTop: 10, padding: 10, border: "none", background: "none", fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "var(--text-muted)", cursor: "pointer" }}
-            >
-              Cancel
-            </button>
-          </div>
+          {sprintPhase === "done" && (
+            <div className="sprint-body">
+              <div className="sprint-status-badge"><span className="sprint-status-dot" />SPRINT COMPLETE</div>
+              <div className="sprint-heading" style={{ textAlign: "center", fontSize: 44 }}>
+                +{sprintWordsWritten.toLocaleString()}
+              </div>
+              <div className="sprint-sub" style={{ textAlign: "center", marginBottom: 20 }}>
+                word{sprintWordsWritten === 1 ? "" : "s"} written · {sprintWordCount.toLocaleString()} total
+              </div>
+
+              {activeDoc ? (
+                <button className="sprint-enter-btn" onClick={saveSprintToChapter}>
+                  Save to "{activeDoc.name}" <Ico.Arrow />
+                </button>
+              ) : (
+                <div style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", padding: "12px 0" }}>
+                  No active chapter to save to. Copy your text before closing.
+                </div>
+              )}
+              <button
+                onClick={() => { navigator.clipboard.writeText(sprintText).catch(() => {}); showToast("Copied to clipboard"); }}
+                style={{ width: "100%", marginTop: 10, padding: 12, border: "1px solid var(--border)", background: "var(--surface)", borderRadius: 10, fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "var(--text-secondary)", cursor: "pointer" }}
+              >
+                Copy text
+              </button>
+              <button
+                onClick={closeSprintModal}
+                style={{ width: "100%", marginTop: 8, padding: 10, border: "none", background: "none", fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: "var(--text-muted)", cursor: "pointer" }}
+              >
+                Close
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
