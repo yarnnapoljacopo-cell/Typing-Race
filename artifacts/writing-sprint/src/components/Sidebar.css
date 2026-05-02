@@ -25,14 +25,16 @@
   border-radius: 18px;
 }
 
-/* Top icon */
+/* Top icon — midnight ink with warm gold accents */
 .sb-logo {
   position: relative;
   width: 36px;
   height: 36px;
   border-radius: 11px;
-  background: linear-gradient(135deg, #a78bfa 0%, #7c93d0 55%, #5e7bbd 100%);
-  color: #fff;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(251, 191, 36, 0.18), transparent 55%),
+    linear-gradient(140deg, #1e293b 0%, #0f172a 55%, #020617 100%);
+  color: #fde68a;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -40,9 +42,9 @@
   margin-bottom: 10px;
   overflow: hidden;
   box-shadow:
-    0 6px 16px rgba(124, 147, 208, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    0 8px 20px rgba(2, 6, 23, 0.55),
+    0 0 0 1px rgba(251, 191, 36, 0.18) inset,
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   animation: sbLogoFloat 4.5s ease-in-out infinite;
   cursor: pointer;
   transition: transform 0.25s cubic-bezier(.34, 1.56, .64, 1), box-shadow 0.25s ease;
@@ -50,27 +52,28 @@
 .sb-logo:hover {
   transform: rotate(-6deg) scale(1.08);
   box-shadow:
-    0 10px 22px rgba(124, 147, 208, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    0 12px 26px rgba(2, 6, 23, 0.7),
+    0 0 0 1px rgba(251, 191, 36, 0.5) inset,
+    0 0 18px rgba(251, 191, 36, 0.35);
 }
 .sb-logo:hover::after { animation: sbLogoShine 0.95s ease-out; }
 
-/* Rotating glow halo */
+/* Rotating warm halo — gold/amber/copper */
 .sb-logo::before {
   content: "";
   position: absolute;
-  inset: -3px;
-  border-radius: 14px;
+  inset: -4px;
+  border-radius: 15px;
   background: conic-gradient(
     from 0deg,
-    rgba(167, 139, 250, 0.6),
-    rgba(124, 147, 208, 0) 25%,
-    rgba(253, 230, 138, 0.5) 50%,
-    rgba(124, 147, 208, 0) 75%,
-    rgba(167, 139, 250, 0.6) 100%
+    rgba(251, 191, 36, 0.7),
+    rgba(217, 119, 6, 0) 22%,
+    rgba(254, 243, 199, 0.55) 50%,
+    rgba(251, 191, 36, 0) 78%,
+    rgba(251, 191, 36, 0.7) 100%
   );
-  filter: blur(7px);
-  opacity: 0.6;
+  filter: blur(8px);
+  opacity: 0.55;
   z-index: 0;
   animation: sbLogoGlow 6s linear infinite;
   pointer-events: none;
@@ -82,11 +85,11 @@
   position: absolute;
   inset: 0;
   border-radius: 11px;
-  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.6) 48%, transparent 66%);
+  background: linear-gradient(115deg, transparent 30%, rgba(254, 243, 199, 0.55) 48%, transparent 66%);
   transform: translateX(-120%);
   z-index: 3;
   pointer-events: none;
-  mix-blend-mode: overlay;
+  mix-blend-mode: screen;
 }
 
 /* Looping ambient sheen */
@@ -94,14 +97,14 @@
   position: absolute;
   inset: 0;
   border-radius: 11px;
-  background: linear-gradient(120deg, transparent 35%, rgba(255, 255, 255, 0.22) 50%, transparent 65%);
+  background: linear-gradient(120deg, transparent 35%, rgba(254, 243, 199, 0.18) 50%, transparent 65%);
   transform: translateX(-100%);
   animation: sbLogoShineLoop 5s ease-in-out infinite;
   z-index: 2;
   pointer-events: none;
 }
 
-/* Twinkling gold sparkle */
+/* Twinkling cream sparkle */
 .sb-logo-spark {
   position: absolute;
   top: 5px;
@@ -109,8 +112,10 @@
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #fde68a;
-  box-shadow: 0 0 6px rgba(253, 230, 138, 0.9);
+  background: #fffbeb;
+  box-shadow:
+    0 0 6px rgba(254, 243, 199, 0.95),
+    0 0 12px rgba(251, 191, 36, 0.6);
   z-index: 3;
   animation: sbLogoSpark 2.4s ease-in-out infinite;
   pointer-events: none;
