@@ -123,6 +123,12 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [restoredWordCount, setRestoredWordCount] = useState<number | null>(null);
   const [chestAwarded, setChestAwarded] = useState<string | null>(null);
+  const [betOutcome, setBetOutcome] = useState<{
+    outcome: "won" | "lost" | "refunded";
+    stake: number;
+    payout: number;
+  } | null>(null);
+  const [betsSettledTick, setBetsSettledTick] = useState(0);
   const [participantTexts, setParticipantTexts] = useState<Record<string, ParticipantText>>({});
 
   // Kart state
@@ -291,6 +297,20 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
             if (typeof data.chestType === "string") {
               setChestAwarded(data.chestType);
             }
+            break;
+
+          case "bet_settled":
+            if (data.outcome === "won" || data.outcome === "lost" || data.outcome === "refunded") {
+              setBetOutcome({
+                outcome: data.outcome,
+                stake: Number(data.stake) || 0,
+                payout: Number(data.payout) || 0,
+              });
+            }
+            break;
+
+          case "bets_settled":
+            setBetsSettledTick((n) => n + 1);
             break;
 
           case "error": {
@@ -593,6 +613,9 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
     restoredWordCount,
     chestAwarded,
     setChestAwarded,
+    betOutcome,
+    setBetOutcome,
+    betsSettledTick,
     setLatestText,
     sendTextUpdate,
     updateLocalWordCount,

@@ -4,6 +4,7 @@ import { db, pool, roomsTable, userProfilesTable, sprintWritingTable } from "@wo
 import { eq, gt, and, ne, sql } from "drizzle-orm";
 import { saveWriting } from "./writingStore";
 import { initGladiatorParticipant, broadcastGladiatorTimerEnd } from "./gladiatorEngine";
+import { settleBets, refundActiveBets, type BetOutcome } from "./bettingManager";
 
 // ── Sprint chest roll ─────────────────────────────────────────────────────────
 // Probabilities (add up to 1.0):
@@ -308,6 +309,8 @@ export function createRoom(
     if (rooms.has(code) && rooms.get(code)!.status === "waiting") {
       rooms.delete(code);
       deleteRoomFromDB(code);
+      // Refund any bets placed before the never-started sprint expired.
+      refundActiveBets(code, "Sprint never started — bet refunded").catch(() => undefined);
       logger.info({ code }, "Room expired after inactivity");
     }
   }, 2 * 60 * 60 * 1000);
@@ -600,6 +603,23 @@ export function endSprint(room: Room, naturalEnd = true): void {
     logger.error({ err, code: room.code }, "Failed to finalize sprint data"),
   );
 
+  // ── Settle bets ────────────────────────────────────────────────────────
+  // Winner = first in `participants` (already sorted by score). Settle by
+  // clerkUserId, NOT writer name — name matching could let an unrelated user
+  // claim the pot. If the top scorer has no signed-in account, or everyone
+  // wrote 0 words, treat as no winner so all bets refund.
+  const topScorer = participants[0];
+  const hasAnyWords = participants.some((p) => p.wordCount > 0);
+  const winnerParticipant = topScorer
+    ? room.participants.get(topScorer.id)
+    : undefined;
+  const winnerUserId = hasAnyWords && winnerParticipant?.clerkUserId
+    ? winnerParticipant.clerkUserId
+    : null;
+  settleBets(room.code, winnerUserId)
+    .then((outcomes) => notifyBetOutcomes(room, outcomes))
+    .catch((err) => logger.error({ err, code: room.code }, "Failed to settle bets"));
+
   if (room.closeTimer) clearTimeout(room.closeTimer);
   room.closeTimer = setTimeout(() => {
     const current = rooms.get(room.code);
@@ -607,6 +627,8 @@ export function endSprint(room: Room, naturalEnd = true): void {
     if (current.timerInterval) clearInterval(current.timerInterval);
     rooms.delete(current.code);
     deleteRoomFromDB(current.code);
+    // Refund any bets that somehow survived settlement (defensive — should be 0).
+    refundActiveBets(current.code, "Sprint room closed without settlement").catch(() => undefined);
     current.participants.forEach((p) => {
       if (p.ws.readyState === WebSocket.OPEN) p.ws.close(1000, "Room closed after sprint");
     });
@@ -614,6 +636,25 @@ export function endSprint(room: Room, naturalEnd = true): void {
   }, POST_SPRINT_CLOSE_MS);
 
   logger.info({ code: room.code }, "Sprint ended");
+}
+
+function notifyBetOutcomes(room: Room, outcomes: BetOutcome[]): void {
+  if (outcomes.length === 0) return;
+  for (const o of outcomes) {
+    // Find any open WS belonging to this user (matched by clerkUserId)
+    for (const p of room.participants.values()) {
+      if (p.clerkUserId === o.userId && p.ws.readyState === WebSocket.OPEN) {
+        p.ws.send(JSON.stringify({
+          type: "bet_settled",
+          outcome: o.outcome,
+          stake: o.amount,
+          payout: o.payout,
+        }));
+      }
+    }
+  }
+  // Broadcast a generic settled signal so all clients can refetch the pot view.
+  broadcastToRoom(room, { type: "bets_settled" });
 }
 
 export function addParticipant(room: Room, participant: Participant): void {
@@ -722,6 +763,8 @@ export function removeParticipant(room: Room, participantId: string): void {
         if (current.timerInterval) clearInterval(current.timerInterval);
         rooms.delete(code);
         deleteRoomFromDB(code);
+        // Refund any active bets — sprint is being abandoned without settlement.
+        refundActiveBets(code, "Sprint room abandoned — bet refunded").catch(() => undefined);
         logger.info({ code }, "Empty room cleaned up after grace period");
       }
     }, gracePeriodMs);

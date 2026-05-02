@@ -4,3 +4,4 @@ export * from "./rooms";
 export * from "./friendships";
 export * from "./items";
 export * from "./guilds";
+export * from "./bets";

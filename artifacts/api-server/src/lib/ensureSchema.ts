@@ -328,6 +328,19 @@ export async function ensureSchema(): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS guild_invites_invitee_idx
         ON guild_invites (invitee_id, status);
+
+      CREATE TABLE IF NOT EXISTS room_bets (
+        room_code    VARCHAR(20)  NOT NULL,
+        user_id      VARCHAR(100) NOT NULL,
+        writer_name  VARCHAR(50)  NOT NULL,
+        amount       INTEGER      NOT NULL,
+        status       VARCHAR(12)  NOT NULL DEFAULT 'active',
+        created_at   TIMESTAMP    NOT NULL DEFAULT NOW(),
+        settled_at   TIMESTAMP,
+        PRIMARY KEY (room_code, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS room_bets_room_idx ON room_bets (room_code, status);
+      CREATE INDEX IF NOT EXISTS room_bets_user_idx ON room_bets (user_id);
     `);
 
     // ── Phase 3: seed static data ─────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { createRoom, getRoom, getActiveRooms } from "../lib/roomManager";
+import { placeBet, getBetSummary, BetError, MIN_BET, MAX_BET } from "../lib/bettingManager";
 import { saveWriting, getWriting, getUserSprints } from "../lib/writingStore";
 import { CreateRoomBody, GetRoomParams } from "@workspace/api-zod";
 import { db, pool, userProfilesTable, sprintWritingTable, friendshipsTable } from "@workspace/db";
@@ -1083,6 +1084,77 @@ router.post("/user/discord/test", async (req, res): Promise<void> => {
     res.json({ ok: true });
   } else {
     res.status(502).json({ error: "Discord returned an error. Check that the webhook URL is correct and the channel still exists." });
+  }
+});
+
+// ── Betting ──────────────────────────────────────────────────────────────────
+
+router.get("/rooms/:code/bets", async (req, res): Promise<void> => {
+  const code = req.params.code?.toUpperCase();
+  if (!code) { res.status(400).json({ error: "code required" }); return; }
+  const auth = getAuth(req);
+  const userId = auth?.userId ?? null;
+  try {
+    const summary = await getBetSummary(code, userId);
+    res.json({ ...summary, minBet: MIN_BET, maxBet: MAX_BET });
+  } catch (err) {
+    req.log.error({ err, code }, "Failed to fetch bet summary");
+    res.status(500).json({ error: "Failed to fetch bets" });
+  }
+});
+
+router.post("/rooms/:code/bet", async (req, res): Promise<void> => {
+  const code = req.params.code?.toUpperCase();
+  if (!code) { res.status(400).json({ error: "code required" }); return; }
+
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Sign in to place a bet" }); return; }
+
+  const room = getRoom(code);
+  if (!room) { res.status(404).json({ error: "Room not found" }); return; }
+  if (room.status !== "waiting" && room.status !== "countdown") {
+    res.status(409).json({ error: "Betting is closed for this sprint" });
+    return;
+  }
+
+  // ── Membership check: only joined participants may bet on this sprint.
+  // Match by clerkUserId (verified server-side at WS join time).
+  const myParticipant = Array.from(room.participants.values()).find(
+    (p) => p.clerkUserId === clerkUserId && !p.isSpectator,
+  );
+  if (!myParticipant) {
+    res.status(403).json({ error: "Join the sprint as a writer before betting" });
+    return;
+  }
+
+  const amount = Number((req.body as { amount?: unknown })?.amount);
+  if (!Number.isFinite(amount)) {
+    res.status(400).json({ error: "amount required" });
+    return;
+  }
+
+  // Use the participant's *in-room* name so settlement and the bettor list
+  // stay consistent with the lane they're racing in.
+  const writerName = myParticipant.name;
+
+  try {
+    const result = await placeBet(
+      { code: room.code, status: room.status },
+      clerkUserId,
+      writerName,
+      Math.floor(amount),
+      () => getRoom(code)?.status,
+    );
+    const summary = await getBetSummary(code, clerkUserId);
+    res.json({ ...summary, ...result });
+  } catch (err) {
+    if (err instanceof BetError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    req.log.error({ err, code }, "Failed to place bet");
+    res.status(500).json({ error: "Failed to place bet" });
   }
 });
 

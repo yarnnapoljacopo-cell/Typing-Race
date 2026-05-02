@@ -31,6 +31,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { ChestAwardModal } from "@/components/ChestAwardModal";
+import { BetModal } from "@/components/BetModal";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Coins } from "lucide-react";
 import FolioSaveDialog, { type FolioTarget } from "./FolioSaveDialog";
 
 const CAPSULE_INTERVAL = 200;
@@ -391,7 +394,93 @@ export default function Room() {
     kartState,
     sendUseItem,
     gladiatorState,
+    betOutcome,
+    setBetOutcome,
+    betsSettledTick,
   } = useSprintRoom({ code, name, isCreator: isCreatorParams, password: roomPassword, clerkUserId: userId ?? null });
+
+  // ── Betting state ────────────────────────────────────────────────────────
+  const qcBet = useQueryClient();
+  const [showBetModal, setShowBetModal] = useState(false);
+
+  // Show modal once per *sprint instance*. Reset the flag when the room
+  // transitions into "finished" so a restart re-prompts.
+  const lastStatusRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!code || !room) return;
+    const prev = lastStatusRef.current;
+    lastStatusRef.current = room.status;
+    if (room.status === "finished") {
+      sessionStorage.removeItem(`bet-shown-${code}`);
+      return;
+    }
+    if (room.status !== "waiting" && room.status !== "countdown") return;
+    // Re-show on (a) first entry, or (b) after a restart (prev was finished).
+    const key = `bet-shown-${code}`;
+    if (sessionStorage.getItem(key) && prev !== "finished") return;
+    sessionStorage.setItem(key, "1");
+    setShowBetModal(true);
+  }, [code, room?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  type BetSummaryResp = {
+    totalPot: number;
+    bettorCount: number;
+    myBet: number | null;
+    myStatus: "active" | "won" | "lost" | "refunded" | null;
+    myPayout: number | null;
+    status: "open" | "closed" | "settled";
+  };
+
+  const { data: betSummary } = useQuery<BetSummaryResp>({
+    queryKey: ["roomBets", code],
+    queryFn: async () => {
+      const r = await authedFetch(`${(import.meta.env.BASE_URL ?? "/").replace(/\/$/, "")}/api/rooms/${code}/bets`);
+      if (!r.ok) throw new Error("failed");
+      return r.json();
+    },
+    enabled: !!code,
+    // Keep polling while waiting/countdown so the pot stays current, and
+    // briefly after sprint ends until settlement arrives (server settles
+    // bets *after* broadcasting sprint_ended, so the client must poll for it).
+    refetchInterval: (q) => {
+      const data = q.state.data;
+      if (room?.status === "waiting" || room?.status === "countdown") return 5000;
+      if (room?.status === "finished" && data?.myStatus === "active") return 1500;
+      return false;
+    },
+    staleTime: 1500,
+  });
+
+  // Derive outcome from the polled summary OR fall back to the WS message
+  // (WS message rarely arrives because the client closes on sprint_ended).
+  const derivedBetOutcome = useMemo(() => {
+    if (betOutcome) return betOutcome;
+    if (
+      betSummary?.myBet != null &&
+      betSummary.myStatus &&
+      betSummary.myStatus !== "active" &&
+      betSummary.myPayout != null
+    ) {
+      return {
+        outcome: betSummary.myStatus,
+        stake: betSummary.myBet,
+        payout: betSummary.myPayout,
+      };
+    }
+    return null;
+  }, [betOutcome, betSummary]);
+
+  // Once we observe a settled state, refresh the coin balance.
+  const settledOnceRef = useRef(false);
+  useEffect(() => {
+    if (
+      betsSettledTick > 0 ||
+      (betSummary?.status === "settled" && !settledOnceRef.current)
+    ) {
+      settledOnceRef.current = true;
+      qcBet.invalidateQueries({ queryKey: ["coinBalance"] });
+    }
+  }, [betsSettledTick, betSummary?.status, qcBet]);
 
   useEffect(() => {
     if (!code || !name) setLocation("/");
@@ -1067,6 +1156,11 @@ export default function Room() {
         <ChestAwardModal chestType={chestAwarded} onClose={() => setChestAwarded(null)} />
       )}
 
+      {/* Bet modal — shown once on entry while sprint is still in waiting/countdown */}
+      {showBetModal && code && (room?.status === "waiting" || room?.status === "countdown") && (
+        <BetModal roomCode={code} onClose={() => setShowBetModal(false)} />
+      )}
+
       {/* Gladiator execution / victory / draw overlay */}
       {room?.mode === "gladiator" && gladiatorState.executionResult && (
         <GladiatorResults result={gladiatorState.executionResult} participantId={participantId} />
@@ -1216,6 +1310,7 @@ export default function Room() {
             xpGained={xpGained}
             isBossMode={room.mode === "boss"}
             isKartMode={room.mode === "kart"}
+            betOutcome={derivedBetOutcome}
           />
         </div>
       ) : (
@@ -1449,6 +1544,40 @@ export default function Room() {
               >
                 <Timer timeLeft={room.timeLeft} countdownTimeLeft={room.countdownTimeLeft} status={room.status} />
               </div>
+
+              {/* Pot indicator — shows total Spirit Coins bet on this sprint */}
+              {(betSummary?.totalPot ?? 0) > 0 && (
+                <div
+                  title={
+                    betSummary?.myBet
+                      ? `${betSummary.bettorCount} bettor${betSummary.bettorCount === 1 ? "" : "s"} · your stake: ${betSummary.myBet}`
+                      : `${betSummary?.bettorCount ?? 0} bettor${(betSummary?.bettorCount ?? 0) === 1 ? "" : "s"}`
+                  }
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    padding: "10px 14px", borderRadius: 12,
+                    background: "linear-gradient(135deg, rgba(245,197,66,0.16), rgba(232,147,58,0.12))",
+                    border: "1px solid rgba(232,147,58,0.35)",
+                    fontWeight: 700, color: "#92400e", fontSize: "0.9rem",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  <Coins size={16} style={{ color: "#e8933a" }} />
+                  Pot: {betSummary?.totalPot.toLocaleString()}
+                  <span style={{ fontWeight: 500, opacity: 0.75, fontSize: "0.78rem" }}>
+                    · {betSummary?.bettorCount ?? 0} in
+                  </span>
+                  {(isWaiting || isCountdown) && betSummary?.myBet == null && userId && (
+                    <button
+                      type="button"
+                      onClick={() => setShowBetModal(true)}
+                      style={{ marginLeft: 4, background: "rgba(255,255,255,0.5)", border: "1px solid rgba(232,147,58,0.4)", borderRadius: 999, padding: "2px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", color: "#92400e" }}
+                    >
+                      Join
+                    </button>
+                  )}
+                </div>
+              )}
 
               <WritingArchive
                 text={text}

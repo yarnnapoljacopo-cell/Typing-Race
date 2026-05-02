@@ -1,6 +1,6 @@
 import { Participant } from "@/hooks/useSprintRoom";
 import { Button } from "@/components/ui/button";
-import { Trophy, Medal, Award, RotateCcw, Home, Zap } from "lucide-react";
+import { Trophy, Medal, Award, RotateCcw, Home, Zap, Coins } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
@@ -15,6 +15,7 @@ interface ResultsScreenProps {
   xpGained?: number | null;
   isBossMode?: boolean;
   isKartMode?: boolean;
+  betOutcome?: { outcome: "won" | "lost" | "refunded"; stake: number; payout: number } | null;
 }
 
 export function ResultsScreen({
@@ -27,6 +28,7 @@ export function ResultsScreen({
   xpGained,
   isBossMode = false,
   isKartMode = false,
+  betOutcome = null,
 }: ResultsScreenProps) {
   const [, setLocation] = useLocation();
   const sorted = [...participants].sort((a, b) => {
@@ -66,6 +68,54 @@ export function ResultsScreen({
             : "The sprint has concluded. Here's how everyone did."}
         </p>
       </div>
+
+      {/* Bet outcome banner */}
+      {betOutcome && (
+        <motion.div
+          initial={{ opacity: 0, y: -10, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ delay: 0.2, type: "spring", stiffness: 300, damping: 22 }}
+          className="rounded-xl border-2 px-5 py-4 flex items-center gap-3"
+          style={{
+            borderColor:
+              betOutcome.outcome === "won" ? "#facc15"
+              : betOutcome.outcome === "refunded" ? "#94a3b8"
+              : "#dc2626",
+            background:
+              betOutcome.outcome === "won"
+                ? "linear-gradient(135deg, rgba(250,204,21,0.12), rgba(251,191,36,0.06))"
+                : betOutcome.outcome === "refunded"
+                ? "linear-gradient(135deg, rgba(148,163,184,0.10), rgba(148,163,184,0.04))"
+                : "linear-gradient(135deg, rgba(220,38,38,0.10), rgba(220,38,38,0.04))",
+          }}
+        >
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+            style={{
+              background:
+                betOutcome.outcome === "won"
+                  ? "linear-gradient(135deg, #facc15, #f59e0b)"
+                  : betOutcome.outcome === "refunded"
+                  ? "linear-gradient(135deg, #cbd5e1, #94a3b8)"
+                  : "linear-gradient(135deg, #fca5a5, #dc2626)",
+            }}
+          >
+            <Coins className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1">
+            <div className="font-bold text-foreground">
+              {betOutcome.outcome === "won" && `You won ${betOutcome.payout.toLocaleString()} Spirit Coins!`}
+              {betOutcome.outcome === "lost" && `Bet lost — ${betOutcome.stake.toLocaleString()} coins gone to the winner`}
+              {betOutcome.outcome === "refunded" && `Bet refunded — ${betOutcome.stake.toLocaleString()} coins returned`}
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {betOutcome.outcome === "won" && `Your ${betOutcome.stake.toLocaleString()}-coin stake was multiplied by the pot.`}
+              {betOutcome.outcome === "lost" && "Better luck next sprint."}
+              {betOutcome.outcome === "refunded" && "Not enough bettors, or the winner didn't bet."}
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* XP gained banner */}
       <AnimatePresence>
