@@ -592,33 +592,6 @@ export default function MyFiles() {
   const closeSprintModal = () => setSprintModal(false);
   const openSprintModal = () => setSprintModal(true);
 
-  const handleSprintSave = (newContent: string) => {
-    if (!activeProjectId || !activeDocId) {
-      showToast("No active chapter to save to");
-      return;
-    }
-    const projectId = activeProjectId;
-    const docId = activeDocId;
-    setState((prev) => ({
-      ...prev,
-      projects: prev.projects.map((p) =>
-        p.id !== projectId
-          ? p
-          : {
-              ...p,
-              docs: p.docs.map((d) =>
-                d.id !== docId ? d : { ...d, content: newContent, updatedAt: Date.now() },
-              ),
-            },
-      ),
-    }));
-    if (contentRef.current) {
-      contentRef.current.value = newContent;
-      updateWordCount();
-    }
-    showToast("Saved to chapter");
-  };
-
   // ── Daily goal ──────────────────────────────────────────
   const dailyPct = dailyGoal ? Math.min(100, Math.round((dailyWords / dailyGoal) * 100)) : 0;
 
@@ -1222,13 +1195,11 @@ export default function MyFiles() {
         title={activeDoc ? `Notes · ${activeDoc.name}` : "Notes"}
       />
 
-      {/* SPRINT POPUP — native room creator/joiner + runner */}
+      {/* SPRINT POPUP — small lobby that navigates to /room on submit */}
       <SprintPopup
         open={sprintModal}
         onClose={closeSprintModal}
         chapterTitle={activeDoc?.name ?? null}
-        chapterContent={contentRef.current?.value ?? activeDoc?.content ?? ""}
-        onSave={handleSprintSave}
       />
 
       {/* TOAST */}
