@@ -54,9 +54,22 @@ interface Props {
   open: boolean;
   onClose: () => void;
   chapterTitle: string | null;
+  chapterContent?: string;
 }
 
-export default function SprintPopup({ open, onClose, chapterTitle: _chapterTitle }: Props) {
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function plainToHtml(s: string) {
+  if (!s) return "";
+  return escapeHtml(s).replace(/\r?\n/g, "<br>");
+}
+
+export default function SprintPopup({ open, onClose, chapterTitle: _chapterTitle, chapterContent }: Props) {
   const [, setLocation] = useLocation();
   const { user } = useUser();
   const { isSignedIn } = useAuth();
@@ -98,6 +111,10 @@ export default function SprintPopup({ open, onClose, chapterTitle: _chapterTitle
       onSuccess: (data) => {
         if (pwOn && pw.trim()) {
           try { sessionStorage.setItem(`room_password_${data.code}`, pw.trim()); } catch { /* ignore */ }
+        }
+        const seed = (chapterContent || "").trim();
+        if (seed) {
+          try { localStorage.setItem(`sprint-autosave-${data.code}`, plainToHtml(seed)); } catch { /* ignore */ }
         }
         onClose();
         setLocation(`/room?code=${data.code}&name=${encodeURIComponent(displayName)}&isCreator=true`);

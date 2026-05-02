@@ -1212,6 +1212,7 @@ export default function MyFiles() {
         open={sprintModal}
         onClose={closeSprintModal}
         chapterTitle={activeDoc?.name ?? null}
+        chapterContent={activeDoc ? ((contentRef.current?.value ?? activeDoc.content) || "") : ""}
       />
 
       {/* TOAST */}
