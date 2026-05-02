@@ -945,5 +945,44 @@ router.get("/user/bag/slots", async (req, res): Promise<void> => {
   }
 });
 
+// ── GET /api/user/items-stats — collected vs total items for stats UI ─────────
+router.get("/user/items-stats", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const userId = auth?.userId;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  try {
+    const client = await pool.connect();
+    try {
+      // Collected = number of distinct items currently held in the user's
+      // bag (snapshot of user_inventory). This is "currently owned" rather
+      // than lifetime collection — we don't keep an immutable acquisition
+      // log, so once an item is consumed/discarded it drops out of the
+      // count. Total = master catalog size, restricted to items that are
+      // normally obtainable (chests + crafting).
+      const { rows: collectedRows } = await client.query<{ count: string }>(
+        `SELECT COUNT(DISTINCT item_id)::text AS count
+           FROM user_inventory
+          WHERE user_id = $1`,
+        [userId],
+      );
+      const { rows: totalRows } = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count
+           FROM items_master
+          WHERE is_chest_obtainable = TRUE OR is_craftable = TRUE`,
+      );
+
+      res.json({
+        collected: Number(collectedRows[0]?.count ?? 0),
+        total: Number(totalRows[0]?.count ?? 0),
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load items stats", _err: String(err) });
+  }
+});
+
 export default router;
 export { getBagSlots, getActiveEffects, grantXp };

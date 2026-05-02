@@ -11,6 +11,9 @@ export const sprintWritingTable = pgTable("sprint_writing", {
   xpAwarded: boolean("xp_awarded").notNull().default(false),
   roomMode: varchar("room_mode", { length: 20 }).notNull().default("regular"),
   wordGoal: integer("word_goal"),
+  // Final WPM at sprint end (words / actual elapsed minutes). Null for
+  // pre-existing rows written before this column was added.
+  wpm: integer("wpm"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("sprint_writing_room_participant_idx").on(t.roomCode, t.participantName),

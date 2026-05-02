@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser, useAuth } from "@clerk/react";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, Check, ChevronDown, ChevronUp, ExternalLink, Loader2 } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -136,6 +137,17 @@ interface SprintRecord {
   roomMode: string;
   wordGoal: number | null;
   updatedAt: string;
+  wpm: number | null;
+}
+
+interface ItemsStats { collected: number; total: number; }
+
+async function fetchItemsStats(
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<ItemsStats> {
+  const res = await af(`${basePath}/api/user/items-stats`);
+  if (!res.ok) return { collected: 0, total: 0 };
+  return res.json();
 }
 
 async function fetchSprintHistory(
@@ -404,10 +416,21 @@ export default function Profile() {
     placeholderData: (prev) => prev,
   });
 
+  // Sprint history powers the Statistics block (WPM chart, productive hour,
+  // favourite mode, best WPM). Only fetch when viewing your own profile —
+  // there's no per-user history endpoint for other writers, and we don't
+  // want to do unnecessary DB work when browsing someone else's page.
   const { data: sprintHistory } = useQuery({
     queryKey: ["sprint-history"],
     queryFn: () => fetchSprintHistory(authedFetch),
-    enabled: !!user && advancedOpen && isLoaded,
+    enabled: !!user && isLoaded && isOwnProfile,
+    staleTime: 60_000,
+  });
+
+  const { data: itemsStats } = useQuery({
+    queryKey: ["items-stats"],
+    queryFn: () => fetchItemsStats(authedFetch),
+    enabled: !!user && isLoaded && isOwnProfile,
     staleTime: 60_000,
   });
 
@@ -503,6 +526,81 @@ export default function Profile() {
   const globalRankEntry = top10?.find(
     (e) => e.writerName.toLowerCase() === name.toLowerCase(),
   );
+
+  // ── Derived statistics from sprintHistory ──────────────────────────────────
+  const stats = useMemo(() => {
+    if (!sprintHistory || sprintHistory.length === 0) return null;
+
+    const MODE_LABELS: Record<string, string> = {
+      regular: "Regular", goal: "Goal", kart: "Kart Race",
+      gladiator: "Gladiator", boss: "Boss Battle", death: "Death Mode",
+    };
+    const MODE_EMOJI: Record<string, string> = {
+      regular: "✍️", goal: "🎯", kart: "🏎️", gladiator: "⚔️", boss: "👾", death: "💀",
+    };
+
+    // WPM series: oldest → newest, only sprints where wpm is recorded.
+    const wpmSeries = [...sprintHistory]
+      .filter((s) => typeof s.wpm === "number" && s.wpm! > 0)
+      .reverse()
+      .map((s, i) => ({
+        idx: i + 1,
+        wpm: s.wpm!,
+        date: new Date(s.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      }));
+
+    const avgWpm = wpmSeries.length > 0
+      ? Math.round(wpmSeries.reduce((s, p) => s + p.wpm, 0) / wpmSeries.length)
+      : null;
+
+    // Best sprint by WPM (separate from best by word count, which is on data.highestWordCount)
+    const bestWpmSprint = wpmSeries.length > 0
+      ? wpmSeries.reduce((best, p) => (p.wpm > best.wpm ? p : best), wpmSeries[0])
+      : null;
+
+    // Productive hour: bucket sprints by hour-of-day, sum total words.
+    const hourBuckets = new Array<number>(24).fill(0);
+    for (const s of sprintHistory) {
+      const h = new Date(s.updatedAt).getHours();
+      hourBuckets[h] += s.wordCount;
+    }
+    const peakHour = hourBuckets.reduce(
+      (best, words, hour) => (words > best.words ? { hour, words } : best),
+      { hour: -1, words: 0 },
+    );
+    const formatHour = (h: number): string => {
+      if (h < 0) return "—";
+      const ampm = h < 12 ? "AM" : "PM";
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      const next = (h + 1) % 24;
+      const nextAmpm = next < 12 ? "AM" : "PM";
+      const next12 = next % 12 === 0 ? 12 : next % 12;
+      return `${h12}${ampm}–${next12}${nextAmpm}`;
+    };
+
+    // Favourite mode: most-played mode by count.
+    const modeCounts: Record<string, number> = {};
+    for (const s of sprintHistory) {
+      const m = s.roomMode ?? "regular";
+      modeCounts[m] = (modeCounts[m] ?? 0) + 1;
+    }
+    const sortedModes = Object.entries(modeCounts).sort((a, b) => b[1] - a[1]);
+    const favMode = sortedModes[0] ? {
+      key: sortedModes[0][0],
+      label: MODE_LABELS[sortedModes[0][0]] ?? sortedModes[0][0],
+      emoji: MODE_EMOJI[sortedModes[0][0]] ?? "✍️",
+      count: sortedModes[0][1],
+      pct: Math.round((sortedModes[0][1] / sprintHistory.length) * 100),
+    } : null;
+
+    return {
+      wpmSeries,
+      avgWpm,
+      bestWpmSprint,
+      peakHour: peakHour.hour >= 0 ? { ...peakHour, label: formatHour(peakHour.hour) } : null,
+      favMode,
+    };
+  }, [sprintHistory]);
 
   if (!name) {
     return <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-solid)", color: "var(--color-muted-foreground)" }}>No name provided.</div>;
@@ -609,6 +707,96 @@ export default function Profile() {
                 <p style={{ textAlign: "center", fontSize: "0.88rem", color: "#7a7a92", marginBottom: 16 }}>
                   Averaging <strong style={{ color: "#1a1a2e" }}>{Math.round(data.totalWords / data.sprintCount).toLocaleString()} words</strong> per sprint
                 </p>
+              )}
+
+              {/* ── Statistics & Analytics — only on own profile ──────────────── */}
+              {isOwnProfile && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "#7a7a92", textTransform: "uppercase", textAlign: "center", marginBottom: 12 }}>
+                    Statistics
+                  </div>
+
+                  {/* WPM-over-time chart */}
+                  <div style={{ ...CARD, padding: "16px 14px 8px", marginBottom: 10 }}>
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
+                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#1a1a2e" }}>WPM Over Time</div>
+                      {stats?.avgWpm != null && (
+                        <div style={{ fontSize: "0.72rem", color: "#7a7a92" }}>
+                          Avg <strong style={{ color: "#6B8FD4" }}>{stats.avgWpm}</strong> wpm
+                        </div>
+                      )}
+                    </div>
+                    {stats && stats.wpmSeries.length >= 2 ? (
+                      <div style={{ width: "100%", height: 160 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={stats.wpmSeries} margin={{ top: 6, right: 8, left: -16, bottom: 0 }}>
+                            <CartesianGrid stroke="rgba(107,143,212,0.12)" strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#7a7a92" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={28} />
+                            <YAxis tick={{ fontSize: 10, fill: "#7a7a92" }} axisLine={false} tickLine={false} width={32} />
+                            <Tooltip
+                              contentStyle={{ background: "rgba(255,255,255,0.96)", border: "1px solid rgba(107,143,212,0.2)", borderRadius: 10, fontSize: "0.78rem" }}
+                              labelStyle={{ color: "#7a7a92", fontWeight: 600 }}
+                              formatter={(v: number) => [`${v} wpm`, "Speed"]}
+                            />
+                            <Line type="monotone" dataKey="wpm" stroke="#6B8FD4" strokeWidth={2.2} dot={{ r: 2.5, fill: "#6B8FD4" }} activeDot={{ r: 4 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div style={{ padding: "20px 0", textAlign: "center", color: "#7a7a92", fontSize: "0.82rem" }}>
+                        {sprintHistory == null
+                          ? <><Loader2 size={14} style={{ display: "inline", marginRight: 6, animation: "spin 1s linear infinite" }} /> Loading…</>
+                          : "Finish a couple more sprints to see your typing speed trend."}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 4-tile analytics grid */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+                    {/* Best WPM */}
+                    <div style={{ ...CARD, padding: "14px 12px", textAlign: "center" }}>
+                      <div style={{ fontSize: "1.1rem", marginBottom: 4 }}>⚡</div>
+                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.5rem", fontWeight: 700, color: "#1a1a2e", lineHeight: 1, marginBottom: 4 }}>
+                        {stats?.bestWpmSprint ? stats.bestWpmSprint.wpm : "–"}
+                      </div>
+                      <div style={{ fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.08em", color: "#7a7a92", textTransform: "uppercase" }}>Best WPM</div>
+                    </div>
+
+                    {/* Most Productive Hour */}
+                    <div style={{ ...CARD, padding: "14px 12px", textAlign: "center" }}>
+                      <div style={{ fontSize: "1.1rem", marginBottom: 4 }}>🕒</div>
+                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.15rem", fontWeight: 700, color: "#1a1a2e", lineHeight: 1.1, marginBottom: 4 }}>
+                        {stats?.peakHour ? stats.peakHour.label : "–"}
+                      </div>
+                      <div style={{ fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.08em", color: "#7a7a92", textTransform: "uppercase" }}>Most Productive</div>
+                    </div>
+
+                    {/* Favourite Mode */}
+                    <div style={{ ...CARD, padding: "14px 12px", textAlign: "center" }}>
+                      <div style={{ fontSize: "1.1rem", marginBottom: 4 }}>{stats?.favMode?.emoji ?? "🎮"}</div>
+                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.15rem", fontWeight: 700, color: "#1a1a2e", lineHeight: 1.1, marginBottom: 4 }}>
+                        {stats?.favMode ? stats.favMode.label : "–"}
+                      </div>
+                      <div style={{ fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.08em", color: "#7a7a92", textTransform: "uppercase" }}>
+                        Favourite Mode{stats?.favMode ? ` · ${stats.favMode.pct}%` : ""}
+                      </div>
+                    </div>
+
+                    {/* Items Collected */}
+                    <div style={{ ...CARD, padding: "14px 12px", textAlign: "center" }}>
+                      <div style={{ fontSize: "1.1rem", marginBottom: 4 }}>🎒</div>
+                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.5rem", fontWeight: 700, color: "#1a1a2e", lineHeight: 1, marginBottom: 4 }}>
+                        {itemsStats ? `${itemsStats.collected}/${itemsStats.total}` : "–"}
+                      </div>
+                      <div style={{ fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.08em", color: "#7a7a92", textTransform: "uppercase" }}>Items in Bag</div>
+                      {itemsStats && itemsStats.total > 0 && (
+                        <div style={{ height: 4, background: "rgba(107,143,212,0.12)", borderRadius: 99, overflow: "hidden", marginTop: 6 }}>
+                          <div style={{ height: "100%", width: `${Math.min(100, Math.round((itemsStats.collected / itemsStats.total) * 100))}%`, background: "#6B8FD4", borderRadius: 99 }} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* Advanced Stats — collapsible; show when we have data OR when stats errored */}

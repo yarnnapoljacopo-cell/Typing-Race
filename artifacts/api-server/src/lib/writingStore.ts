@@ -10,6 +10,8 @@ export async function saveWriting(
   clerkUserId?: string | null,
   roomMode?: string | null,
   wordGoal?: number | null,
+  /** Final WPM (words / actual elapsed minutes). Persisted at sprint end. */
+  wpm?: number | null,
 ): Promise<void> {
   try {
     await db
@@ -22,6 +24,7 @@ export async function saveWriting(
         wordCount,
         roomMode: roomMode ?? "regular",
         wordGoal: wordGoal ?? null,
+        wpm: wpm ?? null,
       })
       .onConflictDoUpdate({
         target: [sprintWritingTable.roomCode, sprintWritingTable.participantName],
@@ -32,6 +35,7 @@ export async function saveWriting(
           ...(clerkUserId ? { clerkUserId } : {}),
           ...(roomMode ? { roomMode } : {}),
           ...(wordGoal != null ? { wordGoal } : {}),
+          ...(wpm != null ? { wpm } : {}),
         },
       });
   } catch (err) {
@@ -74,6 +78,7 @@ export async function getUserSprints(clerkUserId: string): Promise<Array<{
   excerpt: string;
   roomMode: string;
   wordGoal: number | null;
+  wpm: number | null;
 }>> {
   try {
     const rows = await db
@@ -110,6 +115,7 @@ export async function getUserSprints(clerkUserId: string): Promise<Array<{
         excerpt: r.text.slice(0, 200),
         roomMode: r.roomMode,
         wordGoal: r.wordGoal ?? null,
+        wpm: r.wpm ?? null,
       };
     });
   } catch (err) {

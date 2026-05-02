@@ -256,6 +256,7 @@ export async function ensureSchema(): Promise<void> {
         ADD COLUMN IF NOT EXISTS xp_awarded        BOOLEAN NOT NULL DEFAULT FALSE,
         ADD COLUMN IF NOT EXISTS room_mode         VARCHAR(20) NOT NULL DEFAULT 'regular',
         ADD COLUMN IF NOT EXISTS word_goal         INTEGER,
+        ADD COLUMN IF NOT EXISTS wpm               INTEGER,
         ADD COLUMN IF NOT EXISTS updated_at        TIMESTAMP NOT NULL DEFAULT NOW();
 
       ALTER TABLE items_master

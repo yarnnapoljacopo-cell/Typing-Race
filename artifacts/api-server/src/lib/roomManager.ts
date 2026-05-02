@@ -512,7 +512,10 @@ async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void
   await Promise.all(allParticipants.map(async (p) => {
     // Always flush the server's in-memory copy to the DB so no text is lost
     if (p.latestText || p.wordCount > 0) {
-      await saveWriting(room.code, p.name, p.latestText, p.wordCount, p.clerkUserId, room.mode, room.wordGoal);
+      // p.wpm was set to the accurate final WPM by endSprint() before
+      // calling finalizeSprintData. Persist it so the profile stats and
+      // WPM-over-time chart can use the real value, not the live EMA.
+      await saveWriting(room.code, p.name, p.latestText, p.wordCount, p.clerkUserId, room.mode, room.wordGoal, p.wpm);
     }
 
     // Award XP for signed-in users with non-zero words
