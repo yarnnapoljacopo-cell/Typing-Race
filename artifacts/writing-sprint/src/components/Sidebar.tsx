@@ -49,7 +49,9 @@ export function Sidebar() {
     staleTime: 5 * 60_000,
   });
 
-  if (!isSignedIn || shouldHide(location)) return null;
+  // TEMP DEV: allow guests to see the sidebar so /my-files is reachable.
+  // RESTORE BEFORE PUSHING TO PROD — change back to: if (!isSignedIn || shouldHide(location)) return null;
+  if (shouldHide(location)) return null;
 
   const active = getActiveKey(location);
   const writerName = ownPrefs?.writerName ?? "";
