@@ -8,15 +8,55 @@ import { useAuthedFetch } from "@/lib/authedFetch";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+type Tab = "join" | "create";
+type ModeKey = "regular" | "spectator" | "goal" | "boss" | "kart" | "gladiator";
+
+interface ModeDef {
+  key: ModeKey;
+  label: string;
+  desc: string;
+  icon: React.ReactNode;
+}
+
+const MODES: ModeDef[] = [
+  { key: "regular", label: "Regular", desc: "Private writing", icon: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+  )},
+  { key: "spectator", label: "Spectator", desc: "See each other live", icon: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+  )},
+  { key: "goal", label: "Goal", desc: "Hit a word target", icon: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>
+  )},
+  { key: "boss", label: "Boss Battle", desc: "Defeat the monster", icon: (
+    <span style={{ fontSize: 16, lineHeight: 1 }}>🗡️</span>
+  )},
+  { key: "kart", label: "Kart Mode", desc: "Items & chaos", icon: (
+    <span style={{ fontSize: 16, lineHeight: 1 }}>🏎️</span>
+  )},
+  { key: "gladiator", label: "Gladiator", desc: "1v1 HP combat", icon: (
+    <span style={{ fontSize: 16, lineHeight: 1 }}>⚔️</span>
+  )},
+];
+
+const DURATIONS = [30, 45, 60];
+const COUNTDOWNS: { label: string; value: number }[] = [
+  { label: "Off", value: 0 },
+  { label: "5m", value: 5 },
+  { label: "10m", value: 10 },
+  { label: "15m", value: 15 },
+  { label: "20m", value: 20 },
+  { label: "25m", value: 25 },
+  { label: "30m", value: 30 },
+];
+
 interface Props {
   open: boolean;
   onClose: () => void;
   chapterTitle: string | null;
 }
 
-type Tab = "create" | "join";
-
-export default function SprintPopup({ open, onClose, chapterTitle }: Props) {
+export default function SprintPopup({ open, onClose, chapterTitle: _chapterTitle }: Props) {
   const [, setLocation] = useLocation();
   const { user } = useUser();
   const { isSignedIn } = useAuth();
@@ -25,7 +65,13 @@ export default function SprintPopup({ open, onClose, chapterTitle }: Props) {
   const authedFetch = useAuthedFetch();
 
   const [tab, setTab] = useState<Tab>("create");
-  const [duration, setDuration] = useState(15);
+  const [duration, setDuration] = useState(30);
+  const [countdown, setCountdown] = useState(0);
+  const [mode, setMode] = useState<ModeKey>("regular");
+  const [deathOn, setDeathOn] = useState(false);
+  const [deathWpm, setDeathWpm] = useState<string>("15");
+  const [pwOn, setPwOn] = useState(false);
+  const [pw, setPw] = useState("");
   const [joinCode, setJoinCode] = useState("");
 
   const displayName = useMemo(() => {
@@ -33,7 +79,6 @@ export default function SprintPopup({ open, onClose, chapterTitle }: Props) {
     return guestName || "Writer";
   }, [isSignedIn, user, guestName]);
 
-  // Make sure we have an identity (guest fallback) so the room WS can connect.
   useEffect(() => {
     if (!open) return;
     if (!isSignedIn && !guestName) {
@@ -51,6 +96,9 @@ export default function SprintPopup({ open, onClose, chapterTitle }: Props) {
   const createRoomMutation = useCreateRoom({
     mutation: {
       onSuccess: (data) => {
+        if (pwOn && pw.trim()) {
+          try { sessionStorage.setItem(`room_password_${data.code}`, pw.trim()); } catch { /* ignore */ }
+        }
         onClose();
         setLocation(`/room?code=${data.code}&name=${encodeURIComponent(displayName)}&isCreator=true`);
       },
@@ -65,11 +113,21 @@ export default function SprintPopup({ open, onClose, chapterTitle }: Props) {
   });
 
   const handleCreate = () => {
+    const apiMode = mode === "spectator" ? "open" : mode === "boss" ? "regular" : mode;
+    const password = pwOn && pw.trim() ? pw.trim() : undefined;
+    const dwpm = deathOn ? (parseInt(deathWpm, 10) || 15) : undefined;
+
     createRoomMutation.mutate({
       data: {
         creatorName: displayName,
         durationMinutes: duration,
-        mode: "regular",
+        mode: apiMode,
+        ...(countdown > 0 ? { countdownDelayMinutes: countdown } : {}),
+        ...(mode === "goal" ? { wordGoal: 1000 } : {}),
+        ...(mode === "boss" ? { bossWordGoal: 5000 } : {}),
+        ...(mode === "gladiator" ? { gladiatorDeathGap: 400 } : {}),
+        ...(dwpm ? { deathModeWpm: dwpm } : {}),
+        ...(password ? { roomPassword: password } : {}),
       } as Parameters<typeof createRoomMutation.mutate>[0]["data"],
     });
   };
@@ -86,9 +144,7 @@ export default function SprintPopup({ open, onClose, chapterTitle }: Props) {
         toast({ title: "Room not found", description: "Check the code and try again.", variant: "destructive" });
         return;
       }
-    } catch {
-      // proceed; WS will surface errors
-    }
+    } catch { /* WS will surface errors */ }
     onClose();
     setLocation(`/room?code=${encodeURIComponent(code)}&name=${encodeURIComponent(displayName)}`);
   };
@@ -96,64 +152,133 @@ export default function SprintPopup({ open, onClose, chapterTitle }: Props) {
   if (!open) return null;
 
   return (
-    <div className="sprint-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="sprint-modal sprint-modal--native">
-        <div className="sprint-embed-bar">
-          <div className="sprint-embed-title">
-            Sprint{chapterTitle ? <> · <span className="sprint-embed-chapter">{chapterTitle}</span></> : null}
-          </div>
-          <button className="sprint-secondary-btn" onClick={onClose}>Close</button>
+    <div className="sp-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="sp-card">
+        <button className="sp-close" onClick={onClose} aria-label="Close">×</button>
+
+        <div className="sp-badge">
+          <span className="sp-badge-dot" /> SESSION OPEN
         </div>
 
-        <div className="sprint-lobby">
-          <h2 className="sprint-lobby-title">Join the session</h2>
-          <p className="sprint-lobby-sub">Writing as <strong>{displayName}</strong></p>
+        <h2 className="sp-title">Join the session</h2>
+        <p className="sp-sub">Writing as <strong>{displayName}</strong></p>
 
-          <div className="sprint-tabs">
-            <button
-              className={`sprint-tab${tab === "join" ? " active" : ""}`}
-              onClick={() => setTab("join")}
-            >Join Room</button>
-            <button
-              className={`sprint-tab${tab === "create" ? " active" : ""}`}
-              onClick={() => setTab("create")}
-            >Create Room</button>
+        <div className="sp-tabs">
+          <button className={`sp-tab${tab === "join" ? " active" : ""}`} onClick={() => setTab("join")}>Join Room</button>
+          <button className={`sp-tab${tab === "create" ? " active" : ""}`} onClick={() => setTab("create")}>Create Room</button>
+        </div>
+
+        {tab === "join" ? (
+          <div className="sp-section">
+            <div className="sp-label">Room Code</div>
+            <input
+              className="sp-input"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              placeholder="ABCDEF"
+              maxLength={8}
+            />
           </div>
-
-          {tab === "create" ? (
-            <div className="sprint-form">
-              <label className="sprint-label">Sprint length</label>
-              <div className="sprint-duration-row">
-                {[5, 10, 15, 20, 30].map((m) => (
-                  <button
-                    key={m}
-                    className={`sprint-duration-chip${duration === m ? " active" : ""}`}
-                    onClick={() => setDuration(m)}
-                  >{m} min</button>
+        ) : (
+          <>
+            <div className="sp-section">
+              <div className="sp-label">Sprint Duration</div>
+              <div className="sp-chip-row sp-chip-row--3">
+                {DURATIONS.map((m) => (
+                  <button key={m} className={`sp-chip${duration === m ? " active" : ""}`} onClick={() => setDuration(m)}>{m} min</button>
                 ))}
               </div>
+            </div>
+
+            <div className="sp-section">
+              <div className="sp-label">
+                <span className="sp-label-icon">⏱</span> Pre-Sprint Timer <span className="sp-label-hint">(auto-starts after)</span>
+              </div>
+              <div className="sp-chip-row sp-chip-row--4">
+                {COUNTDOWNS.map((c) => (
+                  <button key={c.value} className={`sp-chip${countdown === c.value ? " active" : ""}`} onClick={() => setCountdown(c.value)}>{c.label}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="sp-section">
+              <div className="sp-label">Sprint Mode</div>
+              <div className="sp-mode-grid">
+                {MODES.map((m) => (
+                  <button
+                    key={m.key}
+                    className={`sp-mode${mode === m.key ? " active" : ""}`}
+                    onClick={() => setMode(m.key)}
+                  >
+                    <div className="sp-mode-icon">{m.icon}</div>
+                    <div className="sp-mode-label">{m.label}</div>
+                    <div className="sp-mode-desc">{m.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="sp-toggle-row">
+              <div className="sp-toggle-label">
+                <span className="sp-toggle-icon">💀</span>
+                <span>Death Mode</span>
+                <span className="sp-toggle-hint">(reaper line)</span>
+              </div>
               <button
-                className="sprint-primary-btn"
-                onClick={handleCreate}
-                disabled={createRoomMutation.isPending}
-              >
-                {createRoomMutation.isPending ? "Creating..." : "Start Sprint"}
-              </button>
+                className={`sp-switch${deathOn ? " on" : ""}`}
+                onClick={() => setDeathOn((v) => !v)}
+                aria-pressed={deathOn}
+              ><span className="sp-switch-knob" /></button>
             </div>
-          ) : (
-            <div className="sprint-form">
-              <label className="sprint-label">Room Code</label>
-              <input
-                className="sprint-input"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                placeholder="ABCDEF"
-                maxLength={8}
-              />
-              <button className="sprint-primary-btn" onClick={handleJoin}>Enter Room</button>
+            {deathOn && (
+              <div className="sp-toggle-detail">
+                <input
+                  className="sp-input sp-input--small"
+                  type="number"
+                  min={1}
+                  value={deathWpm}
+                  onChange={(e) => setDeathWpm(e.target.value)}
+                  placeholder="WPM"
+                />
+                <span className="sp-toggle-hint">words/min minimum</span>
+              </div>
+            )}
+
+            <div className="sp-toggle-row">
+              <div className="sp-toggle-label">
+                <span className="sp-toggle-icon">🔒</span>
+                <span>Room Password</span>
+                <span className="sp-toggle-hint">(optional)</span>
+              </div>
+              <button
+                className={`sp-switch${pwOn ? " on" : ""}`}
+                onClick={() => setPwOn((v) => !v)}
+                aria-pressed={pwOn}
+              ><span className="sp-switch-knob" /></button>
             </div>
-          )}
-        </div>
+            {pwOn && (
+              <div className="sp-toggle-detail">
+                <input
+                  className="sp-input sp-input--small"
+                  type="text"
+                  value={pw}
+                  onChange={(e) => setPw(e.target.value)}
+                  placeholder="Set a password"
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        <button
+          className="sp-cta"
+          onClick={tab === "join" ? handleJoin : handleCreate}
+          disabled={createRoomMutation.isPending}
+        >
+          {tab === "join"
+            ? "Enter Room"
+            : createRoomMutation.isPending ? "Starting..." : <>Start New Session <span className="sp-cta-spark">✦</span></>}
+        </button>
       </div>
     </div>
   );
