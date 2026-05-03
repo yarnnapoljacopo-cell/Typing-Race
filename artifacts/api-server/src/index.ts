@@ -6,6 +6,7 @@ import { restoreRoomsFromDB } from "./lib/roomManager";
 import { ensureSchema } from "./lib/ensureSchema";
 import { seedItems } from "./lib/seedItems";
 import { seedCraftingRecipes } from "./lib/seedCraftingRecipes";
+import { startXpDecayScheduler } from "./lib/xpDecay";
 
 const rawPort = process.env["PORT"];
 
@@ -52,6 +53,9 @@ server.listen(port, () => {
     .then(() => restoreRoomsFromDB())
     .then(() => {
       logger.info("Rooms restored from DB");
+      // Start the XP decay scheduler — runs every 5 min, fully decoupled
+      // from any HTTP request path (see lib/xpDecay.ts).
+      startXpDecayScheduler();
     })
     .catch((err) => {
       logger.error({ err }, "Schema/room restore failed — continuing without restored rooms");

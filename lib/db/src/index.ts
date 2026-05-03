@@ -19,14 +19,19 @@ function getPool(): pg.Pool {
     }
     _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      max: 15,
+      max: 30,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
       allowExitOnIdle: false,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
-      query_timeout: 5_000,
-      statement_timeout: 5_000,
+      // Fail fast: any single query that takes longer than 3 s is cancelled
+      // by the driver (query_timeout) and by Postgres itself
+      // (statement_timeout). Either way, the pool slot is released
+      // immediately instead of being held until the 10 s pool-acquire
+      // timeout elapses for waiting callers.
+      query_timeout: 3_000,
+      statement_timeout: 3_000,
     });
 
     // Swallow idle-client errors — pg-pool removes the dead client and creates
@@ -35,10 +40,11 @@ function getPool(): pg.Pool {
       console.error("[db-pool] idle client error — will be replaced:", err.message);
     });
 
-    // Set statement_timeout on every new connection so the DB kills any query
-    // that hangs longer than 20 s, freeing the pool slot automatically.
+    // Belt-and-braces: set statement_timeout on every new connection so even
+    // a `client.query` that bypasses node-pg's query_timeout still has a
+    // server-side cancel after 3 s.
     _pool.on("connect", (client) => {
-      client.query("SET statement_timeout = 5000").catch((err) => {
+      client.query("SET statement_timeout = 3000").catch((err) => {
         console.error("[db-pool] could not set statement_timeout:", err.message);
       });
     });

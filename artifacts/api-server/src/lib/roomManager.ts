@@ -128,8 +128,54 @@ function generateRoomCode(): string {
 const VALID_DEATH_WPMS = [10, 20, 30, 40, 50];
 
 // ── DB persistence helpers ─────────────────────────────────────────────────
+//
+// persistRoom() is invoked from a 1-second setInterval per active sprint
+// room, so a slow or failing DB would otherwise hammer the pool every
+// second forever. Each room gets a tiny circuit breaker: after
+// PERSIST_FAILURE_THRESHOLD consecutive failures we stop attempting writes
+// for PERSIST_BACKOFF_MS and double the backoff up to PERSIST_BACKOFF_MAX_MS.
+// One success resets everything.
+
+const PERSIST_FAILURE_THRESHOLD = 3;
+const PERSIST_BACKOFF_MS = 30_000;
+const PERSIST_BACKOFF_MAX_MS = 5 * 60_000;
+
+interface PersistFailureState {
+  count: number;
+  pausedUntil: number;
+  currentBackoffMs: number;
+}
+const persistFailures = new Map<string, PersistFailureState>();
+
+function recordPersistSuccess(code: string): void {
+  if (persistFailures.has(code)) persistFailures.delete(code);
+}
+
+function recordPersistFailure(code: string, err: unknown): void {
+  const prev = persistFailures.get(code) ?? { count: 0, pausedUntil: 0, currentBackoffMs: PERSIST_BACKOFF_MS };
+  const count = prev.count + 1;
+  let pausedUntil = 0;
+  let currentBackoffMs = prev.currentBackoffMs;
+  if (count >= PERSIST_FAILURE_THRESHOLD) {
+    pausedUntil = Date.now() + currentBackoffMs;
+    currentBackoffMs = Math.min(currentBackoffMs * 2, PERSIST_BACKOFF_MAX_MS);
+    if (count === PERSIST_FAILURE_THRESHOLD) {
+      logger.warn(
+        { code, count, pauseMs: pausedUntil - Date.now(), err: (err as Error).message },
+        "[persistRoom] circuit OPEN — pausing room persistence",
+      );
+    }
+  }
+  persistFailures.set(code, { count, pausedUntil, currentBackoffMs });
+}
+
+function isPersistPaused(code: string): boolean {
+  const s = persistFailures.get(code);
+  return !!s && s.count >= PERSIST_FAILURE_THRESHOLD && Date.now() < s.pausedUntil;
+}
 
 function persistRoom(room: Room): void {
+  if (isPersistPaused(room.code)) return;
   db.insert(roomsTable)
     .values({
       code: room.code,
@@ -163,13 +209,32 @@ function persistRoom(room: Room): void {
         updatedAt: new Date(),
       },
     })
-    .catch((err: unknown) => logger.error({ err, code: room.code }, "Failed to persist room"));
+    .then(() => recordPersistSuccess(room.code))
+    .catch((err: unknown) => {
+      recordPersistFailure(room.code, err);
+      logger.error({ err, code: room.code }, "Failed to persist room");
+    });
 }
 
 function deleteRoomFromDB(code: string): void {
+  // Always drop the breaker entry — the room object is being torn down, so
+  // there's no in-memory state left to protect, and we don't want to leak
+  // an entry per ever-deleted room into persistFailures.
+  if (isPersistPaused(code)) {
+    persistFailures.delete(code);
+    return;
+  }
   db.delete(roomsTable)
     .where(eq(roomsTable.code, code))
-    .catch((err: unknown) => logger.error({ err, code }, "Failed to delete room from DB"));
+    .then(() => recordPersistSuccess(code))
+    .catch((err: unknown) => {
+      recordPersistFailure(code, err);
+      logger.error({ err, code }, "Failed to delete room from DB");
+    })
+    .finally(() => {
+      // Tear-down: remove any breaker entry once the room is gone.
+      persistFailures.delete(code);
+    });
 }
 
 export async function restoreRoomsFromDB(): Promise<void> {

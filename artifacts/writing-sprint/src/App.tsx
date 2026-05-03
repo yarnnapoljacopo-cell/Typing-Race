@@ -34,7 +34,22 @@ import { SkinProvider } from "@/lib/skinContext";
 import { DarkModeProvider } from "@/lib/darkModeContext";
 import { Sidebar } from "@/components/Sidebar";
 
-const queryClient = new QueryClient();
+// Explicit defaults so every useQuery / useMutation has a bounded retry
+// budget with exponential backoff. Without this, the implicit defaults
+// (retry: 3 with their own backoff) are easy to miss when reviewing the
+// app and can mask outages by hammering a failing endpoint.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 3,                                                    // hard cap
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15_000), // 1s,2s,4s,8s… capped at 15s
+    },
+    mutations: {
+      retry: 2,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    },
+  },
+});
 
 // ── Clerk error boundary ────────────────────────────────────────────────────
 

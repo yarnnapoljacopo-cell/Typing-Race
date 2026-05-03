@@ -8,206 +8,21 @@ import { db, pool, userProfilesTable, sprintWritingTable, friendshipsTable } fro
 import { eq, and, or, ne, desc, sql, max, sum, count, inArray, ilike, gte } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { grantChest } from "./chests";
+import {
+  DECAY_GRACE_DAYS,
+  DECAY_RATE_PER_DAY,
+  getRankIndex,
+} from "../lib/xpDecay";
 
 const router: IRouter = Router();
 
-// ── Writing Deviation (XP decay) ────────────────────────────────────────────
-// Rank thresholds (index → min XP)
-const RANK_THRESHOLDS = [0, 500, 2000, 7000, 20000, 60000, 175000, 450000];
-// XP lost per day after 5 days idle, indexed by rank (0–2 = no decay, 3–7 = decay)
-const DECAY_RATE_PER_DAY = [0, 0, 0, 25, 75, 200, 500, 1000];
-
-// In-memory cache for applyXpDecay — skip the DB round-trip if we ran it
-// recently for the same user. Decay is a once-per-day operation so 60 s is fine.
-const decayCache = new Map<string, { result: DecayResult | null; at: number }>();
-const DECAY_CACHE_TTL_MS = 60_000;
+// XP decay used to run synchronously on every /user/profile request, which
+// queued ~6 concurrent pool acquires per page load and was the dominant
+// cause of pool exhaustion. It now runs entirely in a background scheduler
+// (see lib/xpDecay.ts → startXpDecayScheduler) and never touches the
+// request path. The /user/profile handler only *reads* the current XP and
+// computes display-only warning fields below.
 const RANKER_MIN_XP = 450000;
-const DECAY_GRACE_DAYS = 5;
-
-// ── Pool-safety controls for applyXpDecay ──────────────────────────────────
-// The /user/profile endpoint is polled by ~6 client components (Sidebar,
-// Portal, Profile, LevelUpListener, ActiveRooms, GlobalRanking). Without
-// the controls below, every concurrent request would queue its own pool
-// acquire and a single hung query could exhaust all 15 slots.
-//
-// 1) Coalesce in-flight calls per user — only one DB round-trip ever runs
-//    at a time for a given clerkUserId.
-// 2) Circuit breaker — after FAILURE_THRESHOLD consecutive failures we stop
-//    even attempting decay for CIRCUIT_OPEN_MS. Successful runs reset it.
-// 3) Bounded timeout — a single decay call can never hold its caller (or
-//    the borrowed pool client) longer than DECAY_QUERY_TIMEOUT_MS.
-const decayInflight = new Map<string, Promise<DecayResult | null>>();
-const decayFailures = new Map<string, { count: number; openUntil: number }>();
-const FAILURE_THRESHOLD = 3;
-const CIRCUIT_OPEN_MS = 60_000;
-const DECAY_QUERY_TIMEOUT_MS = 5_000;
-
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const t = setTimeout(
-      () => reject(new Error(`${label} exceeded ${ms}ms — aborting to free pool slot`)),
-      ms,
-    );
-    p.then(
-      (v) => { clearTimeout(t); resolve(v); },
-      (e) => { clearTimeout(t); reject(e); },
-    );
-  });
-}
-
-function getRankIndex(xp: number): number {
-  for (let i = RANK_THRESHOLDS.length - 1; i >= 0; i--) {
-    if (xp >= RANK_THRESHOLDS[i]) return i;
-  }
-  return 0;
-}
-
-interface DecayResult {
-  xpLost: number;
-  newXp: number;
-}
-
-async function runDecayDb(clerkUserId: string): Promise<DecayResult | null> {
-  // Use a single dedicated pool client wrapped in a transaction so:
-  //  - SET LOCAL statement_timeout actually applies (and is auto-reverted
-  //    on COMMIT/ROLLBACK so we don't leak session state back to the pool)
-  //  - the slot is released the instant the work or its timeout completes,
-  //    instead of letting two separate drizzle calls acquire independently.
-  const client = await pool.connect();
-  let txOpen = false;
-  try {
-    await client.query("BEGIN");
-    txOpen = true;
-    await client.query(`SET LOCAL statement_timeout = ${DECAY_QUERY_TIMEOUT_MS}`);
-
-    const rows = await client.query<{
-      xp: number;
-      last_sprint_at: Date | null;
-      decay_checked_at: Date | null;
-    }>(
-      `SELECT xp, last_sprint_at, decay_checked_at
-         FROM user_profiles
-        WHERE clerk_user_id = $1
-        LIMIT 1`,
-      [clerkUserId],
-    );
-
-    if (rows.rows.length === 0) {
-      await client.query("COMMIT");
-      txOpen = false;
-      return null;
-    }
-    const { xp, last_sprint_at: lastSprintAt, decay_checked_at: decayCheckedAt } = rows.rows[0];
-    const now = new Date();
-
-    // No sprint ever recorded → nothing to decay against
-    if (!lastSprintAt) {
-      await client.query("COMMIT");
-      txOpen = false;
-      return null;
-    }
-
-    const rankIndex = getRankIndex(xp);
-    if (rankIndex < 3) {
-      // Below Author — reset check timestamp so we don't pile up days if they level up later
-      await client.query(
-        `UPDATE user_profiles SET decay_checked_at = $1 WHERE clerk_user_id = $2`,
-        [now, clerkUserId],
-      );
-      await client.query("COMMIT");
-      txOpen = false;
-      return null;
-    }
-
-    // Decay window opens DECAY_GRACE_DAYS after last sprint
-    const decayWindowStart = new Date(lastSprintAt.getTime() + DECAY_GRACE_DAYS * 86_400_000);
-
-    // The point from which we haven't yet charged any decay
-    const chargeFrom =
-      decayCheckedAt && decayCheckedAt > decayWindowStart ? decayCheckedAt : decayWindowStart;
-
-    if (now <= chargeFrom) {
-      await client.query("COMMIT");
-      txOpen = false;
-      return null;
-    }
-
-    const decayDays = Math.floor((now.getTime() - chargeFrom.getTime()) / 86_400_000);
-    if (decayDays <= 0) {
-      await client.query("COMMIT");
-      txOpen = false;
-      return null;
-    }
-
-    const decayPerDay = DECAY_RATE_PER_DAY[rankIndex];
-    const totalDecay = decayDays * decayPerDay;
-    const newXp = Math.max(0, xp - totalDecay);
-
-    await client.query(
-      `UPDATE user_profiles
-          SET xp = $1, decay_checked_at = $2, updated_at = $2
-        WHERE clerk_user_id = $3`,
-      [newXp, now, clerkUserId],
-    );
-    await client.query("COMMIT");
-    txOpen = false;
-
-    return { xpLost: xp - newXp, newXp };
-  } catch (err) {
-    if (txOpen) {
-      // Best-effort rollback so the pool client comes back clean.
-      try { await client.query("ROLLBACK"); } catch { /* ignore */ }
-    }
-    throw err;
-  } finally {
-    // Release the pool client immediately — on success, error, or timeout.
-    client.release();
-  }
-}
-
-async function applyXpDecay(clerkUserId: string): Promise<DecayResult | null> {
-  const cached = decayCache.get(clerkUserId);
-  if (cached && Date.now() - cached.at < DECAY_CACHE_TTL_MS) return cached.result;
-
-  // Circuit breaker — bail out fast if this user's decay has been failing.
-  const breaker = decayFailures.get(clerkUserId);
-  if (breaker && breaker.count >= FAILURE_THRESHOLD && Date.now() < breaker.openUntil) {
-    return null;
-  }
-
-  // Coalesce concurrent callers for the same user onto a single in-flight run.
-  const existing = decayInflight.get(clerkUserId);
-  if (existing) return existing;
-
-  const promise = (async (): Promise<DecayResult | null> => {
-    try {
-      const result = await withTimeout(
-        runDecayDb(clerkUserId),
-        DECAY_QUERY_TIMEOUT_MS + 500,
-        "applyXpDecay",
-      );
-      decayCache.set(clerkUserId, { result, at: Date.now() });
-      decayFailures.delete(clerkUserId); // reset on success
-      return result;
-    } catch (err) {
-      const prev = decayFailures.get(clerkUserId) ?? { count: 0, openUntil: 0 };
-      const count = prev.count + 1;
-      const openUntil = count >= FAILURE_THRESHOLD ? Date.now() + CIRCUIT_OPEN_MS : 0;
-      decayFailures.set(clerkUserId, { count, openUntil });
-      if (count === FAILURE_THRESHOLD) {
-        console.warn(
-          `[applyXpDecay] circuit OPEN for ${clerkUserId} for ${CIRCUIT_OPEN_MS}ms after ${count} failures: ${(err as Error).message}`,
-        );
-      }
-      throw err;
-    } finally {
-      decayInflight.delete(clerkUserId);
-    }
-  })();
-
-  decayInflight.set(clerkUserId, promise);
-  return promise;
-}
 
 router.get("/rooms", async (_req, res): Promise<void> => {
   res.json(getActiveRooms());
@@ -545,14 +360,9 @@ router.get("/user/profile", async (req, res): Promise<void> => {
   const clerkUserId = auth?.userId;
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  // Fire decay in the background — do NOT await it so the profile response
-  // is never held hostage by a slow DB update.
-  let decayResult: DecayResult | null = null;
-  const decayPromise = applyXpDecay(clerkUserId).then(r => { decayResult = r; }).catch(err => {
-    console.error("[profile] applyXpDecay failed (non-fatal):", (err as Error).message);
-  });
-  void decayPromise;
-
+  // Decay no longer runs in the request path — it is applied by the
+  // background scheduler in lib/xpDecay.ts. The profile read below just
+  // returns whatever XP the scheduler has already written.
   const rows = await db
     .select()
     .from(userProfilesTable)
@@ -585,7 +395,7 @@ router.get("/user/profile", async (req, res): Promise<void> => {
   res.json({
     writerName: profile?.writerName ?? null,
     xp,
-    xpDecayed: decayResult?.xpLost ?? 0,
+    xpDecayed: 0,
     inDecay,
     daysUntilDecay,
     decayRatePerDay,
