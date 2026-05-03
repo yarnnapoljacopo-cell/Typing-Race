@@ -1,0 +1,126 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  .fp { font-family: 'Outfit', system-ui, sans-serif; background: var(--color-background-tertiary); padding: 1.75rem; border-radius: 20px; }
+  .fp-back { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--color-text-secondary); cursor: pointer; margin-bottom: 1.5rem; transition: color 0.15s; }
+  .fp-back:hover { color: var(--color-text-primary); }
+  .fp-back svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .fp-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .fp-icon { width: 36px; height: 36px; background: #EFF6FF; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+  .fp-icon svg { width: 20px; height: 20px; stroke: #3B82F6; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .fp-title { font-size: 26px; font-weight: 700; color: var(--color-text-primary); letter-spacing: -0.02em; }
+  .fp-sub { font-size: 14px; color: var(--color-text-secondary); margin-bottom: 1.5rem; }
+  .search-row { display: flex; gap: 10px; margin-bottom: 2rem; }
+  .search-input { flex: 1; border: 1.5px solid var(--color-border-tertiary); background: var(--color-background-primary); border-radius: 50px; padding: 10px 18px; font-family: 'Outfit', sans-serif; font-size: 14px; color: var(--color-text-primary); outline: none; transition: border-color 0.15s; }
+  .search-input:focus { border-color: #3B82F6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+  .search-input::placeholder { color: var(--color-text-tertiary); }
+  .search-btn { width: 44px; height: 44px; border-radius: 50%; background: #3B82F6; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.2s; }
+  .search-btn:hover { background: #2563EB; transform: scale(1.05); }
+  .search-btn svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .sec-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+  .sec-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-secondary); }
+  .sec-count { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; background: var(--color-background-secondary); color: var(--color-text-secondary); border: 0.5px solid var(--color-border-tertiary); }
+  .sec-line { flex: 1; height: 0.5px; background: var(--color-border-tertiary); }
+  .empty-state { background: var(--color-background-primary); border: 1.5px dashed var(--color-border-tertiary); border-radius: 18px; padding: 2rem 1.5rem; text-align: center; margin-bottom: 2rem; }
+  .empty-icon { width: 44px; height: 44px; background: #EFF6FF; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.75rem; }
+  .empty-icon svg { width: 22px; height: 22px; stroke: #93C5FD; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .empty-text { font-size: 14px; color: var(--color-text-secondary); line-height: 1.5; }
+  .friend-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 2rem; }
+  .friend-card { background: var(--color-background-primary); border: 1.5px solid var(--color-border-tertiary); border-radius: 18px; padding: 0.9rem 1.1rem; display: flex; align-items: center; gap: 12px; transition: border-color 0.2s, transform 0.15s; }
+  .friend-card:hover { border-color: var(--color-border-secondary); transform: translateY(-1px); }
+  .f-avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; color: #fff; }
+  .av-orange { background: linear-gradient(135deg, #F97316, #FB923C); }
+  .av-blue { background: linear-gradient(135deg, #3B82F6, #60A5FA); }
+  .av-red { background: linear-gradient(135deg, #EF4444, #F87171); }
+  .av-purple { background: linear-gradient(135deg, #8B5CF6, #A78BFA); }
+  .f-info { flex: 1; min-width: 0; }
+  .f-name { font-size: 15px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 3px; }
+  .f-title-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 9px; border-radius: 20px; border: 1px solid var(--color-border-tertiary); background: var(--color-background-secondary); color: var(--color-text-secondary); font-weight: 500; }
+  .cancel-btn { display: inline-flex; align-items: center; gap: 6px; font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 500; padding: 7px 14px; border-radius: 50px; border: 1.5px solid var(--color-border-tertiary); background: transparent; color: var(--color-text-secondary); cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
+  .cancel-btn:hover { border-color: #EF4444; color: #EF4444; background: #FEF2F2; }
+  .cancel-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .pending-dot { width: 7px; height: 7px; border-radius: 50%; background: #F59E0B; flex-shrink: 0; margin-left: 2px; }
+</style>
+
+<div class="fp">
+  <div class="fp-back">
+    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    Back
+  </div>
+
+  <div class="fp-heading">
+    <div class="fp-icon">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <h1 class="fp-title">Friends</h1>
+  </div>
+  <div class="fp-sub">Find writers and follow their progress.</div>
+
+  <div class="search-row">
+    <input class="search-input" type="text" placeholder="Search by writer name…" />
+    <button class="search-btn">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </button>
+  </div>
+
+  <div class="sec-header">
+    <span class="sec-label">My Friends</span>
+    <span class="sec-count">0</span>
+    <div class="sec-line"></div>
+  </div>
+
+  <div class="empty-state">
+    <div class="empty-icon">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div class="empty-text">No friends yet.<br>Search for a writer above to get started.</div>
+  </div>
+
+  <div class="sec-header">
+    <span class="sec-label">Sent Requests</span>
+    <span class="sec-count">3</span>
+    <div class="sec-line"></div>
+  </div>
+
+  <div class="friend-list">
+    <div class="friend-card">
+      <div class="f-avatar av-orange">AW</div>
+      <div class="f-info">
+        <div class="f-name">Awespec</div>
+        <div class="f-title-badge">🔥 The Wordsmith</div>
+      </div>
+      <div class="pending-dot"></div>
+      <button class="cancel-btn">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Cancel
+      </button>
+    </div>
+
+    <div class="friend-card">
+      <div class="f-avatar av-blue">ZE</div>
+      <div class="f-info">
+        <div class="f-name">Zeus</div>
+        <div class="f-title-badge">🩸 The Blank Page</div>
+      </div>
+      <div class="pending-dot"></div>
+      <button class="cancel-btn">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Cancel
+      </button>
+    </div>
+
+    <div class="friend-card">
+      <div class="f-avatar av-red">ST</div>
+      <div class="f-info">
+        <div class="f-name">Streak</div>
+        <div class="f-title-badge">🩸 The Blank Page</div>
+      </div>
+      <div class="pending-dot"></div>
+      <button class="cancel-btn">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>

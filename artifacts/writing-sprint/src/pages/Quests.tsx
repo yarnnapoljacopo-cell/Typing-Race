@@ -200,7 +200,7 @@ export default function Quests() {
   }
 
   return (
-    <div className="container max-w-4xl mx-auto py-6 px-4 sm:ml-[var(--sb-w,260px)]">
+    <div className="container max-w-4xl mx-auto py-6 px-4">
       <div className="flex items-center gap-3 mb-6">
         <Button variant="ghost" size="icon" onClick={() => navigate("/portal")} aria-label="Back">
           <ArrowLeft className="h-5 w-5" />
