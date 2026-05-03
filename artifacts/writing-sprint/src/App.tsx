@@ -409,14 +409,12 @@ function RoomGuard() {
 }
 
 function MyFilesGuard() {
-  // TEMP DEV: auth gate disabled so /my-files is viewable while logged out.
-  // RESTORE BEFORE PUSHING TO PROD — re-enable the isSignedIn check below.
-  return <MyFiles />;
-  // const { isSignedIn, isLoaded } = useAuth();
-  // const clerkTimedOut = useDevTimeout();
-  // if (!isLoaded && !clerkTimedOut) return null;
-  // if (isSignedIn) return <MyFiles />;
-  // return <Redirect to="/" />;
+  const { isSignedIn, isLoaded } = useAuth();
+  const clerkTimedOut = useDevTimeout();
+  const bypass = isPreviewBypassActive();
+  if (!isLoaded && !clerkTimedOut && !bypass) return null;
+  if (isSignedIn || bypass) return <MyFiles />;
+  return <Redirect to="/" />;
 }
 
 function FriendsGuard() {
