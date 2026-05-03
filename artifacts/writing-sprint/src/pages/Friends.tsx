@@ -95,11 +95,13 @@ export default function Friends() {
   };
 
   const requestMutation = useMutation({
-    mutationFn: async (writerName: string) => {
+    mutationFn: async (target: { addresseeId: string; writerName: string }) => {
       const res = await authedFetch(`${basePath}/api/friends/request`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ writerName }),
+        // Send the unique clerk id so duplicate writer names can't cause the
+        // wrong account to receive the request.
+        body: JSON.stringify({ addresseeId: target.addresseeId, writerName: target.writerName }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -202,7 +204,7 @@ export default function Friends() {
                               size="sm"
                               variant="outline"
                               className="h-7 text-xs gap-1"
-                              onClick={() => requestMutation.mutate(r.writerName)}
+                              onClick={() => requestMutation.mutate({ addresseeId: r.clerkUserId, writerName: r.writerName })}
                               disabled={requestMutation.isPending}
                             >
                               <UserPlus className="w-3.5 h-3.5" /> Add

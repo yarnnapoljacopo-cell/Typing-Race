@@ -890,17 +890,37 @@ router.post("/friends/request", async (req, res): Promise<void> => {
   const clerkUserId = auth?.userId;
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { writerName } = req.body ?? {};
-  if (!writerName) { res.status(400).json({ error: "writerName required" }); return; }
+  const { addresseeId: addresseeIdInput, writerName } = req.body ?? {};
 
-  const targetRows = await db
-    .select({ clerkUserId: userProfilesTable.clerkUserId })
-    .from(userProfilesTable)
-    .where(eq(userProfilesTable.writerName, writerName))
-    .limit(1);
+  // Prefer addresseeId (unique). Fall back to writerName lookup only when no
+  // addresseeId is provided — but warn loudly because writer_name is NOT
+  // unique (duplicate accounts exist in production), so the lookup may pick
+  // the wrong account.
+  let addresseeId: string | null = null;
+  if (typeof addresseeIdInput === "string" && addresseeIdInput.trim().length > 0) {
+    addresseeId = addresseeIdInput.trim();
+    // Verify the id actually exists.
+    const exists = await db
+      .select({ clerkUserId: userProfilesTable.clerkUserId })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.clerkUserId, addresseeId))
+      .limit(1);
+    if (exists.length === 0) { res.status(404).json({ error: "Writer not found" }); return; }
+  } else if (typeof writerName === "string" && writerName.length > 0) {
+    const targetRows = await db
+      .select({ clerkUserId: userProfilesTable.clerkUserId })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.writerName, writerName));
+    if (targetRows.length === 0) { res.status(404).json({ error: "Writer not found" }); return; }
+    if (targetRows.length > 1) {
+      res.status(409).json({ error: "Multiple writers share that name. Please add them from the search results." });
+      return;
+    }
+    addresseeId = targetRows[0].clerkUserId;
+  } else {
+    res.status(400).json({ error: "addresseeId or writerName required" }); return;
+  }
 
-  if (targetRows.length === 0) { res.status(404).json({ error: "Writer not found" }); return; }
-  const addresseeId = targetRows[0].clerkUserId;
   if (addresseeId === clerkUserId) { res.status(400).json({ error: "Cannot add yourself" }); return; }
 
   const existing = await db
