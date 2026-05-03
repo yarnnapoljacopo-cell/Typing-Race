@@ -33,6 +33,7 @@ import { VillainModeProvider } from "@/lib/villainModeContext";
 import { SkinProvider } from "@/lib/skinContext";
 import { DarkModeProvider } from "@/lib/darkModeContext";
 import { Sidebar } from "@/components/Sidebar";
+import { isPreviewBypassActive } from "@/lib/previewBypass";
 
 // Explicit query defaults:
 //  - 4xx responses (auth, not-found, validation) are NOT transient. Retrying
@@ -389,9 +390,10 @@ function PortalGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const { guestName } = useGuest();
   const clerkTimedOut = useDevTimeout();
+  const bypass = isPreviewBypassActive();
 
-  if (!isLoaded && !clerkTimedOut) return <AuthLoading />;
-  if (isSignedIn || guestName) return <Portal />;
+  if (!isLoaded && !clerkTimedOut && !bypass) return <AuthLoading />;
+  if (isSignedIn || guestName || bypass) return <Portal />;
   return <Redirect to="/" />;
 }
 
@@ -399,9 +401,10 @@ function RoomGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const { guestName } = useGuest();
   const clerkTimedOut = useDevTimeout();
+  const bypass = isPreviewBypassActive();
 
-  if (!isLoaded && !clerkTimedOut) return null;
-  if (isSignedIn || guestName) return <Room />;
+  if (!isLoaded && !clerkTimedOut && !bypass) return null;
+  if (isSignedIn || guestName || bypass) return <Room />;
   return <Redirect to="/" />;
 }
 
@@ -419,43 +422,48 @@ function MyFilesGuard() {
 function FriendsGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const clerkTimedOut = useDevTimeout();
+  const bypass = isPreviewBypassActive();
 
-  if (!isLoaded && !clerkTimedOut) return null;
-  if (isSignedIn) return <Friends />;
+  if (!isLoaded && !clerkTimedOut && !bypass) return null;
+  if (isSignedIn || bypass) return <Friends />;
   return <Redirect to="/" />;
 }
 
 function GuildGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const clerkTimedOut = useDevTimeout();
+  const bypass = isPreviewBypassActive();
 
-  if (!isLoaded && !clerkTimedOut) return null;
-  if (isSignedIn) return <Guild />;
+  if (!isLoaded && !clerkTimedOut && !bypass) return null;
+  if (isSignedIn || bypass) return <Guild />;
   return <Redirect to="/" />;
 }
 
 function GlobalRankingGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const clerkTimedOut = useDevTimeout();
+  const bypass = isPreviewBypassActive();
 
-  if (!isLoaded && !clerkTimedOut) return null;
-  if (isSignedIn) return <GlobalRanking />;
+  if (!isLoaded && !clerkTimedOut && !bypass) return null;
+  if (isSignedIn || bypass) return <GlobalRanking />;
   return <Redirect to="/" />;
 }
 
 function StreakGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const clerkTimedOut = useDevTimeout();
-  if (!isLoaded && !clerkTimedOut) return null;
-  if (isSignedIn) return <Streak />;
+  const bypass = isPreviewBypassActive();
+  if (!isLoaded && !clerkTimedOut && !bypass) return null;
+  if (isSignedIn || bypass) return <Streak />;
   return <Redirect to="/" />;
 }
 
 function StatsGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const clerkTimedOut = useDevTimeout();
-  if (!isLoaded && !clerkTimedOut) return null;
-  if (isSignedIn) return <Stats />;
+  const bypass = isPreviewBypassActive();
+  if (!isLoaded && !clerkTimedOut && !bypass) return null;
+  if (isSignedIn || bypass) return <Stats />;
   return <Redirect to="/" />;
 }
 
