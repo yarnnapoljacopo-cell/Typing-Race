@@ -58,6 +58,8 @@ export interface Participant {
   kartBonusWords: number;
   kartCarOffset: number;
   kartNextItemAt: number;
+  // Last emote timestamp (ms epoch) — used for per-sender rate limiting.
+  lastEmoteAt?: number;
   // Gladiator mode fields
   gladiatorHp: number;
   gladiatorBuffs: string[];

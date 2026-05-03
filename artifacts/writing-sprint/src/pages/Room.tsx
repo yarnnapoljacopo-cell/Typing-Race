@@ -14,6 +14,7 @@ import { Timer } from "@/components/Timer";
 import { ResultsScreen } from "@/components/ResultsScreen";
 import { GameOverScreen } from "@/components/GameOverScreen";
 import { WritingToolbar, type WritingStyle, type FormatType } from "@/components/WritingToolbar";
+import { EmoteBar, EmoteOverlay } from "@/components/EmoteBar";
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 import { SpectatorView } from "@/components/SpectatorView";
 import { Button } from "@/components/ui/button";
@@ -393,6 +394,8 @@ export default function Room() {
     endSprint,
     kartState,
     sendUseItem,
+    sendEmote,
+    activeEmotes,
     gladiatorState,
     betOutcome,
     setBetOutcome,
@@ -1178,6 +1181,7 @@ export default function Room() {
 
   return (
     <>
+    <EmoteOverlay emotes={activeEmotes} currentParticipantId={participantId} />
     {/* Fixed background layers — only shown in normal (non-distraction-free) mode */}
     {!distractionFree && <>
       <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "var(--bg-solid)" }} />
@@ -1459,8 +1463,16 @@ export default function Room() {
                 </div>
               )}
               {!readMode && (
-                <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: "12px 16px", boxShadow: "0 4px 20px rgba(107,143,212,0.08)", marginBottom: 8 }}>
-                  <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} activeFormats={activeFormats} />
+                <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: "12px 16px", boxShadow: "0 4px 20px rgba(107,143,212,0.08)", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} activeFormats={activeFormats} />
+                  </div>
+                  <EmoteBar
+                    participants={room.participants}
+                    currentParticipantId={participantId}
+                    onSend={sendEmote}
+                    disabled={!isConnected}
+                  />
                 </div>
               )}
 

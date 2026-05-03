@@ -84,6 +84,20 @@ export interface ParticipantText {
   wordCount: number;
 }
 
+export interface EmoteEvent {
+  id: string;
+  emoteId: string;
+  emoji: string;
+  label: string;
+  sourceId: string;
+  sourceName: string;
+  targetId: string | null;
+  targetName: string | null;
+  ts: number;
+}
+
+const EMOTE_DISPLAY_MS = 3500;
+
 interface UseSprintRoomProps {
   code: string;
   name: string;
@@ -130,6 +144,9 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
   } | null>(null);
   const [betsSettledTick, setBetsSettledTick] = useState(0);
   const [participantTexts, setParticipantTexts] = useState<Record<string, ParticipantText>>({});
+  // Recent emote bubbles (auto-pruned after EMOTE_DISPLAY_MS).
+  const [activeEmotes, setActiveEmotes] = useState<EmoteEvent[]>([]);
+  const emoteTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Kart state
   const [kartState, setKartState] = useState<KartState>({
@@ -312,6 +329,29 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
           case "bets_settled":
             setBetsSettledTick((n) => n + 1);
             break;
+
+          case "emote": {
+            const ev: EmoteEvent = {
+              id: String(data.id ?? Math.random().toString(36).slice(2)),
+              emoteId: String(data.emoteId ?? ""),
+              emoji: String(data.emoji ?? "💬"),
+              label: String(data.label ?? ""),
+              sourceId: String(data.sourceId ?? ""),
+              sourceName: String(data.sourceName ?? "Someone"),
+              targetId: (data.targetId as string | null) ?? null,
+              targetName: (data.targetName as string | null) ?? null,
+              ts: (data.ts as number) ?? Date.now(),
+            };
+            // Cap visible bubbles at 4 to avoid overflow on long taunt bursts.
+            setActiveEmotes((prev) => [...prev.slice(-3), ev]);
+            const timer = setTimeout(() => {
+              if (unmountedRef.current) return;
+              setActiveEmotes((prev) => prev.filter((e) => e.id !== ev.id));
+              emoteTimersRef.current.delete(ev.id);
+            }, EMOTE_DISPLAY_MS);
+            emoteTimersRef.current.set(ev.id, timer);
+            break;
+          }
 
           case "error": {
             const isRoomNotFound = data.message === "Room not found";
@@ -546,6 +586,9 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
       clearInterval(pingInterval);
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (wsRef.current) wsRef.current.close();
+      // Clear any pending emote auto-prune timers so they don't fire after unmount.
+      emoteTimersRef.current.forEach((t) => clearTimeout(t));
+      emoteTimersRef.current.clear();
     };
   }, [connect]);
 
@@ -590,6 +633,15 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
     }
   }, []);
 
+  const sendEmote = useCallback((emoteId: string, targetId?: string | null) => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({
+      type: "send_emote",
+      emoteId,
+      targetId: targetId ?? null,
+    }));
+  }, []);
+
   const sendUseItem = useCallback((item: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       setKartState((prev) => {
@@ -624,6 +676,8 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
     endSprint,
     kartState,
     sendUseItem,
+    sendEmote,
+    activeEmotes,
     gladiatorState,
   };
 }

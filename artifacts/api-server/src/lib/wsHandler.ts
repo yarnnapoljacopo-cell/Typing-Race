@@ -34,6 +34,25 @@ function countWords(text: string): number {
   return text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
 }
 
+// ── Emotes (Clash-Royale-style taunts) ──────────────────────────────────────
+// Server-validated list so clients can only send curated, on-brand emotes.
+// IDs and labels are mirrored on the client in src/components/EmoteBar.tsx.
+const EMOTES: Record<string, { emoji: string; label: string }> = {
+  too_slow:     { emoji: "😏", label: "Too slow!" },
+  haha:         { emoji: "😂", label: "Haha!" },
+  eat_dust:     { emoji: "🚀", label: "Eat my dust!" },
+  catch_up:     { emoji: "🐢", label: "Catch up!" },
+  on_fire:      { emoji: "🔥", label: "On fire!" },
+  bow_down:     { emoji: "👑", label: "Bow down." },
+  write_faster: { emoji: "✍️", label: "Write faster!" },
+  good_luck:    { emoji: "🤝", label: "Good luck!" },
+  bring_it:     { emoji: "💪", label: "Bring it!" },
+  wake_up:      { emoji: "😴", label: "Wake up!" },
+  big_brain:    { emoji: "🧠", label: "Big brain." },
+  gg:           { emoji: "🏁", label: "GG!" },
+};
+const EMOTE_COOLDOWN_MS = 1500;
+
 function isStarActive(room: Room, participantId: string): boolean {
   const expiry = room.activeStars.get(participantId);
   return expiry !== undefined && expiry > Date.now();
@@ -618,6 +637,44 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             break;
           }
         }
+        return;
+      }
+
+      if (type === "send_emote") {
+        // Available any time the participant is in the room (waiting, countdown,
+        // sprinting, finished) — taunting is fun in the lobby too. Rate-limited.
+        const emoteId = String(message.emoteId ?? "");
+        const def = EMOTES[emoteId];
+        if (!def) return;
+
+        const now = Date.now();
+        const last = participant.lastEmoteAt ?? 0;
+        if (now - last < EMOTE_COOLDOWN_MS) return;
+        participant.lastEmoteAt = now;
+
+        const rawTarget = message.targetId;
+        let targetId: string | null = null;
+        let targetName: string | null = null;
+        if (typeof rawTarget === "string" && rawTarget && rawTarget !== participantId) {
+          const target = room.participants.get(rawTarget);
+          if (target) {
+            targetId = target.id;
+            targetName = target.name;
+          }
+        }
+
+        broadcastToRoom(room, {
+          type: "emote",
+          id: uuidv4(),
+          emoteId,
+          emoji: def.emoji,
+          label: def.label,
+          sourceId: participantId,
+          sourceName: participant.name,
+          targetId,
+          targetName,
+          ts: now,
+        });
         return;
       }
 
