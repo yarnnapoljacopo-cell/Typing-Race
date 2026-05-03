@@ -88,3 +88,16 @@ Room status flow: waiting → running → finished
 - Started via the "Discord Bot" workflow (configure and start once secrets are set)
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+
+## Profile customization (May 2026)
+
+User profiles support three customization fields stored on `user_profiles`:
+- `profileBio` (varchar 200, nullable)
+- `profileBanner` (varchar 20, default `default`) — keys defined in `artifacts/writing-sprint/src/lib/profileThemes.ts` (`BANNERS`)
+- `profileAccent` (varchar 20, default `default`) — keys in same file (`ACCENTS`)
+
+API: returned by `GET /user/profile` and `GET /users/by-name/:name/profile`; updated via `PATCH /user/preferences` (no XP gating, bio capped at 200 chars). Frontend: `Profile.tsx` renders a banner header strip + bio + edit pencil, plus a "Profile Style" picker on the owner's view. Style saves are serialized through a per-component promise queue so rapid clicks land in submission order.
+
+## Room writers dropdown
+
+The writers cluster in the Room top bar is `RoomWritersDropdown` (`Room.tsx`). It opens on hover (100/200ms debounce), click/tap toggle, focus, and closes on Escape, blur, or outside pointerdown. Avatar stack is the visible trigger; full list is keyboard-navigable with `role="menu"` / `role="menuitem"` and `aria-expanded`/`aria-controls`.

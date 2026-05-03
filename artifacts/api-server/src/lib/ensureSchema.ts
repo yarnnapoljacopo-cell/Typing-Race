@@ -272,7 +272,10 @@ export async function ensureSchema(): Promise<void> {
         ADD COLUMN IF NOT EXISTS discord_webhook_url VARCHAR(500),
         ADD COLUMN IF NOT EXISTS current_streak      INTEGER     NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS longest_streak      INTEGER     NOT NULL DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS last_streak_day     CHAR(10);
+        ADD COLUMN IF NOT EXISTS last_streak_day     CHAR(10),
+        ADD COLUMN IF NOT EXISTS profile_bio         VARCHAR(200),
+        ADD COLUMN IF NOT EXISTS profile_banner      VARCHAR(20) NOT NULL DEFAULT 'default',
+        ADD COLUMN IF NOT EXISTS profile_accent      VARCHAR(20) NOT NULL DEFAULT 'default';
 
       ALTER TABLE rooms
         ADD COLUMN IF NOT EXISTS countdown_delay_minutes INTEGER NOT NULL DEFAULT 0,

@@ -1,14 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser, useAuth } from "@clerk/react";
 import { useAuthedFetch } from "@/lib/authedFetch";
-import { ArrowLeft, Check, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, ExternalLink, Loader2, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { RANKS, getRankFromXp, getNextRank, xpProgressPercent, type Rank } from "@/lib/ranks";
 import { NAMEPLATES, getUnlockedNameplates, type NameplateKey } from "@/lib/nameplates";
+import { BANNERS, ACCENTS, getBanner, getAccent } from "@/lib/profileThemes";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -28,6 +29,9 @@ interface PublicProfile {
   totalWords: number;
   highestWordCount: number;
   sprintCount: number;
+  profileBio: string | null;
+  profileBanner: string;
+  profileAccent: string;
   statsError?: boolean;
 }
 
@@ -37,13 +41,46 @@ async function fetchProfile(name: string): Promise<PublicProfile> {
   return res.json();
 }
 
+interface OwnPrefs {
+  nameplate: string;
+  skin: string;
+  writerName: string;
+  xp: number;
+  profileBio: string | null;
+  profileBanner: string;
+  profileAccent: string;
+}
+
 async function fetchOwnPrefs(
   af: (url: string, opts?: RequestInit) => Promise<Response>,
-): Promise<{ nameplate: string; skin: string; writerName: string; xp: number }> {
+): Promise<OwnPrefs> {
   const res = await af(`${basePath}/api/user/profile`);
   if (!res.ok) throw new Error("Not authenticated");
   const data = await res.json();
-  return { nameplate: data.activeNameplate ?? "default", skin: data.activeSkin ?? "default", writerName: data.writerName ?? "", xp: data.xp ?? 0 };
+  return {
+    nameplate: data.activeNameplate ?? "default",
+    skin: data.activeSkin ?? "default",
+    writerName: data.writerName ?? "",
+    xp: data.xp ?? 0,
+    profileBio: data.profileBio ?? null,
+    profileBanner: data.profileBanner ?? "default",
+    profileAccent: data.profileAccent ?? "default",
+  };
+}
+
+async function savePreferences(
+  body: { profileBio?: string | null; profileBanner?: string; profileAccent?: string },
+  af: (url: string, opts?: RequestInit) => Promise<Response>,
+): Promise<void> {
+  const res = await af(`${basePath}/api/user/preferences`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? "Failed to save");
+  }
 }
 
 async function saveNameplate(
@@ -349,6 +386,8 @@ export default function Profile() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [webhookInput, setWebhookInput] = useState("");
+  const [bioInput, setBioInput] = useState("");
+  const [editingBio, setEditingBio] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["profile", name],
@@ -418,6 +457,55 @@ export default function Profile() {
     },
   });
 
+  // ── Profile customization (bio / banner / accent) ─────────────────────
+  // We serialize PATCH requests through a single promise chain so that when
+  // a user clicks several banner/accent swatches in rapid succession, the
+  // server's last write reflects their most recent intent (avoids stale
+  // out-of-order completions clobbering newer state on refetch).
+  const styleQueueRef    = useRef<Promise<unknown>>(Promise.resolve());
+  const styleInflightRef = useRef(0);
+  type StylePatch = { profileBio?: string | null; profileBanner?: string; profileAccent?: string };
+
+  const applyStylePatch = useCallback((body: StylePatch) => {
+    // Optimistic update is applied immediately so the UI feels instant.
+    queryClient.setQueryData(["own-prefs"], (old: OwnPrefs | undefined) => {
+      const base: OwnPrefs = old ?? {
+        nameplate: "default", skin: "default", writerName: name, xp: 0,
+        profileBio: null, profileBanner: "default", profileAccent: "default",
+      };
+      return {
+        ...base,
+        ...(body.profileBio    !== undefined ? { profileBio:    body.profileBio    } : {}),
+        ...(body.profileBanner !== undefined ? { profileBanner: body.profileBanner } : {}),
+        ...(body.profileAccent !== undefined ? { profileAccent: body.profileAccent } : {}),
+      };
+    });
+
+    styleInflightRef.current += 1;
+    styleQueueRef.current = styleQueueRef.current
+      .catch(() => undefined) // never let a prior failure block later requests
+      .then(() => savePreferences(body, authedFetch))
+      .catch((err: Error) => {
+        toast({ title: "Couldn't save", description: err.message, variant: "destructive" });
+        // Authoritative refetch only on failure — re-syncs with the server.
+        queryClient.invalidateQueries({ queryKey: ["own-prefs"] });
+      })
+      .finally(() => {
+        styleInflightRef.current -= 1;
+        // Only invalidate the public profile when the queue has fully drained,
+        // so the public card reflects the *last* save, not an intermediate one.
+        if (styleInflightRef.current === 0) {
+          queryClient.invalidateQueries({ queryKey: ["profile", name] });
+        }
+      });
+  }, [authedFetch, name, queryClient, toast]);
+
+  // Tiny shim so the rest of the JSX can keep its existing call sites.
+  const stylePrefMutation = {
+    mutate: applyStylePatch,
+    isPending: false, // queue runs in background; UI stays responsive
+  };
+
   const isOwnProfile = !!user && (
     ownPrefs?.writerName?.toLowerCase() === name.toLowerCase() ||
     (user.username?.toLowerCase() === name.toLowerCase()) ||
@@ -429,6 +517,19 @@ export default function Profile() {
   // so it stays correct even after a name change. Public profiles fall back to
   // the name-based lookup.
   const displayXp = (isOwnProfile && ownPrefs != null) ? ownPrefs.xp : (data?.xp ?? 0);
+
+  // Customization: prefer ownPrefs (live optimistic) when on own profile,
+  // otherwise fall back to whatever the public profile fetch returned.
+  const displayBio    = isOwnProfile ? (ownPrefs?.profileBio ?? null) : (data?.profileBio ?? null);
+  const bannerKey     = isOwnProfile ? (ownPrefs?.profileBanner ?? "default") : (data?.profileBanner ?? "default");
+  const accentKey     = isOwnProfile ? (ownPrefs?.profileAccent ?? "default") : (data?.profileAccent ?? "default");
+  const banner        = getBanner(bannerKey);
+  const accent        = getAccent(accentKey);
+
+  // Sync the bio editor input whenever fresh prefs land.
+  useEffect(() => {
+    if (ownPrefs?.profileBio != null) setBioInput(ownPrefs.profileBio);
+  }, [ownPrefs?.profileBio]);
 
   const { data: bagCount = 0 } = useQuery({
     queryKey: ["profile-bag-count"],
@@ -455,9 +556,11 @@ export default function Profile() {
     mutationFn: (nameplate: string) => saveNameplate(nameplate, authedFetch),
     onMutate: async (nameplate) => {
       await queryClient.cancelQueries({ queryKey: ["own-prefs"] });
-      const previous = queryClient.getQueryData<{ nameplate: string; skin: string; writerName: string }>(["own-prefs"]);
-      queryClient.setQueryData(["own-prefs"], (old: { nameplate: string; skin: string; writerName: string } | undefined) =>
-        old ? { ...old, nameplate } : { nameplate, skin: "default", writerName: name }
+      const previous = queryClient.getQueryData<OwnPrefs>(["own-prefs"]);
+      queryClient.setQueryData(["own-prefs"], (old: OwnPrefs | undefined) =>
+        old
+          ? { ...old, nameplate }
+          : { nameplate, skin: "default", writerName: name, xp: 0, profileBio: null, profileBanner: "default", profileAccent: "default" }
       );
       return { previous };
     },
@@ -520,22 +623,145 @@ export default function Profile() {
 
           {data && (
             <>
-              {/* Profile name */}
-              <h1 style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: "2.4rem", fontWeight: 900,
-                color: "#1a1a2e", textAlign: "center",
-                letterSpacing: "-0.02em", marginBottom: 10,
-              }}>
-                {data.writerName}
-              </h1>
+              {/* Banner header — gradient backdrop with the writer's name */}
+              <div
+                style={{
+                  position: "relative",
+                  borderRadius: 22,
+                  overflow: "hidden",
+                  marginBottom: 18,
+                  border: "1px solid rgba(255,255,255,0.9)",
+                  boxShadow: "0 8px 32px rgba(107,143,212,0.16)",
+                }}
+              >
+                <div
+                  style={{
+                    position: "relative",
+                    minHeight: 168,
+                    padding: "32px 24px 28px",
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                    gap: 10,
+                    background: banner.background,
+                    color: banner.text,
+                  }}
+                >
+                  {banner.pattern && (
+                    <div style={{
+                      position: "absolute", inset: 0, pointerEvents: "none",
+                      backgroundImage: banner.pattern, backgroundSize: "240px 240px",
+                    }} />
+                  )}
+                  <h1 style={{
+                    position: "relative",
+                    fontFamily: "'Playfair Display', serif",
+                    fontSize: "2.4rem", fontWeight: 900,
+                    color: "inherit",
+                    textAlign: "center", letterSpacing: "-0.02em",
+                    margin: 0,
+                    textShadow: banner.text === "#ffffff" || banner.text === "#e0e7ff"
+                      ? "0 2px 18px rgba(0,0,0,0.25)"
+                      : "none",
+                  }}>
+                    {data.writerName}
+                  </h1>
+                  {displayBio && !editingBio && (
+                    <p style={{
+                      position: "relative",
+                      margin: 0,
+                      fontSize: "0.92rem",
+                      lineHeight: 1.45,
+                      maxWidth: 420,
+                      textAlign: "center",
+                      color: "inherit",
+                      opacity: banner.text === "#1a1a2e" ? 0.78 : 0.92,
+                      fontStyle: "italic",
+                      textShadow: banner.text === "#ffffff" || banner.text === "#e0e7ff"
+                        ? "0 1px 8px rgba(0,0,0,0.25)"
+                        : "none",
+                    }}>
+                      "{displayBio}"
+                    </p>
+                  )}
+                  {globalRankEntry && (
+                    <div style={{ position: "relative", marginTop: 4 }}>
+                      <GlobalRankBadge position={globalRankEntry.position} />
+                    </div>
+                  )}
 
-              {/* Global rank badge */}
-              {globalRankEntry && (
-                <div style={{ display: "flex", justifyContent: "center", marginBottom: 28 }}>
-                  <GlobalRankBadge position={globalRankEntry.position} />
+                  {/* Edit-bio button — own profile only, top-right */}
+                  {isOwnProfile && !editingBio && (
+                    <button
+                      onClick={() => { setBioInput(displayBio ?? ""); setEditingBio(true); }}
+                      title={displayBio ? "Edit your bio" : "Add a bio"}
+                      style={{
+                        position: "absolute", top: 12, right: 12,
+                        width: 32, height: 32, borderRadius: "50%",
+                        background: "rgba(255,255,255,0.25)",
+                        backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+                        border: "1px solid rgba(255,255,255,0.4)",
+                        color: banner.text,
+                        cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        transition: "background 0.15s, transform 0.15s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.42)"; e.currentTarget.style.transform = "scale(1.06)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.25)"; e.currentTarget.style.transform = ""; }}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
                 </div>
-              )}
+
+                {/* Inline bio editor — own profile only */}
+                {isOwnProfile && editingBio && (
+                  <div style={{ background: "white", padding: 14, borderTop: "1px solid rgba(107,143,212,0.15)" }}>
+                    <textarea
+                      value={bioInput}
+                      onChange={e => setBioInput(e.target.value.slice(0, 200))}
+                      placeholder="Add a short bio or favorite quote (200 chars max)…"
+                      rows={2}
+                      style={{
+                        width: "100%", resize: "vertical",
+                        background: "rgba(255,255,255,0.7)",
+                        border: "1.5px solid rgba(107,143,212,0.2)", borderRadius: 11,
+                        padding: "10px 14px", fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "0.88rem", color: "#1a1a2e", outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                      autoFocus
+                    />
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+                      <span style={{ fontSize: "0.72rem", color: "#7a7a92" }}>{bioInput.length}/200</span>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          onClick={() => { setEditingBio(false); setBioInput(displayBio ?? ""); }}
+                          style={{ background: "none", border: "1.5px solid rgba(107,143,212,0.2)", borderRadius: 9, padding: "6px 14px", fontSize: "0.82rem", fontWeight: 600, color: "#7a7a92", cursor: "pointer" }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          disabled={stylePrefMutation.isPending}
+                          onClick={() => {
+                            const val = bioInput.trim();
+                            stylePrefMutation.mutate({ profileBio: val.length > 0 ? val : null });
+                            setEditingBio(false);
+                          }}
+                          style={{
+                            background: `linear-gradient(135deg, ${accent.color}, ${accent.color}dd)`,
+                            border: "none", borderRadius: 9, padding: "6px 16px",
+                            color: "white", fontSize: "0.82rem", fontWeight: 700,
+                            cursor: stylePrefMutation.isPending ? "not-allowed" : "pointer",
+                            opacity: stylePrefMutation.isPending ? 0.7 : 1,
+                            boxShadow: `0 4px 14px ${accent.soft}`,
+                          }}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* No sprints note — only when stats loaded successfully and count is genuinely zero */}
               {data.sprintCount === 0 && !data.statsError && (
@@ -644,6 +870,101 @@ export default function Profile() {
                         </div>
                       </button>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Profile Style — banner + accent picker, own profile only */}
+              {isOwnProfile && (
+                <div style={{ ...CARD, padding: 20, marginBottom: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                    <div style={{ width: 6, height: 16, borderRadius: 3, background: accent.color }} />
+                    <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "#7a7a92", textTransform: "uppercase" }}>
+                      Profile Style
+                    </div>
+                  </div>
+
+                  {/* Banner picker */}
+                  <div style={{ fontSize: "0.74rem", fontWeight: 600, color: "#7a7a92", marginBottom: 8 }}>Banner</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(78px, 1fr))", gap: 8, marginBottom: 16 }}>
+                    {Object.values(BANNERS).map((b) => {
+                      const isActive = bannerKey === b.key;
+                      return (
+                        <button
+                          key={b.key}
+                          onClick={() => stylePrefMutation.mutate({ profileBanner: b.key })}
+                          title={b.label}
+                          aria-label={`${b.label} banner`}
+                          aria-pressed={isActive}
+                          style={{
+                            position: "relative",
+                            height: 52, borderRadius: 12, cursor: "pointer",
+                            background: b.background,
+                            border: `2px solid ${isActive ? accent.color : "rgba(107,143,212,0.2)"}`,
+                            outline: isActive ? `3px solid ${accent.soft}` : "none",
+                            outlineOffset: 2,
+                            transition: "transform 0.15s, border-color 0.15s",
+                            padding: 0, overflow: "hidden",
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.transform = ""; }}
+                        >
+                          <span style={{
+                            position: "absolute", left: 0, right: 0, bottom: 4,
+                            fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.04em",
+                            color: b.text, textAlign: "center",
+                            textShadow: b.text === "#1a1a2e" ? "none" : "0 1px 4px rgba(0,0,0,0.4)",
+                          }}>
+                            {b.label}
+                          </span>
+                          {isActive && (
+                            <span style={{
+                              position: "absolute", top: 4, right: 4,
+                              width: 16, height: 16, borderRadius: "50%",
+                              background: "white", color: accent.color,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+                            }}>
+                              <Check size={10} strokeWidth={3} />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Accent picker */}
+                  <div style={{ fontSize: "0.74rem", fontWeight: 600, color: "#7a7a92", marginBottom: 8 }}>Accent</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    {Object.values(ACCENTS).map((a) => {
+                      const isActive = accentKey === a.key;
+                      return (
+                        <button
+                          key={a.key}
+                          onClick={() => stylePrefMutation.mutate({ profileAccent: a.key })}
+                          title={a.label}
+                          aria-label={`${a.label} accent color`}
+                          aria-pressed={isActive}
+                          style={{
+                            width: 32, height: 32, borderRadius: "50%",
+                            background: a.color, cursor: "pointer", padding: 0,
+                            border: `2px solid ${isActive ? "white" : "rgba(255,255,255,0.5)"}`,
+                            outline: isActive ? `2.5px solid ${a.color}` : "none",
+                            outlineOffset: 1,
+                            boxShadow: isActive
+                              ? `0 0 0 2px white, 0 0 14px ${a.soft}`
+                              : "0 2px 6px rgba(0,0,0,0.1)",
+                            transition: "transform 0.15s",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            color: "white",
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.1)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.transform = ""; }}
+                        >
+                          {isActive && <Check size={14} strokeWidth={3} />}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useAuthedFetch } from "@/lib/authedFetch";
-import { useSprintRoom, type RoomState } from "@/hooks/useSprintRoom";
+import { useSprintRoom, type RoomState, type Participant } from "@/hooks/useSprintRoom";
 import { getNameplateStyle } from "@/lib/nameplates";
 import { SkinOverlay } from "@/components/SkinOverlay";
 import { RaceTrack } from "@/components/RaceTrack";
@@ -139,6 +139,167 @@ function saveCapsules(code: string, capsules: Capsule[]) {
   try {
     localStorage.setItem(capsulesKey(code), JSON.stringify(capsules));
   } catch { /* ignore */ }
+}
+
+// ── Writers cluster + hover dropdown ──────────────────────────────────────
+
+function RoomWritersDropdown({
+  participants,
+  onOpenProfile,
+}: {
+  participants: Participant[];
+  onOpenProfile: (name: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const openTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelId = "room-writers-panel";
+
+  const cancel = (ref: React.MutableRefObject<ReturnType<typeof setTimeout> | null>) => {
+    if (ref.current) { clearTimeout(ref.current); ref.current = null; }
+  };
+  const openNow = () => { cancel(closeTimer); cancel(openTimer); setOpen(true); };
+  const handleEnter = () => {
+    cancel(closeTimer);
+    if (open) return;
+    openTimer.current = setTimeout(() => setOpen(true), 100);
+  };
+  const handleLeave = () => {
+    cancel(openTimer);
+    closeTimer.current = setTimeout(() => setOpen(false), 200);
+  };
+
+  useEffect(() => () => { cancel(openTimer); cancel(closeTimer); }, []);
+
+  // Close on Escape; close on outside click / focus moving outside.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    const onPointer = (e: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onPointer);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onPointer);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={containerRef}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+      onFocus={openNow}
+      onBlur={(e) => {
+        // Close when focus leaves the entire group.
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          handleLeave();
+        }
+      }}
+      style={{ position: "relative", display: "flex", alignItems: "center", gap: 7, fontSize: "0.83rem", fontWeight: 500, color: "#7a7a92", cursor: "default" }}
+    >
+      {/* Single keyboard/touch toggle wrapping the avatar stack + count */}
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-label={`${participants.length} ${participants.length === 1 ? "writer" : "writers"} in this room — view list`}
+        style={{
+          display: "flex", alignItems: "center", gap: 7,
+          background: "none", border: "none", padding: 0, cursor: "pointer",
+          color: "inherit", font: "inherit",
+        }}
+      >
+        <span style={{ display: "flex" }}>
+          {participants.slice(0, 4).map((p) => (
+            <span
+              key={p.id}
+              title={p.name}
+              style={{ width: 26, height: 26, borderRadius: "50%", background: "linear-gradient(135deg, #6B8FD4, #5a82d0)", color: "white", fontSize: "0.72rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", marginLeft: -6, border: "2px solid rgba(245,242,236,0.9)" }}
+            >
+              {p.name.charAt(0).toUpperCase()}
+            </span>
+          ))}
+          {participants.length > 4 && (
+            <span style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(107,143,212,0.15)", fontSize: "0.65rem", fontWeight: 600, color: "#6B8FD4", display: "flex", alignItems: "center", justifyContent: "center", marginLeft: -6, border: "2px solid rgba(245,242,236,0.9)" }}>
+              +{participants.length - 4}
+            </span>
+          )}
+        </span>
+        <span>{participants.length} {participants.length === 1 ? "writer" : "writers"}</span>
+      </button>
+
+      {open && participants.length > 0 && (
+        <div
+          id={panelId}
+          role="menu"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            right: 0,
+            zIndex: 50,
+            minWidth: 200,
+            maxWidth: 260,
+            maxHeight: 320,
+            overflowY: "auto",
+            background: "rgba(255,255,255,0.98)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            border: "1px solid rgba(107,143,212,0.2)",
+            borderRadius: 14,
+            boxShadow: "0 12px 40px rgba(26,26,46,0.18)",
+            padding: 6,
+            animation: "fadeIn 0.12s ease-out",
+          }}
+        >
+          <div style={{ padding: "6px 10px 4px", fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.08em", color: "#7a7a92", textTransform: "uppercase" }}>
+            In this room
+          </div>
+          {participants.map((p) => (
+            <button
+              key={p.id}
+              role="menuitem"
+              type="button"
+              aria-label={`Open ${p.name}'s profile`}
+              onClick={() => { onOpenProfile(p.name); setOpen(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                width: "100%", padding: "7px 10px",
+                background: "none", border: "none", cursor: "pointer",
+                borderRadius: 9, textAlign: "left",
+                transition: "background 0.12s",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(107,143,212,0.1)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "none")}
+              onFocus={e => (e.currentTarget.style.background = "rgba(107,143,212,0.1)")}
+              onBlur={e => (e.currentTarget.style.background = "none")}
+            >
+              <div style={{ width: 30, height: 30, borderRadius: "50%", background: "linear-gradient(135deg, #6B8FD4, #5a82d0)", color: "white", fontSize: "0.78rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {p.name.charAt(0).toUpperCase()}
+              </div>
+              <span style={{ fontSize: "0.84rem", fontWeight: 600, color: "#1a1a2e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {p.name}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -1286,27 +1447,12 @@ export default function Room() {
           )}
 
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-            {/* Writer avatars + count — click to open profile */}
-            <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "0.83rem", fontWeight: 500, color: "#7a7a92" }}>
-              <div style={{ display: "flex" }}>
-                {room.participants.slice(0, 4).map((p) => (
-                  <button
-                    key={p.id}
-                    title={`${p.name} — view profile`}
-                    onClick={() => setLocation(`/profile/${encodeURIComponent(p.name)}`)}
-                    style={{ width: 26, height: 26, borderRadius: "50%", background: "linear-gradient(135deg, #6B8FD4, #5a82d0)", color: "white", fontSize: "0.72rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", marginLeft: -6, border: "2px solid rgba(245,242,236,0.9)", cursor: "pointer", padding: 0 }}
-                  >
-                    {p.name.charAt(0).toUpperCase()}
-                  </button>
-                ))}
-                {room.participants.length > 4 && (
-                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(107,143,212,0.15)", fontSize: "0.65rem", fontWeight: 600, color: "#6B8FD4", display: "flex", alignItems: "center", justifyContent: "center", marginLeft: -6, border: "2px solid rgba(245,242,236,0.9)" }}>
-                    +{room.participants.length - 4}
-                  </div>
-                )}
-              </div>
-              {room.participants.length} {room.participants.length === 1 ? "writer" : "writers"}
-            </div>
+            {/* Writer avatars + count — hover to see everyone, click any to open profile */}
+            <RoomWritersDropdown
+              participants={room.participants}
+              onOpenProfile={(name) => setLocation(`/profile/${encodeURIComponent(name)}`)}
+            />
+
 
             {/* Read / Write toggle */}
             {(isWaiting || isCountdown || isRunning || isFinished) && (

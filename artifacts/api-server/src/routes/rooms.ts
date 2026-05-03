@@ -401,6 +401,9 @@ router.get("/user/profile", async (req, res): Promise<void> => {
     decayRatePerDay,
     activeNameplate: profile?.activeNameplate ?? "default",
     activeSkin: profile?.activeSkin ?? "default",
+    profileBio: profile?.profileBio ?? null,
+    profileBanner: profile?.profileBanner ?? "default",
+    profileAccent: profile?.profileAccent ?? "default",
   });
 });
 
@@ -409,7 +412,7 @@ router.patch("/user/preferences", async (req, res): Promise<void> => {
   const clerkUserId = auth?.userId;
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { activeNameplate, activeSkin } = req.body ?? {};
+  const { activeNameplate, activeSkin, profileBio, profileBanner, profileAccent } = req.body ?? {};
 
   const NAMEPLATE_MIN_XP: Record<string, number> = {
     default: 0, crimson: 20000, gold: 60000, blue: 175000, purple: 450000,
@@ -425,7 +428,7 @@ router.patch("/user/preferences", async (req, res): Promise<void> => {
     .limit(1);
 
   const currentXp = rows[0]?.xp ?? 0;
-  const updates: Record<string, string> = {};
+  const updates: Record<string, string | null> = {};
 
   if (activeNameplate !== undefined) {
     const minXp = NAMEPLATE_MIN_XP[activeNameplate] ?? 999999;
@@ -436,6 +439,29 @@ router.patch("/user/preferences", async (req, res): Promise<void> => {
     const minXp = SKIN_MIN_XP[activeSkin] ?? 999999;
     if (currentXp >= minXp) updates.activeSkin = activeSkin;
     else { res.status(403).json({ error: "Not enough XP for that skin" }); return; }
+  }
+
+  // Profile customization — no XP gating, but bounded.
+  if (profileBio !== undefined) {
+    if (profileBio === null || profileBio === "") {
+      updates.profileBio = null;
+    } else if (typeof profileBio === "string") {
+      updates.profileBio = profileBio.slice(0, 200);
+    } else {
+      res.status(400).json({ error: "profileBio must be a string or null" }); return;
+    }
+  }
+  if (profileBanner !== undefined) {
+    if (typeof profileBanner !== "string" || profileBanner.length > 20) {
+      res.status(400).json({ error: "Invalid profileBanner" }); return;
+    }
+    updates.profileBanner = profileBanner;
+  }
+  if (profileAccent !== undefined) {
+    if (typeof profileAccent !== "string" || profileAccent.length > 20) {
+      res.status(400).json({ error: "Invalid profileAccent" }); return;
+    }
+    updates.profileAccent = profileAccent;
   }
 
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
@@ -781,6 +807,9 @@ router.get("/users/by-name/:name/profile", async (req, res): Promise<void> => {
     totalWords: Number(statsRow?.totalWords ?? 0),
     highestWordCount: Number(statsRow?.highestWordCount ?? 0),
     sprintCount: Number(statsRow?.sprintCount ?? 0),
+    profileBio: profileRows[0]?.profileBio ?? null,
+    profileBanner: profileRows[0]?.profileBanner ?? "default",
+    profileAccent: profileRows[0]?.profileAccent ?? "default",
     statsError,
   });
 });

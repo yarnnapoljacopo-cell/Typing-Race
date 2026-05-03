@@ -12,6 +12,9 @@ export const userProfilesTable = pgTable("user_profiles", {
   equippedCarSkin: varchar("equipped_car_skin", { length: 30 }).notNull().default("bluebird"),
   equippedRoadSkin: varchar("equipped_road_skin", { length: 30 }).notNull().default("mushroom"),
   discordWebhookUrl: varchar("discord_webhook_url", { length: 500 }),
+  profileBio: varchar("profile_bio", { length: 200 }),
+  profileBanner: varchar("profile_banner", { length: 20 }).notNull().default("default"),
+  profileAccent: varchar("profile_accent", { length: 20 }).notNull().default("default"),
 });
 
 export type UserProfile = typeof userProfilesTable.$inferSelect;
