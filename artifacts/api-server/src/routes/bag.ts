@@ -86,39 +86,39 @@ router.get("/user/bag", async (req, res): Promise<void> => {
   {
     const clientA = await pool.connect();
     try {
-      await Promise.all([
-        clientA.query(
-          `DELETE FROM user_inventory
-           WHERE user_id = $1
-             AND overflow_since IS NOT NULL
-             AND overflow_since < NOW() - INTERVAL '24 hours'`,
-          [userId],
-        ),
-        clientA.query(
-          `DELETE FROM active_effects WHERE user_id = $1 AND expires_at < NOW()`,
-          [userId],
-        ),
-        clientA.query(
-          `INSERT INTO equipped_storage (user_id, item_id, slot_count)
-           VALUES ($1, NULL, 20) ON CONFLICT (user_id) DO NOTHING`,
-          [userId],
-        ),
-      ]);
+      // node-postgres only allows one query at a time per checked-out client.
+      // Running these via Promise.all() trips the pg@9 deprecation warning and
+      // can leave the client in a bad state, leaking pool slots over time and
+      // eventually exhausting the pool. Serialize them with sequential awaits.
+      await clientA.query(
+        `DELETE FROM user_inventory
+         WHERE user_id = $1
+           AND overflow_since IS NOT NULL
+           AND overflow_since < NOW() - INTERVAL '24 hours'`,
+        [userId],
+      );
+      await clientA.query(
+        `DELETE FROM active_effects WHERE user_id = $1 AND expires_at < NOW()`,
+        [userId],
+      );
+      await clientA.query(
+        `INSERT INTO equipped_storage (user_id, item_id, slot_count)
+         VALUES ($1, NULL, 20) ON CONFLICT (user_id) DO NOTHING`,
+        [userId],
+      );
 
-      const [{ rows: slotsRows }, { rows: effectRows }] = await Promise.all([
-        clientA.query<{ slot_count: number }>(
-          `SELECT slot_count FROM equipped_storage WHERE user_id = $1`,
-          [userId],
-        ),
-        clientA.query(
-          `SELECT ae.*, im.name AS item_name, im.icon, im.rarity
-           FROM active_effects ae
-           JOIN items_master im ON im.id = ae.item_id
-           WHERE ae.user_id = $1
-           ORDER BY ae.expires_at ASC`,
-          [userId],
-        ),
-      ]);
+      const { rows: slotsRows } = await clientA.query<{ slot_count: number }>(
+        `SELECT slot_count FROM equipped_storage WHERE user_id = $1`,
+        [userId],
+      );
+      const { rows: effectRows } = await clientA.query(
+        `SELECT ae.*, im.name AS item_name, im.icon, im.rarity
+         FROM active_effects ae
+         JOIN items_master im ON im.id = ae.item_id
+         WHERE ae.user_id = $1
+         ORDER BY ae.expires_at ASC`,
+        [userId],
+      );
 
       totalSlots = slotsRows[0]?.slot_count ?? DEFAULT_BAG_SLOTS;
       effects = effectRows as Record<string, unknown>[];
@@ -162,36 +162,31 @@ router.get("/user/bag", async (req, res): Promise<void> => {
         [userId, totalSlots],
       );
 
-      const [
-        { rows: inventory },
-        { rows: ashRows },
-        { rows: cooldownRows },
-      ] = await Promise.all([
-        clientB.query(
-          `SELECT ui.id, ui.item_id, ui.quantity, ui.acquired_at, ui.overflow_since,
-                  im.name, im.description, im.category, im.rarity,
-                  im.effect_type, im.effect_value, im.effect_duration,
-                  im.is_craftable, im.is_tradeable, im.icon, im.stack_limit,
-                  im.sell_value, im.is_storage_item, im.storage_slot_count
-           FROM user_inventory ui
-           JOIN items_master im ON im.id = ui.item_id
-           WHERE ui.user_id = $1
-           ORDER BY ui.overflow_since DESC NULLS LAST, im.rarity DESC, im.category, im.name`,
-          [userId],
-        ),
-        clientB.query(
-          `SELECT count FROM failure_ashes WHERE user_id = $1`,
-          [userId],
-        ),
-        clientB.query(
-          `SELECT item_id, MAX(used_at) AS last_used, im.effect_duration
-           FROM item_use_log iul
-           JOIN items_master im ON im.id = iul.item_id
-           WHERE iul.user_id = $1 AND iul.used_at > NOW() - INTERVAL '7 days'
-           GROUP BY item_id, im.effect_duration`,
-          [userId],
-        ),
-      ]);
+      // Serialized — one query at a time per checked-out client (see note above).
+      const { rows: inventory } = await clientB.query(
+        `SELECT ui.id, ui.item_id, ui.quantity, ui.acquired_at, ui.overflow_since,
+                im.name, im.description, im.category, im.rarity,
+                im.effect_type, im.effect_value, im.effect_duration,
+                im.is_craftable, im.is_tradeable, im.icon, im.stack_limit,
+                im.sell_value, im.is_storage_item, im.storage_slot_count
+         FROM user_inventory ui
+         JOIN items_master im ON im.id = ui.item_id
+         WHERE ui.user_id = $1
+         ORDER BY ui.overflow_since DESC NULLS LAST, im.rarity DESC, im.category, im.name`,
+        [userId],
+      );
+      const { rows: ashRows } = await clientB.query(
+        `SELECT count FROM failure_ashes WHERE user_id = $1`,
+        [userId],
+      );
+      const { rows: cooldownRows } = await clientB.query(
+        `SELECT item_id, MAX(used_at) AS last_used, im.effect_duration
+         FROM item_use_log iul
+         JOIN items_master im ON im.id = iul.item_id
+         WHERE iul.user_id = $1 AND iul.used_at > NOW() - INTERVAL '7 days'
+         GROUP BY item_id, im.effect_duration`,
+        [userId],
+      );
 
       const failureAshes = ashRows[0]?.count ?? 0;
 
