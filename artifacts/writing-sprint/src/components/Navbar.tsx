@@ -1,5 +1,6 @@
 import { Moon, Sun } from "lucide-react";
 import { useDarkMode } from "@/lib/darkModeContext";
+import { UserStatsDropdown } from "@/components/UserStatsDropdown";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -62,30 +63,34 @@ export function Navbar() {
         </span>
       </div>
 
-      <button
-        onClick={toggleDarkMode}
-        title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 36,
-          height: 36,
-          borderRadius: 10,
-          border: isDark
-            ? "1px solid rgba(255,255,255,0.12)"
-            : "1px solid rgba(107,143,212,0.18)",
-          background: isDark
-            ? "rgba(255,255,255,0.07)"
-            : "rgba(107,143,212,0.07)",
-          cursor: "pointer",
-          color: isDark ? "rgba(255,255,255,0.75)" : "#6B8FD4",
-          transition: "all 0.2s",
-          flexShrink: 0,
-        }}
-      >
-        {isDark ? <Sun size={16} /> : <Moon size={16} />}
-      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <UserStatsDropdown />
+        <button
+          onClick={toggleDarkMode}
+          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            border: isDark
+              ? "1px solid rgba(255,255,255,0.12)"
+              : "1px solid rgba(107,143,212,0.18)",
+            background: isDark
+              ? "rgba(255,255,255,0.07)"
+              : "rgba(107,143,212,0.07)",
+            cursor: "pointer",
+            color: isDark ? "rgba(255,255,255,0.75)" : "#6B8FD4",
+            transition: "all 0.2s",
+            flexShrink: 0,
+          }}
+        >
+          {isDark ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+      </div>
     </nav>
   );
 }
