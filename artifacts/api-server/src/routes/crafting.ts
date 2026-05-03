@@ -97,6 +97,8 @@ router.get("/user/crafting/all-recipes", async (req, res): Promise<void> => {
 // ── POST /api/user/crafting/fusion ────────────────────────────────────────────
 
 router.post("/user/crafting/fusion", mutationLimiter, async (req, res): Promise<void> => {
+  let responseBody: { ok: true; result: unknown; message: string } | null = null;
+  const pendingQuestBumps: Array<[string, number]> = [];
   const auth = getAuth(req);
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -170,24 +172,30 @@ router.post("/user/crafting/fusion", mutationLimiter, async (req, res): Promise<
       [userId, result.id],
     );
 
-    try {
-      const { bumpQuests } = await import("../lib/quests");
-      await bumpQuests(userId, "crafts_succeeded", 1);
-    } catch { /* non-fatal */ }
-
-    res.json({
+    pendingQuestBumps.push(["crafts_succeeded", 1]);
+    responseBody = {
       ok: true,
       result: { id: result.id, name: result.name, icon: result.icon, rarity: result.rarity },
       message: `Fusion successful! 3× ${item.name} → ${result.name} (${result.rarity})`,
-    });
+    };
   } finally {
     client.release();
+  }
+
+  if (responseBody) {
+    try {
+      const { bumpQuests } = await import("../lib/quests");
+      for (const [metric, amount] of pendingQuestBumps) await bumpQuests(userId, metric, amount);
+    } catch { /* non-fatal */ }
+    res.json(responseBody);
   }
 });
 
 // ── POST /api/user/crafting/alchemy ──────────────────────────────────────────
 
 router.post("/user/crafting/alchemy", mutationLimiter, async (req, res): Promise<void> => {
+  let responseBody: Record<string, unknown> | null = null;
+  const pendingQuestBumps: Array<[string, number]> = [];
   const auth = getAuth(req);
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -301,17 +309,13 @@ router.post("/user/crafting/alchemy", mutationLimiter, async (req, res): Promise
         [userId, recipe.result_item_id],
       );
 
-      try {
-        const { bumpQuests } = await import("../lib/quests");
-        await bumpQuests(userId, "crafts_succeeded", 1);
-      } catch { /* non-fatal */ }
-
-      res.json({
+      pendingQuestBumps.push(["crafts_succeeded", 1]);
+      responseBody = {
         ok: true,
         success: true,
         result: { id: recipe.result_item_id, name: recipe.result_name, icon: recipe.result_icon, rarity: recipe.result_rarity },
         message: `Alchemy succeeded! You crafted ${recipe.result_name}!`,
-      });
+      };
     } else {
       // Failed — destroy ingredients, give 1 Failure Ash, log XP loss to karma_pill_log
       for (const invId of inventoryIds) {
@@ -345,20 +349,30 @@ router.post("/user/crafting/alchemy", mutationLimiter, async (req, res): Promise
         [userId],
       );
 
-      res.json({
+      responseBody = {
         ok: true,
         success: false,
         message: "Alchemy failed — ingredients destroyed. You received 1 Failure Ash.",
-      });
+      };
     }
   } finally {
     client.release();
+  }
+
+  if (responseBody) {
+    try {
+      const { bumpQuests } = await import("../lib/quests");
+      for (const [metric, amount] of pendingQuestBumps) await bumpQuests(userId, metric, amount);
+    } catch { /* non-fatal */ }
+    res.json(responseBody);
   }
 });
 
 // ── POST /api/user/crafting/tribulation ──────────────────────────────────────
 
 router.post("/user/crafting/tribulation", mutationLimiter, async (req, res): Promise<void> => {
+  let responseBody: Record<string, unknown> | null = null;
+  const pendingQuestBumps: Array<[string, number]> = [];
   const auth = getAuth(req);
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -461,19 +475,13 @@ router.post("/user/crafting/tribulation", mutationLimiter, async (req, res): Pro
         `INSERT INTO user_inventory (user_id, item_id, quantity) VALUES ($1,$2,1)`,
         [userId, recipe.result_item_id],
       );
-      try {
-        const { bumpQuests } = await import("../lib/quests");
-        await bumpQuests(userId, "crafts_succeeded", 1);
-        await bumpQuests(userId, "tribulation_succeeded", 1);
-      } catch { /* non-fatal */ }
-
-      res.json({
+      pendingQuestBumps.push(["crafts_succeeded", 1], ["tribulation_succeeded", 1]);
+      responseBody = {
         ok: true, success: true,
         result: { name: recipe.result_name, icon: recipe.result_icon, rarity: recipe.result_rarity },
         message: `Tribulation overcome! You forged ${recipe.result_name}!`,
-      });
-      return;
-    }
+      };
+    } else {
 
     // Failed — three possible outcomes
     const failRoll = Math.random();
@@ -483,7 +491,7 @@ router.post("/user/crafting/tribulation", mutationLimiter, async (req, res): Pro
       for (const invId of inventoryIds) {
         await client.query(`DELETE FROM user_inventory WHERE id = $1 AND user_id = $2`, [invId, userId]);
       }
-      res.json({ ok: true, success: false, outcome: "destroyed", message: "The tribulation backlash destroyed all ingredients. Nothing was gained." });
+      responseBody = { ok: true, success: false, outcome: "destroyed", message: "The tribulation backlash destroyed all ingredients. Nothing was gained." };
 
     } else if (failRoll < 0.70) {
       // 30% — ingredients lost, random Epic consolation
@@ -502,7 +510,7 @@ router.post("/user/crafting/tribulation", mutationLimiter, async (req, res): Pro
         );
         consolationMsg = `You received ${epicRows[0].icon} ${epicRows[0].name} as consolation.`;
       }
-      res.json({ ok: true, success: false, outcome: "consolation", message: `Tribulation failed — ${consolationMsg}` });
+      responseBody = { ok: true, success: false, outcome: "consolation", message: `Tribulation failed — ${consolationMsg}` };
 
     } else {
       // 30% — Tribulation Backlash — keep ingredients, lose 10% of current XP
@@ -535,14 +543,23 @@ router.post("/user/crafting/tribulation", mutationLimiter, async (req, res): Pro
         lossMsg = `-${xpLoss} XP (10% backlash)`;
       }
 
-      res.json({
+      responseBody = {
         ok: true, success: false, outcome: "backlash",
         message: `Tribulation Backlash! Ingredients preserved but ${lossMsg}. You may retry.`,
         xpLost: immuneRows.length > 0 ? 0 : xpLoss,
-      });
+      };
+    }
     }
   } finally {
     client.release();
+  }
+
+  if (responseBody) {
+    try {
+      const { bumpQuests } = await import("../lib/quests");
+      for (const [metric, amount] of pendingQuestBumps) await bumpQuests(userId, metric, amount);
+    } catch { /* non-fatal */ }
+    res.json(responseBody);
   }
 });
 

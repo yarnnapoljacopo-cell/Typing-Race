@@ -139,6 +139,7 @@ router.post("/user/chests/open", mutationLimiter, async (req, res): Promise<void
   }
 
   const client = await pool.connect();
+  let responseBody: { ok: true; items: unknown[]; coins_awarded: number; new_coin_balance: number | null } | null = null;
   try {
     // Verify chest availability
     const { rows: chestRows } = await client.query(
@@ -381,15 +382,19 @@ router.post("/user/chests/open", mutationLimiter, async (req, res): Promise<void
       // Non-fatal: coin drop failure should not block chest open success
     }
 
-    // Quest progress (best-effort).
+    responseBody = { ok: true, items, coins_awarded: coinsAwarded, new_coin_balance: newCoinBalance };
+  } finally {
+    client.release();
+  }
+
+  // Quest progress (best-effort) — runs AFTER releasing the pool client so it
+  // can safely acquire its own connection without risking pool starvation.
+  if (responseBody) {
     try {
       const { bumpQuests } = await import("../lib/quests");
       await bumpQuests(userId, "chests_opened", 1);
     } catch { /* non-fatal */ }
-
-    res.json({ ok: true, items, coins_awarded: coinsAwarded, new_coin_balance: newCoinBalance });
-  } finally {
-    client.release();
+    res.json(responseBody);
   }
 });
 
