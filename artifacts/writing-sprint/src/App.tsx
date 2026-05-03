@@ -34,18 +34,34 @@ import { SkinProvider } from "@/lib/skinContext";
 import { DarkModeProvider } from "@/lib/darkModeContext";
 import { Sidebar } from "@/components/Sidebar";
 
-// Explicit defaults so every useQuery / useMutation has a bounded retry
-// budget with exponential backoff. Without this, the implicit defaults
-// (retry: 3 with their own backoff) are easy to miss when reviewing the
-// app and can mask outages by hammering a failing endpoint.
+// Explicit query defaults:
+//  - 4xx responses (auth, not-found, validation) are NOT transient. Retrying
+//    them just blocks the UI behind a 14-second backoff for an error that
+//    will never resolve on its own. We rely on `useAuthedFetch` to handle
+//    the one case that IS transient — a stale 401 mid token-rotation —
+//    by retrying once with a refreshed token before the response ever
+//    reaches react-query.
+//  - For real transient failures (5xx, network) keep the hard cap at 3
+//    retries with quick exponential backoff (1s, 2s, 4s) matching
+//    react-query's own defaults so users see data within ~7s instead of
+//    being stuck on a loading spinner.
+function isTransientError(err: unknown): boolean {
+  if (err instanceof Error) {
+    // HttpError with `.status` in 4xx range → not transient.
+    const status = (err as Error & { status?: number }).status;
+    if (typeof status === "number" && status >= 400 && status < 500) return false;
+  }
+  return true;
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 3,                                                    // hard cap
-      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15_000), // 1s,2s,4s,8s… capped at 15s
+      retry: (failureCount, err) => isTransientError(err) && failureCount < 3,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15_000), // 1s, 2s, 4s …
     },
     mutations: {
-      retry: 2,
+      retry: (failureCount, err) => isTransientError(err) && failureCount < 2,
       retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
     },
   },
