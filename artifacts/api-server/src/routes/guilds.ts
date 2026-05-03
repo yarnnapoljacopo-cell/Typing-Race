@@ -23,6 +23,7 @@ import {
 } from "../lib/guildManager";
 import { getOnlineMembers } from "../lib/guildPresence";
 import { createRoom, type RoomMode } from "../lib/roomManager";
+import bcrypt from "bcrypt";
 
 const router: IRouter = Router();
 
@@ -380,7 +381,16 @@ router.post("/guilds/:id/sprint", async (req, res): Promise<void> => {
   const guildId = parseInt(req.params.id, 10);
   if (isNaN(guildId)) { res.status(400).json({ error: "Invalid guild id" }); return; }
 
-  const { durationMinutes, mode, countdownDelayMinutes, wordGoal } = req.body ?? {};
+  const {
+    durationMinutes,
+    mode,
+    countdownDelayMinutes,
+    wordGoal,
+    bossWordGoal,
+    gladiatorDeathGap,
+    deathModeWpm,
+    roomPassword,
+  } = req.body ?? {};
   if (typeof durationMinutes !== "number" || durationMinutes <= 0) {
     res.status(400).json({ error: "durationMinutes required" }); return;
   }
@@ -398,31 +408,42 @@ router.post("/guilds/:id/sprint", async (req, res): Promise<void> => {
 
     const writerName = await getWriterName(userId);
     const ALLOWED_MODES: RoomMode[] = ["regular", "open", "goal", "boss", "kart", "gladiator"];
-    const safeMode: RoomMode = (typeof mode === "string" && (ALLOWED_MODES as string[]).includes(mode))
+    const requestedMode: RoomMode = (typeof mode === "string" && (ALLOWED_MODES as string[]).includes(mode))
       ? (mode as RoomMode)
       : "regular";
     const safeDelay = typeof countdownDelayMinutes === "number"
       ? Math.min(30, Math.max(0, Math.floor(countdownDelayMinutes)))
-      : 1;
+      : 0;
     const safeGoal = typeof wordGoal === "number" && wordGoal > 0 ? Math.floor(wordGoal) : null;
+    const safeBossGoal = typeof bossWordGoal === "number" && bossWordGoal > 0 ? Math.floor(bossWordGoal) : null;
+    const safeGladiatorGap = typeof gladiatorDeathGap === "number" && gladiatorDeathGap > 0 ? Math.floor(gladiatorDeathGap) : null;
+    const safeDeathWpm = typeof deathModeWpm === "number" && deathModeWpm > 0 ? Math.floor(deathModeWpm) : null;
+    const passwordHash = (typeof roomPassword === "string" && roomPassword.trim().length > 0)
+      ? await bcrypt.hash(roomPassword.trim(), 10)
+      : null;
+
+    // Mirror /api/rooms normalization: a non-null bossWordGoal forces boss mode.
+    // SprintPopup sends boss as { mode: "regular", bossWordGoal: 5000 } and relies
+    // on the server to upgrade it.
+    const effectiveMode: RoomMode = safeBossGoal ? "boss" : requestedMode;
 
     const room = createRoom(
       writerName,
       Math.floor(durationMinutes),
-      safeMode,
+      effectiveMode,
       safeDelay,
       safeGoal,
-      null,
-      null,
-      null,
-      null,
+      safeDeathWpm,
+      safeBossGoal,
+      passwordHash,
+      safeGladiatorGap,
     );
 
     // Post a sprint announcement message that members can see in the panel.
     const payload = JSON.stringify({
       roomCode: room.code,
       durationMinutes: room.durationMinutes,
-      mode: safeMode,
+      mode: effectiveMode,
       wordGoal: safeGoal,
       startsInMinutes: safeDelay,
       startedAt: Date.now(),

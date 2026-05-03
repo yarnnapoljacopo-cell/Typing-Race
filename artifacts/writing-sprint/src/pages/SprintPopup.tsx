@@ -55,6 +55,13 @@ interface Props {
   onClose: () => void;
   chapterTitle: string | null;
   chapterContent?: string;
+  /**
+   * If set, the "Create" tab posts to /api/guilds/:guildId/sprint instead of
+   * /api/rooms. The Join tab is hidden so leaders only start guild sprints
+   * here. Members are NOT auto-redirected — they get a chat announcement +
+   * GuildBell badge instead.
+   */
+  guildId?: number;
 }
 
 function escapeHtml(s: string) {
@@ -69,7 +76,7 @@ function plainToHtml(s: string) {
   return escapeHtml(s).replace(/\r?\n/g, "<br>");
 }
 
-export default function SprintPopup({ open, onClose, chapterTitle: _chapterTitle, chapterContent }: Props) {
+export default function SprintPopup({ open, onClose, chapterTitle: _chapterTitle, chapterContent, guildId }: Props) {
   const [, setLocation] = useLocation();
   const { user } = useUser();
   const { isSignedIn } = useAuth();
@@ -106,6 +113,9 @@ export default function SprintPopup({ open, onClose, chapterTitle: _chapterTitle
     }
   }, [open]);
 
+  const isGuildFlow = typeof guildId === "number";
+  const [guildSubmitting, setGuildSubmitting] = useState(false);
+
   const createRoomMutation = useCreateRoom({
     mutation: {
       onSuccess: (data) => {
@@ -129,23 +139,65 @@ export default function SprintPopup({ open, onClose, chapterTitle: _chapterTitle
     },
   });
 
-  const handleCreate = () => {
+  const buildSprintPayload = () => {
     const apiMode = mode === "spectator" ? "open" : mode === "boss" ? "regular" : mode;
     const password = pwOn && pw.trim() ? pw.trim() : undefined;
     const dwpm = deathOn ? (parseInt(deathWpm, 10) || 15) : undefined;
+    return {
+      creatorName: displayName,
+      durationMinutes: duration,
+      mode: apiMode,
+      ...(countdown > 0 ? { countdownDelayMinutes: countdown } : {}),
+      ...(mode === "goal" ? { wordGoal: 1000 } : {}),
+      ...(mode === "boss" ? { bossWordGoal: 5000 } : {}),
+      ...(mode === "gladiator" ? { gladiatorDeathGap: 400 } : {}),
+      ...(dwpm ? { deathModeWpm: dwpm } : {}),
+      ...(password ? { roomPassword: password } : {}),
+    };
+  };
+
+  const handleCreate = async () => {
+    const payload = buildSprintPayload();
+
+    if (isGuildFlow) {
+      setGuildSubmitting(true);
+      try {
+        const r = await authedFetch(`${basePath}/api/guilds/${guildId}/sprint`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          toast({
+            title: "Failed to start guild sprint",
+            description: (body as { error?: string }).error ?? "An unexpected error occurred",
+            variant: "destructive",
+          });
+          return;
+        }
+        const code = (body as { roomCode?: string }).roomCode;
+        if (code) {
+          if (pwOn && pw.trim()) {
+            try { sessionStorage.setItem(`room_password_${code}`, pw.trim()); } catch { /* ignore */ }
+          }
+          const seed = (chapterContent || "").trim();
+          if (seed) {
+            try { localStorage.setItem(`sprint-autosave-${code}`, plainToHtml(seed)); } catch { /* ignore */ }
+          }
+          onClose();
+          setLocation(`/room?code=${code}&name=${encodeURIComponent(displayName)}&isCreator=true`);
+        } else {
+          onClose();
+        }
+      } finally {
+        setGuildSubmitting(false);
+      }
+      return;
+    }
 
     createRoomMutation.mutate({
-      data: {
-        creatorName: displayName,
-        durationMinutes: duration,
-        mode: apiMode,
-        ...(countdown > 0 ? { countdownDelayMinutes: countdown } : {}),
-        ...(mode === "goal" ? { wordGoal: 1000 } : {}),
-        ...(mode === "boss" ? { bossWordGoal: 5000 } : {}),
-        ...(mode === "gladiator" ? { gladiatorDeathGap: 400 } : {}),
-        ...(dwpm ? { deathModeWpm: dwpm } : {}),
-        ...(password ? { roomPassword: password } : {}),
-      } as Parameters<typeof createRoomMutation.mutate>[0]["data"],
+      data: payload as Parameters<typeof createRoomMutation.mutate>[0]["data"],
     });
   };
 
@@ -177,13 +229,17 @@ export default function SprintPopup({ open, onClose, chapterTitle: _chapterTitle
           <span className="sp-badge-dot" /> SESSION OPEN
         </div>
 
-        <h2 className="sp-title">Join the session</h2>
-        <p className="sp-sub">Writing as <strong>{displayName}</strong></p>
+        <h2 className="sp-title">{isGuildFlow ? "Start a guild sprint" : "Join the session"}</h2>
+        <p className="sp-sub">
+          {isGuildFlow ? <>Hosting as <strong>{displayName}</strong>. Members will be notified — they don't have to join.</> : <>Writing as <strong>{displayName}</strong></>}
+        </p>
 
-        <div className="sp-tabs">
-          <button className={`sp-tab${tab === "join" ? " active" : ""}`} onClick={() => setTab("join")}>Join Room</button>
-          <button className={`sp-tab${tab === "create" ? " active" : ""}`} onClick={() => setTab("create")}>Create Room</button>
-        </div>
+        {!isGuildFlow && (
+          <div className="sp-tabs">
+            <button className={`sp-tab${tab === "join" ? " active" : ""}`} onClick={() => setTab("join")}>Join Room</button>
+            <button className={`sp-tab${tab === "create" ? " active" : ""}`} onClick={() => setTab("create")}>Create Room</button>
+          </div>
+        )}
 
         {tab === "join" ? (
           <div className="sp-section">
@@ -290,11 +346,15 @@ export default function SprintPopup({ open, onClose, chapterTitle: _chapterTitle
         <button
           className="sp-cta"
           onClick={tab === "join" ? handleJoin : handleCreate}
-          disabled={createRoomMutation.isPending}
+          disabled={createRoomMutation.isPending || guildSubmitting}
         >
           {tab === "join"
             ? "Enter Room"
-            : createRoomMutation.isPending ? "Starting..." : <>Start New Session <span className="sp-cta-spark">✦</span></>}
+            : (createRoomMutation.isPending || guildSubmitting)
+              ? "Starting..."
+              : isGuildFlow
+                ? <>Start Guild Sprint <span className="sp-cta-spark">✦</span></>
+                : <>Start New Session <span className="sp-cta-spark">✦</span></>}
         </button>
       </div>
     </div>

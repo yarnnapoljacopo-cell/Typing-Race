@@ -3,11 +3,12 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@clerk/react";
 import { useAuthedFetch } from "@/lib/authedFetch";
-import { ArrowLeft, Users, Crown, LogOut, Send, Zap, Shield, UserMinus, ArrowRightLeft, Trash2, X } from "lucide-react";
+import { ArrowLeft, Users, Crown, LogOut, Send, Zap, Shield, UserMinus, ArrowRightLeft, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { getRankFromXp } from "@/lib/ranks";
+import SprintPopup from "./SprintPopup";
 import "./Guild.css";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -202,8 +203,6 @@ function GuildView({ af, data, refetchGuild }: { af: AF; data: GuildData; refetc
   const [actionError, setActionError] = useState<string | null>(null);
 
   const [showSprintModal, setShowSprintModal] = useState(false);
-  const [sprintDuration, setSprintDuration] = useState(15);
-  const [sprintDelay, setSprintDelay] = useState(1);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   const messagesQuery = useQuery({
@@ -298,22 +297,10 @@ function GuildView({ af, data, refetchGuild }: { af: AF; data: GuildData; refetc
     }
   };
 
-  const startSprint = async () => {
-    const r = await af(`${basePath}/api/guilds/${guild.id}/sprint`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        durationMinutes: sprintDuration,
-        countdownDelayMinutes: sprintDelay,
-        mode: "regular",
-      }),
-    });
-    const body = await r.json().catch(() => ({}));
-    if (!r.ok) { alert((body as { error?: string }).error ?? "Failed to start sprint"); return; }
-    const code = (body as { roomCode?: string }).roomCode;
+  const closeSprintModal = () => {
     setShowSprintModal(false);
+    // Refresh chat so the announcement message appears for the leader too.
     messagesQuery.refetch();
-    if (code) setLocation(`/room?code=${code}&name=${encodeURIComponent("")}`);
   };
 
   const members = data.members ?? [];
@@ -449,31 +436,12 @@ function GuildView({ af, data, refetchGuild }: { af: AF; data: GuildData; refetc
         </Card>
       </div>
 
-      {showSprintModal && (
-        <div className="g-modal-backdrop" onClick={() => setShowSprintModal(false)}>
-          <div className="g-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="g-modal-close" onClick={() => setShowSprintModal(false)}><X size={16} /></button>
-            <h3 className="g-h2">Start a guild sprint</h3>
-            <label className="g-label">
-              <span>Duration (minutes)</span>
-              <Input
-                type="number" min={1} max={120}
-                value={sprintDuration}
-                onChange={(e) => setSprintDuration(Math.max(1, parseInt(e.target.value || "1", 10)))}
-              />
-            </label>
-            <label className="g-label">
-              <span>Countdown delay (minutes)</span>
-              <Input
-                type="number" min={0} max={30}
-                value={sprintDelay}
-                onChange={(e) => setSprintDelay(Math.max(0, parseInt(e.target.value || "0", 10)))}
-              />
-            </label>
-            <Button onClick={startSprint}>Start sprint</Button>
-          </div>
-        </div>
-      )}
+      <SprintPopup
+        open={showSprintModal}
+        onClose={closeSprintModal}
+        chapterTitle={null}
+        guildId={guild.id}
+      />
     </div>
   );
 }
