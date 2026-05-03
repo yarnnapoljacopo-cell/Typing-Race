@@ -1,0 +1,268 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  .gp { font-family: 'Crimson Pro', Georgia, serif; background: var(--color-background-tertiary); border-radius: 20px; overflow: hidden; }
+  .gp-header { background: linear-gradient(135deg, #1a1208 0%, #2c1f0a 40%, #1a1208 100%); padding: 1.5rem 1.75rem 1.25rem; position: relative; overflow: hidden; border-bottom: 1px solid #8B6914; }
+  .gp-header::before { content: ''; position: absolute; inset: 0; background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23d4a017' fill-opacity='0.04'%3E%3Cpath d='M30 0l30 30-30 30L0 30z'/%3E%3C/g%3E%3C/svg%3E"); pointer-events: none; }
+  .back-link { display: inline-flex; align-items: center; gap: 6px; color: #c8a84b; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-family: 'Cinzel', serif; cursor: pointer; margin-bottom: 1rem; opacity: 0.8; }
+  .g-title-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .g-name-block { display: flex; align-items: center; gap: 14px; }
+  .g-crest { width: 48px; height: 48px; background: linear-gradient(135deg, #8B6914, #d4a017); border-radius: 16px; border: 1px solid #d4a017; display: flex; align-items: center; justify-content: center; font-size: 22px; transform: rotate(45deg); flex-shrink: 0; }
+  .g-crest-inner { transform: rotate(-45deg); }
+  .g-name { font-family: 'Cinzel', serif; font-size: 26px; font-weight: 700; color: #f0d88a; letter-spacing: 0.04em; line-height: 1.1; }
+  .g-tag { display: inline-block; background: rgba(212,160,23,0.15); border: 1px solid rgba(212,160,23,0.4); color: #c8a84b; font-size: 11px; padding: 2px 10px; border-radius: 20px; font-family: 'Cinzel', serif; letter-spacing: 0.12em; margin-top: 4px; }
+  .sprint-btn { display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #8B6914, #c8a84b); border: none; color: #1a1208; font-family: 'Cinzel', serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; padding: 10px 20px; border-radius: 50px; cursor: pointer; transition: all 0.2s; text-transform: uppercase; white-space: nowrap; }
+  .sprint-btn:hover { background: linear-gradient(135deg, #c8a84b, #e8c86a); transform: translateY(-1px); }
+  .g-body { display: grid; grid-template-columns: 280px 1fr; gap: 1.25rem; padding: 1.25rem 1.75rem 0; }
+  .sidebar { display: flex; flex-direction: column; gap: 1rem; }
+  .panel { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: 18px; overflow: hidden; }
+  .panel-header { padding: 0.75rem 1rem; border-bottom: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; justify-content: space-between; }
+  .panel-title { font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.14em; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; display: flex; align-items: center; gap: 7px; }
+  .online-badge { font-size: 11px; font-family: 'Crimson Pro', serif; color: #3B6D11; background: #EAF3DE; border: 0.5px solid #639922; padding: 2px 10px; border-radius: 20px; font-style: italic; }
+  .member-list { padding: 0.5rem 0; }
+  .member-row { display: flex; align-items: center; gap: 10px; padding: 0.55rem 1rem; transition: background 0.15s; cursor: pointer; border-radius: 12px; margin: 0 6px; }
+  .member-row:hover { background: var(--color-background-secondary); }
+  .m-avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: linear-gradient(135deg, #2c1f0a, #4a3510); border: 1.5px solid #8B6914; color: #f0d88a; font-family: 'Cinzel', serif; font-size: 12px; font-weight: 700; position: relative; }
+  .m-status { position: absolute; bottom: 0; right: 0; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--color-background-primary); }
+  .s-offline { background: #888; }
+  .s-online { background: #4CAF50; }
+  .m-info { flex: 1; min-width: 0; }
+  .m-name { font-weight: 600; font-size: 14px; color: var(--color-text-primary); display: flex; align-items: center; gap: 6px; }
+  .m-title-line { font-size: 12px; color: var(--color-text-secondary); font-style: italic; display: flex; align-items: center; gap: 4px; margin-top: 1px; }
+  .role-badge { font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.08em; padding: 1px 7px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
+  .role-guildmaster { background: rgba(212,160,23,0.15); border: 0.5px solid rgba(212,160,23,0.5); color: #8B6914; }
+  .role-veteran { background: rgba(83,74,183,0.12); border: 0.5px solid rgba(83,74,183,0.4); color: #534AB7; }
+  .role-scribe { background: rgba(15,110,86,0.1); border: 0.5px solid rgba(15,110,86,0.35); color: #0F6E56; }
+  .role-initiate { background: rgba(100,100,110,0.1); border: 0.5px solid rgba(100,100,110,0.3); color: #5F5E5A; }
+  .divider { height: 0.5px; background: var(--color-border-tertiary); margin: 0 1rem; }
+  .invite-section { padding: 0.75rem 1rem; }
+  .invite-label { font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.14em; color: var(--color-text-secondary); text-transform: uppercase; margin-bottom: 8px; }
+  .invite-row { display: flex; gap: 8px; }
+  .invite-input { flex: 1; border: 0.5px solid var(--color-border-tertiary); background: var(--color-background-secondary); border-radius: 50px; padding: 7px 14px; font-family: 'Crimson Pro', serif; font-size: 14px; color: var(--color-text-primary); outline: none; transition: border-color 0.15s; }
+  .invite-input:focus { border-color: #c8a84b; box-shadow: 0 0 0 2px rgba(200,168,75,0.15); }
+  .invite-input::placeholder { color: var(--color-text-tertiary); font-style: italic; }
+  .invite-btn { background: #2c1f0a; border: 0.5px solid #8B6914; color: #c8a84b; font-family: 'Cinzel', serif; font-size: 11px; font-weight: 600; padding: 7px 16px; border-radius: 50px; cursor: pointer; letter-spacing: 0.06em; transition: all 0.15s; white-space: nowrap; }
+  .invite-btn:hover { background: #4a3510; border-color: #c8a84b; }
+  .disband-section { padding: 0.75rem 1rem; }
+  .disband-btn { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; background: transparent; border: 0.5px solid var(--color-border-tertiary); color: #A32D2D; font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 0.08em; padding: 8px; border-radius: 50px; cursor: pointer; transition: all 0.15s; text-transform: uppercase; }
+  .disband-btn:hover { background: #FCEBEB; border-color: #E24B4A; }
+  .guild-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px; }
+  .stat-card { background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: 14px; padding: 10px 12px; text-align: center; }
+  .stat-value { font-family: 'Cinzel', serif; font-size: 20px; font-weight: 700; color: #c8a84b; line-height: 1.1; }
+  .stat-label { font-size: 11px; color: var(--color-text-secondary); letter-spacing: 0.06em; text-transform: uppercase; font-family: 'Cinzel', serif; margin-top: 2px; }
+  .main-col { display: flex; flex-direction: column; gap: 1rem; padding-bottom: 1.25rem; }
+  .chat-panel { display: flex; flex-direction: column; height: 320px; }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; scrollbar-width: thin; scrollbar-color: var(--color-border-tertiary) transparent; }
+  .chat-date-div { display: flex; align-items: center; gap: 10px; margin: 0.25rem 0; }
+  .chat-date-div::before, .chat-date-div::after { content: ''; flex: 1; height: 0.5px; background: var(--color-border-tertiary); }
+  .chat-date-text { font-size: 11px; color: var(--color-text-tertiary); letter-spacing: 0.06em; font-family: 'Cinzel', serif; text-transform: uppercase; }
+  .chat-msg { display: flex; gap: 10px; align-items: flex-start; }
+  .msg-av { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #2c1f0a, #4a3510); border: 1px solid #8B6914; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-size: 10px; font-weight: 700; color: #f0d88a; flex-shrink: 0; margin-top: 1px; }
+  .msg-body { flex: 1; }
+  .msg-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+  .msg-author { font-weight: 600; font-size: 13px; color: var(--color-text-primary); font-family: 'Cinzel', serif; }
+  .msg-time { font-size: 11px; color: var(--color-text-tertiary); font-style: italic; }
+  .msg-bubble { display: inline-block; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: 4px 16px 16px 16px; padding: 7px 13px; font-size: 15px; color: var(--color-text-primary); line-height: 1.5; }
+  .chat-input-row { padding: 0.75rem 1rem; border-top: 0.5px solid var(--color-border-tertiary); display: flex; gap: 8px; align-items: center; }
+  .chat-input { flex: 1; border: 0.5px solid var(--color-border-tertiary); background: var(--color-background-secondary); border-radius: 50px; padding: 8px 16px; font-family: 'Crimson Pro', serif; font-size: 15px; color: var(--color-text-primary); outline: none; transition: border-color 0.15s; }
+  .chat-input:focus { border-color: #c8a84b; box-shadow: 0 0 0 2px rgba(200,168,75,0.15); }
+  .chat-input::placeholder { color: var(--color-text-tertiary); font-style: italic; }
+  .send-btn { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #8B6914, #c8a84b); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.2s; }
+  .send-btn:hover { transform: scale(1.08); }
+  .send-btn svg { width: 15px; height: 15px; fill: #1a1208; }
+  .sprint-history { padding: 0; }
+  .sprint-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sprint-table th { font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-text-secondary); padding: 0.6rem 1rem; text-align: left; border-bottom: 0.5px solid var(--color-border-tertiary); font-weight: 600; }
+  .sprint-table th:last-child, .sprint-table td:last-child { text-align: right; }
+  .sprint-table td { padding: 0.65rem 1rem; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); vertical-align: middle; }
+  .sprint-table tr:last-child td { border-bottom: none; }
+  .sprint-table tr:hover td { background: var(--color-background-secondary); }
+  .sprint-place { display: inline-flex; align-items: center; gap: 5px; font-family: 'Cinzel', serif; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 20px; }
+  .place-1 { background: rgba(212,160,23,0.15); border: 0.5px solid rgba(212,160,23,0.4); color: #8B6914; }
+  .place-2 { background: rgba(83,74,183,0.1); border: 0.5px solid rgba(83,74,183,0.3); color: #534AB7; }
+  .place-3 { background: rgba(15,110,86,0.1); border: 0.5px solid rgba(15,110,86,0.3); color: #0F6E56; }
+  .place-dnf { background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); color: var(--color-text-tertiary); }
+  .wc-badge { font-size: 11px; color: #c8a84b; font-family: 'Cinzel', serif; }
+  .sprint-wpm { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; color: var(--color-text-primary); }
+  .sprint-wpm span { font-size: 10px; font-weight: 400; color: var(--color-text-tertiary); margin-left: 2px; }
+  .stats-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 10px 1rem 0.75rem; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .ss-card { background: var(--color-background-secondary); border-radius: 12px; padding: 8px 10px; text-align: center; }
+  .ss-val { font-family: 'Cinzel', serif; font-size: 17px; font-weight: 700; color: #c8a84b; }
+  .ss-lbl { font-size: 10px; color: var(--color-text-secondary); font-family: 'Cinzel', serif; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 1px; }
+</style>
+
+<div class="gp">
+  <div class="gp-header">
+    <div class="back-link">← Guilds</div>
+    <div class="g-title-row">
+      <div class="g-name-block">
+        <div class="g-crest"><div class="g-crest-inner">⚔</div></div>
+        <div>
+          <div class="g-name">Slave</div>
+          <div class="g-tag">[SLV]</div>
+        </div>
+      </div>
+      <button class="sprint-btn">⚡ Start Guild Sprint</button>
+    </div>
+  </div>
+
+  <div class="g-body">
+    <div class="sidebar">
+      <div class="panel">
+        <div class="guild-stats">
+          <div class="stat-card"><div class="stat-value">4</div><div class="stat-label">Members</div></div>
+          <div class="stat-card"><div class="stat-value">2</div><div class="stat-label">Online</div></div>
+          <div class="stat-card"><div class="stat-value">17</div><div class="stat-label">Sprints</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">👥 Members</div>
+          <span class="online-badge">2 / 4 online</span>
+        </div>
+        <div class="member-list">
+          <div class="member-row">
+            <div class="m-avatar">EJ<span class="m-status s-online"></span></div>
+            <div class="m-info">
+              <div class="m-name">Entrail_JI <span class="role-badge role-guildmaster">Guildmaster</span></div>
+              <div class="m-title-line">👑 The Wordsmith 🔥</div>
+            </div>
+          </div>
+          <div class="member-row">
+            <div class="m-avatar">RV<span class="m-status s-online"></span></div>
+            <div class="m-info">
+              <div class="m-name">Ravenquill <span class="role-badge role-veteran">Veteran</span></div>
+              <div class="m-title-line">✦ The Chronicler</div>
+            </div>
+          </div>
+          <div class="member-row">
+            <div class="m-avatar">SK<span class="m-status s-offline"></span></div>
+            <div class="m-info">
+              <div class="m-name">Stormkeep <span class="role-badge role-scribe">Scribe</span></div>
+              <div class="m-title-line">🖊 Inkborn</div>
+            </div>
+          </div>
+          <div class="member-row">
+            <div class="m-avatar">NX<span class="m-status s-offline"></span></div>
+            <div class="m-info">
+              <div class="m-name">NullEx <span class="role-badge role-initiate">Initiate</span></div>
+              <div class="m-title-line">◌ Newcomer</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="invite-section">
+          <div class="invite-label">Invite a writer</div>
+          <div class="invite-row">
+            <input class="invite-input" type="text" placeholder="Writer name…" />
+            <button class="invite-btn">Invite</button>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="disband-section">
+          <button class="disband-btn">🗑 Disband guild</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-col">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⚡ Sprint History</div>
+        </div>
+        <div class="stats-summary">
+          <div class="ss-card"><div class="ss-val">17</div><div class="ss-lbl">Sprints</div></div>
+          <div class="ss-card"><div class="ss-val">24,810</div><div class="ss-lbl">Total WC</div></div>
+          <div class="ss-card"><div class="ss-val">68<span style="font-size:11px;color:var(--color-text-tertiary)">wpm</span></div><div class="ss-lbl">Best Speed</div></div>
+          <div class="ss-card"><div class="ss-val">6</div><div class="ss-lbl">Wins</div></div>
+        </div>
+        <div class="sprint-history">
+          <table class="sprint-table">
+            <thead>
+              <tr>
+                <th>Sprint</th>
+                <th>Date</th>
+                <th>Duration</th>
+                <th>Top WPM</th>
+                <th>Word Count</th>
+                <th>Place</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-family:'Cinzel',serif;font-size:12px;color:var(--color-text-secondary);">#17</td>
+                <td style="color:var(--color-text-secondary);font-size:12px;">Today</td>
+                <td style="color:var(--color-text-secondary);font-size:12px;">15 min</td>
+                <td><span class="sprint-wpm">68<span>wpm</span></span></td>
+                <td><span class="wc-badge">1,240 wc</span></td>
+                <td><span class="sprint-place place-1">🥇 1st</span></td>
+              </tr>
+              <tr>
+                <td style="font-family:'Cinzel',serif;font-size:12px;color:var(--color-text-secondary);">#16</td>
+                <td style="color:var(--color-text-secondary);font-size:12px;">Yesterday</td>
+                <td style="color:var(--color-text-secondary);font-size:12px;">20 min</td>
+                <td><span class="sprint-wpm">61<span>wpm</span></span></td>
+                <td><span class="wc-badge">980 wc</span></td>
+                <td><span class="sprint-place place-2">🥈 2nd</span></td>
+              </tr>
+              <tr>
+                <td style="font-family:'Cinzel',serif;font-size:12px;color:var(--color-text-secondary);">#15</td>
+                <td style="color:var(--color-text-secondary);font-size:12px;">May 1</td>
+                <td style="color:var(--color-text-secondary);font-size:12px;">10 min</td>
+                <td><span class="sprint-wpm">55<span>wpm</span></span></td>
+                <td><span class="wc-badge">620 wc</span></td>
+                <td><span class="sprint-place place-1">🥇 1st</span></td>
+              </tr>
+              <tr>
+                <td style="font-family:'Cinzel',serif;font-size:12px;color:var(--color-text-secondary);">#14</td>
+                <td style="color:var(--color-text-secondary);font-size:12px;">Apr 30</td>
+                <td style="color:var(--color-text-secondary);font-size:12px;">30 min</td>
+                <td><span class="sprint-wpm">59<span>wpm</span></span></td>
+                <td><span class="wc-badge">1,870 wc</span></td>
+                <td><span class="sprint-place place-3">🥉 3rd</span></td>
+              </tr>
+              <tr>
+                <td style="font-family:'Cinzel',serif;font-size:12px;color:var(--color-text-secondary);">#13</td>
+                <td style="color:var(--color-text-secondary);font-size:12px;">Apr 29</td>
+                <td style="color:var(--color-text-secondary);font-size:12px;">15 min</td>
+                <td><span class="sprint-wpm">44<span>wpm</span></span></td>
+                <td><span class="wc-badge">710 wc</span></td>
+                <td><span class="sprint-place place-dnf">DNF</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel chat-panel">
+        <div class="panel-header">
+          <div class="panel-title">💬 Guild Chat</div>
+        </div>
+        <div class="chat-messages">
+          <div class="chat-date-div"><span class="chat-date-text">Today</span></div>
+          <div class="chat-msg">
+            <div class="msg-av">RV</div>
+            <div class="msg-body">
+              <div class="msg-meta"><span class="msg-author">Ravenquill</span><span class="msg-time">07:51</span></div>
+              <div class="msg-bubble">Anyone up for a sprint this morning?</div>
+            </div>
+          </div>
+          <div class="chat-msg">
+            <div class="msg-av">EJ</div>
+            <div class="msg-body">
+              <div class="msg-meta"><span class="msg-author">Entrail_JI</span><span class="msg-time">08:27</span></div>
+              <div class="msg-bubble">What is up</div>
+            </div>
+          </div>
+        </div>
+        <div class="chat-input-row">
+          <input class="chat-input" type="text" placeholder="Message your guild…" />
+          <button class="send-btn"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

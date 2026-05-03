@@ -1,27 +1,31 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Smile } from "lucide-react";
 import type { Participant, EmoteEvent } from "@/hooks/useSprintRoom";
+import { EmoteIcon, hasEmoteIcon } from "./EmoteIcons";
 
 // Curated taunt list — keep these mirrored with the server's EMOTES table in
 // artifacts/api-server/src/lib/wsHandler.ts. The server validates by id, so
-// adding a new emote requires changes in both places.
+// adding a new emote requires changes in both places. The `emoji` field is a
+// text fallback used only when EmoteIcon doesn't have a matching id.
 export const EMOTES: { id: string; emoji: string; label: string }[] = [
-  { id: "too_slow",     emoji: "😏", label: "Too slow!" },
+  { id: "too_slow",     emoji: "🐌", label: "Too slow!" },
   { id: "haha",         emoji: "😂", label: "Haha!" },
-  { id: "eat_dust",     emoji: "🚀", label: "Eat my dust!" },
-  { id: "catch_up",     emoji: "🐢", label: "Catch up!" },
+  { id: "eat_dust",     emoji: "🏁", label: "Eat my dust!" },
+  { id: "catch_up",     emoji: "➡", label: "Catch up!" },
   { id: "on_fire",      emoji: "🔥", label: "On fire!" },
   { id: "bow_down",     emoji: "👑", label: "Bow down." },
-  { id: "write_faster", emoji: "✍️", label: "Write faster!" },
-  { id: "good_luck",    emoji: "🤝", label: "Good luck!" },
-  { id: "bring_it",     emoji: "💪", label: "Bring it!" },
-  { id: "wake_up",      emoji: "😴", label: "Wake up!" },
+  { id: "write_faster", emoji: "✍", label: "Write faster!" },
+  { id: "good_luck",    emoji: "🍀", label: "Good luck!" },
+  { id: "bring_it",     emoji: "⚔", label: "Bring it!" },
+  { id: "wake_up",      emoji: "⏰", label: "Wake up!" },
   { id: "big_brain",    emoji: "🧠", label: "Big brain." },
-  { id: "gg",           emoji: "🏁", label: "GG!" },
+  { id: "gg",           emoji: "🏆", label: "GG!" },
 ];
 
 const COOLDOWN_MS = 1500;
+const POPOVER_WIDTH = 280;
 
 interface EmoteBarProps {
   participants: Participant[];
@@ -32,9 +36,9 @@ interface EmoteBarProps {
 
 /**
  * Small "Emote" trigger button + popover for picking a taunt and (optionally)
- * a single opponent to direct it at. Designed to live inside the writing
- * toolbar row so it doesn't add visual weight to the room. Sends are
- * client-side rate-limited in addition to the server-side cooldown.
+ * a single opponent to direct it at. The popover is portaled to document.body
+ * with fixed positioning so it can't be clipped or covered by the editor's
+ * stacking context.
  */
 export function EmoteBar({
   participants,
@@ -45,14 +49,44 @@ export function EmoteBar({
   const [open, setOpen] = useState(false);
   const [targetId, setTargetId] = useState<string | null>(null);
   const [cooldownLeft, setCooldownLeft] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const lastSentRef = useRef(0);
 
-  // Close on outside click + Escape.
+  // Recompute fixed-position coords for the popover when opened, on resize and
+  // on scroll. We anchor to the button's bottom-right and clamp to viewport so
+  // it never spills off-screen on mobile.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const btn = buttonRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const margin = 8;
+      const top = r.bottom + 6;
+      const desiredLeft = r.right - POPOVER_WIDTH;
+      const left = Math.max(margin, Math.min(desiredLeft, window.innerWidth - POPOVER_WIDTH - margin));
+      setPopoverPos({ top, left });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+
+  // Close on outside click + Escape. Outside = neither the trigger button nor
+  // the portaled popover.
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (buttonRef.current?.contains(t)) return;
+      if (popoverRef.current?.contains(t)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", onClick);
@@ -93,8 +127,9 @@ export function EmoteBar({
   const cooldownPct = cooldownLeft > 0 ? (cooldownLeft / COOLDOWN_MS) * 100 : 0;
 
   return (
-    <div ref={containerRef} style={{ position: "relative", display: "inline-flex" }}>
+    <>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
@@ -139,110 +174,118 @@ export function EmoteBar({
         )}
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            key="emote-popover"
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
-            transition={{ duration: 0.12 }}
-            role="dialog"
-            aria-label="Choose an emote"
-            style={{
-              position: "absolute",
-              top: "calc(100% + 6px)",
-              right: 0,
-              zIndex: 60,
-              width: 260,
-              background: "rgba(255,255,255,0.98)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-              border: "1px solid rgba(107,143,212,0.18)",
-              borderRadius: 14,
-              boxShadow: "0 12px 40px rgba(26,26,46,0.18)",
-              padding: 10,
-            }}
-          >
-            {/* Target picker */}
-            {opponents.length > 0 && (
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6B7280", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>
-                  Send to
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  <TargetChip
-                    label="Everyone"
-                    selected={targetId === null}
-                    onClick={() => setTargetId(null)}
-                  />
-                  {opponents.map((p) => (
+      {createPortal(
+        <AnimatePresence>
+          {open && popoverPos && (
+            <motion.div
+              ref={popoverRef}
+              key="emote-popover"
+              initial={{ opacity: 0, y: -4, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.98 }}
+              transition={{ duration: 0.12 }}
+              role="dialog"
+              aria-label="Choose an emote"
+              style={{
+                position: "fixed",
+                top: popoverPos.top,
+                left: popoverPos.left,
+                zIndex: 9999,
+                width: POPOVER_WIDTH,
+                background: "rgba(255,255,255,0.98)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
+                border: "1px solid rgba(107,143,212,0.18)",
+                borderRadius: 14,
+                boxShadow: "0 12px 40px rgba(26,26,46,0.22)",
+                padding: 10,
+              }}
+            >
+              {/* Target picker */}
+              {opponents.length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: "0.62rem", fontWeight: 700, color: "#6B7280", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>
+                    Send to
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     <TargetChip
-                      key={p.id}
-                      label={p.name}
-                      selected={targetId === p.id}
-                      onClick={() => setTargetId(p.id)}
+                      label="Everyone"
+                      selected={targetId === null}
+                      onClick={() => setTargetId(null)}
                     />
-                  ))}
+                    {opponents.map((p) => (
+                      <TargetChip
+                        key={p.id}
+                        label={p.name}
+                        selected={targetId === p.id}
+                        onClick={() => setTargetId(p.id)}
+                      />
+                    ))}
+                  </div>
                 </div>
+              )}
+
+              {/* Emote grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                {EMOTES.map((e) => {
+                  const onCooldown = cooldownLeft > 0;
+                  return (
+                    <button
+                      key={e.id}
+                      type="button"
+                      onClick={() => handlePick(e.id)}
+                      disabled={onCooldown}
+                      title={onCooldown ? `Cooldown ${(cooldownLeft / 1000).toFixed(1)}s` : e.label}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 4,
+                        padding: "8px 4px",
+                        borderRadius: 10,
+                        border: "1px solid rgba(107,143,212,0.12)",
+                        background: "linear-gradient(180deg, rgba(255,255,255,0.9), rgba(246,241,231,0.7))",
+                        cursor: onCooldown ? "not-allowed" : "pointer",
+                        opacity: onCooldown ? 0.45 : 1,
+                        transition: "background .12s, border-color .12s, transform .08s, opacity .12s, box-shadow .12s",
+                      }}
+                      onMouseEnter={(ev) => {
+                        if (onCooldown) return;
+                        ev.currentTarget.style.background = "linear-gradient(180deg, #ffffff, #f1ecdf)";
+                        ev.currentTarget.style.borderColor = "rgba(107,143,212,0.4)";
+                        ev.currentTarget.style.boxShadow = "0 4px 12px rgba(107,143,212,0.15)";
+                      }}
+                      onMouseLeave={(ev) => {
+                        ev.currentTarget.style.background = "linear-gradient(180deg, rgba(255,255,255,0.9), rgba(246,241,231,0.7))";
+                        ev.currentTarget.style.borderColor = "rgba(107,143,212,0.12)";
+                        ev.currentTarget.style.boxShadow = "none";
+                      }}
+                      onMouseDown={(ev) => { if (!onCooldown) ev.currentTarget.style.transform = "scale(0.96)"; }}
+                      onMouseUp={(ev) => { ev.currentTarget.style.transform = "scale(1)"; }}
+                    >
+                      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", height: 30 }}>
+                        <EmoteIcon id={e.id} size={28} />
+                      </span>
+                      <span style={{ fontSize: "0.62rem", fontWeight: 600, color: "#374151", textAlign: "center", lineHeight: 1.15, fontFamily: "Georgia, serif" }}>
+                        {e.label}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            )}
 
-            {/* Emote grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-              {EMOTES.map((e) => {
-                const onCooldown = cooldownLeft > 0;
-                return (
-                <button
-                  key={e.id}
-                  type="button"
-                  onClick={() => handlePick(e.id)}
-                  disabled={onCooldown}
-                  title={onCooldown ? `Cooldown ${(cooldownLeft / 1000).toFixed(1)}s` : e.label}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 2,
-                    padding: "8px 4px",
-                    borderRadius: 10,
-                    border: "1px solid transparent",
-                    background: "rgba(107,143,212,0.06)",
-                    cursor: onCooldown ? "not-allowed" : "pointer",
-                    opacity: onCooldown ? 0.45 : 1,
-                    transition: "background .12s, border-color .12s, transform .08s, opacity .12s",
-                  }}
-                  onMouseEnter={(ev) => {
-                    if (onCooldown) return;
-                    ev.currentTarget.style.background = "rgba(107,143,212,0.16)";
-                    ev.currentTarget.style.borderColor = "rgba(107,143,212,0.35)";
-                  }}
-                  onMouseLeave={(ev) => {
-                    ev.currentTarget.style.background = "rgba(107,143,212,0.06)";
-                    ev.currentTarget.style.borderColor = "transparent";
-                  }}
-                  onMouseDown={(ev) => { if (!onCooldown) ev.currentTarget.style.transform = "scale(0.96)"; }}
-                  onMouseUp={(ev) => { ev.currentTarget.style.transform = "scale(1)"; }}
-                >
-                  <span style={{ fontSize: "1.4rem", lineHeight: 1 }}>{e.emoji}</span>
-                  <span style={{ fontSize: "0.62rem", fontWeight: 600, color: "#374151", textAlign: "center", lineHeight: 1.15 }}>
-                    {e.label}
-                  </span>
-                </button>
-                );
-              })}
-            </div>
-
-            <div style={{ marginTop: 8, fontSize: "0.6rem", color: "#9CA3AF", textAlign: "center" }}>
-              {cooldownLeft > 0
-                ? `Cooldown ${(cooldownLeft / 1000).toFixed(1)}s`
-                : `Keep it friendly. ${COOLDOWN_MS / 1000}s cooldown.`}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+              <div style={{ marginTop: 8, fontSize: "0.6rem", color: "#9CA3AF", textAlign: "center" }}>
+                {cooldownLeft > 0
+                  ? `Cooldown ${(cooldownLeft / 1000).toFixed(1)}s`
+                  : `Keep it friendly. ${COOLDOWN_MS / 1000}s cooldown.`}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -288,7 +331,10 @@ interface EmoteOverlayProps {
 /**
  * Top-right floating stack of recent emote chips. Bubbles directed AT the
  * current player are highlighted in red so taunts stand out without being
- * disruptive. Auto-pruned by the hook after EMOTE_DISPLAY_MS.
+ * disruptive. Auto-pruned by the hook after EMOTE_DISPLAY_MS. Renders the
+ * branded EmoteIcon when the id is known, falling back to the server-provided
+ * emoji glyph for forwards-compatibility with new emotes the client doesn't
+ * recognize yet.
  */
 export function EmoteOverlay({ emotes, currentParticipantId }: EmoteOverlayProps) {
   return (
@@ -316,6 +362,7 @@ export function EmoteOverlay({ emotes, currentParticipantId }: EmoteOverlayProps
             if (e.targetId === currentParticipantId) toFragment = " → You";
             else if (e.targetName) toFragment = ` → ${e.targetName}`;
           }
+          const known = hasEmoteIcon(e.emoteId);
           return (
             <motion.div
               key={e.id}
@@ -342,9 +389,16 @@ export function EmoteOverlay({ emotes, currentParticipantId }: EmoteOverlayProps
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
+                fontFamily: "Georgia, serif",
               }}
             >
-              <span style={{ fontSize: "1.15rem", lineHeight: 1 }}>{e.emoji}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, flexShrink: 0 }}>
+                {known ? (
+                  <EmoteIcon id={e.emoteId} size={22} />
+                ) : (
+                  <span style={{ fontSize: "1.15rem", lineHeight: 1 }}>{e.emoji}</span>
+                )}
+              </span>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
                 <span style={{ color: targetedAtMe ? "#dc2626" : "#6B8FD4", fontWeight: 700 }}>
                   {fromLabel}
