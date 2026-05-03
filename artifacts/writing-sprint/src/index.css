@@ -516,3 +516,42 @@ html.villain h1, html.villain h2 {
   background: #6B8FD4;
   animation: portalBadgePulse 1.8s ease-in-out infinite;
 }
+
+/* ── Room editor responsive layout ─────────────────────────────────────
+   Desktop: writing area (1fr) + 240px right sidebar.
+   Mobile (≤860px): single column, sidebar stacks below the editor and
+   the writing toolbar scrolls horizontally instead of wrapping into a
+   tall vertical stack that crushes the editor. */
+.ws-room-grid {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+}
+@media (max-width: 860px) {
+  .ws-room-grid {
+    grid-template-columns: 1fr;
+  }
+  /* When the sidebar stacks below the editor, let it span the full
+     row instead of staying clamped at 240px. */
+  .ws-room-sidebar {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+/* Horizontal-scroll the writing toolbar on small screens so each chip
+   stays readable instead of wrapping to its own line. The toolbar
+   renders two inner row divs inside its column root, so the nowrap
+   override targets `> div > div` (the rows), not the column itself. */
+@media (max-width: 700px) {
+  .ws-toolbar-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .ws-toolbar-scroll::-webkit-scrollbar { display: none; }
+  .ws-toolbar-scroll > div > div {
+    flex-wrap: nowrap !important;
+    width: max-content;
+  }
+}

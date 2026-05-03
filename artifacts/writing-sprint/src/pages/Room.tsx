@@ -1582,8 +1582,8 @@ export default function Room() {
           )}
 
           <div
-            className={distractionFree ? "flex-1 flex flex-col px-6 md:px-24 py-4" : ""}
-            style={!distractionFree ? { display: "grid", gridTemplateColumns: "1fr 240px", gap: 16, flex: 1, maxWidth: 1100, margin: "0 auto", width: "100%" } : undefined}
+            className={distractionFree ? "flex-1 flex flex-col px-6 md:px-24 py-4" : "ws-room-grid"}
+            style={!distractionFree ? { gap: 16, flex: 1, maxWidth: 1100, margin: "0 auto", width: "100%" } : undefined}
           >
 
             {/* Writing area */}
@@ -1621,7 +1621,7 @@ export default function Room() {
               )}
               {!readMode && (
                 <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: "12px 16px", boxShadow: "0 4px 20px rgba(107,143,212,0.08)", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="ws-toolbar-scroll" style={{ flex: 1, minWidth: 0 }}>
                     <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} activeFormats={activeFormats} />
                   </div>
                   <EmoteBar
@@ -1744,7 +1744,7 @@ export default function Room() {
             </div>
 
             {/* Sidebar — hidden in distraction-free mode */}
-            {!distractionFree && <div className="flex flex-col gap-3" style={{ width: 240, minWidth: 240 }}>
+            {!distractionFree && <div className="flex flex-col gap-3 ws-room-sidebar" style={{ width: 240, minWidth: 240 }}>
               <div
                 className="transition-opacity duration-500"
                 style={{ opacity: isTyping && isRunning ? 0.3 : 1 }}
