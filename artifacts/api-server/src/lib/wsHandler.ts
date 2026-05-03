@@ -180,15 +180,15 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             userXp = profileRows[0].xp;
             // Only apply nameplate if user still has the required XP for it
             const nameplateMinXp: Record<string, number> = {
-              crimson: 10000, gold: 25000, blue: 75000, purple: 200000,
+              crimson: 20000, gold: 60000, blue: 175000, purple: 450000,
             };
             const minRequired = nameplateMinXp[profileRows[0].activeNameplate] ?? 0;
             userNameplate = userXp >= minRequired ? (profileRows[0].activeNameplate ?? "default") : "default";
           }
         }
 
-        // Grand Scribes (25k+ XP) can join any room as an invisible spectator
-        const isGrandScribe = userXp >= 25000;
+        // Grand Scribes (60k+ XP) can join any room as an invisible spectator
+        const isGrandScribe = userXp >= 60000;
 
         // ── Restore word count from DB if higher than in-memory value ────────
         const saved = await getWriting(code, name);

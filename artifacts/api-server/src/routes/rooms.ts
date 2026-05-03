@@ -13,15 +13,15 @@ const router: IRouter = Router();
 
 // ── Writing Deviation (XP decay) ────────────────────────────────────────────
 // Rank thresholds (index → min XP)
-const RANK_THRESHOLDS = [0, 250, 1000, 3500, 10000, 25000, 75000, 200000];
+const RANK_THRESHOLDS = [0, 500, 2000, 7000, 20000, 60000, 175000, 450000];
 // XP lost per day after 5 days idle, indexed by rank (0–2 = no decay, 3–7 = decay)
-const DECAY_RATE_PER_DAY = [0, 0, 0, 15, 40, 100, 250, 500];
+const DECAY_RATE_PER_DAY = [0, 0, 0, 25, 75, 200, 500, 1000];
 
 // In-memory cache for applyXpDecay — skip the DB round-trip if we ran it
 // recently for the same user. Decay is a once-per-day operation so 60 s is fine.
 const decayCache = new Map<string, { result: DecayResult | null; at: number }>();
 const DECAY_CACHE_TTL_MS = 60_000;
-const RANKER_MIN_XP = 200000;
+const RANKER_MIN_XP = 450000;
 const DECAY_GRACE_DAYS = 5;
 
 function getRankIndex(xp: number): number {
@@ -463,10 +463,10 @@ router.patch("/user/preferences", async (req, res): Promise<void> => {
   const { activeNameplate, activeSkin } = req.body ?? {};
 
   const NAMEPLATE_MIN_XP: Record<string, number> = {
-    default: 0, crimson: 10000, gold: 25000, blue: 75000, purple: 200000,
+    default: 0, crimson: 20000, gold: 60000, blue: 175000, purple: 450000,
   };
   const SKIN_MIN_XP: Record<string, number> = {
-    default: 0, eternal: 75000, final: 200000,
+    default: 0, eternal: 175000, final: 450000,
   };
 
   const rows = await db

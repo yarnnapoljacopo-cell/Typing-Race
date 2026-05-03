@@ -241,6 +241,20 @@ export async function ensureSchema(): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS user_quests_user_period_idx
         ON user_quests (user_id, scope, period_key);
+
+      -- Per-day writing log used to render the streak calendar and compute
+      -- current/longest streaks. day_key is YYYY-MM-DD in UTC.
+      CREATE TABLE IF NOT EXISTS daily_writing_log (
+        user_id            VARCHAR(100) NOT NULL,
+        day_key            CHAR(10)     NOT NULL,
+        words_written      INTEGER      NOT NULL DEFAULT 0,
+        sprints_completed  INTEGER      NOT NULL DEFAULT 0,
+        first_logged_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
+        updated_at         TIMESTAMP    NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (user_id, day_key)
+      );
+      CREATE INDEX IF NOT EXISTS daily_writing_log_user_day_idx
+        ON daily_writing_log (user_id, day_key DESC);
     `);
 
     // ── Phase 2: add any columns that were added to the schema after the
@@ -253,7 +267,10 @@ export async function ensureSchema(): Promise<void> {
         ADD COLUMN IF NOT EXISTS updated_at          TIMESTAMP   NOT NULL DEFAULT NOW(),
         ADD COLUMN IF NOT EXISTS active_nameplate    VARCHAR(20) NOT NULL DEFAULT 'default',
         ADD COLUMN IF NOT EXISTS active_skin         VARCHAR(20) NOT NULL DEFAULT 'default',
-        ADD COLUMN IF NOT EXISTS discord_webhook_url VARCHAR(500);
+        ADD COLUMN IF NOT EXISTS discord_webhook_url VARCHAR(500),
+        ADD COLUMN IF NOT EXISTS current_streak      INTEGER     NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS longest_streak      INTEGER     NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS last_streak_day     CHAR(10);
 
       ALTER TABLE rooms
         ADD COLUMN IF NOT EXISTS countdown_delay_minutes INTEGER NOT NULL DEFAULT 0,

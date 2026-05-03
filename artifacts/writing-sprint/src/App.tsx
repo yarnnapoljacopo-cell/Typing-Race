@@ -24,6 +24,9 @@ import Bag from "@/pages/Bag";
 import Chests from "@/pages/Chests";
 import Crafting from "@/pages/Crafting";
 import Quests from "@/pages/Quests";
+import Streak from "@/pages/Streak";
+import Stats from "@/pages/Stats";
+import { LevelUpListener } from "@/components/LevelUpListener";
 import { GuestProvider, useGuest } from "@/lib/guestContext";
 import { VillainModeProvider } from "@/lib/villainModeContext";
 import { SkinProvider } from "@/lib/skinContext";
@@ -408,6 +411,22 @@ function GlobalRankingGuard() {
   return <Redirect to="/" />;
 }
 
+function StreakGuard() {
+  const { isSignedIn, isLoaded } = useAuth();
+  const clerkTimedOut = useDevTimeout();
+  if (!isLoaded && !clerkTimedOut) return null;
+  if (isSignedIn) return <Streak />;
+  return <Redirect to="/" />;
+}
+
+function StatsGuard() {
+  const { isSignedIn, isLoaded } = useAuth();
+  const clerkTimedOut = useDevTimeout();
+  if (!isLoaded && !clerkTimedOut) return null;
+  if (isSignedIn) return <Stats />;
+  return <Redirect to="/" />;
+}
+
 // ── Cache invalidator ──────────────────────────────────────────────────────
 
 function ClerkQueryClientCacheInvalidator() {
@@ -583,6 +602,7 @@ function ClerkProviderWithRoutes() {
           <ClerkQueryClientCacheInvalidator />
           <TooltipProvider>
             <Sidebar />
+            <LevelUpListener />
             <Switch>
               <Route path="/" component={HomeRedirect} />
               <Route path="/portal" component={PortalGuard} />
@@ -592,6 +612,8 @@ function ClerkProviderWithRoutes() {
               <Route path="/guild" component={GuildGuard} />
               <Route path="/global-ranking" component={GlobalRankingGuard} />
               <Route path="/profile/:name" component={Profile} />
+              <Route path="/streak" component={StreakGuard} />
+              <Route path="/stats" component={StatsGuard} />
               <Route path="/offline-sprint" component={OfflineSprint} />
               <Route path="/shop" component={Shop} />
               <Route path="/bag" component={Bag} />

@@ -10,6 +10,7 @@ import shopRouter from "./shop";
 import storageRouter from "./storage";
 import guildsRouter from "./guilds";
 import questsRouter from "./quests";
+import streakRouter from "./streak";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(shopRouter);
 router.use(storageRouter);
 router.use(guildsRouter);
 router.use(questsRouter);
+router.use(streakRouter);
 
 export default router;

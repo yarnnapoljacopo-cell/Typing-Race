@@ -1,10 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser, useAuth } from "@clerk/react";
 import { useAuthedFetch } from "@/lib/authedFetch";
-import { ArrowLeft, Check, ChevronDown, ChevronUp, ExternalLink, Loader2 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { ArrowLeft, Check, ExternalLink, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -126,34 +125,6 @@ interface Top10Entry { writerName: string; xp: number; position: number; }
 
 async function fetchTop10(): Promise<Top10Entry[]> {
   const res = await fetch(`${basePath}/api/rankings/top10`);
-  if (!res.ok) return [];
-  return res.json();
-}
-
-interface SprintRecord {
-  id: number;
-  roomCode: string;
-  wordCount: number;
-  roomMode: string;
-  wordGoal: number | null;
-  updatedAt: string;
-  wpm: number | null;
-}
-
-interface ItemsStats { collected: number; total: number; }
-
-async function fetchItemsStats(
-  af: (url: string, opts?: RequestInit) => Promise<Response>,
-): Promise<ItemsStats> {
-  const res = await af(`${basePath}/api/user/items-stats`);
-  if (!res.ok) return { collected: 0, total: 0 };
-  return res.json();
-}
-
-async function fetchSprintHistory(
-  af: (url: string, opts?: RequestInit) => Promise<Response>,
-): Promise<SprintRecord[]> {
-  const res = await af(`${basePath}/api/user/sprints`);
   if (!res.ok) return [];
   return res.json();
 }
@@ -305,12 +276,12 @@ function RankBadge({ xp }: { xp: number }) {
             <div style={{ height: 7, background: "rgba(107,143,212,0.12)", borderRadius: 99, overflow: "hidden" }}>
               <div style={{
                 height: "100%", borderRadius: 99,
-                width: `${Math.min(100, Math.floor(((xp - 200000) / 100000) * 100))}%`,
+                width: `${Math.min(100, Math.floor(((xp - 450000) / 200000) * 100))}%`,
                 background: "linear-gradient(90deg, #6B8FD4, #e879a0)",
               }} />
             </div>
             <div style={{ fontSize: "0.75rem", color: "#7a7a92", textAlign: "center", marginTop: 6 }}>
-              XP above 200k counts toward your global rank position
+              XP above 450k counts toward your global rank position
             </div>
           </>
         ) : (
@@ -378,7 +349,6 @@ export default function Profile() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [webhookInput, setWebhookInput] = useState("");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["profile", name],
@@ -414,24 +384,6 @@ export default function Profile() {
     retry: 3,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
     placeholderData: (prev) => prev,
-  });
-
-  // Sprint history powers the Statistics block (WPM chart, productive hour,
-  // favourite mode, best WPM). Only fetch when viewing your own profile —
-  // there's no per-user history endpoint for other writers, and we don't
-  // want to do unnecessary DB work when browsing someone else's page.
-  const { data: sprintHistory } = useQuery({
-    queryKey: ["sprint-history"],
-    queryFn: () => fetchSprintHistory(authedFetch),
-    enabled: !!user && isLoaded && isOwnProfile,
-    staleTime: 60_000,
-  });
-
-  const { data: itemsStats } = useQuery({
-    queryKey: ["items-stats"],
-    queryFn: () => fetchItemsStats(authedFetch),
-    enabled: !!user && isLoaded && isOwnProfile,
-    staleTime: 60_000,
   });
 
   useEffect(() => {
@@ -526,81 +478,6 @@ export default function Profile() {
   const globalRankEntry = top10?.find(
     (e) => e.writerName.toLowerCase() === name.toLowerCase(),
   );
-
-  // ── Derived statistics from sprintHistory ──────────────────────────────────
-  const stats = useMemo(() => {
-    if (!sprintHistory || sprintHistory.length === 0) return null;
-
-    const MODE_LABELS: Record<string, string> = {
-      regular: "Regular", goal: "Goal", kart: "Kart Race",
-      gladiator: "Gladiator", boss: "Boss Battle", death: "Death Mode",
-    };
-    const MODE_EMOJI: Record<string, string> = {
-      regular: "✍️", goal: "🎯", kart: "🏎️", gladiator: "⚔️", boss: "👾", death: "💀",
-    };
-
-    // WPM series: oldest → newest, only sprints where wpm is recorded.
-    const wpmSeries = [...sprintHistory]
-      .filter((s) => typeof s.wpm === "number" && s.wpm! > 0)
-      .reverse()
-      .map((s, i) => ({
-        idx: i + 1,
-        wpm: s.wpm!,
-        date: new Date(s.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-      }));
-
-    const avgWpm = wpmSeries.length > 0
-      ? Math.round(wpmSeries.reduce((s, p) => s + p.wpm, 0) / wpmSeries.length)
-      : null;
-
-    // Best sprint by WPM (separate from best by word count, which is on data.highestWordCount)
-    const bestWpmSprint = wpmSeries.length > 0
-      ? wpmSeries.reduce((best, p) => (p.wpm > best.wpm ? p : best), wpmSeries[0])
-      : null;
-
-    // Productive hour: bucket sprints by hour-of-day, sum total words.
-    const hourBuckets = new Array<number>(24).fill(0);
-    for (const s of sprintHistory) {
-      const h = new Date(s.updatedAt).getHours();
-      hourBuckets[h] += s.wordCount;
-    }
-    const peakHour = hourBuckets.reduce(
-      (best, words, hour) => (words > best.words ? { hour, words } : best),
-      { hour: -1, words: 0 },
-    );
-    const formatHour = (h: number): string => {
-      if (h < 0) return "—";
-      const ampm = h < 12 ? "AM" : "PM";
-      const h12 = h % 12 === 0 ? 12 : h % 12;
-      const next = (h + 1) % 24;
-      const nextAmpm = next < 12 ? "AM" : "PM";
-      const next12 = next % 12 === 0 ? 12 : next % 12;
-      return `${h12}${ampm}–${next12}${nextAmpm}`;
-    };
-
-    // Favourite mode: most-played mode by count.
-    const modeCounts: Record<string, number> = {};
-    for (const s of sprintHistory) {
-      const m = s.roomMode ?? "regular";
-      modeCounts[m] = (modeCounts[m] ?? 0) + 1;
-    }
-    const sortedModes = Object.entries(modeCounts).sort((a, b) => b[1] - a[1]);
-    const favMode = sortedModes[0] ? {
-      key: sortedModes[0][0],
-      label: MODE_LABELS[sortedModes[0][0]] ?? sortedModes[0][0],
-      emoji: MODE_EMOJI[sortedModes[0][0]] ?? "✍️",
-      count: sortedModes[0][1],
-      pct: Math.round((sortedModes[0][1] / sprintHistory.length) * 100),
-    } : null;
-
-    return {
-      wpmSeries,
-      avgWpm,
-      bestWpmSprint,
-      peakHour: peakHour.hour >= 0 ? { ...peakHour, label: formatHour(peakHour.hour) } : null,
-      favMode,
-    };
-  }, [sprintHistory]);
 
   if (!name) {
     return <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-solid)", color: "var(--color-muted-foreground)" }}>No name provided.</div>;
@@ -709,214 +586,33 @@ export default function Profile() {
                 </p>
               )}
 
-              {/* ── Statistics & Analytics — only on own profile ──────────────── */}
+              {/* Quick links to dedicated pages — own profile only */}
               {isOwnProfile && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "#7a7a92", textTransform: "uppercase", textAlign: "center", marginBottom: 12 }}>
-                    Statistics
-                  </div>
-
-                  {/* WPM-over-time chart */}
-                  <div style={{ ...CARD, padding: "16px 14px 8px", marginBottom: 10 }}>
-                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
-                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#1a1a2e" }}>WPM Over Time</div>
-                      {stats?.avgWpm != null && (
-                        <div style={{ fontSize: "0.72rem", color: "#7a7a92" }}>
-                          Avg <strong style={{ color: "#6B8FD4" }}>{stats.avgWpm}</strong> wpm
-                        </div>
-                      )}
-                    </div>
-                    {stats && stats.wpmSeries.length >= 2 ? (
-                      <div style={{ width: "100%", height: 160 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={stats.wpmSeries} margin={{ top: 6, right: 8, left: -16, bottom: 0 }}>
-                            <CartesianGrid stroke="rgba(107,143,212,0.12)" strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#7a7a92" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={28} />
-                            <YAxis tick={{ fontSize: 10, fill: "#7a7a92" }} axisLine={false} tickLine={false} width={32} />
-                            <Tooltip
-                              contentStyle={{ background: "rgba(255,255,255,0.96)", border: "1px solid rgba(107,143,212,0.2)", borderRadius: 10, fontSize: "0.78rem" }}
-                              labelStyle={{ color: "#7a7a92", fontWeight: 600 }}
-                              formatter={(v: number) => [`${v} wpm`, "Speed"]}
-                            />
-                            <Line type="monotone" dataKey="wpm" stroke="#6B8FD4" strokeWidth={2.2} dot={{ r: 2.5, fill: "#6B8FD4" }} activeDot={{ r: 4 }} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : (
-                      <div style={{ padding: "20px 0", textAlign: "center", color: "#7a7a92", fontSize: "0.82rem" }}>
-                        {sprintHistory == null
-                          ? <><Loader2 size={14} style={{ display: "inline", marginRight: 6, animation: "spin 1s linear infinite" }} /> Loading…</>
-                          : "Finish a couple more sprints to see your typing speed trend."}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 4-tile analytics grid */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
-                    {/* Best WPM */}
-                    <div style={{ ...CARD, padding: "14px 12px", textAlign: "center" }}>
-                      <div style={{ fontSize: "1.1rem", marginBottom: 4 }}>⚡</div>
-                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.5rem", fontWeight: 700, color: "#1a1a2e", lineHeight: 1, marginBottom: 4 }}>
-                        {stats?.bestWpmSprint ? stats.bestWpmSprint.wpm : "–"}
-                      </div>
-                      <div style={{ fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.08em", color: "#7a7a92", textTransform: "uppercase" }}>Best WPM</div>
-                    </div>
-
-                    {/* Most Productive Hour */}
-                    <div style={{ ...CARD, padding: "14px 12px", textAlign: "center" }}>
-                      <div style={{ fontSize: "1.1rem", marginBottom: 4 }}>🕒</div>
-                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.15rem", fontWeight: 700, color: "#1a1a2e", lineHeight: 1.1, marginBottom: 4 }}>
-                        {stats?.peakHour ? stats.peakHour.label : "–"}
-                      </div>
-                      <div style={{ fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.08em", color: "#7a7a92", textTransform: "uppercase" }}>Most Productive</div>
-                    </div>
-
-                    {/* Favourite Mode */}
-                    <div style={{ ...CARD, padding: "14px 12px", textAlign: "center" }}>
-                      <div style={{ fontSize: "1.1rem", marginBottom: 4 }}>{stats?.favMode?.emoji ?? "🎮"}</div>
-                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.15rem", fontWeight: 700, color: "#1a1a2e", lineHeight: 1.1, marginBottom: 4 }}>
-                        {stats?.favMode ? stats.favMode.label : "–"}
-                      </div>
-                      <div style={{ fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.08em", color: "#7a7a92", textTransform: "uppercase" }}>
-                        Favourite Mode{stats?.favMode ? ` · ${stats.favMode.pct}%` : ""}
-                      </div>
-                    </div>
-
-                    {/* Items Collected */}
-                    <div style={{ ...CARD, padding: "14px 12px", textAlign: "center" }}>
-                      <div style={{ fontSize: "1.1rem", marginBottom: 4 }}>🎒</div>
-                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.5rem", fontWeight: 700, color: "#1a1a2e", lineHeight: 1, marginBottom: 4 }}>
-                        {itemsStats ? `${itemsStats.collected}/${itemsStats.total}` : "–"}
-                      </div>
-                      <div style={{ fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.08em", color: "#7a7a92", textTransform: "uppercase" }}>Items in Bag</div>
-                      {itemsStats && itemsStats.total > 0 && (
-                        <div style={{ height: 4, background: "rgba(107,143,212,0.12)", borderRadius: 99, overflow: "hidden", marginTop: 6 }}>
-                          <div style={{ height: "100%", width: `${Math.min(100, Math.round((itemsStats.collected / itemsStats.total) * 100))}%`, background: "#6B8FD4", borderRadius: 99 }} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Advanced Stats — collapsible; show when we have data OR when stats errored */}
-              {(data.sprintCount > 0 || data.statsError) && (
-                <div style={{ ...CARD, marginBottom: 20, overflow: "hidden" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
                   <button
-                    onClick={() => setAdvancedOpen((v) => !v)}
-                    style={{
-                      width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "14px 18px", background: "none", border: "none", cursor: "pointer",
-                      color: "#7a7a92", fontFamily: "'DM Sans', sans-serif",
-                    }}
+                    onClick={() => setLocation("/streak")}
+                    style={{ ...CARD, padding: "16px 14px", cursor: "pointer", textAlign: "left", border: "1px solid rgba(255,255,255,0.9)", display: "flex", flexDirection: "column", gap: 6 }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-3px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 28px rgba(107,143,212,0.15)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ""; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 20px rgba(107,143,212,0.08)"; }}
                   >
-                    <span style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                      Advanced Stats
-                    </span>
-                    {advancedOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                  </button>
-
-                  {advancedOpen && data.statsError && (
-                    <div style={{ padding: "12px 18px 16px", textAlign: "center" }}>
-                      <p style={{ color: "#92400e", fontSize: "0.83rem", marginBottom: 8 }}>Stats couldn't be loaded — the database query timed out.</p>
-                      <button
-                        onClick={retryStats}
-                        style={{ fontSize: "0.82rem", fontWeight: 700, color: "#b45309", background: "rgba(251,191,36,0.1)", border: "1px solid rgba(180,83,9,0.2)", borderRadius: 8, padding: "6px 14px", cursor: "pointer" }}
-                      >
-                        Retry
-                      </button>
+                    <div style={{ fontSize: "1.4rem" }}>🔥</div>
+                    <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#1a1a2e" }}>Streak</div>
+                    <div style={{ fontSize: "0.74rem", color: "#7a7a92", lineHeight: 1.4 }}>
+                      Daily writing calendar &amp; streak tracker
                     </div>
-                  )}
-
-                  {advancedOpen && !data.statsError && (() => {
-                    const avgWords = Math.round(data.totalWords / data.sprintCount);
-
-                    const MODE_LABELS: Record<string, string> = {
-                      regular: "Regular", goal: "Goal", kart: "Kart Race",
-                      gladiator: "Gladiator", boss: "Boss Battle",
-                    };
-                    const MODE_EMOJI: Record<string, string> = {
-                      regular: "✍️", goal: "🎯", kart: "🏎️", gladiator: "⚔️", boss: "👾",
-                    };
-
-                    const modeCounts: Record<string, number> = {};
-                    let goalTotal = 0;
-                    let goalMet = 0;
-                    let totalTracked = 0;
-
-                    if (sprintHistory) {
-                      for (const s of sprintHistory) {
-                        const m = s.roomMode ?? "regular";
-                        modeCounts[m] = (modeCounts[m] ?? 0) + 1;
-                        totalTracked++;
-                        if (m === "goal" && s.wordGoal != null) {
-                          goalTotal++;
-                          if (s.wordCount >= s.wordGoal) goalMet++;
-                        }
-                      }
-                    }
-
-                    const sortedModes = Object.entries(modeCounts).sort((a, b) => b[1] - a[1]);
-
-                    const rowStyle: React.CSSProperties = {
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "8px 0",
-                      borderTop: "1px solid rgba(107,143,212,0.1)",
-                      fontSize: "0.83rem",
-                    };
-
-                    return (
-                      <div style={{ padding: "4px 18px 16px" }}>
-                        <div style={rowStyle}>
-                          <span style={{ color: "#7a7a92" }}>Avg words / sprint</span>
-                          <span style={{ fontWeight: 700, color: "#1a1a2e" }}>{avgWords.toLocaleString()}</span>
-                        </div>
-
-                        {isOwnProfile && sprintHistory && totalTracked > 0 && (
-                          <>
-                            <div style={{ ...rowStyle, marginTop: 6, flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
-                              <span style={{ color: "#7a7a92", marginBottom: 2 }}>Mode breakdown</span>
-                              <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 5 }}>
-                                {sortedModes.map(([mode, count]) => {
-                                  const pct = Math.round((count / totalTracked) * 100);
-                                  const label = MODE_LABELS[mode] ?? mode;
-                                  const emoji = MODE_EMOJI[mode] ?? "✍️";
-                                  return (
-                                    <div key={mode} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                      <span style={{ fontSize: "0.8rem", width: 20, textAlign: "center" }}>{emoji}</span>
-                                      <span style={{ flex: 1, color: "#1a1a2e", fontSize: "0.8rem" }}>{label}</span>
-                                      <div style={{ width: 80, height: 5, borderRadius: 99, background: "rgba(107,143,212,0.12)", overflow: "hidden" }}>
-                                        <div style={{ height: "100%", width: `${pct}%`, background: "#6B8FD4", borderRadius: 99 }} />
-                                      </div>
-                                      <span style={{ fontSize: "0.75rem", color: "#7a7a92", minWidth: 32, textAlign: "right" }}>
-                                        {count} <span style={{ opacity: 0.6 }}>({pct}%)</span>
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            {goalTotal > 0 && (
-                              <div style={rowStyle}>
-                                <span style={{ color: "#7a7a92" }}>Goal completion</span>
-                                <span style={{ fontWeight: 700, color: goalMet / goalTotal >= 0.5 ? "#16a34a" : "#dc2626" }}>
-                                  {goalMet}/{goalTotal} <span style={{ fontWeight: 400, color: "#7a7a92", fontSize: "0.78rem" }}>({Math.round((goalMet / goalTotal) * 100)}%)</span>
-                                </span>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {isOwnProfile && !sprintHistory && (
-                          <div style={{ textAlign: "center", padding: "8px 0", color: "#7a7a92", fontSize: "0.8rem" }}>
-                            <Loader2 size={14} style={{ display: "inline", marginRight: 6, animation: "spin 1s linear infinite" }} />
-                            Loading…
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  </button>
+                  <button
+                    onClick={() => setLocation("/stats")}
+                    style={{ ...CARD, padding: "16px 14px", cursor: "pointer", textAlign: "left", border: "1px solid rgba(255,255,255,0.9)", display: "flex", flexDirection: "column", gap: 6 }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-3px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 28px rgba(107,143,212,0.15)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ""; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 20px rgba(107,143,212,0.08)"; }}
+                  >
+                    <div style={{ fontSize: "1.4rem" }}>📊</div>
+                    <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#1a1a2e" }}>Statistics</div>
+                    <div style={{ fontSize: "0.74rem", color: "#7a7a92", lineHeight: 1.4 }}>
+                      WPM trend, mode breakdown, productive hours
+                    </div>
+                  </button>
                 </div>
               )}
 

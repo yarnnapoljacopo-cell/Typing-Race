@@ -10,7 +10,7 @@ const DEFAULT_BAG_SLOTS = 20;
 const OVERFLOW_SLOTS = 5;
 
 // ── Rank thresholds (duplicated from rooms.ts for XP queries) ─────────────────
-const RANK_THRESHOLDS = [0, 250, 1000, 3500, 10000, 25000, 75000, 200000];
+const RANK_THRESHOLDS = [0, 500, 2000, 7000, 20000, 60000, 175000, 450000];
 
 function getRankIndex(xp: number): number {
   for (let i = RANK_THRESHOLDS.length - 1; i >= 0; i--) {

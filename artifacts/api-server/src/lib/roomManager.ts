@@ -571,6 +571,14 @@ async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void
       logger.warn({ err, code: room.code }, "quest bump failed");
     }
 
+    // ── Daily writing log + streak (best-effort) ──────────────────────────
+    try {
+      const { recordWritingDay } = await import("./streaks");
+      await recordWritingDay(p.clerkUserId, p.wordCount, 1);
+    } catch (err) {
+      logger.warn({ err, code: room.code }, "streak update failed");
+    }
+
     // ── Award a random chest only when the sprint timer ran out naturally ──
     if (naturalEnd) {
       const chestType = rollSprintChest();
