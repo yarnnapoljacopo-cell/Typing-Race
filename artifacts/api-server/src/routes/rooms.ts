@@ -177,7 +177,33 @@ router.post("/rooms", async (req, res): Promise<void> => {
   const rawGladiatorGap = rawBody.gladiatorDeathGap;
   const gladiatorDeathGap = typeof rawGladiatorGap === "number" ? rawGladiatorGap : null;
   const effectiveMode = bossWordGoal ? "boss" : (mode ?? "regular");
-  const room = createRoom(creatorName, durationMinutes, effectiveMode, countdownDelayMinutes, wordGoal, deathModeWpm, bossWordGoal, passwordHash, gladiatorDeathGap);
+
+  // Snapshot the host's equipped car & road skins (if signed in) so they
+  // are applied consistently for the entire sprint session.
+  let hostCarSkin: string | null = null;
+  let hostRoadSkin: string | null = null;
+  const authForSkins = getAuth(req);
+  const hostClerkUserId = authForSkins?.userId;
+  if (hostClerkUserId) {
+    try {
+      const skinRows = await db
+        .select({
+          equippedCarSkin: userProfilesTable.equippedCarSkin,
+          equippedRoadSkin: userProfilesTable.equippedRoadSkin,
+        })
+        .from(userProfilesTable)
+        .where(eq(userProfilesTable.clerkUserId, hostClerkUserId))
+        .limit(1);
+      if (skinRows[0]) {
+        hostCarSkin = skinRows[0].equippedCarSkin ?? null;
+        hostRoadSkin = skinRows[0].equippedRoadSkin ?? null;
+      }
+    } catch {
+      // Non-critical — fall back to defaults
+    }
+  }
+
+  const room = createRoom(creatorName, durationMinutes, effectiveMode, countdownDelayMinutes, wordGoal, deathModeWpm, bossWordGoal, passwordHash, gladiatorDeathGap, hostCarSkin, hostRoadSkin);
 
   res.status(201).json({
     code: room.code,

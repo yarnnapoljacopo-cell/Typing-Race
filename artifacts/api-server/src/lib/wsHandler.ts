@@ -343,6 +343,8 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
               bossTotalWords,
               deathModeWpm: room.deathModeWpm,
               gladiatorDeathGap: room.gladiatorDeathGap,
+              hostCarSkin: room.hostCarSkin,
+              hostRoadSkin: room.hostRoadSkin,
               timeLeft:
                 room.status === "running" && room.endTime
                   ? Math.max(0, Math.floor((room.endTime - Date.now()) / 1000))

@@ -1403,6 +1403,9 @@ export default function Room() {
                   starActiveIds={room.mode === "kart" ? kartState.starActiveIds : undefined}
                   isKartMode={room.mode === "kart"}
                   localWordCount={isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : undefined}
+                  hostCarSkin={room.hostCarSkin}
+                  hostRoadSkin={room.hostRoadSkin}
+                  roomMode={room.mode}
                 />
               )}
               {/* Death Mode: grace-period countdown banner */}

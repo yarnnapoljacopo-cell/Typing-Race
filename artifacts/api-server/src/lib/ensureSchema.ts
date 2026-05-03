@@ -267,6 +267,8 @@ export async function ensureSchema(): Promise<void> {
         ADD COLUMN IF NOT EXISTS updated_at          TIMESTAMP   NOT NULL DEFAULT NOW(),
         ADD COLUMN IF NOT EXISTS active_nameplate    VARCHAR(20) NOT NULL DEFAULT 'default',
         ADD COLUMN IF NOT EXISTS active_skin         VARCHAR(20) NOT NULL DEFAULT 'default',
+        ADD COLUMN IF NOT EXISTS equipped_car_skin   VARCHAR(30) NOT NULL DEFAULT 'bluebird',
+        ADD COLUMN IF NOT EXISTS equipped_road_skin  VARCHAR(30) NOT NULL DEFAULT 'mushroom',
         ADD COLUMN IF NOT EXISTS discord_webhook_url VARCHAR(500),
         ADD COLUMN IF NOT EXISTS current_streak      INTEGER     NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS longest_streak      INTEGER     NOT NULL DEFAULT 0,
@@ -283,6 +285,8 @@ export async function ensureSchema(): Promise<void> {
         ADD COLUMN IF NOT EXISTS start_time              BIGINT,
         ADD COLUMN IF NOT EXISTS end_time                BIGINT,
         ADD COLUMN IF NOT EXISTS countdown_ends_at       BIGINT,
+        ADD COLUMN IF NOT EXISTS host_car_skin           VARCHAR(30),
+        ADD COLUMN IF NOT EXISTS host_road_skin          VARCHAR(30),
         ADD COLUMN IF NOT EXISTS created_at              TIMESTAMP NOT NULL DEFAULT NOW(),
         ADD COLUMN IF NOT EXISTS updated_at              TIMESTAMP NOT NULL DEFAULT NOW();
 

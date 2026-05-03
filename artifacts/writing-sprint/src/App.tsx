@@ -20,6 +20,7 @@ import Guild from "@/pages/Guild";
 import GlobalRanking from "@/pages/GlobalRanking";
 import OfflineSprint from "@/pages/OfflineSprint";
 import Shop from "@/pages/Shop";
+import Skins from "@/pages/Skins";
 import Bag from "@/pages/Bag";
 import Chests from "@/pages/Chests";
 import Crafting from "@/pages/Crafting";
@@ -616,6 +617,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/stats" component={StatsGuard} />
               <Route path="/offline-sprint" component={OfflineSprint} />
               <Route path="/shop" component={Shop} />
+              <Route path="/skins" component={Skins} />
               <Route path="/bag" component={Bag} />
               <Route path="/chests" component={Chests} />
               <Route path="/crafting" component={Crafting} />

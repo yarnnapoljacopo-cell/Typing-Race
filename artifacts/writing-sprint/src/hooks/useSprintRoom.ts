@@ -28,6 +28,8 @@ export interface RoomState {
   countdownTimeLeft: number | null;
   participants: Participant[];
   creatorXp: number;
+  hostCarSkin: string | null;
+  hostRoadSkin: string | null;
 }
 
 export interface GladiatorResult {
@@ -116,6 +118,8 @@ const ROOM_STATE_DEFAULTS = {
   deathModeWpm: null,
   gladiatorDeathGap: null,
   creatorXp: 0,
+  hostCarSkin: null,
+  hostRoadSkin: null,
 };
 
 // Exponential backoff: 500ms, 1s, 2s, 4s, 8s, capped at 30s

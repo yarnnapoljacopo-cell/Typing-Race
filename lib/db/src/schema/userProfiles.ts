@@ -9,6 +9,8 @@ export const userProfilesTable = pgTable("user_profiles", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   activeNameplate: varchar("active_nameplate", { length: 20 }).notNull().default("default"),
   activeSkin: varchar("active_skin", { length: 20 }).notNull().default("default"),
+  equippedCarSkin: varchar("equipped_car_skin", { length: 30 }).notNull().default("bluebird"),
+  equippedRoadSkin: varchar("equipped_road_skin", { length: 30 }).notNull().default("mushroom"),
   discordWebhookUrl: varchar("discord_webhook_url", { length: 500 }),
 });
 

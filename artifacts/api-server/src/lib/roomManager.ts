@@ -104,6 +104,8 @@ export interface Room {
   gladiatorDeathGap: number | null;
   gladiatorMatchStats: GladiatorMatchStats | null;
   creatorXp: number;
+  hostCarSkin: string | null;
+  hostRoadSkin: string | null;
 }
 
 export interface GladiatorMatchStats {
@@ -144,6 +146,8 @@ function persistRoom(room: Room): void {
       startTime: room.startTime,
       endTime: room.endTime,
       countdownEndsAt: room.countdownEndsAt,
+      hostCarSkin: room.hostCarSkin,
+      hostRoadSkin: room.hostRoadSkin,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
@@ -154,6 +158,8 @@ function persistRoom(room: Room): void {
         endTime: room.endTime,
         countdownEndsAt: room.countdownEndsAt,
         durationMinutes: room.durationMinutes,
+        hostCarSkin: room.hostCarSkin,
+        hostRoadSkin: room.hostRoadSkin,
         updatedAt: new Date(),
       },
     })
@@ -207,6 +213,9 @@ export async function restoreRoomsFromDB(): Promise<void> {
         activeStars: new Map(),
         gladiatorDeathGap: (row as Record<string, unknown>).gladiatorDeathGap as number | null ?? null,
         gladiatorMatchStats: null,
+        creatorXp: 0,
+        hostCarSkin: row.hostCarSkin ?? null,
+        hostRoadSkin: row.hostRoadSkin ?? null,
       };
 
       if (row.status === "running") {
@@ -273,6 +282,8 @@ export function createRoom(
   bossWordGoal: number | null = null,
   passwordHash: string | null = null,
   gladiatorDeathGap: number | null = null,
+  hostCarSkin: string | null = null,
+  hostRoadSkin: string | null = null,
 ): Room {
   let code = generateRoomCode();
   while (rooms.has(code)) {
@@ -301,6 +312,8 @@ export function createRoom(
     gladiatorDeathGap: mode === "gladiator" && gladiatorDeathGap && VALID_GLADIATOR_DEATH_GAPS.includes(gladiatorDeathGap as (typeof VALID_GLADIATOR_DEATH_GAPS)[number]) ? gladiatorDeathGap : (mode === "gladiator" ? 400 : null),
     gladiatorMatchStats: null,
     creatorXp: 0,
+    hostCarSkin,
+    hostRoadSkin,
   };
 
   rooms.set(code, room);
@@ -414,6 +427,8 @@ export function broadcastRoomState(room: Room): void {
       bossTotalWords,
       deathModeWpm: room.deathModeWpm,
       gladiatorDeathGap: room.gladiatorDeathGap,
+      hostCarSkin: room.hostCarSkin,
+      hostRoadSkin: room.hostRoadSkin,
       timeLeft,
       countdownTimeLeft,
       participants,

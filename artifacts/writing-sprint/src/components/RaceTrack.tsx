@@ -1,6 +1,7 @@
 import { memo, useRef, type ReactNode } from "react";
 import { Participant } from "@/hooks/useSprintRoom";
 import { motion, AnimatePresence } from "framer-motion";
+import { SkinnedCar, SkinnedKart, getRoadStyle, shouldApplySkins } from "@/lib/skinCatalog";
 
 const ITEM_BOX_INTERVAL = 250;
 
@@ -14,6 +15,9 @@ interface RaceTrackProps {
   starActiveIds?: string[];
   isKartMode?: boolean;
   localWordCount?: number;
+  hostCarSkin?: string | null;
+  hostRoadSkin?: string | null;
+  roomMode?: string | null;
 }
 
 const LANE_COLORS: { car: string; shade: string; light: string }[] = [
@@ -90,7 +94,14 @@ export const RaceTrack = memo(function RaceTrack({
   starActiveIds,
   isKartMode,
   localWordCount,
+  hostCarSkin,
+  hostRoadSkin,
+  roomMode,
 }: RaceTrackProps) {
+  const skinsActive = shouldApplySkins(roomMode);
+  const activeCarSkin = skinsActive ? (hostCarSkin ?? null) : null;
+  const activeRoadSkin = skinsActive ? (hostRoadSkin ?? null) : null;
+  const roadStyle = getRoadStyle(activeRoadSkin);
   const laneMap = useRef<Map<string, number>>(new Map());
   const nextLane = useRef(0);
   participants.forEach((p) => {
@@ -120,7 +131,7 @@ export const RaceTrack = memo(function RaceTrack({
     return (
       <div style={{ borderRadius: 16, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.22)", marginBottom: 2 }}>
         {/* Sky / header */}
-        <div style={{ background: "linear-gradient(180deg, #1a1040 0%, #2a1a60 40%, #3a2a20 100%)", padding: "10px 16px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ background: roadStyle.kartSky, padding: "10px 16px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.12em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80", display: "inline-block", animation: "kartTrackPulse 2s ease-in-out infinite" }} />
             Race Track
@@ -137,9 +148,9 @@ export const RaceTrack = memo(function RaceTrack({
         </div>
 
         {/* Road */}
-        <div style={{ background: "linear-gradient(180deg, #2a2035 0%, #1e1830 100%)", position: "relative" }}>
+        <div style={{ background: roadStyle.kartRoad, position: "relative" }}>
           {/* Top kerb */}
-          <div style={{ height: 6, background: "repeating-linear-gradient(90deg, #e53e3e 0px, #e53e3e 18px, white 18px, white 36px)", opacity: 0.85 }} />
+          <div style={{ height: 6, background: roadStyle.topKerb, opacity: 0.85 }} />
 
           {/* Reaper line */}
           {reaperFraction !== null && (
@@ -287,12 +298,22 @@ export const RaceTrack = memo(function RaceTrack({
                                 : undefined,
                             }}
                           >
-                            <KartIcon
-                              car={eliminated ? "#6b7280" : finished ? "#fbbf24" : colors.car}
-                              shade={eliminated ? "#4b5563" : finished ? "#d97706" : colors.shade}
-                              light={eliminated ? "#9ca3af" : finished ? "#fcd34d" : colors.light}
-                              laneNum={laneIndex + 1}
-                            />
+                            {activeCarSkin ? (
+                              <SkinnedKart
+                                skinKey={activeCarSkin}
+                                laneNum={laneIndex + 1}
+                                fallbackColor={eliminated ? "#6b7280" : finished ? "#fbbf24" : undefined}
+                                fallbackShade={eliminated ? "#4b5563" : finished ? "#d97706" : undefined}
+                                fallbackLight={eliminated ? "#9ca3af" : finished ? "#fcd34d" : undefined}
+                              />
+                            ) : (
+                              <KartIcon
+                                car={eliminated ? "#6b7280" : finished ? "#fbbf24" : colors.car}
+                                shade={eliminated ? "#4b5563" : finished ? "#d97706" : colors.shade}
+                                light={eliminated ? "#9ca3af" : finished ? "#fcd34d" : colors.light}
+                                laneNum={laneIndex + 1}
+                              />
+                            )}
                           </motion.div>
                         </div>
                       </motion.div>
@@ -327,7 +348,7 @@ export const RaceTrack = memo(function RaceTrack({
           )}
 
           {/* Bottom kerb */}
-          <div style={{ height: 6, background: "repeating-linear-gradient(90deg, #2b6cb0 0px, #2b6cb0 18px, white 18px, white 36px)", opacity: 0.85 }} />
+          <div style={{ height: 6, background: roadStyle.bottomKerb, opacity: 0.85 }} />
         </div>
       </div>
     );
@@ -335,7 +356,7 @@ export const RaceTrack = memo(function RaceTrack({
 
   // ── Regular (non-kart) race track ──────────────────────────────────────
   return (
-    <div className="w-full rounded-xl overflow-hidden shadow-sm border" style={{ background: "#2d4a1e" }}>
+    <div className="w-full rounded-xl overflow-hidden shadow-sm border" style={{ background: roadStyle.trackBg }}>
       <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
         <span className="text-white/70 text-xs font-semibold uppercase tracking-widest flex items-center gap-1.5">
           Race Track
@@ -396,7 +417,11 @@ export const RaceTrack = memo(function RaceTrack({
                       )}
 
                       <motion.div animate={finished ? { scale: [1, 1.08, 1] } : { scale: 1 }} transition={finished ? { repeat: Infinity, duration: 1.4, ease: "easeInOut" } : {}} style={{ opacity: eliminated ? 0.4 : 1, filter: hasStarActive ? "drop-shadow(0 0 6px #fbbf24) drop-shadow(0 0 10px #fde047)" : undefined }}>
-                        <CarIcon color={eliminated ? "#6b7280" : finished ? "#fbbf24" : colors.car} />
+                        {activeCarSkin ? (
+                          <SkinnedCar skinKey={activeCarSkin} color={eliminated ? "#6b7280" : finished ? "#fbbf24" : undefined} />
+                        ) : (
+                          <CarIcon color={eliminated ? "#6b7280" : finished ? "#fbbf24" : colors.car} />
+                        )}
                       </motion.div>
                     </motion.div>
                   </div>

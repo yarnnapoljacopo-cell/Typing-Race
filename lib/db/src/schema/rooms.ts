@@ -15,6 +15,8 @@ export const roomsTable = pgTable("rooms", {
   startTime: bigint("start_time", { mode: "number" }),
   endTime: bigint("end_time", { mode: "number" }),
   countdownEndsAt: bigint("countdown_ends_at", { mode: "number" }),
+  hostCarSkin: varchar("host_car_skin", { length: 30 }),
+  hostRoadSkin: varchar("host_road_skin", { length: 30 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

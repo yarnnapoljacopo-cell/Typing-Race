@@ -210,6 +210,9 @@ export default function Shop() {
             <ShoppingBag size={18} className="text-primary" />
             <h1 className="font-bold text-lg">Spirit Coin Shop</h1>
           </div>
+          <Button variant="outline" size="sm" onClick={() => setLocation("/skins")} className="shrink-0">
+            Skins
+          </Button>
           {shopData && (
             <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 font-bold text-sm">
               🪙 {shopData.balance.toLocaleString()}

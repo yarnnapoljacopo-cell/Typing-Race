@@ -11,6 +11,7 @@ import storageRouter from "./storage";
 import guildsRouter from "./guilds";
 import questsRouter from "./quests";
 import streakRouter from "./streak";
+import skinsRouter from "./skins";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(storageRouter);
 router.use(guildsRouter);
 router.use(questsRouter);
 router.use(streakRouter);
+router.use(skinsRouter);
 
 export default router;
