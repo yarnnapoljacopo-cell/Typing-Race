@@ -47,6 +47,15 @@ async function fetchGuild(af: AF): Promise<GuildSummary> {
   if (!r.ok) throw new Error("Failed to load guild");
   return r.json();
 }
+// Same shape & query key as Sidebar so React Query dedupes the request and
+// both surfaces show the SAME writer name (the DB is the source of truth;
+// Clerk publicMetadata can drift after a rename).
+async function fetchOwnPrefs(af: AF) {
+  const r = await af(`${basePath}/api/user/profile`);
+  if (!r.ok) throw new Error("Not authenticated");
+  const data = await r.json();
+  return { writerName: (data.writerName ?? "") as string };
+}
 
 export function UserStatsDropdown() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -81,6 +90,12 @@ export function UserStatsDropdown() {
     enabled,
     staleTime: 60_000,
   });
+  const { data: ownPrefs } = useQuery({
+    queryKey: ["ownPrefs"],
+    queryFn: () => fetchOwnPrefs(af),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
 
   // Close on Escape / outside click.
   useEffect(() => {
@@ -112,7 +127,11 @@ export function UserStatsDropdown() {
   const currentStreak = streak?.currentStreak ?? 0;
   const coinBalance = coins?.balance ?? 0;
 
+  // Prefer the DB writerName (same source the Sidebar uses) so the profile
+  // link in the top bar matches the one in the sidebar. Fall back to Clerk
+  // fields only while the profile request is still in flight.
   const writerName =
+    ownPrefs?.writerName ||
     (user?.publicMetadata?.writerName as string | undefined) ||
     user?.username ||
     user?.fullName ||
