@@ -653,10 +653,34 @@ async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void
       logger.warn({ err, code: room.code }, "quest bump failed");
     }
 
-    // ── Daily writing log + streak (best-effort) ──────────────────────────
+    // ── Daily writing log + streak + daily-streak chest (best-effort) ────
     try {
       const { recordWritingDay } = await import("./streaks");
-      await recordWritingDay(p.clerkUserId, p.wordCount, 1);
+      const award = await recordWritingDay(p.clerkUserId, p.wordCount, 1);
+      // Tell the client about chests granted by the streak system so the
+      // bag can refresh and any "you got X" toast can fire. We reuse the
+      // existing "chest_awarded" message shape that the per-sprint roll
+      // (further below) already uses.
+      if (award.base && p.ws.readyState === WebSocket.OPEN) {
+        p.ws.send(JSON.stringify({
+          type: "chest_awarded",
+          chestType: award.base,
+          source: "daily_streak",
+          streakDay: award.streakDay,
+        }));
+      }
+      if (award.bonus && p.ws.readyState === WebSocket.OPEN) {
+        p.ws.send(JSON.stringify({
+          type: "chest_awarded",
+          chestType: award.bonus,
+          source: "streak_milestone",
+          streakDay: award.streakDay,
+        }));
+        logger.info(
+          { userId: p.clerkUserId, chestType: award.bonus, streakDay: award.streakDay },
+          "Streak milestone bonus chest awarded",
+        );
+      }
     } catch (err) {
       logger.warn({ err, code: room.code }, "streak update failed");
     }
