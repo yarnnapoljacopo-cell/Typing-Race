@@ -19,7 +19,7 @@ function getPool(): pg.Pool {
     }
     _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      max: 30,
+      max: 50,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
       allowExitOnIdle: false,
@@ -55,29 +55,68 @@ function getPool(): pg.Pool {
       });
     });
 
-    // Long-held-connection detector. The most common cause of pool exhaustion
-    // is a route handler that awaits something slow (a helper that itself
-    // acquires a client, an external HTTP call, etc.) while still holding
-    // its own client. This timer surfaces those spots BEFORE the pool runs
-    // out, so we can fix them. Implemented via the pool's "acquire" event so
-    // we don't have to monkey-patch connect() (which has multiple call signs).
-    const HELD_TOO_LONG_MS = 5_000;
-    const heldTimers = new WeakMap<object, NodeJS.Timeout>();
+    // Long-held-connection detector + forced-release watchdog.
+    //
+    // The most common cause of pool exhaustion is a route handler that awaits
+    // something slow (a helper that itself acquires a client, an external HTTP
+    // call, etc.) while still holding its own client. The WARN timer at 5 s
+    // logs a stack trace so we can spot the leak in code review.
+    //
+    // The KILL timer at 25 s force-destroys the underlying connection if it
+    // is still checked out. pg-pool treats a destroyed client as dead and
+    // creates a fresh one on the next acquire — so even if a handler somewhere
+    // forgets to release (or hangs forever on an external call), the pool
+    // self-heals within 25 s instead of staying permanently saturated until
+    // the process is restarted. This is what allowed our previous outages
+    // ("high pressure" for hours) to keep happening: once a slot was lost,
+    // it never came back. With this watchdog, the worst case is a 25 s
+    // disruption, not an indefinite outage.
+    const WARN_HELD_MS  = 5_000;
+    const FORCE_KILL_MS = 25_000;
+    type HeldEntry = { warnTimer: NodeJS.Timeout; killTimer: NodeJS.Timeout };
+    const heldTimers = new WeakMap<object, HeldEntry>();
     _pool.on("acquire", (client) => {
       const acquiredAt = Date.now();
-      const stack = new Error("acquired here").stack?.split("\n").slice(2, 6).join("\n");
-      const timer = setTimeout(() => {
+      const stack = new Error("acquired here").stack?.split("\n").slice(2, 8).join("\n");
+      const warnTimer = setTimeout(() => {
         console.warn(
-          `[db-pool] client held > ${HELD_TOO_LONG_MS}ms — possible leak or slow handler`,
+          `[db-pool] client held > ${WARN_HELD_MS}ms — possible leak or slow handler`,
           { heldMs: Date.now() - acquiredAt, stack },
         );
-      }, HELD_TOO_LONG_MS);
-      timer.unref?.(); // don't hold the event loop
-      heldTimers.set(client, timer);
+      }, WARN_HELD_MS);
+      warnTimer.unref?.();
+      const killTimer = setTimeout(() => {
+        console.error(
+          `[db-pool] client held > ${FORCE_KILL_MS}ms — force-destroying to free pool slot`,
+          { heldMs: Date.now() - acquiredAt, stack },
+        );
+        // Destroy the underlying connection. Passing an Error to release tells
+        // pg-pool to discard this client rather than return it to the idle
+        // bucket, so the slot is freed and the next acquire gets a fresh one.
+        try {
+          const c = client as unknown as {
+            release?: (err?: Error) => void;
+            connection?: { stream?: { destroy?: () => void } };
+          };
+          if (typeof c.release === "function") {
+            c.release(new Error("[db-pool] force-released after 25s held timeout"));
+          } else {
+            c.connection?.stream?.destroy?.();
+          }
+        } catch (e) {
+          console.error("[db-pool] force-release failed:", (e as Error).message);
+        }
+      }, FORCE_KILL_MS);
+      killTimer.unref?.();
+      heldTimers.set(client, { warnTimer, killTimer });
     });
     _pool.on("release", (_err, client) => {
       const t = heldTimers.get(client);
-      if (t) { clearTimeout(t); heldTimers.delete(client); }
+      if (t) {
+        clearTimeout(t.warnTimer);
+        clearTimeout(t.killTimer);
+        heldTimers.delete(client);
+      }
     });
   }
   return _pool;
