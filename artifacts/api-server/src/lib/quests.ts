@@ -363,18 +363,24 @@ export async function listUserQuests(userId: string, now: Date = new Date()): Pr
  *
  * For metricKind="max", we use GREATEST instead of progress + amount.
  */
-export async function bumpQuests(userId: string, metric: string, amount: number): Promise<void> {
+export async function bumpQuests(
+  userId: string,
+  metric: string,
+  amount: number,
+  existingClient?: PoolClient,
+): Promise<void> {
   if (!userId || !amount || amount <= 0) return;
   const defs = QUESTS_BY_METRIC.get(metric);
   if (!defs?.length) return;
   const dKey = dailyKey();
   const wKey = weeklyKey();
   try {
+    // Always acquire a fresh client for the rolling step (it does BEGIN/COMMIT
+    // and would conflict with an existingClient already inside a transaction).
     await ensureUserQuestsRolled(userId);
     const sumDefs = defs.filter((d) => d.metricKind === "sum").map((d) => d.id);
     const maxDefs = defs.filter((d) => d.metricKind === "max").map((d) => d.id);
-    const client = await pool.connect();
-    try {
+    const run = async (client: PoolClient): Promise<void> => {
       if (sumDefs.length) {
         await client.query(
           `UPDATE user_quests
@@ -399,8 +405,12 @@ export async function bumpQuests(userId: string, metric: string, amount: number)
           [amount, userId, maxDefs, dKey, wKey],
         );
       }
-    } finally {
-      client.release();
+    };
+    if (existingClient) {
+      await run(existingClient);
+    } else {
+      const client = await pool.connect();
+      try { await run(client); } finally { client.release(); }
     }
   } catch (err) {
     logger.warn({ err, userId, metric, amount }, "bumpQuests failed (non-fatal)");
