@@ -294,6 +294,25 @@ function RoomWritersDropdown({
               <span style={{ fontSize: "0.84rem", fontWeight: 600, color: "#1a1a2e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {p.name}
               </span>
+              {p.role === "editor" && (
+                <span
+                  title="Editor — spectating, not racing"
+                  style={{
+                    marginLeft: "auto",
+                    fontSize: "0.62rem",
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: "#6B8FD4",
+                    background: "rgba(107,143,212,0.14)",
+                    padding: "2px 6px",
+                    borderRadius: 6,
+                    flexShrink: 0,
+                  }}
+                >
+                  Editor
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -316,6 +335,10 @@ export default function Room() {
   const code = searchParams.get("code") || "";
   const name = searchParams.get("name") || "";
   const isCreatorParams = searchParams.get("isCreator") === "true";
+  // "writer" (default) gets a car & races. "editor" joins as a visible
+  // non-racer — others can see what they're editing/noting.
+  const sprintRole: "writer" | "editor" =
+    searchParams.get("role") === "editor" ? "editor" : "writer";
 
   // When the Folio sprint modal embeds /portal in an iframe, this flag is set
   // by Folio in sessionStorage so the Room can post the final text back.
@@ -563,7 +586,13 @@ export default function Room() {
     betOutcome,
     setBetOutcome,
     betsSettledTick,
-  } = useSprintRoom({ code, name, isCreator: isCreatorParams, password: roomPassword, clerkUserId: userId ?? null });
+  } = useSprintRoom({ code, name, isCreator: isCreatorParams, password: roomPassword, clerkUserId: userId ?? null, role: sprintRole });
+
+  // Find self in the participants list to know what role the server assigned
+  // (server may downgrade editor → writer in gladiator mode, etc.).
+  const myRole: "writer" | "editor" =
+    (room?.participants.find((p) => p.id === participantId)?.role ?? sprintRole);
+  const isEditor = myRole === "editor";
 
   // ── Betting state ────────────────────────────────────────────────────────
   const qcBet = useQueryClient();
@@ -1259,7 +1288,7 @@ export default function Room() {
                 <Button
                   variant="default"
                   onClick={() => {
-                    setLocation(`/room?code=${encodeURIComponent(code)}&name=${encodeURIComponent(name)}`);
+                    setLocation(`/room?code=${encodeURIComponent(code)}&name=${encodeURIComponent(name)}${sprintRole === "editor" ? "&role=editor" : ""}${isCreatorParams ? "&isCreator=true" : ""}`);
                     window.location.reload();
                   }}
                   className="w-full"
@@ -1822,8 +1851,11 @@ export default function Room() {
                 </button>
               </div>
 
-              {/* Live writers panel — only in open mode */}
-              {isOpenMode && otherParticipants.length > 0 && (
+              {/* Live writers panel — shown in open (Spectator) mode, for
+                  editors (so they can read what writers are doing), AND
+                  whenever any other participant is an editor (so writers can
+                  see the editor's notes/edits in real time). */}
+              {(isOpenMode || isEditor || otherParticipants.some((p) => p.role === "editor")) && otherParticipants.length > 0 && (
                 <div
                   className="transition-opacity duration-500"
                   style={{ opacity: isTyping && isRunning ? 0.3 : 1 }}

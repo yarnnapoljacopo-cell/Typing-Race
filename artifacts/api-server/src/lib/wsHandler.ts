@@ -59,7 +59,7 @@ function isStarActive(room: Room, participantId: string): boolean {
 }
 
 function getActiveParticipants(room: Room): Participant[] {
-  return Array.from(room.participants.values()).filter((p) => !p.isSpectator);
+  return Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor");
 }
 
 function getParticipantPosition(room: Room, participantId: string): { position: number; total: number } {
@@ -121,7 +121,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
 
         // ── Gladiator: max 2 fighters ─────────────────────────────────────────
         if (room.mode === "gladiator") {
-          const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.name !== name);
+          const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor" && p.name !== name);
           if (fighters.length >= 2) {
             ws.send(JSON.stringify({ type: "error", message: "The arena is full. Two gladiators have already entered.", code: "ARENA_FULL" }));
             ws.close();
@@ -228,6 +228,13 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         const wantsSpectator = message.spectator === true;
         const isSpectator = wantsSpectator && (isCreator || isGrandScribe);
 
+        // Optional sprint role — anyone can join as an "editor" (visible
+        // non-racer). Defaults to "writer". Editors aren't allowed in
+        // gladiator (1v1 only) — they'd just sit there.
+        const requestedRole = message.role === "editor" ? "editor" : "writer";
+        const role: "writer" | "editor" =
+          requestedRole === "editor" && room.mode !== "gladiator" ? "editor" : "writer";
+
         // For reconnects, update the existing entry in-place so the participant
         // keeps their original Map position (= stable lane + colour for everyone).
         // For new joins, insert normally.
@@ -243,6 +250,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             isSpectator,
             name,
             resolvedClerkUserId,
+            role,
           );
         } else {
           participant = {
@@ -255,6 +263,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             ws,
             isCreator,
             isSpectator,
+            role,
             latestText: restoredText,
             clerkUserId: resolvedClerkUserId,
             nameplate: userNameplate,
@@ -311,13 +320,14 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             wordCount: p.wordCount,
             wpm: p.wpm,
             isCreator: p.isCreator,
+            role: p.role,
             nameplate: p.nameplate,
             xp: p.xp,
             ...(room.mode === "kart" && { kartCarOffset: p.kartCarOffset }),
           }));
 
         const bossTotalWords = room.mode === "boss"
-          ? currentParticipants.reduce((sum, p) => sum + p.wordCount, 0)
+          ? currentParticipants.filter((p) => p.role !== "editor").reduce((sum, p) => sum + p.wordCount, 0)
           : null;
 
         // For kart mode: give the joining participant their current item list so
@@ -355,10 +365,15 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           })
         );
 
-        // In open mode, catch the new participant up with everyone's current text
-        if (room.mode === "open") {
+        // Catch the new participant up with everyone's current text in
+        // open mode (everyone is visible) AND always send any editor's text
+        // (editors are visible by design so writers can see what they're
+        // editing/noting in real time).
+        const includeEditorTexts = true;
+        if (room.mode === "open" || includeEditorTexts) {
           room.participants.forEach((p) => {
-            if (p.id !== participantId && p.latestText) {
+            const shouldSend = room.mode === "open" || p.role === "editor";
+            if (shouldSend && p.id !== participantId && p.latestText) {
               ws.send(
                 JSON.stringify({
                   type: "participant_text",
@@ -400,7 +415,10 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         // In open (Spectator) mode, always store + broadcast text so hover-to-read
         // works in waiting / countdown / finished phases too — not just during the
         // active sprint. For other modes, only count words while the sprint runs.
-        if (room.mode === "open") {
+        // Broadcast the text in (a) open mode (everyone can see each other)
+        // or (b) when the sender is an editor (their notes are visible to
+        // writers by design).
+        if (room.mode === "open" || participant.role === "editor") {
           participant.latestText = text;
           const payload = JSON.stringify({
             type: "participant_text",
@@ -434,8 +452,9 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
 
         updateParticipantStats(room, participantId, netWordCount);
 
-        // Kart mode: item earning + banana trap check
-        if (room.mode === "kart" && room.status === "running") {
+        // Kart mode: item earning + banana trap check.
+        // Editors don't race so they neither earn items nor trip traps.
+        if (room.mode === "kart" && room.status === "running" && participant.role !== "editor") {
           const { position, total } = getParticipantPosition(room, participantId);
 
           while (participant.wordCount >= participant.kartNextItemAt) {

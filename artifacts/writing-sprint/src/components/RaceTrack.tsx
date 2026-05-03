@@ -85,7 +85,7 @@ function KartIcon({ car, shade, light, laneNum }: { car: string; shade: string; 
 }
 
 export const RaceTrack = memo(function RaceTrack({
-  participants,
+  participants: rawParticipants,
   currentParticipantId,
   durationMinutes,
   wordGoal,
@@ -98,6 +98,9 @@ export const RaceTrack = memo(function RaceTrack({
   hostRoadSkin,
   roomMode,
 }: RaceTrackProps) {
+  // Editors are visible non-racers — they appear in the writers list with
+  // a badge but don't get a car on the track.
+  const participants = rawParticipants.filter((p) => p.role !== "editor");
   const skinsActive = shouldApplySkins(roomMode);
   const activeCarSkin = skinsActive ? (hostCarSkin ?? null) : null;
   const activeRoadSkin = skinsActive ? (hostRoadSkin ?? null) : null;

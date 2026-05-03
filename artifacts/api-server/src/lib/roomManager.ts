@@ -49,6 +49,14 @@ export interface Participant {
   ws: WebSocket;
   isCreator: boolean;
   isSpectator: boolean;
+  /** Sprint role.
+   *  - "writer" (default): races on the track, contributes to word counts.
+   *  - "editor": joins as a visible non-racer. Has no car, doesn't count
+   *    toward goals/boss totals/kart items/gladiator fighter slots, but
+   *    appears in the writers list and their text is broadcast so other
+   *    participants can see what the editor is doing.
+   */
+  role: "writer" | "editor";
   latestText: string;
   clerkUserId: string | null;
   nameplate: string;
@@ -432,7 +440,7 @@ export function getActiveRooms(): Array<{
         mode: r.mode,
         wordGoal: r.wordGoal,
         status: r.status,
-        participantCount: Array.from(r.participants.values()).filter((p) => !p.isSpectator).length,
+        participantCount: Array.from(r.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor").length,
         timeLeft,
         countdownTimeLeft,
         isPasswordProtected: !!r.passwordHash,
@@ -450,6 +458,9 @@ export function broadcastToRoom(room: Room, message: object, excludeId?: string)
 }
 
 export function broadcastRoomState(room: Room): void {
+  // Visible = everyone except invisible spectators. Editors are included
+  // (so they show up in the writers list / spectator panel) but the client
+  // is responsible for filtering them out of car-rendering.
   const participants = Array.from(room.participants.values())
     .filter((p) => !p.isSpectator)
     .map((p) => ({
@@ -458,6 +469,7 @@ export function broadcastRoomState(room: Room): void {
       wordCount: p.wordCount,
       wpm: p.wpm,
       isCreator: p.isCreator,
+      role: p.role,
       nameplate: p.nameplate,
       xp: p.xp,
       ...(room.mode === "kart" && { kartCarOffset: p.kartCarOffset }),
@@ -476,7 +488,7 @@ export function broadcastRoomState(room: Room): void {
   }
 
   const bossTotalWords = room.mode === "boss"
-    ? participants.reduce((sum, p) => sum + p.wordCount, 0)
+    ? participants.filter((p) => p.role !== "editor").reduce((sum, p) => sum + p.wordCount, 0)
     : null;
 
   broadcastToRoom(room, {
@@ -505,9 +517,9 @@ export function broadcastRoomState(room: Room): void {
 export function startSprint(room: Room): void {
   if (room.status !== "waiting") return;
 
-  // Gladiator mode requires exactly 2 non-spectator participants
+  // Gladiator mode requires exactly 2 non-spectator, non-editor participants
   if (room.mode === "gladiator") {
-    const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator);
+    const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor");
     if (fighters.length < 2) {
       logger.warn({ code: room.code }, "Gladiator start blocked — need 2 fighters");
       return;
@@ -560,7 +572,7 @@ function _startRunning(room: Room): void {
       currentLeaderId: null,
     };
     room.participants.forEach((p) => {
-      if (!p.isSpectator) initGladiatorParticipant(p);
+      if (!p.isSpectator && p.role !== "editor") initGladiatorParticipant(p);
     });
   }
 
@@ -585,7 +597,9 @@ const POST_SPRINT_CLOSE_MS = 10 * 60 * 1000; // 10 minutes
  * Safe to call multiple times — the xpAwarded flag prevents double-award.
  */
 async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void> {
-  const allParticipants = Array.from(room.participants.values()).filter((p) => !p.isSpectator);
+  // Editors are visible non-racers — they don't appear in rankings or
+  // earn race XP, but their text is still persisted below where applicable.
+  const allParticipants = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor");
   if (allParticipants.length === 0) return;
 
   const sorted = [...allParticipants].sort((a, b) => b.wordCount - a.wordCount);
@@ -710,7 +724,7 @@ export function endSprint(room: Room, naturalEnd = true): void {
 
   // Gladiator timer end: broadcast HP-based outcome before the normal results
   if (room.mode === "gladiator" && room.gladiatorMatchStats) {
-    const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator);
+    const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor");
     if (fighters.length === 2) {
       broadcastGladiatorTimerEnd(room, fighters[0], fighters[1], room.gladiatorMatchStats);
     }
@@ -728,7 +742,7 @@ export function endSprint(room: Room, naturalEnd = true): void {
   const elapsedMinutes = Math.max(elapsedMs / 60_000, 1 / 60);
 
   const participants = Array.from(room.participants.values())
-    .filter((p) => !p.isSpectator)
+    .filter((p) => !p.isSpectator && p.role !== "editor")
     .map((p) => {
       const finalWpm = Math.round(p.wordCount / elapsedMinutes);
       // Update the in-memory participant so subsequent broadcasts
@@ -834,6 +848,7 @@ export function reconnectParticipant(
   isSpectator: boolean,
   name: string,
   clerkUserId: string | null = null,
+  role: "writer" | "editor" = "writer",
 ): Participant {
   const existing = room.participants.get(existingId);
 
@@ -850,6 +865,7 @@ export function reconnectParticipant(
       ws,
       isCreator,
       isSpectator,
+      role,
       latestText: text,
       clerkUserId,
       nameplate: "default",
@@ -888,6 +904,7 @@ export function reconnectParticipant(
   existing.wpm = 0;
   existing.isCreator = isCreator;
   existing.isSpectator = isSpectator;
+  existing.role = role;
   existing.latestText = text;
   // Prefer the freshly-supplied clerkUserId; fall back to whatever was stored.
   existing.clerkUserId = clerkUserId ?? existing.clerkUserId;
@@ -967,10 +984,11 @@ export function updateParticipantStats(
     },
   });
 
-  // Boss mode: check if collective word count defeated the boss
+  // Boss mode: check if collective word count defeated the boss.
+  // Editors don't race so their words don't count toward the boss goal.
   if (room.mode === "boss" && room.bossWordGoal && room.status === "running") {
     const total = Array.from(room.participants.values())
-      .filter((p) => !p.isSpectator)
+      .filter((p) => !p.isSpectator && p.role !== "editor")
       .reduce((sum, p) => sum + p.wordCount, 0);
     if (total >= room.bossWordGoal) {
       broadcastToRoom(room, { type: "boss_defeated", bossTotalWords: total });

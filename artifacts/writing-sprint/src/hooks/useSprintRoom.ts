@@ -7,6 +7,8 @@ export interface Participant {
   wordCount: number;
   wpm: number;
   isCreator: boolean;
+  /** Sprint role. Editors join as visible non-racers (no car). */
+  role?: "writer" | "editor";
   kartBonusWords?: number;
   kartCarOffset?: number;
   nameplate?: string;
@@ -106,6 +108,9 @@ interface UseSprintRoomProps {
   isCreator?: boolean;
   password?: string | null;
   clerkUserId?: string | null;
+  /** Join as a "writer" (default — gets a car & races) or "editor"
+   *  (visible spectator with no car, used for live editing/noting). */
+  role?: "writer" | "editor";
 }
 
 const ROOM_STATE_DEFAULTS = {
@@ -133,7 +138,7 @@ const MAX_RECONNECT_ATTEMPTS = 10;
 // How long to keep retrying "Room not found" — covers server restart window
 const ROOM_NOT_FOUND_RETRY_MS = 90_000;
 
-export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRoomProps) {
+export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSprintRoomProps) {
   const [room, setRoom] = useState<RoomState | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -217,6 +222,7 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
       const joinMsg: Record<string, unknown> = { type: "join_room", code, name };
       if (password) joinMsg.password = password;
       if (clerkUserId) joinMsg.clerkUserId = clerkUserId;
+      if (role === "editor") joinMsg.role = "editor";
       ws.send(JSON.stringify(joinMsg));
     };
 

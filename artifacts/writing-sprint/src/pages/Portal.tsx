@@ -97,6 +97,86 @@ function PenIcon() {
 
 // ── Main component ──────────────────────────────────────────────────────────
 
+// ── Writer / Editor toggle ────────────────────────────────────────────────
+// Compact pill toggle shown on both join and create flows. Editors join as
+// visible non-racers (no car) so other writers can see what they're editing.
+function RoleToggle({
+  role,
+  onChange,
+}: {
+  role: "writer" | "editor";
+  onChange: (r: "writer" | "editor") => void;
+}) {
+  const btn = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    border: "none",
+    background: active ? "white" : "transparent",
+    color: active ? C.ink : C.muted,
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: "0.85rem",
+    fontWeight: active ? 700 : 500,
+    padding: "10px 14px",
+    borderRadius: 10,
+    cursor: "pointer",
+    transition: "all 0.18s",
+    boxShadow: active ? "0 2px 8px rgba(26,26,46,0.08)" : "none",
+  });
+  const helper =
+    role === "editor"
+      ? "Editors join without a car. Others can see what you're writing in real time."
+      : "Writers race on the track and contribute words to the goal.";
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div
+        style={{
+          fontSize: "0.78rem",
+          fontWeight: 600,
+          color: C.muted,
+          textTransform: "uppercase" as const,
+          letterSpacing: "0.08em",
+          marginBottom: 8,
+        }}
+      >
+        Join as
+      </div>
+      <div
+        role="radiogroup"
+        aria-label="Sprint role"
+        style={{
+          display: "flex",
+          gap: 4,
+          background: "rgba(0,0,0,0.04)",
+          border: `1.5px solid ${C.border}`,
+          borderRadius: 13,
+          padding: 4,
+        }}
+      >
+        <button
+          type="button"
+          role="radio"
+          aria-checked={role === "writer"}
+          onClick={() => onChange("writer")}
+          style={btn(role === "writer")}
+        >
+          Writer
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={role === "editor"}
+          onClick={() => onChange("editor")}
+          style={btn(role === "editor")}
+        >
+          Editor
+        </button>
+      </div>
+      <div style={{ fontSize: "0.72rem", color: C.muted, marginTop: 6, lineHeight: 1.4 }}>
+        {helper}
+      </div>
+    </div>
+  );
+}
+
 export default function Portal() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -133,6 +213,10 @@ export default function Portal() {
   const initialTab = new URLSearchParams(window.location.search).get("tab") ?? "sprint";
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [joinMode, setJoinMode] = useState<"join" | "create">("join");
+
+  // Sprint role — "writer" gets a car & races; "editor" joins as a visible
+  // non-racer (no car) so they can read/comment on what writers are doing.
+  const [sprintRole, setSprintRole] = useState<"writer" | "editor">("writer");
 
   const [joinCode, setJoinCode] = useState("");
   const [duration, setDuration] = useState<number>(30);
@@ -230,7 +314,7 @@ export default function Portal() {
           sessionStorage.setItem(`room_password_${data.code}`, pw);
           pendingRoomPasswordRef.current = null;
         }
-        setLocation(`/room?code=${data.code}&name=${encodeURIComponent(displayName)}&isCreator=true`);
+        setLocation(`/room?code=${data.code}&name=${encodeURIComponent(displayName)}&isCreator=true${sprintRole === "editor" ? "&role=editor" : ""}`);
       },
       onError: (err) => {
         toast({
@@ -284,7 +368,7 @@ export default function Portal() {
     } catch {
       // If fetch fails, proceed and let the WS connection handle the error
     }
-    setLocation(`/room?code=${encodeURIComponent(code)}&name=${encodeURIComponent(displayName)}`);
+    setLocation(`/room?code=${encodeURIComponent(code)}&name=${encodeURIComponent(displayName)}${sprintRole === "editor" ? "&role=editor" : ""}`);
   };
 
   const handlePasswordJoinConfirm = () => {
@@ -294,7 +378,7 @@ export default function Portal() {
     }
     sessionStorage.setItem(`room_password_${pendingJoinCode}`, joinPasswordInput.trim());
     setPasswordDialogOpen(false);
-    setLocation(`/room?code=${encodeURIComponent(pendingJoinCode)}&name=${encodeURIComponent(displayName)}`);
+    setLocation(`/room?code=${encodeURIComponent(pendingJoinCode)}&name=${encodeURIComponent(displayName)}${sprintRole === "editor" ? "&role=editor" : ""}`);
   };
 
   const handleExitGuest = () => {
@@ -600,6 +684,7 @@ export default function Portal() {
               {/* ── Join flow ── */}
               {joinMode === "join" && (
                 <>
+                  <RoleToggle role={sprintRole} onChange={setSprintRole} />
                   <div style={{ fontSize: "0.78rem", fontWeight: 600, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 8 }}>
                     Room Code
                   </div>
@@ -660,6 +745,8 @@ export default function Portal() {
               {/* ── Create flow ── */}
               {joinMode === "create" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+
+                  <RoleToggle role={sprintRole} onChange={setSprintRole} />
 
                   {/* Duration */}
                   <div>
