@@ -380,6 +380,12 @@ router.post("/user/chests/open", async (req, res): Promise<void> => {
       // Non-fatal: coin drop failure should not block chest open success
     }
 
+    // Quest progress (best-effort).
+    try {
+      const { bumpQuests } = await import("../lib/quests");
+      await bumpQuests(userId, "chests_opened", 1);
+    } catch { /* non-fatal */ }
+
     res.json({ ok: true, items, coins_awarded: coinsAwarded, new_coin_balance: newCoinBalance });
   } finally {
     client.release();

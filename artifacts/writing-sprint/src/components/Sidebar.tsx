@@ -23,6 +23,7 @@ function getActiveKey(path: string): string {
   if (path.startsWith("/guild")) return "guild";
   if (path.startsWith("/global-ranking")) return "rankings";
   if (path.startsWith("/shop") || path.startsWith("/bag") || path.startsWith("/chests") || path.startsWith("/crafting")) return "shop";
+  if (path.startsWith("/quests")) return "quests";
   if (path.startsWith("/profile")) return "profile";
   return "";
 }
@@ -122,6 +123,16 @@ export function Sidebar() {
         </span>
         <span className="ni-lbl">Guild</span>
         <span style={{ marginLeft: "auto" }}><GuildBell /></span>
+      </Link>
+
+      <Link href="/quests" className={`ni${active === "quests" ? " active" : ""}`}>
+        <span className="ni-ico">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 11l3 3L22 4"/>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          </svg>
+        </span>
+        <span className="ni-lbl">Quests</span>
       </Link>
 
       <Link href="/global-ranking" className={`ni${active === "rankings" ? " active" : ""}`}>

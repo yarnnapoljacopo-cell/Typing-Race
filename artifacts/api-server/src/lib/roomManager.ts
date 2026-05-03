@@ -552,6 +552,25 @@ async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void
         eq(sprintWritingTable.participantName, p.name),
       ));
 
+    // ── Quest progress (best-effort; never throws) ────────────────────────
+    try {
+      const { bumpQuests } = await import("./quests");
+      await bumpQuests(p.clerkUserId, "sprints_completed", 1);
+      await bumpQuests(p.clerkUserId, "words_written", p.wordCount);
+      if (p.wpm && p.wpm > 0) await bumpQuests(p.clerkUserId, "max_wpm", p.wpm);
+      if (isFirstPlace) await bumpQuests(p.clerkUserId, "sprints_won", 1);
+      if (room.mode === "kart") {
+        await bumpQuests(p.clerkUserId, "kart_completed", 1);
+        if (isFirstPlace) await bumpQuests(p.clerkUserId, "kart_won", 1);
+      }
+      if (room.mode === "gladiator") {
+        await bumpQuests(p.clerkUserId, "gladiator_completed", 1);
+        if (isFirstPlace) await bumpQuests(p.clerkUserId, "gladiator_won", 1);
+      }
+    } catch (err) {
+      logger.warn({ err, code: room.code }, "quest bump failed");
+    }
+
     // ── Award a random chest only when the sprint timer ran out naturally ──
     if (naturalEnd) {
       const chestType = rollSprintChest();

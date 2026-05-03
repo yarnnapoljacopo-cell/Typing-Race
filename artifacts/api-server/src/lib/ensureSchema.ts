@@ -222,6 +222,25 @@ export async function ensureSchema(): Promise<void> {
         slot_count  INTEGER   NOT NULL DEFAULT 20,
         equipped_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+
+      -- Per-user rolled daily/weekly quests. period_key is YYYY-MM-DD for
+      -- daily and YYYY-Www for weekly (UTC). The unique constraint stops
+      -- duplicate rolls if the rolling code races with itself.
+      CREATE TABLE IF NOT EXISTS user_quests (
+        id          SERIAL       PRIMARY KEY,
+        user_id     VARCHAR(100) NOT NULL,
+        quest_id    VARCHAR(50)  NOT NULL,
+        scope       VARCHAR(10)  NOT NULL,
+        period_key  VARCHAR(20)  NOT NULL,
+        progress    INTEGER      NOT NULL DEFAULT 0,
+        target      INTEGER      NOT NULL,
+        claimed_at  TIMESTAMP,
+        created_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMP    NOT NULL DEFAULT NOW(),
+        UNIQUE (user_id, quest_id, period_key)
+      );
+      CREATE INDEX IF NOT EXISTS user_quests_user_period_idx
+        ON user_quests (user_id, scope, period_key);
     `);
 
     // ── Phase 2: add any columns that were added to the schema after the

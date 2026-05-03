@@ -169,6 +169,11 @@ router.post("/user/crafting/fusion", async (req, res): Promise<void> => {
       [userId, result.id],
     );
 
+    try {
+      const { bumpQuests } = await import("../lib/quests");
+      await bumpQuests(userId, "crafts_succeeded", 1);
+    } catch { /* non-fatal */ }
+
     res.json({
       ok: true,
       result: { id: result.id, name: result.name, icon: result.icon, rarity: result.rarity },
@@ -294,6 +299,11 @@ router.post("/user/crafting/alchemy", async (req, res): Promise<void> => {
         `INSERT INTO user_inventory (user_id, item_id, quantity) VALUES ($1,$2,1)`,
         [userId, recipe.result_item_id],
       );
+
+      try {
+        const { bumpQuests } = await import("../lib/quests");
+        await bumpQuests(userId, "crafts_succeeded", 1);
+      } catch { /* non-fatal */ }
 
       res.json({
         ok: true,
@@ -450,6 +460,12 @@ router.post("/user/crafting/tribulation", async (req, res): Promise<void> => {
         `INSERT INTO user_inventory (user_id, item_id, quantity) VALUES ($1,$2,1)`,
         [userId, recipe.result_item_id],
       );
+      try {
+        const { bumpQuests } = await import("../lib/quests");
+        await bumpQuests(userId, "crafts_succeeded", 1);
+        await bumpQuests(userId, "tribulation_succeeded", 1);
+      } catch { /* non-fatal */ }
+
       res.json({
         ok: true, success: true,
         result: { name: recipe.result_name, icon: recipe.result_icon, rarity: recipe.result_rarity },

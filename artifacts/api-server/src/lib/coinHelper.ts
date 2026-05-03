@@ -50,7 +50,7 @@ export async function creditCoins(
   client: PoolClient,
   userId: string,
   amount: number,
-  type: "chest_drop" | "item_sale",
+  type: "chest_drop" | "item_sale" | "quest_reward",
   referenceId: string | null,
   description: string,
 ): Promise<{ credited: number; newBalance: number; dailyEarned: number }> {

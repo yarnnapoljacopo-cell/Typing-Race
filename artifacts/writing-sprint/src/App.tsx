@@ -23,6 +23,7 @@ import Shop from "@/pages/Shop";
 import Bag from "@/pages/Bag";
 import Chests from "@/pages/Chests";
 import Crafting from "@/pages/Crafting";
+import Quests from "@/pages/Quests";
 import { GuestProvider, useGuest } from "@/lib/guestContext";
 import { VillainModeProvider } from "@/lib/villainModeContext";
 import { SkinProvider } from "@/lib/skinContext";
@@ -596,6 +597,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/bag" component={Bag} />
               <Route path="/chests" component={Chests} />
               <Route path="/crafting" component={Crafting} />
+              <Route path="/quests" component={Quests} />
               <Route path="/sign-in/*?" component={SignInPage} />
               <Route path="/sign-up/*?" component={SignUpPage} />
               <Route component={NotFound} />
