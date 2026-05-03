@@ -874,8 +874,12 @@ export default function Room() {
     const finalHtml = currentTextRef.current;
     const finalPlain = textareaRef.current ? (textareaRef.current.innerText ?? "") : finalHtml;
     const finalWords = countWords(finalPlain);
-    // Flush to server immediately on sprint end
-    serverSaveNow(finalHtml, finalWords);
+    // Flush to server immediately on sprint end. CRITICAL: send the NET
+    // word count (sprint-only), not the absolute page count — otherwise
+    // we overwrite the server's correct in-memory net count with one that
+    // includes warm-up text, inflating saved word counts and ranking.
+    const finalNetWords = Math.max(0, finalWords - baselineWordCountRef.current);
+    serverSaveNow(finalHtml, finalNetWords);
     if (!finalHtml) return;
     setCapsules((prev) => {
       const filtered = prev.filter((c) => !c.isFinal);
@@ -1750,10 +1754,14 @@ export default function Room() {
                       )}
                     </div>
                   )}
+                  {/* Bottom badge shows ALL words on the page (warm-up + sprint).
+                      The car / race-track UI uses the sprint-only net count,
+                      so users can see total page progress here while the race
+                      visualisation only credits words written after start. */}
                   <div className="kart-word-count bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
-                    <span className="font-mono font-semibold text-sm text-foreground">{netWordCount}{room.mode === "kart" && kartState.bonusWords > 0 ? <span className="text-orange-400 text-xs ml-1">+{kartState.bonusWords}</span> : null}</span>
+                    <span className="font-mono font-semibold text-sm text-foreground">{wordCount}{room.mode === "kart" && kartState.bonusWords > 0 ? <span className="text-orange-400 text-xs ml-1">+{kartState.bonusWords}</span> : null}</span>
                     <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                      {isRunning ? "words" : "warm-up"}
+                      words on page
                     </span>
                   </div>
                 </div>
