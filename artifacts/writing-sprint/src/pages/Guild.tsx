@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@clerk/react";
 import { useAuthedFetch } from "@/lib/authedFetch";
-import { ArrowLeft, Users, Crown, LogOut, Send, Zap, Shield, UserMinus, ArrowRightLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Users, LogOut, Send, Zap, Shield, UserMinus, ArrowRightLeft, Trash2, MessageCircle, Swords, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,33 +48,72 @@ async function fetchMessages(af: AF, guildId: number): Promise<Message[]> {
   return res.json();
 }
 
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/[\s_-]+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// Tier of member by XP, used for the role badge styling. Leader is always
+// rendered as Guildmaster regardless of XP.
+function memberTier(xp: number): { label: string; cls: string } {
+  if (xp >= 5000) return { label: "Veteran",  cls: "gp-role-veteran" };
+  if (xp >= 1000) return { label: "Scribe",   cls: "gp-role-scribe" };
+  return { label: "Initiate", cls: "gp-role-initiate" };
+}
+
 function MemberRow({ m, isLeader, viewerIsLeader, viewerId, onKick, onTransfer }: {
   m: Member; isLeader: boolean; viewerIsLeader: boolean; viewerId: string | null;
   onKick: (id: string) => void; onTransfer: (id: string) => void;
 }) {
   const rank = getRankFromXp(m.xp);
+  const tier = isLeader
+    ? { label: "Guildmaster", cls: "gp-role-guildmaster" }
+    : memberTier(m.xp);
   return (
-    <div className="g-member">
-      <div className="g-member-dot" data-online={m.online ? "1" : "0"} />
-      <div className="g-member-name">
-        {isLeader && <Crown size={14} className="g-leader-icon" />}
-        <span>{m.writerName}</span>
-        <span className="g-member-rank">{rank.emoji} {rank.title}</span>
+    <div className="gp-member-row">
+      <div className="gp-avatar">
+        {initialsOf(m.writerName)}
+        <span className={`gp-status ${m.online ? "s-online" : "s-offline"}`} />
       </div>
-      <div className="g-member-actions">
-        {viewerIsLeader && m.userId !== viewerId && (
-          <>
-            <button className="g-icon-btn" title="Transfer leadership" onClick={() => onTransfer(m.userId)}>
-              <ArrowRightLeft size={14} />
-            </button>
-            <button className="g-icon-btn g-icon-btn-danger" title="Kick" onClick={() => onKick(m.userId)}>
-              <UserMinus size={14} />
-            </button>
-          </>
-        )}
+      <div className="gp-m-info">
+        <div className="gp-m-name">
+          <span>{m.writerName}</span>
+          <span className={`gp-role-badge ${tier.cls}`}>{tier.label}</span>
+        </div>
+        <div className="gp-m-rank">{rank.title}</div>
       </div>
+      {viewerIsLeader && m.userId !== viewerId && (
+        <div className="gp-m-actions">
+          <button className="gp-icon-btn" title="Transfer leadership" onClick={() => onTransfer(m.userId)}>
+            <ArrowRightLeft size={14} />
+          </button>
+          <button className="gp-icon-btn gp-icon-btn-danger" title="Remove member" onClick={() => onKick(m.userId)}>
+            <UserMinus size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
+}
+
+// Format an ISO timestamp as HH:MM (24h, locale-aware).
+function fmtTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch { return ""; }
+}
+
+// Bucket label for chat date dividers ("Today", "Yesterday", or a date).
+function dateBucket(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return "Today";
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 function NoGuildView({ af, onCreated }: { af: AF; onCreated: () => void }) {
@@ -190,7 +229,7 @@ function InvitesPanel({ af, onAccept }: { af: AF; onAccept: () => void }) {
   );
 }
 
-function GuildView({ af, data, refetchGuild }: { af: AF; data: GuildData; refetchGuild: () => void }) {
+function GuildView({ af, data, refetchGuild, onBack }: { af: AF; data: GuildData; refetchGuild: () => void; onBack: () => void }) {
   const qc = useQueryClient();
   const [, setLocation] = useLocation();
   const { userId } = useAuth();
@@ -305,21 +344,72 @@ function GuildView({ af, data, refetchGuild }: { af: AF; data: GuildData; refetc
 
   const members = data.members ?? [];
   const onlineCount = members.filter((m) => m.online).length;
+  const sortedMembers = members
+    .slice()
+    .sort((a, b) => (a.role === "leader" ? -1 : b.role === "leader" ? 1 : b.xp - a.xp));
+
+  const messages = messagesQuery.data ?? [];
+  const sprintCount = messages.filter((m) => m.type === "sprint").length;
+
+  // Group consecutive messages by date bucket so we can render dividers.
+  const groupedMessages: Array<{ bucket: string; items: Message[] }> = [];
+  for (const m of messages) {
+    const bucket = dateBucket(m.sentAt);
+    const last = groupedMessages[groupedMessages.length - 1];
+    if (last && last.bucket === bucket) last.items.push(m);
+    else groupedMessages.push({ bucket, items: [m] });
+  }
 
   return (
-    <div className="g-grid">
-      {/* Sidebar: members */}
-      <Card className="g-card g-members-card">
-        <CardContent className="p-4">
-          <div className="g-members-head">
-            <h3 className="g-h3"><Users size={16} /> Members</h3>
-            <span className="g-online-pill">{onlineCount} / {members.length} online</span>
+    <div className="gp">
+      <div className="gp-header">
+        <button type="button" className="gp-back" onClick={onBack}>
+          <ArrowLeft size={12} /> Guilds
+        </button>
+        <div className="gp-title-row">
+          <div className="gp-name-block">
+            <div className="gp-crest"><div className="gp-crest-inner"><Swords size={22} strokeWidth={2.2} /></div></div>
+            <div style={{ minWidth: 0 }}>
+              <h1 className="gp-name" title={guild.name}>{guild.name}</h1>
+              <span className="gp-tag">[{guild.tag}]</span>
+              {guild.description && <p className="gp-desc">{guild.description}</p>}
+            </div>
           </div>
-          <div className="g-member-list">
-            {members
-              .slice()
-              .sort((a, b) => (a.role === "leader" ? -1 : b.role === "leader" ? 1 : b.xp - a.xp))
-              .map((m) => (
+          {isLeader && (
+            <button type="button" className="gp-sprint-btn" onClick={() => setShowSprintModal(true)}>
+              <Zap size={14} /> Start Guild Sprint
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="gp-body">
+        {/* Sidebar */}
+        <div className="gp-sidebar">
+          <div className="gp-panel">
+            <div className="gp-stats">
+              <div className="gp-stat-card">
+                <div className="gp-stat-value">{members.length}</div>
+                <div className="gp-stat-label">Members</div>
+              </div>
+              <div className="gp-stat-card">
+                <div className="gp-stat-value">{onlineCount}</div>
+                <div className="gp-stat-label">Online</div>
+              </div>
+              <div className="gp-stat-card">
+                <div className="gp-stat-value">{sprintCount}</div>
+                <div className="gp-stat-label">Sprints</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="gp-panel">
+            <div className="gp-panel-header">
+              <div className="gp-panel-title"><Users size={12} /> Members</div>
+              <span className="gp-online-badge">{onlineCount} / {members.length} online</span>
+            </div>
+            <div className="gp-member-list">
+              {sortedMembers.map((m) => (
                 <MemberRow
                   key={m.userId}
                   m={m}
@@ -330,110 +420,125 @@ function GuildView({ af, data, refetchGuild }: { af: AF; data: GuildData; refetc
                   onTransfer={transfer}
                 />
               ))}
-          </div>
-
-          {isLeader && (
-            <div className="g-invite-form">
-              <label className="g-label-sm">Invite a writer</label>
-              <div className="g-invite-row-form">
-                <Input
-                  value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
-                  placeholder="Writer name"
-                />
-                <Button size="sm" onClick={invite} disabled={!inviteName.trim()}>Invite</Button>
-              </div>
-              {inviteError && <div className="g-error-sm">{inviteError}</div>}
             </div>
-          )}
 
-          <div className="g-bottom-actions">
-            {!isLeader && (
-              <Button size="sm" variant="outline" onClick={leave}>
-                <LogOut size={14} /> Leave guild
-              </Button>
-            )}
             {isLeader && (
-              <Button size="sm" variant="destructive" onClick={disband}>
-                <Trash2 size={14} /> Disband
-              </Button>
-            )}
-          </div>
-          {actionError && <div className="g-error-sm">{actionError}</div>}
-        </CardContent>
-      </Card>
-
-      {/* Main: header + sprint button + chat */}
-      <div className="g-main">
-        <Card className="g-card">
-          <CardContent className="p-5">
-            <div className="g-header">
-              <div>
-                <div className="g-title-row">
-                  <h1 className="g-h1">{guild.name}</h1>
-                  <span className="g-tag-big">[{guild.tag}]</span>
+              <>
+                <div className="gp-divider" />
+                <div className="gp-invite-section">
+                  <div className="gp-invite-label">Invite a writer</div>
+                  <form
+                    className="gp-invite-row"
+                    onSubmit={(e) => { e.preventDefault(); if (inviteName.trim()) invite(); }}
+                  >
+                    <input
+                      className="gp-invite-input"
+                      type="text"
+                      value={inviteName}
+                      onChange={(e) => setInviteName(e.target.value)}
+                      placeholder="Writer name…"
+                    />
+                    <button type="submit" className="gp-invite-btn" disabled={!inviteName.trim()}>Invite</button>
+                  </form>
+                  {inviteError && <div className="g-error-sm" style={{ padding: 0, marginTop: 6 }}>{inviteError}</div>}
                 </div>
-                {guild.description && <p className="g-desc">{guild.description}</p>}
-              </div>
-              {isLeader && (
-                <Button onClick={() => setShowSprintModal(true)}>
-                  <Zap size={16} /> Start Guild Sprint
-                </Button>
+              </>
+            )}
+
+            <div className="gp-divider" />
+            <div className="gp-bottom-section">
+              {isLeader ? (
+                <button type="button" className="gp-danger-btn" onClick={disband}>
+                  <Trash2 size={12} /> Disband guild
+                </button>
+              ) : (
+                <button type="button" className="gp-danger-btn" onClick={leave}>
+                  <LogOut size={12} /> Leave guild
+                </button>
               )}
             </div>
-          </CardContent>
-        </Card>
+            {actionError && <div className="g-error-sm">{actionError}</div>}
+          </div>
+        </div>
 
-        <Card className="g-card g-chat-card">
-          <CardContent className="p-0">
-            <div className="g-chat-head">Guild Chat</div>
-            <div className="g-chat-scroll" ref={chatScrollRef}>
-              {(messagesQuery.data ?? []).map((msg) => {
-                if (msg.type === "system") {
-                  return <div key={msg.id} className="g-msg-system">{msg.content}</div>;
-                }
-                if (msg.type === "sprint") {
-                  let parsed: { roomCode?: string; durationMinutes?: number; startsInMinutes?: number } = {};
-                  try { parsed = JSON.parse(msg.content); } catch { /* ignore */ }
-                  return (
-                    <div key={msg.id} className="g-msg-sprint">
-                      <Zap size={14} />
-                      <strong>{msg.writerName}</strong> started a {parsed.durationMinutes ?? "?"}-minute guild sprint{parsed.startsInMinutes ? ` (starts in ${parsed.startsInMinutes}m)` : ""}.
-                      {parsed.roomCode && (
-                        <Button
-                          size="sm"
-                          onClick={() => setLocation(`/room?code=${parsed.roomCode}`)}
-                        >
-                          Join
-                        </Button>
-                      )}
-                    </div>
-                  );
-                }
-                return (
-                  <div key={msg.id} className="g-msg">
-                    <span className="g-msg-name">{msg.writerName}</span>
-                    <span className="g-msg-text">{msg.content}</span>
+        {/* Main column */}
+        <div className="gp-main-col">
+          <div className="gp-panel gp-chat-panel">
+            <div className="gp-panel-header">
+              <div className="gp-panel-title"><MessageCircle size={12} /> Guild Chat</div>
+              <span className="gp-online-badge" style={{ background: "#FBF1DC", color: "#8B6914", borderColor: "rgba(212,160,23,0.4)" }}>
+                <BarChart3 size={11} style={{ verticalAlign: "-1px", marginRight: 3 }} />
+                {messages.length} messages
+              </span>
+            </div>
+            <div className="gp-chat-messages" ref={chatScrollRef}>
+              {messages.length === 0 ? (
+                <div className="gp-chat-empty">No messages yet. Be the first to greet your guild.</div>
+              ) : (
+                groupedMessages.map((group, gi) => (
+                  <div key={gi} style={{ display: "contents" }}>
+                    <div className="gp-chat-date-div"><span className="gp-chat-date-text">{group.bucket}</span></div>
+                    {group.items.map((msg) => {
+                      if (msg.type === "system") {
+                        return <div key={msg.id} className="gp-msg-system">{msg.content}</div>;
+                      }
+                      if (msg.type === "sprint") {
+                        let parsed: { roomCode?: string; durationMinutes?: number; startsInMinutes?: number } = {};
+                        try { parsed = JSON.parse(msg.content); } catch { /* ignore */ }
+                        return (
+                          <div key={msg.id} className="gp-msg-sprint">
+                            <Zap size={14} />
+                            <span>
+                              <strong>{msg.writerName}</strong> started a {parsed.durationMinutes ?? "?"}-minute guild sprint
+                              {parsed.startsInMinutes ? ` (starts in ${parsed.startsInMinutes}m)` : ""}.
+                            </span>
+                            {parsed.roomCode && (
+                              <button
+                                type="button"
+                                className="gp-join-btn"
+                                onClick={() => setLocation(`/room?code=${parsed.roomCode}`)}
+                              >
+                                Join
+                              </button>
+                            )}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={msg.id} className="gp-chat-msg">
+                          <div className="gp-msg-av">{initialsOf(msg.writerName)}</div>
+                          <div className="gp-msg-body">
+                            <div className="gp-msg-meta">
+                              <span className="gp-msg-author">{msg.writerName}</span>
+                              <span className="gp-msg-time">{fmtTime(msg.sentAt)}</span>
+                            </div>
+                            <div className="gp-msg-bubble">{msg.content}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                ))
+              )}
             </div>
             <form
-              className="g-chat-input"
+              className="gp-chat-input-row"
               onSubmit={(e) => { e.preventDefault(); sendChat(); }}
             >
-              <Input
+              <input
+                className="gp-chat-input"
+                type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Message your guild..."
+                placeholder="Message your guild…"
                 maxLength={1000}
               />
-              <Button type="submit" disabled={!chatInput.trim()}>
-                <Send size={14} />
-              </Button>
+              <button type="submit" className="gp-send-btn" disabled={!chatInput.trim()} aria-label="Send">
+                <Send size={15} />
+              </button>
             </form>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       <SprintPopup
@@ -457,6 +562,18 @@ export default function Guild() {
     enabled: !!isSignedIn,
   });
 
+  // When the user is in a guild we render the themed Guildhall shell, which
+  // owns its own header (with the back link). Otherwise we keep the legacy
+  // light page wrapper for the create / invites / loading states.
+  if (!isLoading && data?.guild) {
+    return (
+      <div className="g-page" style={{ padding: "24px 16px 80px" }}>
+        <InvitesPanel af={af} onAccept={() => refetch()} />
+        <GuildView af={af} data={data} refetchGuild={refetch} onBack={() => setLocation("/portal")} />
+      </div>
+    );
+  }
+
   return (
     <div className="g-page">
       <div className="g-topbar">
@@ -470,8 +587,6 @@ export default function Guild() {
 
       {isLoading ? (
         <div className="g-loading">Loading guild...</div>
-      ) : data?.guild ? (
-        <GuildView af={af} data={data} refetchGuild={refetch} />
       ) : (
         <NoGuildView af={af} onCreated={() => refetch()} />
       )}
