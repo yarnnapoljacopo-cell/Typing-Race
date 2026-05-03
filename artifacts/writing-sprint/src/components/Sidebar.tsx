@@ -67,6 +67,20 @@ export function Sidebar() {
     staleTime: 5 * 60_000,
   });
 
+  // Pending friend-request count for the red badge on the Friends nav item.
+  const { data: friendsData } = useQuery<{ pendingReceived?: unknown[] }>({
+    queryKey: ["friends"],
+    queryFn: async () => {
+      const res = await af(`${basePath}/api/friends`);
+      if (!res.ok) throw new Error("Failed to load friends");
+      return res.json();
+    },
+    enabled: !!isSignedIn,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  const pendingFriendRequests = friendsData?.pendingReceived?.length ?? 0;
+
   // TEMP DEV: allow guests to see the sidebar so /my-files is reachable.
   // RESTORE BEFORE PUSHING TO PROD — change back to: if (!isSignedIn || shouldHide(location)) return null;
   if (shouldHide(location)) return null;
@@ -146,16 +160,40 @@ export function Sidebar() {
         <span className="ni-lbl">My Files</span>
       </Link>
 
-      <Link href="/friends" className={`ni${active === "friends" ? " active" : ""}`}>
-        <span className="ni-ico">
+      <Link
+        href="/friends"
+        className={`ni${active === "friends" ? " active" : ""}`}
+        aria-label={
+          pendingFriendRequests > 0
+            ? `Friends — ${pendingFriendRequests} pending request${pendingFriendRequests === 1 ? "" : "s"}`
+            : "Friends"
+        }
+      >
+        <span className="ni-ico" style={{ position: "relative" }}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
             <circle cx="9" cy="7" r="4"/>
             <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
+          {pendingFriendRequests > 0 && (
+            <span
+              className="ni-badge"
+              aria-hidden="true"
+              title={`${pendingFriendRequests} pending friend request${pendingFriendRequests === 1 ? "" : "s"}`}
+            >
+              {pendingFriendRequests > 99 ? "99+" : pendingFriendRequests}
+            </span>
+          )}
         </span>
-        <span className="ni-lbl">Friends</span>
+        <span className="ni-lbl">
+          Friends
+          {pendingFriendRequests > 0 && (
+            <span className="ni-lbl-badge" aria-hidden="true">
+              {pendingFriendRequests > 99 ? "99+" : pendingFriendRequests}
+            </span>
+          )}
+        </span>
       </Link>
 
       <Link href="/guild" className={`ni${active === "guild" ? " active" : ""}`}>

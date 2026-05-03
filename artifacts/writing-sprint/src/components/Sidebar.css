@@ -226,6 +226,53 @@
 }
 .sb-foot:hover { background: #eceeff; color: #4a54e8; }
 
+/* ── Notification badge (e.g. pending friend requests) ── */
+/* Tiny red pill that floats over the nav item's icon when the rail is
+   collapsed (icon-only state). */
+.ni-badge {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(220, 38, 38, 0.35);
+  pointer-events: none;
+}
+
+/* Inline pill shown beside the label when the rail is expanded
+   (desktop hover + mobile drawer). */
+.ni-lbl-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+/* When the rail is expanded (label visible), hide the icon-overlay badge
+   to avoid duplication. The icon-overlay is for the collapsed state. */
+.sb:hover .ni-badge { display: none; }
+
 /* ── Mobile hamburger toggle (hidden on desktop) ── */
 .sb-toggle {
   display: none;
@@ -290,6 +337,10 @@
   .ni-lbl { opacity: 1; width: auto; }
   .sb-sep { width: calc(100% - 20px); margin: 8px auto; }
   .sb:hover .ni-ico { margin: 0; }
+
+  /* Mobile drawer always shows labels — hide the icon-overlay badge and
+     rely on the inline label badge instead. */
+  .ni-badge { display: none; }
 
   .sb-backdrop.sb-backdrop-open { display: block; }
 }
