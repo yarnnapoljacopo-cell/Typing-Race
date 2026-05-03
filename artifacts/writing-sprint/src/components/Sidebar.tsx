@@ -1,4 +1,5 @@
 import "./Sidebar.css";
+import { useEffect, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth, useUser } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
@@ -36,6 +37,18 @@ export function Sidebar() {
   const { user } = useUser();
   const { guestName } = useGuest();
   const af = useAuthedFetch();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close drawer on route change.
+  useEffect(() => { setMobileOpen(false); }, [location]);
+
+  // Close on Escape.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
 
   const { data: ownPrefs } = useQuery({
     queryKey: ["ownPrefs"],
@@ -74,7 +87,35 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="sb">
+    <>
+      <button
+        type="button"
+        className="sb-toggle"
+        aria-label={mobileOpen ? "Close menu" : "Open menu"}
+        aria-expanded={mobileOpen}
+        onClick={() => setMobileOpen((v) => !v)}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          {mobileOpen ? (
+            <>
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </>
+          ) : (
+            <>
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </>
+          )}
+        </svg>
+      </button>
+      <div
+        className={`sb-backdrop${mobileOpen ? " sb-backdrop-open" : ""}`}
+        onClick={() => setMobileOpen(false)}
+        aria-hidden="true"
+      />
+    <aside className={`sb${mobileOpen ? " sb-open" : ""}`}>
       <div className="sb-logo" aria-hidden="true">
         <span className="sb-logo-shine" />
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "relative", zIndex: 2 }}>
@@ -195,5 +236,6 @@ export function Sidebar() {
         {avatarLetter}
       </Link>
     </aside>
+    </>
   );
 }

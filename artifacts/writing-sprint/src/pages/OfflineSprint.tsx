@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { WritingToolbar, type WritingStyle, type FormatType } from "@/components/WritingToolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   WifiOff, Download, Copy, RotateCcw, LogOut, CheckCircle,
-  RefreshCw, AlertTriangle, Save, Clock,
+  RefreshCw, AlertTriangle, Save, FolderOpen,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import FolioSaveDialog, { type FolioTarget } from "@/pages/FolioSaveDialog";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,91 @@ function defaultName() {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const eAPI = () => (window as any).electronAPI as Record<string, (...a: any[]) => Promise<any>> | undefined;
 
+// ── Folio (My Files) integration ─────────────────────────────────────────────
+// Offline sprints save into the local Folio system so writers can find
+// their work in My Files even when nothing was synced to the server.
+interface FolioDoc {
+  id: string;
+  name: string;
+  content: string;
+  status: "draft" | "progress" | "done" | "edit";
+  updatedAt: number;
+}
+interface FolioProject {
+  id: string;
+  name: string;
+  open: boolean;
+  docs: FolioDoc[];
+}
+interface FolioState { projects: FolioProject[]; }
+
+const OFFLINE_PROJECT_NAME = "Offline Sprints";
+const SESSION_DOC_KEY = "offline_folio_doc_id";
+const SESSION_PROJ_KEY = "offline_folio_project_id";
+
+const folioUid = () =>
+  Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+function loadFolio(): FolioState {
+  try {
+    const raw = localStorage.getItem("folio_v3");
+    if (raw) return JSON.parse(raw) as FolioState;
+  } catch { /* ignore */ }
+  return { projects: [] };
+}
+
+function saveFolio(state: FolioState) {
+  try { localStorage.setItem("folio_v3", JSON.stringify(state)); } catch { /* ignore */ }
+}
+
+/**
+ * Upsert the current offline sprint's text into Folio. Reuses the same
+ * project + doc within a session so repeated auto-saves update one chapter
+ * rather than spawning new entries every 30 seconds. Pass `final=true` when
+ * the sprint is done — that promotes status from "progress" to "done".
+ */
+function upsertOfflineSprintToFolio(text: string, opts: { final: boolean; chapterName?: string }): { projectId: string; docId: string } | null {
+  if (!text.trim()) return null;
+  const state = loadFolio();
+
+  let projectId = sessionStorage.getItem(SESSION_PROJ_KEY) ?? "";
+  let project = state.projects.find((p) => p.id === projectId)
+    ?? state.projects.find((p) => p.name === OFFLINE_PROJECT_NAME);
+  if (!project) {
+    project = { id: folioUid(), name: OFFLINE_PROJECT_NAME, open: true, docs: [] };
+    state.projects.push(project);
+  }
+  projectId = project.id;
+  sessionStorage.setItem(SESSION_PROJ_KEY, projectId);
+
+  const docId = sessionStorage.getItem(SESSION_DOC_KEY) ?? "";
+  let doc = project.docs.find((d) => d.id === docId);
+  if (!doc) {
+    doc = {
+      id: folioUid(),
+      name: opts.chapterName ?? `Sprint — ${new Date().toLocaleString()}`,
+      content: "",
+      status: "progress",
+      updatedAt: Date.now(),
+    };
+    project.docs.push(doc);
+    sessionStorage.setItem(SESSION_DOC_KEY, doc.id);
+  }
+
+  doc.content = text;
+  doc.updatedAt = Date.now();
+  if (opts.final) doc.status = "done";
+  else if (doc.status === "draft") doc.status = "progress";
+
+  saveFolio(state);
+  return { projectId, docId: doc.id };
+}
+
+function clearOfflineSprintSession() {
+  sessionStorage.removeItem(SESSION_DOC_KEY);
+  sessionStorage.removeItem(SESSION_PROJ_KEY);
+}
+
 const DURATIONS = [5, 10, 15, 20, 30, 45, 60];
 
 const DEFAULT_STYLE: WritingStyle = {
@@ -65,10 +151,17 @@ export default function OfflineSprint() {
   const [autoSaveLabel, setAutoSaveLabel] = useState<"" | "saved">("");
   const [recoveryData, setRecoveryData] = useState<{ exists: boolean; content?: string } | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [folioDialogOpen, setFolioDialogOpen] = useState(false);
+  const [folioTarget, setFolioTarget] = useState<FolioTarget | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Mirror of `text` so the autosave interval can read the latest value
+  // without depending on `text` (which would reset the interval on every
+  // keystroke and defer autosave indefinitely while typing).
+  const textRef = useRef("");
+  useEffect(() => { textRef.current = text; }, [text]);
 
   const words = countWords(text);
   const elapsed = startTime ? (Date.now() - startTime.getTime()) / 1000 / 60 : 0;
@@ -101,20 +194,39 @@ export default function OfflineSprint() {
   }, [phase]);
 
   // ── Auto-save every 30s ───────────────────────────────────────────────────
+  // Saves into Folio (My Files) so the work is recoverable from the regular
+  // app, and also into the Electron native draft slot when running in the
+  // desktop app. Depends only on `phase` so the interval doesn't reset on
+  // every keystroke; reads latest text via `textRef`.
   useEffect(() => {
     if (phase !== "sprinting") return;
-    const api = eAPI();
-    if (!api?.saveDraft) return;
-    autoSaveTimerRef.current = setInterval(async () => {
-      if (!text.trim()) return;
-      await api.saveDraft(text).catch(() => {});
+    autoSaveTimerRef.current = setInterval(() => {
+      const current = textRef.current;
+      if (!current.trim()) return;
+      const target = upsertOfflineSprintToFolio(current, { final: false });
+      if (target) setFolioTarget(target);
+      eAPI()?.saveDraft?.(current).catch(() => {});
       setAutoSaveLabel("saved");
       setTimeout(() => setAutoSaveLabel(""), 2500);
     }, 30_000);
     return () => {
       if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
     };
-  }, [phase, text]);
+  }, [phase]);
+
+  // ── Finalize into Folio when sprint completes ────────────────────────────
+  useEffect(() => {
+    if (phase !== "done") return;
+    if (!text.trim()) return;
+    const target = upsertOfflineSprintToFolio(text, { final: true });
+    if (target) {
+      setFolioTarget(target);
+      toast({
+        title: "Saved to My Files",
+        description: "Your offline sprint is in My Files under \"Offline Sprints\".",
+      });
+    }
+  }, [phase, text, toast]);
 
   // ── Keystroke recovery (throttled 2s) ────────────────────────────────────
   const scheduleRecoverySave = useCallback(() => {
@@ -132,6 +244,9 @@ export default function OfflineSprint() {
       toast({ title: "Invalid duration", description: "Pick 1–300 minutes.", variant: "destructive" });
       return;
     }
+    // Make sure a fresh sprint never appends to a previous session's chapter.
+    clearOfflineSprintSession();
+    setFolioTarget(null);
     setTimeLeft(mins * 60);
     setStartTime(new Date());
     setPhase("sprinting");
@@ -213,6 +328,8 @@ export default function OfflineSprint() {
     setPhase("setup");
     setStartTime(null);
     setAutoSaveLabel("");
+    setFolioTarget(null);
+    clearOfflineSprintSession();
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -301,18 +418,39 @@ export default function OfflineSprint() {
             <div className="text-sm text-muted-foreground">{wpm} WPM average</div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Button className="py-6 gap-2" onClick={handleSave}>
+          {/* Folio status — primary save destination */}
+          {folioTarget && (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 flex items-center gap-3 text-left">
+              <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-foreground">Saved to My Files</div>
+                <div className="text-xs text-muted-foreground">In the &quot;Offline Sprints&quot; project — open My Files to keep editing.</div>
+              </div>
+              <Link
+                href="/my-files"
+                className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline shrink-0"
+              >
+                Open
+              </Link>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Button variant="outline" className="py-6 gap-2" onClick={() => setFolioDialogOpen(true)}>
+              <FolderOpen className="w-4 h-4" />
+              <span className="text-xs sm:text-sm">Save to Folio…</span>
+            </Button>
+            <Button variant="outline" className="py-6 gap-2" onClick={handleSave}>
               <Save className="w-4 h-4" />
-              Save to Computer
+              <span className="text-xs sm:text-sm">Save to Computer</span>
             </Button>
             <Button variant="outline" className="py-6 gap-2" onClick={handleCopy}>
               <Copy className="w-4 h-4" />
-              Copy Text
+              <span className="text-xs sm:text-sm">Copy Text</span>
             </Button>
-            <Button variant="outline" className="py-6 gap-2" onClick={handleNewSprint}>
+            <Button className="py-6 gap-2" onClick={handleNewSprint}>
               <RotateCcw className="w-4 h-4" />
-              New Sprint
+              <span className="text-xs sm:text-sm">New Sprint</span>
             </Button>
           </div>
 
@@ -333,6 +471,17 @@ export default function OfflineSprint() {
             ← Back to portal
           </button>
         </div>
+
+        <FolioSaveDialog
+          open={folioDialogOpen}
+          onClose={() => setFolioDialogOpen(false)}
+          onSaved={(target, label) => {
+            setFolioTarget(target);
+            toast({ title: "Saved to Folio", description: label });
+          }}
+          text={text}
+          initialTarget={folioTarget}
+        />
       </div>
     );
   }

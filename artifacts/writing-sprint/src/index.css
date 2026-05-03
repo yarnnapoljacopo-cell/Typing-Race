@@ -335,6 +335,10 @@
 }
 
 /* ── Villain Mode ──────────────────────────────────────────────────────── */
+/* Prevent decorative fixed-position elements (Portal rings/orbs that extend
+   beyond the viewport) from causing horizontal scroll on phones. */
+html, body { overflow-x: hidden; }
+
 html.villain {
   --background: 0 0% 5%;
   --foreground: 0 0% 90%;
