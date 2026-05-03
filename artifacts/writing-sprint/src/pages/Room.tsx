@@ -18,7 +18,8 @@ import { EmoteBar, EmoteOverlay } from "@/components/EmoteBar";
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 import { SpectatorView } from "@/components/SpectatorView";
 import { Button } from "@/components/ui/button";
-import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck, BookOpen, PenLine, Maximize2, Minimize2, LogOut } from "lucide-react";
+import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck, BookOpen, PenLine, Maximize2, Minimize2, LogOut, NotebookPen } from "lucide-react";
+import StickyNote from "./StickyNote";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -199,6 +200,7 @@ export default function Room() {
   });
   const [folioTargetLabel, setFolioTargetLabel] = useState<string>("");
   const [distractionFree, setDistractionFree] = useState(false);
+  const [stickyOpen, setStickyOpen] = useState(false);
   const [readMode, setReadMode] = useState(false);
   const [graceCountdown, setGraceCountdown] = useState<number | null>(null);
   const [isGameOver, setIsGameOver] = useState(false);
@@ -1182,6 +1184,12 @@ export default function Room() {
   return (
     <>
     <EmoteOverlay emotes={activeEmotes} currentParticipantId={participantId} />
+    <StickyNote
+      open={stickyOpen}
+      onClose={() => setStickyOpen(false)}
+      noteKey={`room_${code}`}
+      title={`Notes · ${code}`}
+    />
     {/* Fixed background layers — only shown in normal (non-distraction-free) mode */}
     {!distractionFree && <>
       <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "var(--bg-solid)" }} />
@@ -1752,6 +1760,17 @@ export default function Room() {
                   Focus Mode
                 </Button>
               )}
+
+              {/* Notes — draggable sticky pad, available to every writer in any
+                  mode/phase. Per-room key so each room has its own note. */}
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setStickyOpen((v) => !v)}
+              >
+                <NotebookPen className="w-4 h-4 mr-2" />
+                {stickyOpen ? "Hide Notes" : "Notes"}
+              </Button>
 
               {/* Folio embed: save current text back to the chapter */}
               {isFolioEmbed && (

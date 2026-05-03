@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./StickyNote.css";
 
 interface Pos { x: number; y: number }
 interface Size { w: number; h: number }
