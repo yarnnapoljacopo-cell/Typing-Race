@@ -7,6 +7,7 @@ import { ensureSchema } from "./lib/ensureSchema";
 import { seedItems } from "./lib/seedItems";
 import { seedCraftingRecipes } from "./lib/seedCraftingRecipes";
 import { startXpDecayScheduler } from "./lib/xpDecay";
+import { startPoolMetrics } from "./lib/poolMetrics";
 
 const rawPort = process.env["PORT"];
 
@@ -43,6 +44,8 @@ const wss = setupWebSocketServer(server);
 // the server becoming ready.
 server.listen(port, () => {
   logger.info({ port }, "Server listening");
+
+  startPoolMetrics();
 
   // Ensure all DB tables exist (safe to run every time; idempotent).
   // DATABASE_URL is only available at runtime on Railway, not during the

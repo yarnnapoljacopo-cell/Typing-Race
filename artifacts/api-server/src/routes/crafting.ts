@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { pool } from "@workspace/db";
 import { grantXp } from "./bag";
+import { mutationLimiter } from "../lib/rateLimits";
 
 const router: IRouter = Router();
 
@@ -95,7 +96,7 @@ router.get("/user/crafting/all-recipes", async (req, res): Promise<void> => {
 
 // ── POST /api/user/crafting/fusion ────────────────────────────────────────────
 
-router.post("/user/crafting/fusion", async (req, res): Promise<void> => {
+router.post("/user/crafting/fusion", mutationLimiter, async (req, res): Promise<void> => {
   const auth = getAuth(req);
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -186,7 +187,7 @@ router.post("/user/crafting/fusion", async (req, res): Promise<void> => {
 
 // ── POST /api/user/crafting/alchemy ──────────────────────────────────────────
 
-router.post("/user/crafting/alchemy", async (req, res): Promise<void> => {
+router.post("/user/crafting/alchemy", mutationLimiter, async (req, res): Promise<void> => {
   const auth = getAuth(req);
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -357,7 +358,7 @@ router.post("/user/crafting/alchemy", async (req, res): Promise<void> => {
 
 // ── POST /api/user/crafting/tribulation ──────────────────────────────────────
 
-router.post("/user/crafting/tribulation", async (req, res): Promise<void> => {
+router.post("/user/crafting/tribulation", mutationLimiter, async (req, res): Promise<void> => {
   const auth = getAuth(req);
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }

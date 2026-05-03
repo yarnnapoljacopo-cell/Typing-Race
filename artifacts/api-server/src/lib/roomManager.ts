@@ -558,6 +558,14 @@ function _startRunning(room: Room): void {
   room.status = "running";
   room.startTime = Date.now();
   room.endTime = room.startTime + room.durationMinutes * 60 * 1000;
+  // Reset per-participant counters so the WPM anti-cheat clamp uses
+  // sprint-start as its baseline rather than the (possibly minutes-old)
+  // last lobby/countdown timestamp — otherwise the very first text_update
+  // gets a huge elapsedMin and the clamp is effectively bypassed.
+  room.participants.forEach((p) => {
+    p.lastWordCount = p.wordCount;
+    p.lastWordCountTime = room.startTime as number;
+  });
   persistRoom(room);
 
   // Initialize gladiator state for all current participants

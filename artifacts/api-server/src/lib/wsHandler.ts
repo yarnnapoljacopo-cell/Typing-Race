@@ -407,10 +407,40 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
 
       if (type === "text_update") {
         const text = (message.text as string) ?? "";
-        const netWordCount =
+        const rawNetWordCount =
           typeof message.netWordCount === "number"
             ? Math.max(0, message.netWordCount)
             : countWords(text);
+
+        // Anti-cheat: cap implausibly large word jumps. A sustained 250 WPM is
+        // already world-class; we allow up to 400 WPM in any one update plus a
+        // small burst tolerance for paste-of-pre-typed-buffer scenarios.
+        const MAX_WPM = 400;
+        const BURST_TOLERANCE = 30;
+        let netWordCount = rawNetWordCount;
+        if (room.status === "running") {
+          const elapsedMin = Math.max(
+            0,
+            (Date.now() - participant.lastWordCountTime) / 60_000,
+          );
+          const allowedDelta = Math.ceil(elapsedMin * MAX_WPM) + BURST_TOLERANCE;
+          const ceiling = participant.lastWordCount + allowedDelta;
+          if (rawNetWordCount > ceiling) {
+            logger.warn(
+              {
+                code: roomCode,
+                participantId,
+                name: participant.name,
+                rawNetWordCount,
+                ceiling,
+                lastWordCount: participant.lastWordCount,
+                elapsedMin,
+              },
+              "Clamped suspicious word-count jump",
+            );
+            netWordCount = ceiling;
+          }
+        }
 
         // In open (Spectator) mode, always store + broadcast text so hover-to-read
         // works in waiting / countdown / finished phases too — not just during the

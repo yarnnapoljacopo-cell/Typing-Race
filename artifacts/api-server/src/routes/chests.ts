@@ -3,6 +3,7 @@ import { getAuth } from "@clerk/express";
 import { pool } from "@workspace/db";
 import { grantXp } from "./bag";
 import { ensureUserCoins, dailyResetCheck, creditCoins } from "../lib/coinHelper";
+import { mutationLimiter } from "../lib/rateLimits";
 
 const router: IRouter = Router();
 
@@ -127,7 +128,7 @@ router.get("/user/chests", async (req, res): Promise<void> => {
 
 // ── POST /api/user/chests/open ────────────────────────────────────────────────
 
-router.post("/user/chests/open", async (req, res): Promise<void> => {
+router.post("/user/chests/open", mutationLimiter, async (req, res): Promise<void> => {
   const auth = getAuth(req);
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }

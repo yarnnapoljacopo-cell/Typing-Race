@@ -3,6 +3,7 @@ import { getAuth } from "@clerk/express";
 import { pool, db, userProfilesTable, sprintWritingTable } from "@workspace/db";
 import { eq, and, desc, sql, sum, lt } from "drizzle-orm";
 import type { PoolClient } from "pg";
+import { mutationLimiter } from "../lib/rateLimits";
 
 const router: IRouter = Router();
 
@@ -215,7 +216,7 @@ router.get("/user/bag", async (req, res): Promise<void> => {
 
 // ── POST /api/user/bag/use ────────────────────────────────────────────────────
 
-router.post("/user/bag/use", async (req, res): Promise<void> => {
+router.post("/user/bag/use", mutationLimiter, async (req, res): Promise<void> => {
   const auth = getAuth(req);
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -897,7 +898,7 @@ router.post("/user/bag/use", async (req, res): Promise<void> => {
 
 // ── DELETE /api/user/bag/discard ──────────────────────────────────────────────
 
-router.delete("/user/bag/discard", async (req, res): Promise<void> => {
+router.delete("/user/bag/discard", mutationLimiter, async (req, res): Promise<void> => {
   const auth = getAuth(req);
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }

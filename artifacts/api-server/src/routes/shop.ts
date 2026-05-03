@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { pool } from "@workspace/db";
 import { ensureUserCoins, dailyResetCheck, deductCoins } from "../lib/coinHelper";
+import { mutationLimiter } from "../lib/rateLimits";
 
 const router: IRouter = Router();
 
@@ -71,7 +72,7 @@ router.get("/shop", async (req, res): Promise<void> => {
 // ── POST /api/shop/buy ────────────────────────────────────────────────────────
 // Body: { listing_id: number }
 
-router.post("/shop/buy", async (req, res): Promise<void> => {
+router.post("/shop/buy", mutationLimiter, async (req, res): Promise<void> => {
   const auth = getAuth(req);
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }

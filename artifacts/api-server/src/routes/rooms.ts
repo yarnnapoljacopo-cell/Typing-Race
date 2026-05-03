@@ -13,6 +13,7 @@ import {
   DECAY_RATE_PER_DAY,
   getRankIndex,
 } from "../lib/xpDecay";
+import { mutationLimiter } from "../lib/rateLimits";
 
 const router: IRouter = Router();
 
@@ -79,7 +80,7 @@ function buildSprintAnnouncement(opts: {
   );
 }
 
-router.post("/rooms", async (req, res): Promise<void> => {
+router.post("/rooms", mutationLimiter, async (req, res): Promise<void> => {
   const parsed = CreateRoomBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -914,7 +915,7 @@ router.get("/users/search", async (req, res): Promise<void> => {
   res.json(results);
 });
 
-router.post("/friends/request", async (req, res): Promise<void> => {
+router.post("/friends/request", mutationLimiter, async (req, res): Promise<void> => {
   const auth = getAuth(req);
   const clerkUserId = auth?.userId;
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -1101,7 +1102,7 @@ router.get("/rooms/:code/bets", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/rooms/:code/bet", async (req, res): Promise<void> => {
+router.post("/rooms/:code/bet", mutationLimiter, async (req, res): Promise<void> => {
   const code = req.params.code?.toUpperCase();
   if (!code) { res.status(400).json({ error: "code required" }); return; }
 

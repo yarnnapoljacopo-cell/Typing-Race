@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import clientErrorsRouter from "./clientErrors";
 import roomsRouter from "./rooms";
 import debugRouter from "./debug";
 import bagRouter from "./bag";
@@ -16,6 +17,7 @@ import skinsRouter from "./skins";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(clientErrorsRouter);
 router.use(roomsRouter);
 router.use(debugRouter);
 router.use(bagRouter);

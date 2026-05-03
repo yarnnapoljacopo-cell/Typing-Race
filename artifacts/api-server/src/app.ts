@@ -6,6 +6,7 @@ import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { generalLimiter } from "./lib/rateLimits";
 
 const app: Express = express();
 
@@ -33,11 +34,17 @@ app.use(
   }),
 );
 
-// ── Health check — registered FIRST, before Clerk middleware ─────────────────
-// This guarantees Railway's healthcheck at /api/healthz always gets an
-// instant 200 regardless of Clerk initialisation state or upstream timeouts.
+// ── Health checks — registered FIRST, before Clerk middleware & rate limiter
+// This guarantees the deep probe measures only app + DB health, never auth
+// init slowness or rate-limit pressure, and the lite probe always gets an
+// instant 200 for Railway's container readiness check.
 app.get("/api/healthz", (_req, res) => { res.json({ status: "ok" }); });
 app.get("/api/health",  (_req, res) => { res.json({ status: "ok" }); });
+app.get("/api/healthz/deep", async (_req, res) => {
+  const { deepHealth } = await import("./lib/healthCheck");
+  const result = await deepHealth();
+  res.status(result.status === "ok" ? 200 : 503).json(result);
+});
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
@@ -49,7 +56,7 @@ const resolvedPublishableKey = process.env.VITE_CLERK_PK ?? process.env.VITE_CLE
 
 app.use(clerkMiddleware({ publishableKey: resolvedPublishableKey }));
 
-app.use("/api", router);
+app.use("/api", generalLimiter, router);
 
 // ── Production: serve the built React frontend ────────────────────────────
 // Vite builds the writing-sprint app to artifacts/writing-sprint/dist/public/

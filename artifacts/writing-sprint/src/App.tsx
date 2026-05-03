@@ -1,7 +1,7 @@
 // eslint-disable-next-line no-console
 console.log("[clerk-key] VITE_CLERK_PK =", import.meta.env.VITE_CLERK_PK, "| VITE_CLERK_PUBLISHABLE_KEY =", import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
-import { useEffect, useRef, useState, Component, createContext, useContext } from "react";
+import { useEffect, useRef, useState, Component, createContext, useContext, lazy, Suspense } from "react";
 import type { ReactNode } from "react";
 import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, ClerkLoading, ClerkLoaded } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
@@ -12,21 +12,34 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import Portal from "@/pages/Portal";
-import Room from "@/pages/Room";
-import MyFiles from "@/pages/MyFiles";
-import Profile from "@/pages/Profile";
-import Friends from "@/pages/Friends";
-import Guild from "@/pages/Guild";
-import GlobalRanking from "@/pages/GlobalRanking";
-import OfflineSprint from "@/pages/OfflineSprint";
-import Shop from "@/pages/Shop";
-import Skins from "@/pages/Skins";
-import Bag from "@/pages/Bag";
-import Chests from "@/pages/Chests";
-import Crafting from "@/pages/Crafting";
-import Quests from "@/pages/Quests";
-import Streak from "@/pages/Streak";
-import Stats from "@/pages/Stats";
+// Heavy route-level pages are code-split so the initial portal/home shell stays small.
+const Room = lazy(() => import("@/pages/Room"));
+const MyFiles = lazy(() => import("@/pages/MyFiles"));
+const Profile = lazy(() => import("@/pages/Profile"));
+const Friends = lazy(() => import("@/pages/Friends"));
+const Guild = lazy(() => import("@/pages/Guild"));
+const GlobalRanking = lazy(() => import("@/pages/GlobalRanking"));
+const OfflineSprint = lazy(() => import("@/pages/OfflineSprint"));
+const Shop = lazy(() => import("@/pages/Shop"));
+const Skins = lazy(() => import("@/pages/Skins"));
+const Bag = lazy(() => import("@/pages/Bag"));
+const Chests = lazy(() => import("@/pages/Chests"));
+const Crafting = lazy(() => import("@/pages/Crafting"));
+const Quests = lazy(() => import("@/pages/Quests"));
+const Streak = lazy(() => import("@/pages/Streak"));
+const Stats = lazy(() => import("@/pages/Stats"));
+
+function RouteFallback() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <img
+        src={`${basePath}/logo.svg`}
+        alt="Loading"
+        className="h-10 w-10 rounded-xl animate-pulse"
+      />
+    </div>
+  );
+}
 import { LevelUpListener } from "@/components/LevelUpListener";
 import { GuestProvider, useGuest } from "@/lib/guestContext";
 import { VillainModeProvider } from "@/lib/villainModeContext";
@@ -641,28 +654,30 @@ function ClerkProviderWithRoutes() {
           <TooltipProvider>
             <Sidebar />
             <LevelUpListener />
-            <Switch>
-              <Route path="/" component={HomeRedirect} />
-              <Route path="/portal" component={PortalGuard} />
-              <Route path="/room" component={RoomGuard} />
-              <Route path="/my-files" component={MyFilesGuard} />
-              <Route path="/friends" component={FriendsGuard} />
-              <Route path="/guild" component={GuildGuard} />
-              <Route path="/global-ranking" component={GlobalRankingGuard} />
-              <Route path="/profile/:name" component={Profile} />
-              <Route path="/streak" component={StreakGuard} />
-              <Route path="/stats" component={StatsGuard} />
-              <Route path="/offline-sprint" component={OfflineSprint} />
-              <Route path="/shop" component={Shop} />
-              <Route path="/skins" component={Skins} />
-              <Route path="/bag" component={Bag} />
-              <Route path="/chests" component={Chests} />
-              <Route path="/crafting" component={Crafting} />
-              <Route path="/quests" component={Quests} />
-              <Route path="/sign-in/*?" component={SignInPage} />
-              <Route path="/sign-up/*?" component={SignUpPage} />
-              <Route component={NotFound} />
-            </Switch>
+            <Suspense fallback={<RouteFallback />}>
+              <Switch>
+                <Route path="/" component={HomeRedirect} />
+                <Route path="/portal" component={PortalGuard} />
+                <Route path="/room" component={RoomGuard} />
+                <Route path="/my-files" component={MyFilesGuard} />
+                <Route path="/friends" component={FriendsGuard} />
+                <Route path="/guild" component={GuildGuard} />
+                <Route path="/global-ranking" component={GlobalRankingGuard} />
+                <Route path="/profile/:name" component={Profile} />
+                <Route path="/streak" component={StreakGuard} />
+                <Route path="/stats" component={StatsGuard} />
+                <Route path="/offline-sprint" component={OfflineSprint} />
+                <Route path="/shop" component={Shop} />
+                <Route path="/skins" component={Skins} />
+                <Route path="/bag" component={Bag} />
+                <Route path="/chests" component={Chests} />
+                <Route path="/crafting" component={Crafting} />
+                <Route path="/quests" component={Quests} />
+                <Route path="/sign-in/*?" component={SignInPage} />
+                <Route path="/sign-up/*?" component={SignUpPage} />
+                <Route component={NotFound} />
+              </Switch>
+            </Suspense>
             <Toaster />
           </TooltipProvider>
           </VillainModeProvider>
