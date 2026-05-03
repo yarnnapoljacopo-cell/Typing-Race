@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useUser, useAuth } from "@clerk/react";
 import { useAuthedFetch } from "@/lib/authedFetch";
-import { ArrowLeft, ChevronLeft, ChevronRight, Flame, Trophy, CalendarDays, Loader2 } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Flame, Trophy, CalendarDays, Loader2, Check, Circle } from "lucide-react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -107,6 +107,13 @@ export default function Streak() {
 
   const today = todayKey();
   const daysWrittenThisMonth = (data?.days ?? []).filter(d => d.wordsWritten > 0).length;
+  // Today is "secured" once the user has logged any writing today. We treat
+  // both the per-day log entry and the server-side last_streak_day marker as
+  // authoritative so the badge appears the moment a sprint is completed,
+  // without waiting for an extra refetch round trip.
+  const todayEntry = dayMap.get(today);
+  const todayWords = todayEntry?.wordsWritten ?? 0;
+  const todaySecured = todayWords > 0 || data?.lastStreakDay === today;
 
   if (!isLoaded) return null;
   if (!user) {
@@ -143,6 +150,51 @@ export default function Streak() {
           <p style={{ textAlign: "center", color: "#7a7a92", fontSize: "0.9rem", marginBottom: 28 }}>
             Show up every day. Watch the calendar fill in.
           </p>
+
+          {/* Today status banner */}
+          <div
+            style={{
+              ...CARD,
+              padding: "12px 16px",
+              marginBottom: 14,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              borderColor: todaySecured ? "rgba(34,197,94,0.45)" : "rgba(249,115,22,0.35)",
+              background: todaySecured
+                ? "linear-gradient(135deg, rgba(220,252,231,0.92), rgba(255,255,255,0.85))"
+                : "rgba(255,247,237,0.9)",
+            }}
+            aria-live="polite"
+          >
+            <span
+              style={{
+                width: 32, height: 32, borderRadius: "50%",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: todaySecured ? "#16a34a" : "transparent",
+                border: todaySecured ? "none" : "2px dashed #f97316",
+                color: "#fff",
+                flexShrink: 0,
+              }}
+            >
+              {todaySecured ? <Check size={18} strokeWidth={3} /> : <Circle size={14} strokeWidth={2.5} style={{ color: "#f97316" }} />}
+            </span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontWeight: 700, color: "#1a1a2e", fontSize: "0.9rem" }}>
+                {todaySecured ? "Today's streak is secured" : "Today not logged yet"}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "#5b6377", marginTop: 2 }}>
+                {todaySecured
+                  ? `Nicely done — ${todayWords > 0 ? `${todayWords.toLocaleString()} word${todayWords === 1 ? "" : "s"} so far today.` : "your daily check-in is in."}`
+                  : "Finish a sprint today to keep your streak alive."}
+              </div>
+            </div>
+            {!!data?.currentStreak && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#f97316", fontWeight: 700, fontSize: "0.95rem", flexShrink: 0 }}>
+                <Flame size={16} /> {data.currentStreak}
+              </div>
+            )}
+          </div>
 
           {/* Stats row */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
@@ -243,6 +295,27 @@ export default function Streak() {
                     {words > 0 && (
                       <span style={{ fontSize: "0.58rem", opacity: 0.85, marginTop: 1 }}>
                         {words >= 1000 ? `${(words / 1000).toFixed(1)}k` : words}
+                      </span>
+                    )}
+                    {isToday && words > 0 && (
+                      <span
+                        aria-label="Streak secured today"
+                        style={{
+                          position: "absolute",
+                          top: -5,
+                          right: -5,
+                          width: 16,
+                          height: 16,
+                          borderRadius: "50%",
+                          background: "#16a34a",
+                          color: "#fff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.2), 0 0 0 2px #fff",
+                        }}
+                      >
+                        <Check size={10} strokeWidth={3.5} />
                       </span>
                     )}
                   </div>
