@@ -96,7 +96,7 @@ export interface EmoteEvent {
   ts: number;
 }
 
-const EMOTE_DISPLAY_MS = 3500;
+const EMOTE_DISPLAY_MS = 10000;
 
 interface UseSprintRoomProps {
   code: string;
@@ -342,6 +342,7 @@ export function useSprintRoom({ code, name, password, clerkUserId }: UseSprintRo
               targetName: (data.targetName as string | null) ?? null,
               ts: (data.ts as number) ?? Date.now(),
             };
+            console.info("[emote received]", ev.sourceName, "->", ev.targetName ?? "Everyone", ":", ev.label);
             // Cap visible bubbles at 4 to avoid overflow on long taunt bursts.
             setActiveEmotes((prev) => [...prev.slice(-3), ev]);
             const timer = setTimeout(() => {

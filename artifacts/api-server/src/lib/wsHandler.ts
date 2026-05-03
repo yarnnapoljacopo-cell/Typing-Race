@@ -389,31 +389,17 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
       if (!participant) return;
 
       if (type === "text_update") {
-        if (room.status !== "running") return;
-
         const text = (message.text as string) ?? "";
         const netWordCount =
           typeof message.netWordCount === "number"
             ? Math.max(0, message.netWordCount)
             : countWords(text);
 
-        // Detect suspicious resets: participant had significant progress but is
-        // now sending 0.  Log a warning so we can diagnose reconnect edge-cases.
-        const currentWc = participant.wordCount;
-        if (netWordCount === 0 && currentWc > 10) {
-          logger.warn(
-            { code: roomCode, participantId, name: participant.name, previousWordCount: currentWc },
-            "Participant word count reset to 0 — possible reconnect baseline bug"
-          );
-        }
-
-        // Store latest text for catchup on reconnect / new joins
-        participant.latestText = text;
-
-        updateParticipantStats(room, participantId, netWordCount);
-
-        // In open mode, broadcast live text to every other participant
+        // In open (Spectator) mode, always store + broadcast text so hover-to-read
+        // works in waiting / countdown / finished phases too — not just during the
+        // active sprint. For other modes, only count words while the sprint runs.
         if (room.mode === "open") {
+          participant.latestText = text;
           const payload = JSON.stringify({
             type: "participant_text",
             participantId,
@@ -427,6 +413,24 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             }
           });
         }
+
+        if (room.status !== "running") return;
+
+        // Detect suspicious resets: participant had significant progress but is
+        // now sending 0.  Log a warning so we can diagnose reconnect edge-cases.
+        const currentWc = participant.wordCount;
+        if (netWordCount === 0 && currentWc > 10) {
+          logger.warn(
+            { code: roomCode, participantId, name: participant.name, previousWordCount: currentWc },
+            "Participant word count reset to 0 — possible reconnect baseline bug"
+          );
+        }
+
+        // Store latest text for catchup on reconnect / new joins (non-open modes
+        // also benefit so reconnect restores in-progress text).
+        if (room.mode !== "open") participant.latestText = text;
+
+        updateParticipantStats(room, participantId, netWordCount);
 
         // Kart mode: item earning + banana trap check
         if (room.mode === "kart" && room.status === "running") {
@@ -675,6 +679,10 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           targetName,
           ts: now,
         });
+        logger.info(
+          { code: roomCode, sourceId: participantId, sourceName: participant.name, emoteId, targetId, recipients: room.participants.size },
+          "emote broadcast"
+        );
         return;
       }
 
