@@ -18,14 +18,24 @@ export class GuildError extends Error {
   }
 }
 
+// Whitelist of crest ids the client is allowed to choose. Mirrored on the
+// frontend in src/components/GuildCrests.tsx — adding a new crest requires
+// updating both lists.
+const ALLOWED_CRESTS = new Set([
+  "swords", "tower", "raven", "quill", "anchor", "flame",
+  "moon", "eye", "wolf", "shield", "rose", "mountain",
+]);
+
 export async function createGuild(
   leaderId: string,
   name: string,
   tag: string,
   description: string,
-): Promise<{ id: number; name: string; tag: string }> {
+  crest: string = "swords",
+): Promise<{ id: number; name: string; tag: string; crest: string }> {
   const trimmedName = (name ?? "").trim();
   const trimmedTag = (tag ?? "").trim().toUpperCase();
+  const safeCrest = ALLOWED_CRESTS.has(crest) ? crest : "swords";
   if (trimmedName.length < 2 || trimmedName.length > 40) {
     throw new GuildError("Guild name must be 2–40 characters");
   }
@@ -61,8 +71,9 @@ export async function createGuild(
         tag: trimmedTag,
         leaderId,
         description: (description ?? "").slice(0, 1000),
+        crest: safeCrest,
       })
-      .returning({ id: guildsTable.id, name: guildsTable.name, tag: guildsTable.tag });
+      .returning({ id: guildsTable.id, name: guildsTable.name, tag: guildsTable.tag, crest: guildsTable.crest });
 
     const guild = inserted[0];
     await tx.insert(guildMembersTable).values({
@@ -71,7 +82,7 @@ export async function createGuild(
       role: "leader",
     });
 
-    return { id: guild.id, name: guild.name, tag: guild.tag };
+    return { id: guild.id, name: guild.name, tag: guild.tag, crest: guild.crest };
   });
 }
 

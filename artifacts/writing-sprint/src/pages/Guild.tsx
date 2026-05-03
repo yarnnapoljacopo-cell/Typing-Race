@@ -3,11 +3,12 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@clerk/react";
 import { useAuthedFetch } from "@/lib/authedFetch";
-import { ArrowLeft, Users, LogOut, Send, Zap, Shield, UserMinus, ArrowRightLeft, Trash2, MessageCircle, Swords, BarChart3 } from "lucide-react";
+import { ArrowLeft, Users, LogOut, Send, Zap, Shield, UserMinus, ArrowRightLeft, Trash2, MessageCircle, BarChart3, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { getRankFromXp } from "@/lib/ranks";
+import { GuildCrest, GUILD_CRESTS } from "@/components/GuildCrests";
 import SprintPopup from "./SprintPopup";
 import "./Guild.css";
 
@@ -26,6 +27,7 @@ interface Member {
 interface GuildData {
   guild: {
     id: number; name: string; tag: string; description: string;
+    crest?: string;
     leaderId: string; createdAt: string;
   } | null;
   role?: string;
@@ -120,6 +122,7 @@ function NoGuildView({ af, onCreated }: { af: AF; onCreated: () => void }) {
   const [name, setName] = useState("");
   const [tag, setTag] = useState("");
   const [description, setDescription] = useState("");
+  const [crest, setCrest] = useState<string>("swords");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -131,7 +134,7 @@ function NoGuildView({ af, onCreated }: { af: AF; onCreated: () => void }) {
       const res = await af(`${basePath}/api/guilds`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, tag, description }),
+        body: JSON.stringify({ name, tag, description, crest }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to create guild");
@@ -162,6 +165,33 @@ function NoGuildView({ af, onCreated }: { af: AF; onCreated: () => void }) {
             <span>Tag <em className="g-hint">(2–6 letters)</em></span>
             <Input value={tag} onChange={(e) => setTag(e.target.value.toUpperCase())} placeholder="INK" maxLength={6} required />
           </label>
+          <div className="g-label">
+            <span>Crest <em className="g-hint">— pick a symbol for your banner</em></span>
+            <div className="g-crest-grid" role="radiogroup" aria-label="Guild crest">
+              {GUILD_CRESTS.map((c) => {
+                const selected = crest === c.id;
+                return (
+                  <button
+                    type="button"
+                    key={c.id}
+                    role="radio"
+                    aria-checked={selected}
+                    title={c.label}
+                    onClick={() => setCrest(c.id)}
+                    className={`g-crest-tile ${selected ? "is-selected" : ""}`}
+                  >
+                    <span className="g-crest-tile-diamond">
+                      <span className="g-crest-tile-inner">
+                        <GuildCrest id={c.id} size={26} />
+                      </span>
+                    </span>
+                    <span className="g-crest-tile-label">{c.label}</span>
+                    {selected && <span className="g-crest-tile-check"><Check size={10} strokeWidth={3} /></span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <label className="g-label">
             <span>Description <em className="g-hint">(optional)</em></span>
             <textarea
@@ -368,7 +398,7 @@ function GuildView({ af, data, refetchGuild, onBack }: { af: AF; data: GuildData
         </button>
         <div className="gp-title-row">
           <div className="gp-name-block">
-            <div className="gp-crest"><div className="gp-crest-inner"><Swords size={22} strokeWidth={2.2} /></div></div>
+            <div className="gp-crest"><div className="gp-crest-inner"><GuildCrest id={guild.crest ?? "swords"} size={26} /></div></div>
             <div style={{ minWidth: 0 }}>
               <h1 className="gp-name" title={guild.name}>{guild.name}</h1>
               <span className="gp-tag">[{guild.tag}]</span>

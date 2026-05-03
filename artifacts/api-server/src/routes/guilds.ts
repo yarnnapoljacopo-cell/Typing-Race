@@ -100,6 +100,7 @@ router.get("/guilds/me", async (req, res): Promise<void> => {
         name: guild.name,
         tag: guild.tag,
         description: guild.description,
+        crest: guild.crest,
         leaderId: guild.leaderId,
         createdAt: guild.createdAt,
       },
@@ -122,12 +123,18 @@ router.post("/guilds", async (req, res): Promise<void> => {
   const userId = requireAuth(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { name, tag, description } = req.body ?? {};
+  const { name, tag, description, crest } = req.body ?? {};
   if (typeof name !== "string" || typeof tag !== "string") {
     res.status(400).json({ error: "name and tag required" }); return;
   }
   try {
-    const guild = await createGuild(userId, name, tag, typeof description === "string" ? description : "");
+    const guild = await createGuild(
+      userId,
+      name,
+      tag,
+      typeof description === "string" ? description : "",
+      typeof crest === "string" ? crest : "swords",
+    );
     res.status(201).json(guild);
   } catch (err) { handleError(err, res); }
 });

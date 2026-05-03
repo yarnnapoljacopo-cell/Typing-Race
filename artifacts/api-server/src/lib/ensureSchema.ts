@@ -334,8 +334,11 @@ export async function ensureSchema(): Promise<void> {
         leader_id    VARCHAR(100) NOT NULL
           REFERENCES user_profiles(clerk_user_id) ON DELETE CASCADE,
         description  TEXT         NOT NULL DEFAULT '',
+        crest        VARCHAR(20)  NOT NULL DEFAULT 'swords',
         created_at   TIMESTAMP    NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE guilds
+        ADD COLUMN IF NOT EXISTS crest VARCHAR(20) NOT NULL DEFAULT 'swords';
 
       CREATE TABLE IF NOT EXISTS guild_members (
         guild_id   INTEGER      NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,

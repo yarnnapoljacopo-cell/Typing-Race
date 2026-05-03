@@ -9,6 +9,7 @@ export const guildsTable = pgTable("guilds", {
     .notNull()
     .references(() => userProfilesTable.clerkUserId, { onDelete: "cascade" }),
   description: text("description").notNull().default(""),
+  crest: varchar("crest", { length: 20 }).notNull().default("swords"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
