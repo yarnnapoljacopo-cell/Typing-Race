@@ -34,7 +34,13 @@ const CAR_PALETTES: Record<string, CarPalette> = {
   shadow:    { car: "#1f2937", shade: "#0b1220", light: "#4b5563", trim: "#a78bfa" },
   crimson:   { car: "#7f1d1d", shade: "#450a0a", light: "#dc2626", trim: "#f59e0b" },
   royal:     { car: "#6d28d9", shade: "#3b0764", light: "#a78bfa", trim: "#fde047" },
-  celestial: { car: "#0ea5e9", shade: "#0c4a6e", light: "#bae6fd", trim: "#fde047" },
+  gilded:    { car: "#d97706", shade: "#92400e", light: "#fde68a", trim: "#fef3c7" },
+  void:      { car: "#0f172a", shade: "#020617", light: "#1e293b", trim: "#10b981" },
+  arctic:    { car: "#7dd3fc", shade: "#0369a1", light: "#e0f9ff", trim: "#bae6fd" },
+  sakura:    { car: "#ec4899", shade: "#9d174d", light: "#fbcfe8", trim: "#fce7f3" },
+  thunder:   { car: "#1c1917", shade: "#0c0a09", light: "#44403c", trim: "#fbbf24" },
+  cyber:     { car: "#003d1a", shade: "#001a0a", light: "#00ff88", trim: "#00ff88" },
+  celestial: { car: "#4400b3", shade: "#1a0050", light: "#a78bfa", trim: "#fde047" },
   inferno:   { car: "#dc2626", shade: "#7f1d1d", light: "#fbbf24", trim: "#facc15" },
 };
 

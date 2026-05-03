@@ -24,23 +24,33 @@ interface RoadSkinDef {
 }
 
 const CAR_SKINS: CarSkinDef[] = [
-  { key: "bluebird",  name: "Bluebird",       rarity: "common", unlocked: true  },
-  { key: "firebolt",  name: "Firebolt",       rarity: "rare",   unlocked: true  },
-  { key: "jade",      name: "Jade Rider",     rarity: "rare",   unlocked: true  },
-  { key: "shadow",    name: "Shadow Stalker", rarity: "epic",   unlocked: false },
-  { key: "crimson",   name: "Crimson Reaper", rarity: "epic",   unlocked: false },
-  { key: "royal",     name: "Royal Cruiser",  rarity: "legendary", unlocked: false },
-  { key: "celestial", name: "Celestial Drift",rarity: "ultra",  unlocked: false },
-  { key: "inferno",   name: "Inferno Beast",  rarity: "ultra",  unlocked: false },
+  { key: "bluebird",  name: "Bluebird",        rarity: "common",    unlocked: true  },
+  { key: "firebolt",  name: "Firebolt",        rarity: "rare",      unlocked: true  },
+  { key: "jade",      name: "Jade Rider",      rarity: "rare",      unlocked: true  },
+  { key: "shadow",    name: "Shadow Racer",    rarity: "epic",      unlocked: false },
+  { key: "crimson",   name: "Crimson Beast",   rarity: "epic",      unlocked: false },
+  { key: "royal",     name: "Royal Phantom",   rarity: "legendary", unlocked: false },
+  { key: "gilded",    name: "Gilded Emperor",  rarity: "legendary", unlocked: false },
+  { key: "void",      name: "Void Serpent",    rarity: "epic",      unlocked: false },
+  { key: "arctic",    name: "Arctic Storm",    rarity: "epic",      unlocked: false },
+  { key: "sakura",    name: "Sakura Drift",    rarity: "rare",      unlocked: false },
+  { key: "thunder",   name: "Thunder God",     rarity: "legendary", unlocked: false },
+  { key: "cyber",     name: "Cyber Grid",      rarity: "legendary", unlocked: false },
+  { key: "celestial", name: "Celestial Titan", rarity: "ultra",     unlocked: false },
+  { key: "inferno",   name: "Inferno God",     rarity: "ultra",     unlocked: false },
 ];
 
 const ROAD_SKINS: RoadSkinDef[] = [
-  { key: "mushroom",   name: "Mushroom Path", rarity: "common", unlocked: true  },
-  { key: "ghost",      name: "Ghost House",   rarity: "rare",   unlocked: true  },
-  { key: "volcano",    name: "Volcano Peak",  rarity: "rare",   unlocked: true  },
-  { key: "ice",        name: "Ice Caverns",   rarity: "epic",   unlocked: false },
-  { key: "rainbow",    name: "Rainbow Road",  rarity: "legendary", unlocked: false },
-  { key: "neon",       name: "Neon City",     rarity: "ultra",  unlocked: false },
+  { key: "mushroom",   name: "Mushroom Kingdom", rarity: "common",    unlocked: true  },
+  { key: "ghost",      name: "Ghost House",      rarity: "rare",      unlocked: true  },
+  { key: "volcano",    name: "Volcano Peak",     rarity: "epic",      unlocked: true  },
+  { key: "ice",        name: "Ice Palace",       rarity: "epic",      unlocked: false },
+  { key: "rainbow",    name: "Rainbow Road",     rarity: "legendary", unlocked: false },
+  { key: "desert",     name: "Desert Dunes",     rarity: "rare",      unlocked: false },
+  { key: "underwater", name: "Underwater Reef",  rarity: "epic",      unlocked: false },
+  { key: "space",      name: "Deep Space",       rarity: "legendary", unlocked: false },
+  { key: "autumn",     name: "Autumn Festival",  rarity: "rare",      unlocked: false },
+  { key: "neon",       name: "Neon City",        rarity: "legendary", unlocked: false },
 ];
 
 const CAR_KEYS = new Set(CAR_SKINS.map(s => s.key));
