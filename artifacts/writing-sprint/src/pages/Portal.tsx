@@ -113,28 +113,28 @@ function RoleToggle({
     background: active ? "white" : "transparent",
     color: active ? C.ink : C.muted,
     fontFamily: "'DM Sans', sans-serif",
-    fontSize: "0.85rem",
+    fontSize: "0.74rem",
     fontWeight: active ? 700 : 500,
-    padding: "10px 14px",
-    borderRadius: 10,
+    padding: "5px 10px",
+    borderRadius: 7,
     cursor: "pointer",
     transition: "all 0.18s",
-    boxShadow: active ? "0 2px 8px rgba(26,26,46,0.08)" : "none",
+    boxShadow: active ? "0 1px 4px rgba(26,26,46,0.08)" : "none",
   });
   const helper =
     role === "editor"
       ? "Editors join without a car. Others can see what you're writing in real time."
       : "Writers race on the track and contribute words to the goal.";
   return (
-    <div style={{ marginBottom: 18 }}>
+    <div style={{ marginBottom: 12 }}>
       <div
         style={{
-          fontSize: "0.78rem",
+          fontSize: "0.68rem",
           fontWeight: 600,
           color: C.muted,
           textTransform: "uppercase" as const,
           letterSpacing: "0.08em",
-          marginBottom: 8,
+          marginBottom: 5,
         }}
       >
         Join as
@@ -144,11 +144,11 @@ function RoleToggle({
         aria-label="Sprint role"
         style={{
           display: "flex",
-          gap: 4,
+          gap: 3,
           background: "rgba(0,0,0,0.04)",
-          border: `1.5px solid ${C.border}`,
-          borderRadius: 13,
-          padding: 4,
+          border: `1px solid ${C.border}`,
+          borderRadius: 9,
+          padding: 3,
         }}
       >
         <button
@@ -170,7 +170,7 @@ function RoleToggle({
           Editor
         </button>
       </div>
-      <div style={{ fontSize: "0.72rem", color: C.muted, marginTop: 6, lineHeight: 1.4 }}>
+      <div style={{ fontSize: "0.66rem", color: C.muted, marginTop: 4, lineHeight: 1.35 }}>
         {helper}
       </div>
     </div>

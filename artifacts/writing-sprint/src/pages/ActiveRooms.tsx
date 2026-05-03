@@ -103,20 +103,32 @@ export default function ActiveRooms() {
     user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] ||
     "Writer";
 
-  const handleJoin = (room: ActiveRoom) => {
+  // Track which role the user picked when entering the password dialog so
+  // that after they confirm, we navigate with the right ?role= param.
+  const [pendingJoinRole, setPendingJoinRole] = React.useState<"writer" | "editor">("writer");
+
+  const navigateToRoom = (code: string, role: "writer" | "editor") => {
+    const roleParam = role === "editor" ? "&role=editor" : "";
+    setLocation(`/room?code=${encodeURIComponent(code)}&name=${encodeURIComponent(displayName)}${roleParam}`);
+  };
+
+  const handleJoin = (room: ActiveRoom, role: "writer" | "editor" = "writer") => {
     if (room.isPasswordProtected) {
       setPasswordDialogRoom(room.code);
+      setPendingJoinRole(role);
       setJoinPasswordInput("");
       return;
     }
-    setLocation(`/room?code=${encodeURIComponent(room.code)}&name=${encodeURIComponent(displayName)}`);
+    navigateToRoom(room.code, role);
   };
 
   const handlePasswordConfirm = () => {
     if (!passwordDialogRoom || !joinPasswordInput.trim()) return;
     sessionStorage.setItem(`room_password_${passwordDialogRoom}`, joinPasswordInput.trim());
+    const code = passwordDialogRoom;
+    const role = pendingJoinRole;
     setPasswordDialogRoom(null);
-    setLocation(`/room?code=${encodeURIComponent(passwordDialogRoom)}&name=${encodeURIComponent(displayName)}`);
+    navigateToRoom(code, role);
   };
 
   if (isLoading) {
@@ -198,13 +210,24 @@ export default function ActiveRooms() {
               </div>
               <p className="text-xs text-muted-foreground">Created by {room.creatorName}</p>
             </div>
-            <Button
-              size="sm"
-              onClick={() => handleJoin(room)}
-              className="shrink-0"
-            >
-              {room.isPasswordProtected ? <><KeyRound size={12} className="mr-1" />Join</> : "Join"}
-            </Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleJoin(room, "editor")}
+                className="text-xs h-8 px-2.5"
+                title="Join as Editor (no car, see writers' text live)"
+              >
+                Editor
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleJoin(room, "writer")}
+                title="Join as Writer (race on the track)"
+              >
+                {room.isPasswordProtected ? <><KeyRound size={12} className="mr-1" />Writer</> : "Writer"}
+              </Button>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
