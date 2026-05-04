@@ -37,7 +37,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Focus Mode: hides all UI chrome for distraction-free writing
 - XP/Levels system: 8 ranks (Blank Page → Ranker 👑), 1 XP per 5 words, 2× for 1st place; XP decay after 5-day idle
 - Writer profiles at `/profile/:name` with rank badge, XP bar, and rank progression
-- My Files page: saved sprint writing capsules per user
+- My Files (Folio) page: projects/docs stored in IndexedDB + server-synced via `folioStore`; offline-capable, cross-device sync for signed-in users
 - Clerk auth + guest mode; XP only awarded to signed-in users
 - Global Ranking leaderboard (`/global-ranking`): locked to Ranker-tier users (200k+ XP)
 - **Data persistence**: server finalizes all writing + awards XP at `endSprint` (`finalizeSprintData`); `xpAwarded` flag on `sprint_writing` prevents double-award between server and client paths
@@ -86,6 +86,18 @@ Room status flow: waiting → running → finished
 - Requires env secrets: `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `API_BASE_URL`
 - One-time command registration: `pnpm --filter @workspace/discord-bot run deploy`
 - Started via the "Discord Bot" workflow (configure and start once secrets are set)
+
+## Folio Sync System
+
+The Folio (My Files) system stores writing projects/docs with offline + cross-device sync:
+- **DB**: `folio_state` table — JSONB blob per user (userId PK, state JSONB, updatedAt timestamp)
+- **API**: `GET /api/folio` (returns user's state), `PUT /api/folio` (upserts full state; 5mb body limit)
+- **Client store**: `folioStore.ts` — singleton with IndexedDB persistence, debounced server push (3s), project/doc-level merge on init
+- **React hook**: `useFolio()` from `lib/useFolio.ts` — returns `{ state, setState, isOnline, isSyncing, isInitialized, lastSyncError, syncNow }`
+- **Migration**: On first load, reads `folio_v3` + `folio_stickynote_*` from localStorage → writes to IDB + server → clears old keys
+- **Guest mode**: IDB-only (no server sync); server sync activates when signed in via Clerk
+- **Sticky notes**: stored as `state.notes` Record in the folio state (synced), position/size remain in localStorage (per-device)
+- **Files**: `lib/db/src/schema/folio.ts`, `artifacts/api-server/src/routes/folio.ts`, `artifacts/writing-sprint/src/lib/folioStore.ts`, `artifacts/writing-sprint/src/lib/useFolio.ts`
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
 

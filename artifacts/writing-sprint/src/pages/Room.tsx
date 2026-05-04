@@ -37,6 +37,7 @@ import { BetModal } from "@/components/BetModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Coins } from "lucide-react";
 import FolioSaveDialog, { type FolioTarget } from "./FolioSaveDialog";
+import { folioStore } from "@/lib/folioStore";
 
 const CAPSULE_INTERVAL = 200;
 
@@ -480,16 +481,27 @@ export default function Room() {
 
   const saveSilentlyToFolio = useCallback((target: FolioTarget): { ok: boolean; label: string } => {
     try {
-      const raw = localStorage.getItem("folio_v3");
-      if (!raw) return { ok: false, label: "" };
-      const state = JSON.parse(raw) as { projects: Array<{ id: string; name: string; docs: Array<{ id: string; name: string; content: string; status: string; updatedAt: number }> }> };
-      const proj = state.projects.find((p) => p.id === target.projectId);
+      const current = folioStore.getState();
+      if (!current.projects.length) return { ok: false, label: "" };
+      const proj = current.projects.find((p) => p.id === target.projectId);
       const doc = proj?.docs.find((d) => d.id === target.docId);
       if (!proj || !doc) return { ok: false, label: "" };
-      doc.content = getCurrentPlainText();
-      doc.updatedAt = Date.now();
-      if (doc.status === "draft") doc.status = "progress";
-      localStorage.setItem("folio_v3", JSON.stringify(state));
+      folioStore.setState((prev) => ({
+        ...prev,
+        projects: prev.projects.map((p) =>
+          p.id !== target.projectId ? p : {
+            ...p,
+            docs: p.docs.map((d) =>
+              d.id !== target.docId ? d : {
+                ...d,
+                content: getCurrentPlainText(),
+                updatedAt: Date.now(),
+                status: d.status === "draft" ? "progress" as const : d.status,
+              }
+            ),
+          }
+        ),
+      }));
       return { ok: true, label: `${proj.name} · ${doc.name}` };
     } catch {
       return { ok: false, label: "" };

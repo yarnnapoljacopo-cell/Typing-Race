@@ -1,22 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { folioStore, type FolioDoc, type FolioState } from "@/lib/folioStore";
 import "./MyFiles.css";
-
-interface FolioDoc {
-  id: string;
-  name: string;
-  content: string;
-  status: "draft" | "progress" | "done" | "edit";
-  updatedAt: number;
-}
-interface FolioProject {
-  id: string;
-  name: string;
-  open: boolean;
-  docs: FolioDoc[];
-}
-interface FolioState {
-  projects: FolioProject[];
-}
 
 export interface FolioTarget {
   projectId: string;
@@ -36,14 +20,6 @@ interface Props {
 const uid = () =>
   Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
-function loadFolio(): FolioState {
-  try {
-    const raw = localStorage.getItem("folio_v3");
-    if (raw) return JSON.parse(raw) as FolioState;
-  } catch { /* ignore */ }
-  return { projects: [] };
-}
-
 export default function FolioSaveDialog({ open, onClose, onSaved, text, initialTarget }: Props) {
   const [state, setState] = useState<FolioState>({ projects: [] });
   const [selProject, setSelProject] = useState<string>("");
@@ -54,7 +30,7 @@ export default function FolioSaveDialog({ open, onClose, onSaved, text, initialT
 
   useEffect(() => {
     if (!open) return;
-    const loaded = loadFolio();
+    const loaded = folioStore.getState();
     setState(loaded);
     if (loaded.projects.length === 0) {
       setCreatingProject(true);
@@ -121,7 +97,7 @@ export default function FolioSaveDialog({ open, onClose, onSaved, text, initialT
       docLabel = name;
     }
 
-    try { localStorage.setItem("folio_v3", JSON.stringify(next)); } catch { /* ignore */ }
+    folioStore.setState(next);
     onSaved({ projectId, docId }, `${projectName} · ${docLabel}`);
     onClose();
   };

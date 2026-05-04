@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { folioStore } from "@/lib/folioStore";
 import "./StickyNote.css";
 
 interface Pos { x: number; y: number }
@@ -7,13 +8,12 @@ interface Size { w: number; h: number }
 interface Props {
   open: boolean;
   onClose: () => void;
-  noteKey: string; // unique key per chapter (or "global")
+  noteKey: string;
   title?: string;
 }
 
 const POS_KEY = "folio_stickynote_pos";
 const SIZE_KEY = "folio_stickynote_size";
-const NOTE_PREFIX = "folio_stickynote_";
 
 function loadPos(): Pos {
   try {
@@ -38,22 +38,17 @@ export default function StickyNote({ open, onClose, noteKey, title = "Notes" }: 
   const resizeRef = useRef<{ sx: number; sy: number; sw: number; sh: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Load note content when key changes
   useEffect(() => {
-    try {
-      setContent(localStorage.getItem(NOTE_PREFIX + noteKey) || "");
-    } catch { setContent(""); }
+    setContent(folioStore.getNote(noteKey));
   }, [noteKey]);
 
-  // Persist content (debounced)
   useEffect(() => {
     const t = window.setTimeout(() => {
-      try { localStorage.setItem(NOTE_PREFIX + noteKey, content); } catch { /* ignore */ }
+      folioStore.setNote(noteKey, content);
     }, 250);
     return () => window.clearTimeout(t);
   }, [content, noteKey]);
 
-  // Persist position/size
   useEffect(() => { try { localStorage.setItem(POS_KEY, JSON.stringify(pos)); } catch { /* ignore */ } }, [pos]);
   useEffect(() => { try { localStorage.setItem(SIZE_KEY, JSON.stringify(size)); } catch { /* ignore */ } }, [size]);
 

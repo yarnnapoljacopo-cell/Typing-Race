@@ -5,3 +5,4 @@ export * from "./friendships";
 export * from "./items";
 export * from "./guilds";
 export * from "./bets";
+export * from "./folio";

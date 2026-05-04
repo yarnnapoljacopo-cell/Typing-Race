@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import FolioSaveDialog, { type FolioTarget } from "@/pages/FolioSaveDialog";
+import { folioStore } from "@/lib/folioStore";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,22 +40,6 @@ function defaultName() {
 const eAPI = () => (window as any).electronAPI as Record<string, (...a: any[]) => Promise<any>> | undefined;
 
 // ── Folio (My Files) integration ─────────────────────────────────────────────
-// Offline sprints save into the local Folio system so writers can find
-// their work in My Files even when nothing was synced to the server.
-interface FolioDoc {
-  id: string;
-  name: string;
-  content: string;
-  status: "draft" | "progress" | "done" | "edit";
-  updatedAt: number;
-}
-interface FolioProject {
-  id: string;
-  name: string;
-  open: boolean;
-  docs: FolioDoc[];
-}
-interface FolioState { projects: FolioProject[]; }
 
 const OFFLINE_PROJECT_NAME = "Offline Sprints";
 const SESSION_DOC_KEY = "offline_folio_doc_id";
@@ -63,59 +48,58 @@ const SESSION_PROJ_KEY = "offline_folio_project_id";
 const folioUid = () =>
   Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
-function loadFolio(): FolioState {
-  try {
-    const raw = localStorage.getItem("folio_v3");
-    if (raw) return JSON.parse(raw) as FolioState;
-  } catch { /* ignore */ }
-  return { projects: [] };
-}
-
-function saveFolio(state: FolioState) {
-  try { localStorage.setItem("folio_v3", JSON.stringify(state)); } catch { /* ignore */ }
-}
-
-/**
- * Upsert the current offline sprint's text into Folio. Reuses the same
- * project + doc within a session so repeated auto-saves update one chapter
- * rather than spawning new entries every 30 seconds. Pass `final=true` when
- * the sprint is done — that promotes status from "progress" to "done".
- */
 function upsertOfflineSprintToFolio(text: string, opts: { final: boolean; chapterName?: string }): { projectId: string; docId: string } | null {
   if (!text.trim()) return null;
-  const state = loadFolio();
+  const state = folioStore.getState();
 
   let projectId = sessionStorage.getItem(SESSION_PROJ_KEY) ?? "";
   let project = state.projects.find((p) => p.id === projectId)
     ?? state.projects.find((p) => p.name === OFFLINE_PROJECT_NAME);
+
+  const newProjectNeeded = !project;
   if (!project) {
     project = { id: folioUid(), name: OFFLINE_PROJECT_NAME, open: true, docs: [] };
-    state.projects.push(project);
   }
   projectId = project.id;
   sessionStorage.setItem(SESSION_PROJ_KEY, projectId);
 
   const docId = sessionStorage.getItem(SESSION_DOC_KEY) ?? "";
   let doc = project.docs.find((d) => d.id === docId);
+  const newDocNeeded = !doc;
+  const newDocId = folioUid();
   if (!doc) {
     doc = {
-      id: folioUid(),
+      id: newDocId,
       name: opts.chapterName ?? `Sprint — ${new Date().toLocaleString()}`,
       content: "",
-      status: "progress",
+      status: "progress" as const,
       updatedAt: Date.now(),
     };
-    project.docs.push(doc);
-    sessionStorage.setItem(SESSION_DOC_KEY, doc.id);
+    sessionStorage.setItem(SESSION_DOC_KEY, newDocId);
   }
 
-  doc.content = text;
-  doc.updatedAt = Date.now();
-  if (opts.final) doc.status = "done";
-  else if (doc.status === "draft") doc.status = "progress";
+  const finalContent = text;
+  const finalUpdatedAt = Date.now();
+  const finalStatus = opts.final ? "done" as const : (doc.status === "draft" ? "progress" as const : doc.status);
+  const capturedDoc = { ...doc, content: finalContent, updatedAt: finalUpdatedAt, status: finalStatus };
 
-  saveFolio(state);
-  return { projectId, docId: doc.id };
+  folioStore.setState((prev) => {
+    const projects = [...prev.projects];
+    let proj = projects.find((p) => p.id === projectId);
+    if (!proj && newProjectNeeded) {
+      proj = { id: projectId, name: OFFLINE_PROJECT_NAME, open: true, docs: [] };
+      projects.push(proj);
+    }
+    if (!proj) return prev;
+    if (newDocNeeded) {
+      proj.docs = [...proj.docs, capturedDoc];
+    } else {
+      proj.docs = proj.docs.map((d) => d.id === capturedDoc.id ? capturedDoc : d);
+    }
+    return { ...prev, projects };
+  });
+
+  return { projectId, docId: capturedDoc.id };
 }
 
 function clearOfflineSprintSession() {

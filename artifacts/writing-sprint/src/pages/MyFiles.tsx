@@ -2,26 +2,12 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import SprintPopup from "./SprintPopup";
 import StickyNote from "./StickyNote";
+import { useFolio } from "@/lib/useFolio";
+import type { FolioDoc as Doc, FolioProject as Project, FolioState } from "@/lib/folioStore";
 import "./MyFiles.css";
 
 type StatusKey = "draft" | "progress" | "done" | "edit";
 
-interface Doc {
-  id: string;
-  name: string;
-  content: string;
-  status: StatusKey;
-  updatedAt: number;
-}
-interface Project {
-  id: string;
-  name: string;
-  open: boolean;
-  docs: Doc[];
-}
-interface FolioState {
-  projects: Project[];
-}
 interface RecentEntry {
   projectId: string;
   docId: string;
@@ -40,13 +26,6 @@ const wc = (t: string) =>
   t.trim() ? t.trim().split(/\s+/).length : 0;
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-function loadState(): FolioState {
-  try {
-    const raw = localStorage.getItem("folio_v3");
-    if (raw) return JSON.parse(raw) as FolioState;
-  } catch {}
-  return { projects: [] };
-}
 function loadRecent(): RecentEntry[] {
   try {
     return JSON.parse(localStorage.getItem("folio_recent") || "[]");
@@ -139,7 +118,7 @@ export default function MyFiles() {
   const [, setLocation] = useLocation();
 
   // ── State ───────────────────────────────────────────────
-  const [state, setState] = useState<FolioState>(() => loadState());
+  const { state, setState, isOnline, isSyncing } = useFolio();
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentEntry[]>(() => loadRecent());
@@ -254,9 +233,6 @@ export default function MyFiles() {
   const [toastShow, setToastShow] = useState(false);
 
   // ── Persistence ─────────────────────────────────────────
-  useEffect(() => {
-    localStorage.setItem("folio_v3", JSON.stringify(state));
-  }, [state]);
   useEffect(() => {
     localStorage.setItem("folio_recent", JSON.stringify(recentDocs));
   }, [recentDocs]);

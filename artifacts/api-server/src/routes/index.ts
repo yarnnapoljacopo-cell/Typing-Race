@@ -13,6 +13,7 @@ import guildsRouter from "./guilds";
 import questsRouter from "./quests";
 import streakRouter from "./streak";
 import skinsRouter from "./skins";
+import folioRouter from "./folio";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(guildsRouter);
 router.use(questsRouter);
 router.use(streakRouter);
 router.use(skinsRouter);
+router.use(folioRouter);
 
 export default router;
