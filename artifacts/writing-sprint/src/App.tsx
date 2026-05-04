@@ -41,6 +41,8 @@ function RouteFallback() {
   );
 }
 import { LevelUpListener } from "@/components/LevelUpListener";
+import { useAuthedFetch } from "@/lib/authedFetch";
+import { folioStore } from "@/lib/folioStore";
 import { GuestProvider, useGuest } from "@/lib/guestContext";
 import { VillainModeProvider } from "@/lib/villainModeContext";
 import { SkinProvider } from "@/lib/skinContext";
@@ -555,6 +557,17 @@ const DevTimeoutContext = createContext(false);
 function useDevTimeout() { return useContext(DevTimeoutContext); }
 
 // Renders children when Clerk IS loaded OR when the timeout elapsed.
+function FolioSync() {
+  const { isSignedIn } = useAuth();
+  const authedFetch = useAuthedFetch();
+  useEffect(() => {
+    if (isSignedIn && authedFetch) {
+      folioStore.configure(authedFetch);
+    }
+  }, [isSignedIn, authedFetch]);
+  return null;
+}
+
 // Must be placed inside <ClerkProvider> so useAuth() is valid.
 function TimedClerkLoaded({ timedOut, children }: { timedOut: boolean; children: ReactNode }) {
   const { isLoaded } = useAuth();
@@ -651,6 +664,7 @@ function ClerkProviderWithRoutes() {
           <SkinProvider>
           <VillainModeProvider>
           <ClerkQueryClientCacheInvalidator />
+          <FolioSync />
           <TooltipProvider>
             <Sidebar />
             <LevelUpListener />

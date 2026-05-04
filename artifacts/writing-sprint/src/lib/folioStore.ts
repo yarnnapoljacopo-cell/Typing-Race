@@ -159,22 +159,30 @@ class FolioStore {
   configure(fetchFn: FetchFn): void {
     const hadFetch = !!this._fetchFn;
     this._fetchFn = fetchFn;
-    if (!hadFetch && this._initialized) {
-      this.syncAfterConfigure();
+    if (!hadFetch) {
+      if (this._initialized) {
+        this.syncAfterConfigure();
+      } else if (this._initPromise) {
+        this._initPromise.then(() => this.syncAfterConfigure());
+      }
     }
   }
 
   private async syncAfterConfigure(): Promise<void> {
-    const serverState = await this.pullFromServer();
-    if (serverState) {
-      const local = this._state.projects.length > 0 ? this._state : null;
-      const merged = this.merge(local, serverState);
-      this._state = merged;
-      this.notify();
-      await this.persistLocal();
-    }
-    if (this._state.projects.length > 0) {
-      await this.pushToServer();
+    try {
+      const serverState = await this.pullFromServer();
+      if (serverState) {
+        const local = this._state.projects.length > 0 ? this._state : null;
+        const merged = this.merge(local, serverState);
+        this._state = merged;
+        this.notify();
+        await this.persistLocal();
+      }
+      if (this._state.projects.length > 0) {
+        await this.pushToServer();
+      }
+    } catch (err) {
+      console.warn("[folio] syncAfterConfigure failed", err);
     }
   }
 
@@ -238,9 +246,11 @@ class FolioStore {
       });
       if (!res.ok) {
         this._lastSyncError = `Sync failed (${res.status})`;
+        console.warn("[folio] pushToServer failed", res.status);
       }
-    } catch {
+    } catch (err) {
       this._lastSyncError = "Sync failed (network)";
+      console.warn("[folio] pushToServer network error", err);
     }
     this._syncing = false;
     this.notify();
@@ -253,7 +263,9 @@ class FolioStore {
       if (!res.ok) return null;
       const data = await res.json();
       if (data.state) return data.state as FolioState;
-    } catch { /* silent */ }
+    } catch (err) {
+      console.warn("[folio] pullFromServer error", err);
+    }
     return null;
   }
 
