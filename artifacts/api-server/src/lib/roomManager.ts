@@ -23,18 +23,13 @@ function rollSprintChest(): string {
 }
 
 async function grantSprintChest(clerkUserId: string, chestType: string): Promise<void> {
-  const client = await pool.connect();
-  try {
-    await client.query(
-      `INSERT INTO user_chests (user_id, chest_type, quantity)
-       VALUES ($1, $2, 1)
-       ON CONFLICT (user_id, chest_type)
-       DO UPDATE SET quantity = user_chests.quantity + 1, earned_at = NOW()`,
-      [clerkUserId, chestType],
-    );
-  } finally {
-    client.release();
-  }
+  await pool.query(
+    `INSERT INTO user_chests (user_id, chest_type, quantity)
+     VALUES ($1, $2, 1)
+     ON CONFLICT (user_id, chest_type)
+     DO UPDATE SET quantity = user_chests.quantity + 1, earned_at = NOW()`,
+    [clerkUserId, chestType],
+  );
 }
 
 export type RoomStatus = "waiting" | "countdown" | "running" | "finished";
@@ -613,19 +608,13 @@ async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void
   const sorted = [...allParticipants].sort((a, b) => b.wordCount - a.wordCount);
   const firstPlaceId = sorted[0]?.id;
 
-  await Promise.all(allParticipants.map(async (p) => {
-    // Always flush the server's in-memory copy to the DB so no text is lost
+  for (const p of allParticipants) {
     if (p.latestText || p.wordCount > 0) {
-      // p.wpm was set to the accurate final WPM by endSprint() before
-      // calling finalizeSprintData. Persist it so the profile stats and
-      // WPM-over-time chart can use the real value, not the live EMA.
       await saveWriting(room.code, p.name, p.latestText, p.wordCount, p.clerkUserId, room.mode, room.wordGoal, p.wpm);
     }
 
-    // Award XP for signed-in users with non-zero words
-    if (!p.clerkUserId || p.wordCount <= 0) return;
+    if (!p.clerkUserId || p.wordCount <= 0) continue;
 
-    // Check idempotency flag — if client already awarded XP, skip
     const rows = await db
       .select({ xpAwarded: sprintWritingTable.xpAwarded })
       .from(sprintWritingTable)
@@ -635,7 +624,7 @@ async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void
       ))
       .limit(1);
 
-    if (rows[0]?.xpAwarded) return;
+    if (rows[0]?.xpAwarded) continue;
 
     const isFirstPlace = p.id === firstPlaceId;
     const xpGained = isFirstPlace
@@ -656,33 +645,30 @@ async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void
         eq(sprintWritingTable.participantName, p.name),
       ));
 
-    // ── Quest progress (best-effort; never throws) ────────────────────────
     try {
-      const { bumpQuests } = await import("./quests");
-      await bumpQuests(p.clerkUserId, "sprints_completed", 1);
-      await bumpQuests(p.clerkUserId, "words_written", p.wordCount);
-      if (p.wpm && p.wpm > 0) await bumpQuests(p.clerkUserId, "max_wpm", p.wpm);
-      if (isFirstPlace) await bumpQuests(p.clerkUserId, "sprints_won", 1);
+      const { bumpQuestsBatch } = await import("./quests");
+      const bumps: Array<{ metric: string; amount: number }> = [
+        { metric: "sprints_completed", amount: 1 },
+        { metric: "words_written", amount: p.wordCount },
+      ];
+      if (p.wpm && p.wpm > 0) bumps.push({ metric: "max_wpm", amount: p.wpm });
+      if (isFirstPlace) bumps.push({ metric: "sprints_won", amount: 1 });
       if (room.mode === "kart") {
-        await bumpQuests(p.clerkUserId, "kart_completed", 1);
-        if (isFirstPlace) await bumpQuests(p.clerkUserId, "kart_won", 1);
+        bumps.push({ metric: "kart_completed", amount: 1 });
+        if (isFirstPlace) bumps.push({ metric: "kart_won", amount: 1 });
       }
       if (room.mode === "gladiator") {
-        await bumpQuests(p.clerkUserId, "gladiator_completed", 1);
-        if (isFirstPlace) await bumpQuests(p.clerkUserId, "gladiator_won", 1);
+        bumps.push({ metric: "gladiator_completed", amount: 1 });
+        if (isFirstPlace) bumps.push({ metric: "gladiator_won", amount: 1 });
       }
+      await bumpQuestsBatch(p.clerkUserId, bumps);
     } catch (err) {
       logger.warn({ err, code: room.code }, "quest bump failed");
     }
 
-    // ── Daily writing log + streak + daily-streak chest (best-effort) ────
     try {
       const { recordWritingDay } = await import("./streaks");
       const award = await recordWritingDay(p.clerkUserId, p.wordCount, 1);
-      // Tell the client about chests granted by the streak system so the
-      // bag can refresh and any "you got X" toast can fire. We reuse the
-      // existing "chest_awarded" message shape that the per-sprint roll
-      // (further below) already uses.
       if (award.base && p.ws.readyState === WebSocket.OPEN) {
         p.ws.send(JSON.stringify({
           type: "chest_awarded",
@@ -707,7 +693,6 @@ async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void
       logger.warn({ err, code: room.code }, "streak update failed");
     }
 
-    // ── Award a random chest only when the sprint timer ran out naturally ──
     if (naturalEnd) {
       const chestType = rollSprintChest();
       try {
@@ -720,7 +705,7 @@ async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void
         logger.error({ err, code: room.code }, "Failed to grant sprint chest");
       }
     }
-  }));
+  }
 }
 
 export function endSprint(room: Room, naturalEnd = true): void {

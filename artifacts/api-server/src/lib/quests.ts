@@ -417,6 +417,57 @@ export async function bumpQuests(
   }
 }
 
+export async function bumpQuestsBatch(
+  userId: string,
+  bumps: Array<{ metric: string; amount: number }>,
+): Promise<void> {
+  if (!userId || bumps.length === 0) return;
+  const valid = bumps.filter((b) => b.amount > 0 && QUESTS_BY_METRIC.has(b.metric));
+  if (valid.length === 0) return;
+  try {
+    await ensureUserQuestsRolled(userId);
+    const dKey = dailyKey();
+    const wKey = weeklyKey();
+    const client = await pool.connect();
+    try {
+      for (const { metric, amount } of valid) {
+        const defs = QUESTS_BY_METRIC.get(metric);
+        if (!defs?.length) continue;
+        const sumDefs = defs.filter((d) => d.metricKind === "sum").map((d) => d.id);
+        const maxDefs = defs.filter((d) => d.metricKind === "max").map((d) => d.id);
+        if (sumDefs.length) {
+          await client.query(
+            `UPDATE user_quests
+             SET progress = LEAST(target, progress + $1), updated_at = NOW()
+             WHERE user_id = $2
+               AND quest_id = ANY($3::text[])
+               AND claimed_at IS NULL
+               AND ((scope = 'daily'  AND period_key = $4) OR
+                    (scope = 'weekly' AND period_key = $5))`,
+            [amount, userId, sumDefs, dKey, wKey],
+          );
+        }
+        if (maxDefs.length) {
+          await client.query(
+            `UPDATE user_quests
+             SET progress = LEAST(target, GREATEST(progress, $1)), updated_at = NOW()
+             WHERE user_id = $2
+               AND quest_id = ANY($3::text[])
+               AND claimed_at IS NULL
+               AND ((scope = 'daily'  AND period_key = $4) OR
+                    (scope = 'weekly' AND period_key = $5))`,
+            [amount, userId, maxDefs, dKey, wKey],
+          );
+        }
+      }
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    logger.warn({ err, userId, bumps: valid.map((b) => b.metric) }, "bumpQuestsBatch failed (non-fatal)");
+  }
+}
+
 // ── Claim ────────────────────────────────────────────────────────────────────
 
 export interface ClaimResult {
