@@ -159,8 +159,22 @@ class FolioStore {
   configure(fetchFn: FetchFn): void {
     const hadFetch = !!this._fetchFn;
     this._fetchFn = fetchFn;
-    if (!hadFetch && this._initialized && this._state.projects.length > 0) {
-      this.pushToServer();
+    if (!hadFetch && this._initialized) {
+      this.syncAfterConfigure();
+    }
+  }
+
+  private async syncAfterConfigure(): Promise<void> {
+    const serverState = await this.pullFromServer();
+    if (serverState) {
+      const local = this._state.projects.length > 0 ? this._state : null;
+      const merged = this.merge(local, serverState);
+      this._state = merged;
+      this.notify();
+      await this.persistLocal();
+    }
+    if (this._state.projects.length > 0) {
+      await this.pushToServer();
     }
   }
 
