@@ -13,7 +13,7 @@ router.get("/folio", async (req, res): Promise<void> => {
   const [row] = await db.select().from(folioStateTable).where(eq(folioStateTable.userId, userId));
 
   if (!row) {
-    res.json({ state: { projects: [] }, updatedAt: null });
+    res.json({ state: null, updatedAt: null });
     return;
   }
 

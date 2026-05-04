@@ -171,7 +171,7 @@ class FolioStore {
   private async syncAfterConfigure(): Promise<void> {
     try {
       const serverState = await this.pullFromServer();
-      if (serverState) {
+      if (serverState && serverState.projects.length > 0) {
         const local = this._state.projects.length > 0 ? this._state : null;
         const merged = this.merge(local, serverState);
         this._state = merged;
@@ -228,6 +228,13 @@ class FolioStore {
     });
   }
 
+  private async persistLocalDirect(state: FolioState): Promise<void> {
+    await idbSet("folio_state", {
+      state,
+      updatedAt: Date.now(),
+    });
+  }
+
   private schedulePush(): void {
     if (this._syncTimer) clearTimeout(this._syncTimer);
     this._syncTimer = setTimeout(() => this.pushToServer(), SYNC_DEBOUNCE_MS);
@@ -262,7 +269,9 @@ class FolioStore {
       const res = await this._fetchFn(`${BASE}api/folio`);
       if (!res.ok) return null;
       const data = await res.json();
-      if (data.state) return data.state as FolioState;
+      if (data.state && Array.isArray(data.state.projects)) {
+        return data.state as FolioState;
+      }
     } catch (err) {
       console.warn("[folio] pullFromServer error", err);
     }
@@ -292,6 +301,7 @@ class FolioStore {
       const migrated = migrateFromLocalStorage();
       if (migrated) {
         localState = migrated;
+        await this.persistLocalDirect(localState);
         clearLocalStorageFolioData();
       }
     }
@@ -299,22 +309,25 @@ class FolioStore {
     if (localState) {
       this._state = localState;
       this.notify();
+      await this.persistLocal();
     }
 
     if (this._fetchFn && this._online) {
-      const serverState = await this.pullFromServer();
-      if (serverState) {
-        const merged = this.merge(localState, serverState);
-        this._state = merged;
-        this.notify();
-        await this.persistLocal();
-        await this.pushToServer();
-      } else if (localState && localState.projects.length > 0) {
-        await this.pushToServer();
+      try {
+        const serverState = await this.pullFromServer();
+        if (serverState && serverState.projects.length > 0) {
+          const merged = this.merge(localState, serverState);
+          this._state = merged;
+          this.notify();
+          await this.persistLocal();
+        }
+        if (this._state.projects.length > 0) {
+          await this.pushToServer();
+        }
+      } catch (err) {
+        console.warn("[folio] server sync during init failed", err);
       }
     }
-
-    if (localState) await this.persistLocal();
 
     this._initialized = true;
     this._initializing = false;
