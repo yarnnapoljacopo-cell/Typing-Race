@@ -388,6 +388,12 @@ export async function ensureSchema(): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS room_bets_room_idx ON room_bets (room_code, status);
       CREATE INDEX IF NOT EXISTS room_bets_user_idx ON room_bets (user_id);
+
+      CREATE TABLE IF NOT EXISTS folio_state (
+        user_id     VARCHAR(100) PRIMARY KEY,
+        state       JSONB        NOT NULL DEFAULT '{}'::jsonb,
+        updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
     `);
 
     // ── Phase 3: seed static data ─────────────────────────────────────────
