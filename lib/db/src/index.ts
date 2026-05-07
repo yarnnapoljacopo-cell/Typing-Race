@@ -10,9 +10,9 @@ type Schema = typeof schema;
 let _pool: pg.Pool | undefined;
 let _db: NodePgDatabase<Schema> | undefined;
 
-const WARN_HELD_MS = 10_000;
-const FORCE_KILL_MS = 20_000;
-const SWEEP_INTERVAL_MS = 5_000;
+const WARN_HELD_MS = 5_000;
+const FORCE_KILL_MS = 8_000;
+const SWEEP_INTERVAL_MS = 2_000;
 
 const checkedOut = new Map<
   object,
@@ -30,7 +30,7 @@ function getPool(): pg.Pool {
       connectionString: process.env.DATABASE_URL,
       max: 30,
       idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 2_000,
       allowExitOnIdle: false,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
@@ -62,13 +62,25 @@ function getPool(): pg.Pool {
 
     const sweepRef = setInterval(() => {
       const now = Date.now();
+      const p = _pool!;
+      const total = p.totalCount;
+      const idle = p.idleCount;
+      const waiting = p.waitingCount;
+      const tracked = checkedOut.size;
+      // When under any pressure, log the snapshot so we can correlate with
+      // the held-stack warnings below in the next outage report.
+      if (waiting > 0 || (total - idle) >= 20 || tracked >= 20) {
+        console.warn(
+          `[db-pool] sweep snapshot total=${total} idle=${idle} active=${total - idle} waiting=${waiting} tracked=${tracked}`,
+        );
+      }
+
       for (const [client, info] of checkedOut) {
         const heldMs = now - info.acquiredAt;
 
         if (heldMs > FORCE_KILL_MS) {
           console.error(
-            `[db-pool] client held ${heldMs}ms — force-destroying`,
-            { stack: info.stack },
+            `[db-pool] LEAK client held ${heldMs}ms — force-destroying\n${info.stack}`,
           );
           checkedOut.delete(client);
           try {
@@ -86,8 +98,7 @@ function getPool(): pg.Pool {
         } else if (heldMs > WARN_HELD_MS && !info.warned) {
           info.warned = true;
           console.warn(
-            `[db-pool] client held ${heldMs}ms — possible leak`,
-            { stack: info.stack },
+            `[db-pool] WARN client held ${heldMs}ms — possible leak\n${info.stack}`,
           );
         }
       }
