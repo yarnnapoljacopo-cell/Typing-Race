@@ -10,8 +10,8 @@ type Schema = typeof schema;
 let _pool: pg.Pool | undefined;
 let _db: NodePgDatabase<Schema> | undefined;
 
-const WARN_HELD_MS = 5_000;
-const FORCE_KILL_MS = 15_000;
+const WARN_HELD_MS = 10_000;
+const FORCE_KILL_MS = 60_000;
 const SWEEP_INTERVAL_MS = 5_000;
 
 const checkedOut = new Map<
