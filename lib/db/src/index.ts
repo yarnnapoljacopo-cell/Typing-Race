@@ -11,7 +11,7 @@ let _pool: pg.Pool | undefined;
 let _db: NodePgDatabase<Schema> | undefined;
 
 const WARN_HELD_MS = 10_000;
-const FORCE_KILL_MS = 60_000;
+const FORCE_KILL_MS = 20_000;
 const SWEEP_INTERVAL_MS = 5_000;
 
 const checkedOut = new Map<
