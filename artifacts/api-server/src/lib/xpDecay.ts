@@ -169,7 +169,6 @@ async function applyDecayForUser(clerkUserId: string): Promise<DecayResult | nul
 
 const DECAY_SCAN_INTERVAL_MS = 5 * 60_000;     // every 5 minutes
 const INTER_USER_DELAY_MS = 100;               // tiny pause between users
-const SCAN_QUERY_TIMEOUT_MS = 5_000;
 let scanTimer: ReturnType<typeof setInterval> | null = null;
 let scanRunning = false;
 
@@ -180,35 +179,23 @@ async function findUsersNeedingDecay(): Promise<string[]> {
   //   - they're at Author rank or above (xp >= RANK_THRESHOLDS[3])
   //   - they're past the grace window since their last sprint
   //   - they haven't been decay-checked in the last day (or never)
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query(`SET LOCAL statement_timeout = ${SCAN_QUERY_TIMEOUT_MS}`);
-    const minDecayXp = RANK_THRESHOLDS[3];
-    // ORDER BY decay_checked_at ASC NULLS FIRST so that on each scan we
-    // pick up the users that have waited longest (or never been checked)
-    // first — guarantees forward progress even if the candidate pool is
-    // larger than LIMIT and a few users keep tripping their breaker.
-    const result = await client.query<{ clerk_user_id: string }>(
-      `SELECT clerk_user_id
-         FROM user_profiles
-        WHERE last_sprint_at IS NOT NULL
-          AND xp >= $1
-          AND last_sprint_at < NOW() - make_interval(days => $2)
-          AND (decay_checked_at IS NULL
-               OR decay_checked_at < NOW() - INTERVAL '1 day')
-        ORDER BY decay_checked_at ASC NULLS FIRST
-        LIMIT 500`,
-      [minDecayXp, DECAY_GRACE_DAYS],
-    );
-    await client.query("COMMIT");
-    return result.rows.map((r) => r.clerk_user_id);
-  } catch (err) {
-    try { await client.query("ROLLBACK"); } catch { /* ignore */ }
-    throw err;
-  } finally {
-    client.release();
-  }
+  //
+  // Uses pool.query() (not pool.connect()) so the connection is automatically
+  // returned to the idle pool after the query — no manual release needed.
+  const minDecayXp = RANK_THRESHOLDS[3];
+  const result = await pool.query<{ clerk_user_id: string }>(
+    `SELECT clerk_user_id
+       FROM user_profiles
+      WHERE last_sprint_at IS NOT NULL
+        AND xp >= $1
+        AND last_sprint_at < NOW() - make_interval(days => $2)
+        AND (decay_checked_at IS NULL
+             OR decay_checked_at < NOW() - INTERVAL '1 day')
+      ORDER BY decay_checked_at ASC NULLS FIRST
+      LIMIT 500`,
+    [minDecayXp, DECAY_GRACE_DAYS],
+  );
+  return result.rows.map((r) => r.clerk_user_id);
 }
 
 async function runScan(): Promise<void> {

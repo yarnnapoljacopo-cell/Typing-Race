@@ -260,64 +260,61 @@ const RECIPES: RecipeDef[] = [
 ];
 
 export async function seedCraftingRecipes(): Promise<void> {
-  const client = await pool.connect();
-  try {
-    const { rows } = await client.query(
-      "SELECT COUNT(*)::int AS count FROM crafting_recipes",
-    );
-    if ((rows[0] as { count: number }).count > 0) {
-      logger.info("Crafting recipes already seeded — skipping");
-      return;
-    }
-
-    let inserted = 0;
-    for (const recipe of RECIPES) {
-      const { rows: res } = await client.query(
-        "SELECT id FROM items_master WHERE name = $1 LIMIT 1",
-        [recipe.result],
-      );
-      if (res.length === 0) {
-        logger.warn({ result: recipe.result }, "Crafting recipe result item not found — skipping");
-        continue;
-      }
-      const resultItemId = res[0].id as number;
-
-      const ingredientIds: (number | null)[] = [null, null, null, null];
-      let skip = false;
-      for (let i = 0; i < Math.min(recipe.ingredients.length, 4); i++) {
-        const { rows: ing } = await client.query(
-          "SELECT id FROM items_master WHERE name = $1 LIMIT 1",
-          [recipe.ingredients[i]],
-        );
-        if (ing.length === 0) {
-          logger.warn({ ingredient: recipe.ingredients[i] }, "Crafting ingredient not found — skipping recipe");
-          skip = true;
-          break;
-        }
-        ingredientIds[i] = ing[0].id as number;
-      }
-      if (skip) continue;
-
-      await client.query(
-        `INSERT INTO crafting_recipes
-           (result_item_id, ingredient_1_id, ingredient_2_id, ingredient_3_id,
-            ingredient_4_id, required_cauldron, base_success_rate,
-            is_discoverable, recipe_type)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [
-          resultItemId,
-          ingredientIds[0], ingredientIds[1], ingredientIds[2], ingredientIds[3],
-          recipe.cauldron ?? null,
-          recipe.successRate,
-          recipe.discoverable ?? false,
-          recipe.type,
-        ],
-      );
-      inserted++;
-    }
-
-    logger.info({ inserted }, "Crafting recipes seeded");
-  } finally {
-    client.release();
+  // Use pool.query() for each query so connections are auto-released after
+  // each call instead of holding one client for the entire loop.
+  const { rows } = await pool.query(
+    "SELECT COUNT(*)::int AS count FROM crafting_recipes",
+  );
+  if ((rows[0] as { count: number }).count > 0) {
+    logger.info("Crafting recipes already seeded — skipping");
+    return;
   }
+
+  let inserted = 0;
+  for (const recipe of RECIPES) {
+    const { rows: res } = await pool.query(
+      "SELECT id FROM items_master WHERE name = $1 LIMIT 1",
+      [recipe.result],
+    );
+    if (res.length === 0) {
+      logger.warn({ result: recipe.result }, "Crafting recipe result item not found — skipping");
+      continue;
+    }
+    const resultItemId = res[0].id as number;
+
+    const ingredientIds: (number | null)[] = [null, null, null, null];
+    let skip = false;
+    for (let i = 0; i < Math.min(recipe.ingredients.length, 4); i++) {
+      const { rows: ing } = await pool.query(
+        "SELECT id FROM items_master WHERE name = $1 LIMIT 1",
+        [recipe.ingredients[i]],
+      );
+      if (ing.length === 0) {
+        logger.warn({ ingredient: recipe.ingredients[i] }, "Crafting ingredient not found — skipping recipe");
+        skip = true;
+        break;
+      }
+      ingredientIds[i] = ing[0].id as number;
+    }
+    if (skip) continue;
+
+    await pool.query(
+      `INSERT INTO crafting_recipes
+         (result_item_id, ingredient_1_id, ingredient_2_id, ingredient_3_id,
+          ingredient_4_id, required_cauldron, base_success_rate,
+          is_discoverable, recipe_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [
+        resultItemId,
+        ingredientIds[0], ingredientIds[1], ingredientIds[2], ingredientIds[3],
+        recipe.cauldron ?? null,
+        recipe.successRate,
+        recipe.discoverable ?? false,
+        recipe.type,
+      ],
+    );
+    inserted++;
+  }
+
+  logger.info({ inserted }, "Crafting recipes seeded");
 }
