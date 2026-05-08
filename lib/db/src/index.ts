@@ -14,6 +14,13 @@ const WARN_HELD_MS = 8_000;
 const FORCE_KILL_MS = 20_000;
 const SWEEP_INTERVAL_MS = 5_000;
 
+// Watchdog: if the pool shows active connections but zero tracked (meaning
+// connections are stuck before PostgreSQL auth completes and acquire never
+// fires), the pool is in an unrecoverable zombie state. Exiting lets Railway
+// restart the process with a clean pool.
+const WATCHDOG_STUCK_MS = 60_000;
+let _watchdogStuckSince: number | null = null;
+
 const checkedOut = new Map<
   object,
   { acquiredAt: number; warned: boolean; stack: string }
@@ -43,6 +50,10 @@ function getPool(): pg.Pool {
       options:
         "-c statement_timeout=5000 -c idle_in_transaction_session_timeout=10000",
     });
+
+    console.info(
+      `[db-pool] initialized max=10 connectionTimeoutMillis=5000 sweepMs=${SWEEP_INTERVAL_MS} watchdogMs=${WATCHDOG_STUCK_MS}`,
+    );
 
     _pool.on("error", (err) => {
       console.error(
@@ -74,13 +85,33 @@ function getPool(): pg.Pool {
       const idle = p.idleCount;
       const waiting = p.waitingCount;
       const tracked = checkedOut.size;
+      const active = total - idle;
 
-      if (waiting > 0 || total - idle >= 5 || tracked >= 3) {
+      if (waiting > 0 || active >= 5 || tracked >= 3) {
         console.warn(
-          `[db-pool] sweep snapshot total=${total} idle=${idle} active=${
-            total - idle
-          } waiting=${waiting} tracked=${tracked}`,
+          `[db-pool] sweep snapshot total=${total} idle=${idle} active=${active} waiting=${waiting} tracked=${tracked}`,
         );
+      }
+
+      // Watchdog: active connections with zero tracked means all connections
+      // are stuck before auth completes (zombie state). Force a clean restart.
+      if (active >= 5 && tracked === 0) {
+        if (_watchdogStuckSince === null) {
+          _watchdogStuckSince = now;
+          console.error(
+            `[db-pool] WATCHDOG: pool zombie state detected (active=${active} tracked=0) — will exit in ${WATCHDOG_STUCK_MS / 1000}s if not resolved`,
+          );
+        } else {
+          const stuckMs = now - _watchdogStuckSince;
+          if (stuckMs >= WATCHDOG_STUCK_MS) {
+            console.error(
+              `[db-pool] WATCHDOG: pool stuck ${Math.round(stuckMs / 1000)}s — exiting for clean restart`,
+            );
+            process.exit(1);
+          }
+        }
+      } else {
+        _watchdogStuckSince = null;
       }
 
       for (const [client, info] of checkedOut) {
