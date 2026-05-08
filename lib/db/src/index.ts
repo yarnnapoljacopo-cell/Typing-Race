@@ -10,9 +10,9 @@ type Schema = typeof schema;
 let _pool: pg.Pool | undefined;
 let _db: NodePgDatabase<Schema> | undefined;
 
-const WARN_HELD_MS = 5_000;
-const FORCE_KILL_MS = 8_000;
-const SWEEP_INTERVAL_MS = 2_000;
+const WARN_HELD_MS = 8_000;
+const FORCE_KILL_MS = 20_000;
+const SWEEP_INTERVAL_MS = 5_000;
 
 const checkedOut = new Map<
   object,
@@ -28,26 +28,33 @@ function getPool(): pg.Pool {
     }
     _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      max: 30,
+      max: 10,
       idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 2_000,
+      connectionTimeoutMillis: 5_000,
       allowExitOnIdle: false,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
-      query_timeout: 3_000,
-      statement_timeout: 3_000,
-      options: "-c idle_in_transaction_session_timeout=10000",
+      query_timeout: 5_000,
+      // statement_timeout and idle_in_transaction_session_timeout are set via
+      // PostgreSQL GUC startup parameters in the 'options' string. This avoids
+      // the double-query race that occurs when using pool.on('connect') to run
+      // "SET statement_timeout = N" — that SET query takes 9+ seconds on slow
+      // Railway PG connections and corrupts pg-pool's idle-client accounting.
+      options:
+        "-c statement_timeout=5000 -c idle_in_transaction_session_timeout=10000",
     });
 
     _pool.on("error", (err) => {
-      console.error("[db-pool] idle client error — will be replaced:", err.message);
+      console.error(
+        "[db-pool] idle client error — will be replaced:",
+        err.message,
+      );
     });
 
-    _pool.on("connect", (client) => {
-      client.query("SET statement_timeout = 3000").catch((err: Error) => {
-        console.error("[db-pool] could not set statement_timeout:", err.message);
-      });
-    });
+    // IMPORTANT: Do NOT run client.query() inside a 'connect' handler.
+    // statement_timeout and idle_in_transaction_session_timeout are applied
+    // via PostgreSQL startup GUCs in the 'options' string above, which
+    // requires zero extra round-trips and cannot race with the first query.
 
     _pool.on("acquire", (client) => {
       const stack =
@@ -67,11 +74,12 @@ function getPool(): pg.Pool {
       const idle = p.idleCount;
       const waiting = p.waitingCount;
       const tracked = checkedOut.size;
-      // When under any pressure, log the snapshot so we can correlate with
-      // the held-stack warnings below in the next outage report.
-      if (waiting > 0 || (total - idle) >= 20 || tracked >= 20) {
+
+      if (waiting > 0 || total - idle >= 5 || tracked >= 3) {
         console.warn(
-          `[db-pool] sweep snapshot total=${total} idle=${idle} active=${total - idle} waiting=${waiting} tracked=${tracked}`,
+          `[db-pool] sweep snapshot total=${total} idle=${idle} active=${
+            total - idle
+          } waiting=${waiting} tracked=${tracked}`,
         );
       }
 
@@ -80,20 +88,28 @@ function getPool(): pg.Pool {
 
         if (heldMs > FORCE_KILL_MS) {
           console.error(
-            `[db-pool] LEAK client held ${heldMs}ms — force-destroying\n${info.stack}`,
+            `[db-pool] LEAK client held ${heldMs}ms — force-releasing\n${info.stack}`,
           );
           checkedOut.delete(client);
           try {
             const c = client as unknown as {
               release?: (err?: Error) => void;
-              connection?: { stream?: { destroy?: () => void } };
             };
-            c.connection?.stream?.destroy?.();
+            // Do NOT call stream.destroy() before release(). Destroying the
+            // socket fires an async error event that causes pg-pool to remove
+            // the client from _clients a second time, corrupting pool state.
+            // Calling release(err) alone is sufficient — pg-pool will discard
+            // the client and create a replacement on the next demand.
             if (typeof c.release === "function") {
-              c.release(new Error("[db-pool] force-killed after held timeout"));
+              c.release(
+                new Error("[db-pool] force-released after held timeout"),
+              );
             }
           } catch (e) {
-            console.error("[db-pool] force-destroy failed:", (e as Error).message);
+            console.error(
+              "[db-pool] force-release failed:",
+              (e as Error).message,
+            );
           }
         } else if (heldMs > WARN_HELD_MS && !info.warned) {
           info.warned = true;
@@ -120,14 +136,21 @@ export const pool: pg.Pool = new Proxy({} as pg.Pool, {
     return (getPool() as unknown as Record<string | symbol, unknown>)[prop];
   },
   apply(_target, thisArg, args) {
-    return Reflect.apply(getPool() as unknown as (...a: unknown[]) => unknown, thisArg, args);
+    return Reflect.apply(
+      getPool() as unknown as (...a: unknown[]) => unknown,
+      thisArg,
+      args,
+    );
   },
 });
 
-export const db: NodePgDatabase<Schema> = new Proxy({} as NodePgDatabase<Schema>, {
-  get(_target, prop) {
-    return (getDb() as unknown as Record<string | symbol, unknown>)[prop];
+export const db: NodePgDatabase<Schema> = new Proxy(
+  {} as NodePgDatabase<Schema>,
+  {
+    get(_target, prop) {
+      return (getDb() as unknown as Record<string | symbol, unknown>)[prop];
+    },
   },
-});
+);
 
 export * from "./schema";
