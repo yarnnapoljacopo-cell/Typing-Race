@@ -208,6 +208,16 @@ async function runScan(): Promise<void> {
   try {
     const users = await findUsersNeedingDecay();
     for (const uid of users) {
+      // Stop processing if the pool is under pressure. withTimeout() lets us
+      // move on to the next user while the previous pool.connect() is still
+      // pending in the background — after several timeouts these accumulate as
+      // zombie connections (active but never acquired). Bailing early prevents
+      // that build-up and lets the pool recover before the next scan.
+      const poolActive = pool.totalCount - pool.idleCount;
+      if (poolActive >= 7) {
+        logger.warn({ poolActive }, "[xpDecay] pool under pressure — stopping scan early");
+        break;
+      }
       scanned++;
       try {
         const r = await applyDecayForUser(uid);
