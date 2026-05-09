@@ -14,11 +14,13 @@ const WARN_HELD_MS = 8_000;
 const FORCE_KILL_MS = 20_000;
 const SWEEP_INTERVAL_MS = 5_000;
 
-// Watchdog: if the pool shows active connections but zero tracked (meaning
-// connections are stuck before PostgreSQL auth completes and acquire never
-// fires), the pool is in an unrecoverable zombie state. Exiting lets Railway
-// restart the process with a clean pool.
-const WATCHDOG_STUCK_MS = 60_000;
+// Watchdog: detects zombie connections (stuck before PostgreSQL auth completes,
+// so acquire never fires and tracked stays 0 while active is near-full).
+// Threshold is set high (8 out of max=10) to avoid false-positives during
+// normal startup bursts where a few connections are transiently pre-acquire.
+// Only exits after 2 consecutive minutes in this state.
+const WATCHDOG_ACTIVE_THRESHOLD = 8;
+const WATCHDOG_STUCK_MS = 120_000;
 let _watchdogStuckSince: number | null = null;
 
 const checkedOut = new Map<
@@ -41,18 +43,16 @@ function getPool(): pg.Pool {
       allowExitOnIdle: false,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10_000,
+      // Client-side query timeout — aborts any query running longer than 5s
+      // without requiring a server-side SET statement_timeout round-trip.
+      // Do NOT add pool.on('connect') to run SET queries: that was the
+      // original root cause (9-second SET query filling the pool with
+      // frozen connections before the acquire event ever fired).
       query_timeout: 5_000,
-      // statement_timeout and idle_in_transaction_session_timeout are set via
-      // PostgreSQL GUC startup parameters in the 'options' string. This avoids
-      // the double-query race that occurs when using pool.on('connect') to run
-      // "SET statement_timeout = N" — that SET query takes 9+ seconds on slow
-      // Railway PG connections and corrupts pg-pool's idle-client accounting.
-      options:
-        "-c statement_timeout=5000 -c idle_in_transaction_session_timeout=10000",
     });
 
     console.info(
-      `[db-pool] initialized max=10 connectionTimeoutMillis=5000 sweepMs=${SWEEP_INTERVAL_MS} watchdogMs=${WATCHDOG_STUCK_MS}`,
+      `[db-pool] initialized max=10 sweep=${SWEEP_INTERVAL_MS}ms watchdog=${WATCHDOG_STUCK_MS}ms@${WATCHDOG_ACTIVE_THRESHOLD}`,
     );
 
     _pool.on("error", (err) => {
@@ -61,11 +61,6 @@ function getPool(): pg.Pool {
         err.message,
       );
     });
-
-    // IMPORTANT: Do NOT run client.query() inside a 'connect' handler.
-    // statement_timeout and idle_in_transaction_session_timeout are applied
-    // via PostgreSQL startup GUCs in the 'options' string above, which
-    // requires zero extra round-trips and cannot race with the first query.
 
     _pool.on("acquire", (client) => {
       const stack =
@@ -79,8 +74,9 @@ function getPool(): pg.Pool {
     });
 
     const sweepRef = setInterval(() => {
+      if (!_pool) return;
       const now = Date.now();
-      const p = _pool!;
+      const p = _pool;
       const total = p.totalCount;
       const idle = p.idleCount;
       const waiting = p.waitingCount;
@@ -89,17 +85,19 @@ function getPool(): pg.Pool {
 
       if (waiting > 0 || active >= 5 || tracked >= 3) {
         console.warn(
-          `[db-pool] sweep snapshot total=${total} idle=${idle} active=${active} waiting=${waiting} tracked=${tracked}`,
+          `[db-pool] sweep total=${total} idle=${idle} active=${active} waiting=${waiting} tracked=${tracked}`,
         );
       }
 
-      // Watchdog: active connections with zero tracked means all connections
-      // are stuck before auth completes (zombie state). Force a clean restart.
-      if (active >= 5 && tracked === 0) {
+      // Watchdog: if nearly all connections are in zombie state (active near
+      // max but tracked=0), the pool cannot recover on its own. Exit so
+      // Railway restarts with a clean pool. Threshold is set high to avoid
+      // firing on normal startup bursts.
+      if (active >= WATCHDOG_ACTIVE_THRESHOLD && tracked === 0) {
         if (_watchdogStuckSince === null) {
           _watchdogStuckSince = now;
           console.error(
-            `[db-pool] WATCHDOG: pool zombie state detected (active=${active} tracked=0) — will exit in ${WATCHDOG_STUCK_MS / 1000}s if not resolved`,
+            `[db-pool] WATCHDOG armed: active=${active} tracked=0 — will exit in ${WATCHDOG_STUCK_MS / 1000}s if unresolved`,
           );
         } else {
           const stuckMs = now - _watchdogStuckSince;
@@ -111,6 +109,9 @@ function getPool(): pg.Pool {
           }
         }
       } else {
+        if (_watchdogStuckSince !== null) {
+          console.info("[db-pool] WATCHDOG disarmed: pool recovered");
+        }
         _watchdogStuckSince = null;
       }
 
@@ -126,11 +127,6 @@ function getPool(): pg.Pool {
             const c = client as unknown as {
               release?: (err?: Error) => void;
             };
-            // Do NOT call stream.destroy() before release(). Destroying the
-            // socket fires an async error event that causes pg-pool to remove
-            // the client from _clients a second time, corrupting pool state.
-            // Calling release(err) alone is sufficient — pg-pool will discard
-            // the client and create a replacement on the next demand.
             if (typeof c.release === "function") {
               c.release(
                 new Error("[db-pool] force-released after held timeout"),
