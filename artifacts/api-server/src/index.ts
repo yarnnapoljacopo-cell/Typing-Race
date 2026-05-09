@@ -1,3 +1,4 @@
+// db-pool: max=10, watchdog threshold=8, watchdog timer=120s (lib/db/src/index.ts)
 import { createServer } from "http";
 import app from "./app";
 import { logger } from "./lib/logger";
