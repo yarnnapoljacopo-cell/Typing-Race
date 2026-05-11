@@ -214,7 +214,7 @@ async function runScan(): Promise<void> {
       // zombie connections (active but never acquired). Bailing early prevents
       // that build-up and lets the pool recover before the next scan.
       const poolActive = pool.totalCount - pool.idleCount;
-      if (poolActive >= 7) {
+      if (poolActive >= 6) {
         logger.warn({ poolActive }, "[xpDecay] pool under pressure — stopping scan early");
         break;
       }
