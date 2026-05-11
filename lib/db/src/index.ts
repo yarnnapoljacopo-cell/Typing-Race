@@ -7,6 +7,53 @@ const { Pool } = pg;
 
 type Schema = typeof schema;
 
+// Auth-phase socket timeout: pg-pool's connectionTimeoutMillis calls
+// stream.destroy() WITHOUT an error when its 5 s window expires. On Railway,
+// destroy()-without-error fires the socket 'close' event but NOT 'error'.
+// pg routes 'close' → Connection 'end' → connect callback, but when the PG
+// process is hung mid-auth, Railway's TCP layer holds the socket in CLOSE_WAIT
+// / FIN_WAIT for *minutes* before 'close' fires. During that window the client
+// is stuck in pool._clients (total↑) but acquire never fires (tracked=0) —
+// the zombie pattern observed as +1 per xpDecay scan.
+//
+// destroy(new Error(...)) WITH an error fires the socket 'error' event
+// immediately. pg propagates 'error' directly to the connect callback without
+// waiting for TCP teardown, so newClient() calls _clients.filter() (total--)
+// right away. No zombie.
+//
+// 4 s < connectionTimeoutMillis=5 s so this fires first and wins the race.
+// The timeout is cleared in pool.on('connect') once auth completes, so
+// long-running queries are never affected.
+//
+// This is NOT the same as running SET queries in a connect hook (the original
+// root cause). There is no DB round-trip here — pure socket configuration.
+class AuthTimeoutClient extends pg.Client {
+  // pg.Client.connect() is overloaded; spread args + any return avoids TS
+  // overload-compatibility errors while preserving runtime behaviour.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  override connect(...args: any[]): any {
+    const result = (super.connect as (...a: any[]) => any)(...args);
+    // this.connection is created synchronously inside super.connect() so it
+    // is accessible immediately on the next line.
+    const stream = (
+      this as unknown as {
+        connection?: {
+          stream?: {
+            setTimeout(ms: number, fn?: () => void): void;
+            destroy(err?: Error): void;
+          };
+        };
+      }
+    ).connection?.stream;
+    if (stream && typeof stream.setTimeout === "function") {
+      stream.setTimeout(4_000, () => {
+        stream.destroy(new Error("[db-pool] auth-phase socket timeout"));
+      });
+    }
+    return result;
+  }
+}
+
 let _pool: pg.Pool | undefined;
 let _db: NodePgDatabase<Schema> | undefined;
 
@@ -37,6 +84,9 @@ function getPool(): pg.Pool {
     }
     _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
+      // AuthTimeoutClient instruments each new connection with a 4 s socket
+      // timeout that calls stream.destroy(err) — see class comment above.
+      Client: AuthTimeoutClient as unknown as typeof pg.Client,
       max: 10,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000,
@@ -52,7 +102,7 @@ function getPool(): pg.Pool {
     });
 
     console.info(
-      `[db-pool] initialized max=10 connectionTimeoutMillis=5000 idleTimeoutMillis=30000 sweep=${SWEEP_INTERVAL_MS}ms watchdog=${WATCHDOG_STUCK_MS}ms@${WATCHDOG_ACTIVE_THRESHOLD}`,
+      `[db-pool] initialized max=10 connectionTimeoutMillis=5000 idleTimeoutMillis=30000 authSocketTimeout=4000 sweep=${SWEEP_INTERVAL_MS}ms watchdog=${WATCHDOG_STUCK_MS}ms@${WATCHDOG_ACTIVE_THRESHOLD}`,
     );
 
     _pool.on("error", (err) => {
@@ -60,6 +110,21 @@ function getPool(): pg.Pool {
         "[db-pool] idle client error — will be replaced:",
         err.message,
       );
+    });
+
+    // Auth completed — clear the 4 s pre-auth socket timeout so normal
+    // queries are not affected. pool.on('connect') fires inside
+    // _acquireClient() which is called after client.connect() succeeds, so
+    // auth is fully done by this point.
+    _pool.on("connect", (client) => {
+      const stream = (
+        client as unknown as {
+          connection?: { stream?: { setTimeout(ms: number): void } };
+        }
+      ).connection?.stream;
+      if (stream && typeof stream.setTimeout === "function") {
+        stream.setTimeout(0);
+      }
     });
 
     _pool.on("acquire", (client) => {
