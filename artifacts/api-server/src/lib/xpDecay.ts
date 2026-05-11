@@ -28,25 +28,19 @@ interface DecayResult {
 
 const DECAY_QUERY_TIMEOUT_MS = 3_000;
 
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const t = setTimeout(
-      () => reject(new Error(`${label} exceeded ${ms}ms — aborting to free pool slot`)),
-      ms,
-    );
-    p.then(
-      (v) => { clearTimeout(t); resolve(v); },
-      (e) => { clearTimeout(t); reject(e); },
-    );
-  });
-}
-
 async function runDecayDb(clerkUserId: string): Promise<DecayResult | null> {
+  // pool.connect() respects connectionTimeoutMillis=5000 — if the pool is
+  // exhausted or the DB is unreachable it will throw within 5 s on its own.
+  // Do NOT wrap this in an external withTimeout: that was the zombie-connection
+  // root cause. When withTimeout fires while pool.connect() is still pending,
+  // the caller moves on but the pending connect stays alive in the background,
+  // leaking a pool slot until the socket eventually times out.
   const client = await pool.connect();
   let txOpen = false;
   try {
     await client.query("BEGIN");
     txOpen = true;
+    // Server-side query timeout — each individual query aborts after 3 s.
     await client.query(`SET LOCAL statement_timeout = ${DECAY_QUERY_TIMEOUT_MS}`);
 
     const rows = await client.query<{
@@ -127,7 +121,7 @@ async function runDecayDb(clerkUserId: string): Promise<DecayResult | null> {
   }
 }
 
-// ── Per-user circuit breaker (still useful inside the scheduler) ──────────
+// ── Per-user circuit breaker ───────────────────────────────────────────────
 
 const decayFailures = new Map<string, { count: number; openUntil: number }>();
 const FAILURE_THRESHOLD = 3;
@@ -140,11 +134,10 @@ async function applyDecayForUser(clerkUserId: string): Promise<DecayResult | nul
   }
 
   try {
-    const result = await withTimeout(
-      runDecayDb(clerkUserId),
-      DECAY_QUERY_TIMEOUT_MS + 500,
-      "applyDecayForUser",
-    );
+    // No withTimeout wrapper here. connectionTimeoutMillis=5000 on the pool
+    // ensures pool.connect() fails fast. SET LOCAL statement_timeout=3000
+    // inside the transaction caps individual query time. Both are already set.
+    const result = await runDecayDb(clerkUserId);
     decayFailures.delete(clerkUserId);
     return result;
   } catch (err) {
@@ -173,13 +166,6 @@ let scanTimer: ReturnType<typeof setInterval> | null = null;
 let scanRunning = false;
 
 async function findUsersNeedingDecay(): Promise<string[]> {
-  // We pre-filter at the DB level so the scheduler isn't iterating over the
-  // entire user base every 5 minutes. A user is a candidate if:
-  //   - they've ever sprinted (last_sprint_at IS NOT NULL)
-  //   - they're at Author rank or above (xp >= RANK_THRESHOLDS[3])
-  //   - they're past the grace window since their last sprint
-  //   - they haven't been decay-checked in the last day (or never)
-  //
   // Uses pool.query() (not pool.connect()) so the connection is automatically
   // returned to the idle pool after the query — no manual release needed.
   const minDecayXp = RANK_THRESHOLDS[3];
@@ -208,11 +194,9 @@ async function runScan(): Promise<void> {
   try {
     const users = await findUsersNeedingDecay();
     for (const uid of users) {
-      // Stop processing if the pool is under pressure. withTimeout() lets us
-      // move on to the next user while the previous pool.connect() is still
-      // pending in the background — after several timeouts these accumulate as
-      // zombie connections (active but never acquired). Bailing early prevents
-      // that build-up and lets the pool recover before the next scan.
+      // Stop processing if the pool is under pressure. Each runDecayDb()
+      // call holds one connection for its duration. Bailing early prevents
+      // accumulation if the DB is already struggling.
       const poolActive = pool.totalCount - pool.idleCount;
       if (poolActive >= 6) {
         logger.warn({ poolActive }, "[xpDecay] pool under pressure — stopping scan early");

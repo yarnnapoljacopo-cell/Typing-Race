@@ -52,7 +52,7 @@ function getPool(): pg.Pool {
     });
 
     console.info(
-      `[db-pool] initialized max=10 sweep=${SWEEP_INTERVAL_MS}ms watchdog=${WATCHDOG_STUCK_MS}ms@${WATCHDOG_ACTIVE_THRESHOLD}`,
+      `[db-pool] initialized max=10 connectionTimeoutMillis=5000 idleTimeoutMillis=30000 sweep=${SWEEP_INTERVAL_MS}ms watchdog=${WATCHDOG_STUCK_MS}ms@${WATCHDOG_ACTIVE_THRESHOLD}`,
     );
 
     _pool.on("error", (err) => {
