@@ -138,9 +138,19 @@ const VALID_DEATH_WPMS = [10, 20, 30, 40, 50];
 // PERSIST_FAILURE_THRESHOLD consecutive failures we stop attempting writes
 // for PERSIST_BACKOFF_MS and double the backoff up to PERSIST_BACKOFF_MAX_MS.
 // One success resets everything.
+//
+// IMPORTANT — do NOT set PERSIST_BACKOFF_MS >= idleTimeoutMillis (30 s):
+//   When all N rooms' circuits open at the same instant (same DB-degradation
+//   event) and the backoff equals the idle timeout, the circuit reopen and
+//   the idle-timeout cleanup fire simultaneously. The pool drains to zero at
+//   exactly T+30 s AND all N rooms' circuits reopen at exactly T+30 s, so
+//   the very next 1-second interval creates N simultaneous newClient() calls —
+//   a synchronized auth-phase burst. Keeping the initial backoff shorter than
+//   the idle timeout means the circuit reopens while connections are still
+//   alive in the pool and can be reused without creating new connections.
 
 const PERSIST_FAILURE_THRESHOLD = 3;
-const PERSIST_BACKOFF_MS = 30_000;
+const PERSIST_BACKOFF_MS = 15_000;       // < idleTimeoutMillis (30 s) — see above
 const PERSIST_BACKOFF_MAX_MS = 5 * 60_000;
 
 interface PersistFailureState {
