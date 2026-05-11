@@ -188,21 +188,6 @@ async function runScan(): Promise<void> {
   if (scanRunning) return;       // never overlap scans
   scanRunning = true;
 
-  // Pre-scan health gate: if the pool already has zombie connections
-  // (active but not tracked), running findUsersNeedingDecay() would open
-  // a new connection that — after idleTimeoutMillis — will itself get stuck
-  // trying to close, adding +1 zombie per scan cycle. Skip entirely and let
-  // the watchdog handle recovery if the pool is truly stuck.
-  const preActive = pool.totalCount - pool.idleCount;
-  if (preActive >= 3) {
-    logger.warn(
-      { preActive, total: pool.totalCount, idle: pool.idleCount },
-      "[xpDecay] pool degraded before scan — skipping to prevent zombie accumulation",
-    );
-    scanRunning = false;
-    return;
-  }
-
   const startedAt = Date.now();
   let scanned = 0;
   let decayed = 0;
@@ -210,14 +195,6 @@ async function runScan(): Promise<void> {
   try {
     const users = await findUsersNeedingDecay();
     for (const uid of users) {
-      // Stop processing if the pool is under pressure. Each runDecayDb()
-      // call holds one connection for its duration. Bailing early prevents
-      // accumulation if the DB is already struggling.
-      const poolActive = pool.totalCount - pool.idleCount;
-      if (poolActive >= 6) {
-        logger.warn({ poolActive }, "[xpDecay] pool under pressure — stopping scan early");
-        break;
-      }
       scanned++;
       try {
         const r = await applyDecayForUser(uid);
