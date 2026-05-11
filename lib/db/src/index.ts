@@ -108,13 +108,33 @@ function getPool(): pg.Pool {
     });
 
     console.info(
-      `[db-pool] initialized max=10 connectionTimeoutMillis=5000 idleTimeoutMillis=30000 authSocketTimeout=4000 sweep=${SWEEP_INTERVAL_MS}ms watchdog=${WATCHDOG_STUCK_MS}ms@${WATCHDOG_ACTIVE_THRESHOLD}`,
+      `[db-pool] initialized max=10 connectionTimeoutMillis=5000 clientAuthTimeout=4000 idleTimeoutMillis=30000 sweep=${SWEEP_INTERVAL_MS}ms watchdog=${WATCHDOG_STUCK_MS}ms@${WATCHDOG_ACTIVE_THRESHOLD}`,
     );
 
     _pool.on("error", (err) => {
       console.error(
         "[db-pool] idle client error — will be replaced:",
         err.message,
+      );
+    });
+
+    // Fires once per physical connection after auth completes (isNew=true path
+    // in _acquireClient). If zombies appear without a preceding 'connect' log
+    // they never completed auth — confirming auth-phase origin.
+    _pool.on("connect", (_client) => {
+      const p = _pool!;
+      console.info(
+        `[db-pool] connect total=${p.totalCount} idle=${p.idleCount} waiting=${p.waitingCount}`,
+      );
+    });
+
+    // Fires when a connection is ejected from the pool (_remove is called).
+    // Confirms idle-timeout cleanup ran and that _clients.filter() already
+    // decremented totalCount before client.end() is attempted.
+    _pool.on("remove", (_client) => {
+      const p = _pool!;
+      console.info(
+        `[db-pool] remove total=${p.totalCount} idle=${p.idleCount} waiting=${p.waitingCount}`,
       );
     });
 
