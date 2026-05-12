@@ -19,167 +19,115 @@ export function getRankIndex(xp: number): number {
   return 0;
 }
 
-// ── Decay execution ────────────────────────────────────────────────────────
+// ── Single-query batch decay ───────────────────────────────────────────────
+//
+// Why one query instead of per-user SELECT + UPDATE:
+//
+// The old approach (1 findUsersNeedingDecay SELECT + 2 pool.query() calls per
+// user) caused a cascade under DB degradation: if the UPDATE for user N timed
+// out, pg-pool destroyed that connection (release-with-error). The next user's
+// pool.query() had to open a NEW TCP connection. If the DB was still slow,
+// that new connection hung in auth → auth-phase zombie (active↑, tracked=0).
+// With M users in a scan, M consecutive failures → M zombies → watchdog exit.
+//
+// The single-query approach below borrows exactly one connection for the
+// entire scan. All candidate selection, decay calculation, and UPDATE happen
+// inside one SQL CTE. If the query fails, one connection is destroyed (or
+// returned cleanly). No cascade is possible.
+//
+// Rank thresholds and decay rates are inlined as SQL CASE expressions so the
+// JS constants stay the single source of truth for everything else (profile
+// display, XP award routes), while the decay scan needs no round-trips.
 
-interface DecayResult {
-  xpLost: number;
-  newXp: number;
+interface BatchDecayRow {
+  clerk_user_id: string;
+  old_xp: number;
+  new_xp: number;
+  decay_days: number;
 }
 
-async function runDecayDb(clerkUserId: string): Promise<DecayResult | null> {
-  // Use pool.query() for every statement — it auto-releases the connection
-  // immediately after each query completes. This avoids pool.connect(), which
-  // can create auth-phase zombie connections when the DB is intermittently
-  // slow: if pool.connect() times out while pg internally has a TCP handshake
-  // in flight, that half-open connection stays active until Railway's idle
-  // timeout kills it (~30 s), producing the "active=N, tracked=0" pattern.
+async function runBatchDecay(): Promise<BatchDecayRow[]> {
+  // Rank index thresholds: [0,500,2000,7000,20000,60000,175000,450000]
+  // Decay rate per day:    [0,  0,   0,  25,   75,  200,   500, 1000]
+  // Grace period: 5 days. Only ranks 3+ (xp >= 7000) ever decay.
   //
-  // No explicit transaction is needed: findUsersNeedingDecay() pre-filters
-  // candidates, the UPDATE is idempotent (decay_checked_at advances forward
-  // only), and the pool's query_timeout=5000 ms already caps both queries.
-  const rows = await pool.query<{
-    xp: number;
-    last_sprint_at: Date | null;
-    decay_checked_at: Date | null;
-  }>(
-    `SELECT xp, last_sprint_at, decay_checked_at
-       FROM user_profiles
-      WHERE clerk_user_id = $1
-      LIMIT 1`,
-    [clerkUserId],
-  );
-
-  if (rows.rows.length === 0) return null;
-
-  const { xp, last_sprint_at: lastSprintAt, decay_checked_at: decayCheckedAt } = rows.rows[0];
-  const now = new Date();
-
-  if (!lastSprintAt) return null;
-
-  const rankIndex = getRankIndex(xp);
-  if (rankIndex < 3) {
-    // Stamp decay_checked_at so findUsersNeedingDecay skips this user for a day.
-    await pool.query(
-      `UPDATE user_profiles SET decay_checked_at = $1 WHERE clerk_user_id = $2`,
-      [now, clerkUserId],
-    );
-    return null;
-  }
-
-  const decayWindowStart = new Date(lastSprintAt.getTime() + DECAY_GRACE_DAYS * 86_400_000);
-  const chargeFrom =
-    decayCheckedAt && decayCheckedAt > decayWindowStart ? decayCheckedAt : decayWindowStart;
-
-  if (now <= chargeFrom) return null;
-
-  const decayDays = Math.floor((now.getTime() - chargeFrom.getTime()) / 86_400_000);
-  if (decayDays <= 0) return null;
-
-  const decayPerDay = DECAY_RATE_PER_DAY[rankIndex];
-  const totalDecay = decayDays * decayPerDay;
-  const newXp = Math.max(0, xp - totalDecay);
-
-  await pool.query(
-    `UPDATE user_profiles
-        SET xp = $1, decay_checked_at = $2, updated_at = $2
-      WHERE clerk_user_id = $3`,
-    [newXp, now, clerkUserId],
-  );
-
-  return { xpLost: xp - newXp, newXp };
-}
-
-// ── Per-user circuit breaker ───────────────────────────────────────────────
-
-const decayFailures = new Map<string, { count: number; openUntil: number }>();
-const FAILURE_THRESHOLD = 3;
-const CIRCUIT_OPEN_MS = 60_000;
-
-async function applyDecayForUser(clerkUserId: string): Promise<DecayResult | null> {
-  const breaker = decayFailures.get(clerkUserId);
-  if (breaker && breaker.count >= FAILURE_THRESHOLD && Date.now() < breaker.openUntil) {
-    return null;
-  }
-
-  try {
-    // No withTimeout wrapper here. connectionTimeoutMillis=5000 on the pool
-    // ensures pool.connect() fails fast. SET LOCAL statement_timeout=3000
-    // inside the transaction caps individual query time. Both are already set.
-    const result = await runDecayDb(clerkUserId);
-    decayFailures.delete(clerkUserId);
-    return result;
-  } catch (err) {
-    const prev = decayFailures.get(clerkUserId) ?? { count: 0, openUntil: 0 };
-    const count = prev.count + 1;
-    const openUntil = count >= FAILURE_THRESHOLD ? Date.now() + CIRCUIT_OPEN_MS : 0;
-    decayFailures.set(clerkUserId, { count, openUntil });
-    if (count === FAILURE_THRESHOLD) {
-      logger.warn(
-        { clerkUserId, count, openMs: CIRCUIT_OPEN_MS, err: (err as Error).message },
-        "[xpDecay] circuit OPEN — pausing decay for this user",
-      );
-    }
-    throw err;
-  }
-}
-
-// ── Background scheduler ───────────────────────────────────────────────────
-// Runs every DECAY_SCAN_INTERVAL_MS, finds every user that *might* be due
-// for decay, and processes them serially with a small inter-user delay so
-// we never burst the pool. Completely decoupled from any HTTP request.
-
-const DECAY_SCAN_INTERVAL_MS = 5 * 60_000;     // every 5 minutes
-const INTER_USER_DELAY_MS = 100;               // tiny pause between users
-let scanTimer: ReturnType<typeof setInterval> | null = null;
-let scanRunning = false;
-
-async function findUsersNeedingDecay(): Promise<string[]> {
-  // Uses pool.query() (not pool.connect()) so the connection is automatically
-  // returned to the idle pool after the query — no manual release needed.
-  const minDecayXp = RANK_THRESHOLDS[3];
-  const result = await pool.query<{ clerk_user_id: string }>(
-    `SELECT clerk_user_id
-       FROM user_profiles
+  // chargeFrom = GREATEST(last_sprint_at + 5 days, decay_checked_at)
+  // decayDays  = FLOOR((NOW() - chargeFrom) / 1 day), clamped to > 0
+  // newXp      = GREATEST(0, xp - decayDays * ratePerDay)
+  //
+  // Candidates already filtered to xp >= 7000, so rankIndex < 3 is impossible.
+  const result = await pool.query<BatchDecayRow>(`
+    WITH candidates AS (
+      SELECT
+        clerk_user_id,
+        xp,
+        CASE
+          WHEN xp >= 450000 THEN 1000
+          WHEN xp >= 175000 THEN 500
+          WHEN xp >= 60000  THEN 200
+          WHEN xp >= 20000  THEN 75
+          ELSE                   25
+        END AS decay_rate,
+        GREATEST(
+          last_sprint_at + INTERVAL '5 days',
+          COALESCE(decay_checked_at, '-infinity'::timestamptz)
+        ) AS charge_from
+      FROM user_profiles
       WHERE last_sprint_at IS NOT NULL
-        AND xp >= $1
-        AND last_sprint_at < NOW() - make_interval(days => $2)
+        AND xp >= 7000
+        AND last_sprint_at < NOW() - INTERVAL '5 days'
         AND (decay_checked_at IS NULL
              OR decay_checked_at < NOW() - INTERVAL '1 day')
       ORDER BY decay_checked_at ASC NULLS FIRST
-      LIMIT 500`,
-    [minDecayXp, DECAY_GRACE_DAYS],
-  );
-  return result.rows.map((r) => r.clerk_user_id);
+      LIMIT 500
+    ),
+    eligible AS (
+      SELECT *,
+        FLOOR(EXTRACT(EPOCH FROM (NOW() - charge_from)) / 86400)::int AS decay_days
+      FROM candidates
+      WHERE NOW() > charge_from
+    )
+    UPDATE user_profiles AS up
+       SET xp              = GREATEST(0, e.xp - e.decay_days * e.decay_rate),
+           decay_checked_at = NOW(),
+           updated_at       = NOW()
+      FROM eligible e
+     WHERE up.clerk_user_id = e.clerk_user_id
+       AND e.decay_days > 0
+    RETURNING
+      up.clerk_user_id,
+      e.xp        AS old_xp,
+      up.xp       AS new_xp,
+      e.decay_days
+  `);
+  return result.rows;
 }
 
+// ── Background scheduler ───────────────────────────────────────────────────
+// Runs every DECAY_SCAN_INTERVAL_MS. The entire scan is a single SQL
+// statement — one connection borrowed and released, no per-user round-trips.
+
+const DECAY_SCAN_INTERVAL_MS = 5 * 60_000;    // every 5 minutes
+let scanTimer: ReturnType<typeof setInterval> | null = null;
+let scanRunning = false;
+
 async function runScan(): Promise<void> {
-  if (scanRunning) return;       // never overlap scans
+  if (scanRunning) return;
   scanRunning = true;
 
   const startedAt = Date.now();
-  let scanned = 0;
-  let decayed = 0;
-  let failed = 0;
   try {
-    const users = await findUsersNeedingDecay();
-    for (const uid of users) {
-      scanned++;
-      try {
-        const r = await applyDecayForUser(uid);
-        if (r && r.xpLost > 0) decayed++;
-      } catch {
-        failed++;
-        // applyDecayForUser already logs / trips the breaker
-      }
-      // Yield between users so other DB callers can grab pool slots.
-      if (INTER_USER_DELAY_MS > 0) {
-        await new Promise((r) => setTimeout(r, INTER_USER_DELAY_MS));
-      }
-    }
+    const rows = await runBatchDecay();
     logger.info(
-      { scanned, decayed, failed, ms: Date.now() - startedAt },
+      { decayed: rows.length, ms: Date.now() - startedAt },
       "[xpDecay] scan complete",
     );
+    for (const r of rows) {
+      logger.info(
+        { clerkUserId: r.clerk_user_id, oldXp: r.old_xp, newXp: r.new_xp, decayDays: r.decay_days },
+        "[xpDecay] applied decay",
+      );
+    }
   } catch (err) {
     logger.error({ err: (err as Error).message }, "[xpDecay] scan failed");
   } finally {
