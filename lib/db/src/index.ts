@@ -94,7 +94,12 @@ function getPool(): pg.Pool {
       // — see class comment above for full explanation.
       Client: AuthTimeoutClient as unknown as typeof pg.Client,
       max: 10,
-      idleTimeoutMillis: 30_000,
+      // 360 s > xpDecay scan interval (300 s) so the connection from scan N
+      // survives until scan N+1 and is reused without a new SSL handshake.
+      // keepAlive=true sends TCP keepalives every 10 s so Railway's load
+      // balancer doesn't drop the connection during the idle window.
+      // MUST remain > PERSIST_BACKOFF_MS (15 s) — see roomManager.ts comment.
+      idleTimeoutMillis: 360_000,
       connectionTimeoutMillis: 5_000,
       allowExitOnIdle: false,
       keepAlive: true,
@@ -108,7 +113,7 @@ function getPool(): pg.Pool {
     });
 
     console.info(
-      `[db-pool] initialized max=10 connectionTimeoutMillis=5000 clientAuthTimeout=4000 idleTimeoutMillis=30000 sweep=${SWEEP_INTERVAL_MS}ms watchdog=${WATCHDOG_STUCK_MS}ms@${WATCHDOG_ACTIVE_THRESHOLD}`,
+      `[db-pool] initialized max=10 connectionTimeoutMillis=5000 clientAuthTimeout=4000 idleTimeoutMillis=360000 sweep=${SWEEP_INTERVAL_MS}ms watchdog=${WATCHDOG_STUCK_MS}ms@${WATCHDOG_ACTIVE_THRESHOLD}`,
     );
 
     _pool.on("error", (err) => {
