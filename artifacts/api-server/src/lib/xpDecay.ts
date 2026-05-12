@@ -26,99 +26,67 @@ interface DecayResult {
   newXp: number;
 }
 
-const DECAY_QUERY_TIMEOUT_MS = 3_000;
-
 async function runDecayDb(clerkUserId: string): Promise<DecayResult | null> {
-  // pool.connect() respects connectionTimeoutMillis=5000 — if the pool is
-  // exhausted or the DB is unreachable it will throw within 5 s on its own.
-  // Do NOT wrap this in an external withTimeout: that was the zombie-connection
-  // root cause. When withTimeout fires while pool.connect() is still pending,
-  // the caller moves on but the pending connect stays alive in the background,
-  // leaking a pool slot until the socket eventually times out.
-  const client = await pool.connect();
-  let txOpen = false;
-  try {
-    await client.query("BEGIN");
-    txOpen = true;
-    // Server-side query timeout — each individual query aborts after 3 s.
-    await client.query(`SET LOCAL statement_timeout = ${DECAY_QUERY_TIMEOUT_MS}`);
+  // Use pool.query() for every statement — it auto-releases the connection
+  // immediately after each query completes. This avoids pool.connect(), which
+  // can create auth-phase zombie connections when the DB is intermittently
+  // slow: if pool.connect() times out while pg internally has a TCP handshake
+  // in flight, that half-open connection stays active until Railway's idle
+  // timeout kills it (~30 s), producing the "active=N, tracked=0" pattern.
+  //
+  // No explicit transaction is needed: findUsersNeedingDecay() pre-filters
+  // candidates, the UPDATE is idempotent (decay_checked_at advances forward
+  // only), and the pool's query_timeout=5000 ms already caps both queries.
+  const rows = await pool.query<{
+    xp: number;
+    last_sprint_at: Date | null;
+    decay_checked_at: Date | null;
+  }>(
+    `SELECT xp, last_sprint_at, decay_checked_at
+       FROM user_profiles
+      WHERE clerk_user_id = $1
+      LIMIT 1`,
+    [clerkUserId],
+  );
 
-    const rows = await client.query<{
-      xp: number;
-      last_sprint_at: Date | null;
-      decay_checked_at: Date | null;
-    }>(
-      `SELECT xp, last_sprint_at, decay_checked_at
-         FROM user_profiles
-        WHERE clerk_user_id = $1
-        LIMIT 1`,
-      [clerkUserId],
+  if (rows.rows.length === 0) return null;
+
+  const { xp, last_sprint_at: lastSprintAt, decay_checked_at: decayCheckedAt } = rows.rows[0];
+  const now = new Date();
+
+  if (!lastSprintAt) return null;
+
+  const rankIndex = getRankIndex(xp);
+  if (rankIndex < 3) {
+    // Stamp decay_checked_at so findUsersNeedingDecay skips this user for a day.
+    await pool.query(
+      `UPDATE user_profiles SET decay_checked_at = $1 WHERE clerk_user_id = $2`,
+      [now, clerkUserId],
     );
-
-    if (rows.rows.length === 0) {
-      await client.query("COMMIT");
-      txOpen = false;
-      return null;
-    }
-    const { xp, last_sprint_at: lastSprintAt, decay_checked_at: decayCheckedAt } = rows.rows[0];
-    const now = new Date();
-
-    if (!lastSprintAt) {
-      await client.query("COMMIT");
-      txOpen = false;
-      return null;
-    }
-
-    const rankIndex = getRankIndex(xp);
-    if (rankIndex < 3) {
-      await client.query(
-        `UPDATE user_profiles SET decay_checked_at = $1 WHERE clerk_user_id = $2`,
-        [now, clerkUserId],
-      );
-      await client.query("COMMIT");
-      txOpen = false;
-      return null;
-    }
-
-    const decayWindowStart = new Date(lastSprintAt.getTime() + DECAY_GRACE_DAYS * 86_400_000);
-    const chargeFrom =
-      decayCheckedAt && decayCheckedAt > decayWindowStart ? decayCheckedAt : decayWindowStart;
-
-    if (now <= chargeFrom) {
-      await client.query("COMMIT");
-      txOpen = false;
-      return null;
-    }
-
-    const decayDays = Math.floor((now.getTime() - chargeFrom.getTime()) / 86_400_000);
-    if (decayDays <= 0) {
-      await client.query("COMMIT");
-      txOpen = false;
-      return null;
-    }
-
-    const decayPerDay = DECAY_RATE_PER_DAY[rankIndex];
-    const totalDecay = decayDays * decayPerDay;
-    const newXp = Math.max(0, xp - totalDecay);
-
-    await client.query(
-      `UPDATE user_profiles
-          SET xp = $1, decay_checked_at = $2, updated_at = $2
-        WHERE clerk_user_id = $3`,
-      [newXp, now, clerkUserId],
-    );
-    await client.query("COMMIT");
-    txOpen = false;
-
-    return { xpLost: xp - newXp, newXp };
-  } catch (err) {
-    if (txOpen) {
-      try { await client.query("ROLLBACK"); } catch { /* ignore */ }
-    }
-    throw err;
-  } finally {
-    client.release();
+    return null;
   }
+
+  const decayWindowStart = new Date(lastSprintAt.getTime() + DECAY_GRACE_DAYS * 86_400_000);
+  const chargeFrom =
+    decayCheckedAt && decayCheckedAt > decayWindowStart ? decayCheckedAt : decayWindowStart;
+
+  if (now <= chargeFrom) return null;
+
+  const decayDays = Math.floor((now.getTime() - chargeFrom.getTime()) / 86_400_000);
+  if (decayDays <= 0) return null;
+
+  const decayPerDay = DECAY_RATE_PER_DAY[rankIndex];
+  const totalDecay = decayDays * decayPerDay;
+  const newXp = Math.max(0, xp - totalDecay);
+
+  await pool.query(
+    `UPDATE user_profiles
+        SET xp = $1, decay_checked_at = $2, updated_at = $2
+      WHERE clerk_user_id = $3`,
+    [newXp, now, clerkUserId],
+  );
+
+  return { xpLost: xp - newXp, newXp };
 }
 
 // ── Per-user circuit breaker ───────────────────────────────────────────────
