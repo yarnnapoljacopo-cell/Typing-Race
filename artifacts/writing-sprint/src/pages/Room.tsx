@@ -1176,6 +1176,16 @@ export default function Room() {
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
+    // range.insertNode splits text nodes at the cursor offset, leaving an empty
+    // text node ("") immediately after the inserted <br> when the cursor was at
+    // the very end of a text run.  That empty node becomes div.lastChild and
+    // defeats the sentinel check below — remove it first.
+    let after = lastBr.nextSibling;
+    while (after && after.nodeType === Node.TEXT_NODE && (after as Text).data === "") {
+      const next = after.nextSibling;
+      after.parentNode?.removeChild(after);
+      after = next;
+    }
     // Ensure cursor is visible: if the last <br> is the final node in the div,
     // browsers won't render a new visible line. Add a sentinel <br>.
     if (lastBr === div.lastChild) {
