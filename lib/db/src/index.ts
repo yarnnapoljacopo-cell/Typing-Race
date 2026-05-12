@@ -119,30 +119,36 @@ function getPool(): pg.Pool {
     });
 
     // Fires once per physical connection after auth completes (isNew=true path
-    // in _acquireClient). If zombies appear without a preceding 'connect' log
-    // they never completed auth — confirming auth-phase origin.
+    // in _acquireClient). Stack trace shows which code path triggered the new
+    // connection — if zombies appear without a preceding 'connect' log they
+    // never completed auth, confirming auth-phase origin.
     _pool.on("connect", (_client) => {
       const p = _pool!;
+      const stack = new Error().stack?.split("\n").slice(2, 10).join("\n") ?? "(no stack)";
       console.info(
-        `[db-pool] connect total=${p.totalCount} idle=${p.idleCount} waiting=${p.waitingCount}`,
+        `[db-pool] CONNECT total=${p.totalCount} idle=${p.idleCount} waiting=${p.waitingCount}\n${stack}`,
       );
     });
 
     // Fires when a connection is ejected from the pool (_remove is called).
-    // Confirms idle-timeout cleanup ran and that _clients.filter() already
-    // decremented totalCount before client.end() is attempted.
+    // Stack trace shows what triggered the removal (idle timeout, error release, etc.).
     _pool.on("remove", (_client) => {
       const p = _pool!;
+      const stack = new Error().stack?.split("\n").slice(2, 10).join("\n") ?? "(no stack)";
       console.info(
-        `[db-pool] remove total=${p.totalCount} idle=${p.idleCount} waiting=${p.waitingCount}`,
+        `[db-pool] REMOVE total=${p.totalCount} idle=${p.idleCount} waiting=${p.waitingCount}\n${stack}`,
       );
     });
 
     _pool.on("acquire", (client) => {
       const stack =
-        new Error("acquired here").stack?.split("\n").slice(2, 8).join("\n") ??
+        new Error("acquired here").stack?.split("\n").slice(2, 10).join("\n") ??
         "(no stack)";
       checkedOut.set(client, { acquiredAt: Date.now(), warned: false, stack });
+      const p = _pool!;
+      console.info(
+        `[db-pool] ACQUIRE total=${p.totalCount} idle=${p.idleCount} waiting=${p.waitingCount}\n${stack}`,
+      );
     });
 
     _pool.on("release", (_err, client) => {
