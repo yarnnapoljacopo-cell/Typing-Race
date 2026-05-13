@@ -49,18 +49,15 @@ function useSearchParams() {
 
 // O(n) with zero array allocation — much faster than /\b\w+\b/g on large texts
 function countWords(str: string): number {
-  let count = 0;
-  let inWord = false;
-  for (let i = 0; i < str.length; i++) {
-    const c = str.charCodeAt(i);
-    // \w = [a-zA-Z0-9_]
-    const isWordChar =
-      (c >= 65 && c <= 90) || (c >= 97 && c <= 122) ||
-      (c >= 48 && c <= 57) || c === 95;
-    if (isWordChar && !inWord) { count++; inWord = true; }
-    else if (!isWordChar) { inWord = false; }
-  }
-  return count;
+  const m = str.match(/\S+/g);
+  return m ? m.length : 0;
+}
+
+function editorPlainText(el: HTMLElement): string {
+  return el.innerHTML
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ");
 }
 
 // Play a short ascending chime when the sprint starts (Web Audio API, no file needed)
@@ -740,7 +737,7 @@ export default function Room() {
       const restored = restoredNetWordsRef.current;
       // Use textContent (plain text) not innerHTML so HTML tags aren't
       // counted as words and the baseline is accurate on retry.
-      const currentTotalWords = countWords(textareaRef.current?.textContent ?? "");
+      const currentTotalWords = textareaRef.current ? countWords(editorPlainText(textareaRef.current)) : 0;
       if (prevStatusRef.current === null && restored > 0) {
         // Page-refresh reconnect: server knows our net word count.
         // Set baseline so the display resumes from the correct value.
@@ -969,9 +966,9 @@ export default function Room() {
 
     // Read from the live DOM (handles both user-typed and programmatic content)
     const html = div.innerHTML;
-    // textContent avoids a forced layout reflow (innerText triggers style/layout
-    // recalc on every read, which is expensive on mobile CPUs).
-    const plainText = div.textContent ?? "";
+    // Use innerHTML → replace <br> with spaces so words separated by Enter are
+    // counted correctly (textContent collapses br to nothing, merging words).
+    const plainText = editorPlainText(div);
     const wc = countWords(plainText);
     currentTextRef.current = html;
     setText(html);
@@ -1186,10 +1183,13 @@ export default function Room() {
       after.parentNode?.removeChild(after);
       after = next;
     }
-    // Ensure cursor is visible: if the last <br> is the final node in the div,
-    // browsers won't render a new visible line. Add a sentinel <br>.
-    if (lastBr === div.lastChild) {
-      div.appendChild(document.createElement("br"));
+    // Ensure cursor is visible: if the last <br> is the final node in its
+    // parent (which may be a <p>/<div> wrapper Chrome inserts on the first
+    // line, or the editor div itself), add a sentinel <br> so the browser
+    // renders a new visible line regardless of nesting depth.
+    const brParent = (lastBr.parentNode as Element) ?? div;
+    if (lastBr === brParent.lastChild) {
+      brParent.appendChild(document.createElement("br"));
     }
   }, []);
 
@@ -1198,8 +1198,18 @@ export default function Room() {
     if (e.key !== "Enter") return;
     e.preventDefault();
     if (writingStyle.paragraphMode === "indent") {
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      document.execCommand("insertHTML", false, "<br>\u00a0\u00a0\u00a0\u00a0");
+      // Use DOM API (execCommand is deprecated and unreliable on first line)
+      insertBrAtCursor(1);
+      const indentSel = window.getSelection();
+      if (indentSel && indentSel.rangeCount > 0) {
+        const r = indentSel.getRangeAt(0);
+        const indent = document.createTextNode("\u00a0\u00a0\u00a0\u00a0");
+        r.insertNode(indent);
+        r.setStartAfter(indent);
+        r.collapse(true);
+        indentSel.removeAllRanges();
+        indentSel.addRange(r);
+      }
     } else if (writingStyle.paragraphMode === "double") {
       // Two line breaks for visual paragraph spacing (DOM API = cross-browser)
       insertBrAtCursor(2);
@@ -1571,7 +1581,7 @@ export default function Room() {
           {!distractionFree && (
             <div
               className="sticky z-20"
-              style={{ top: 56, background: "var(--bg-solid)", maxWidth: 1100, margin: "0 auto", width: "100%" }}
+              style={{ top: 56, maxWidth: 1100, margin: "0 auto", width: "100%", paddingTop: 6 }}
               onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
             >
               <div style={{ display: "flex", gap: 12, alignItems: "stretch", paddingBottom: 8 }}>
@@ -1633,14 +1643,8 @@ export default function Room() {
                       return (
                         <div style={{
                           flex: 1,
-                          background: isLow ? "rgba(254,226,226,0.95)" : "rgba(255,255,255,0.92)",
-                          backdropFilter: "blur(16px)",
-                          WebkitBackdropFilter: "blur(16px)",
-                          border: `1px solid ${isLow ? "rgba(220,38,38,0.25)" : "rgba(255,255,255,0.9)"}`,
-                          borderRadius: 14,
-                          boxShadow: "0 4px 20px rgba(107,143,212,0.08)",
                           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                          padding: "8px 12px",
+                          padding: "4px 12px",
                         }}>
                           <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "2.2rem", letterSpacing: "-0.04em", color: isLow ? "#dc2626" : "#1a1a2e", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
                             {mm}:{ss}
@@ -1655,12 +1659,6 @@ export default function Room() {
                       return (
                         <div style={{
                           flex: 1,
-                          background: "rgba(255,255,255,0.88)",
-                          backdropFilter: "blur(16px)",
-                          WebkitBackdropFilter: "blur(16px)",
-                          border: "1px solid rgba(255,255,255,0.9)",
-                          borderRadius: 14,
-                          boxShadow: "0 4px 20px rgba(107,143,212,0.08)",
                           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                           gap: 6, padding: "8px 12px",
                         }}>
@@ -1818,16 +1816,6 @@ export default function Room() {
                       )}
                     </div>
                   )}
-                  {/* Bottom badge shows ALL words on the page (warm-up + sprint).
-                      The car / race-track UI uses the sprint-only net count,
-                      so users can see total page progress here while the race
-                      visualisation only credits words written after start. */}
-                  <div className="kart-word-count bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
-                    <span className="font-mono font-semibold text-sm text-foreground">{wordCount}{room.mode === "kart" && kartState.bonusWords > 0 ? <span className="text-orange-400 text-xs ml-1">+{kartState.bonusWords}</span> : null}</span>
-                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                      words on page
-                    </span>
-                  </div>
                 </div>
                 {/* Slow Bitch notification — below the badge row */}
                 <div
@@ -1842,6 +1830,18 @@ export default function Room() {
                   </span>
                 </div>
               </div>
+              {/* Word count — outside the writing card, bottom-right of writing area */}
+              {!distractionFree && (
+                <div className="flex justify-end px-1 pt-1.5">
+                  <div className="kart-word-count bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
+                    <span className="font-mono font-semibold text-sm text-foreground">
+                      {wordCount}
+                      {room.mode === "kart" && kartState.bonusWords > 0 ? <span className="text-orange-400 text-xs ml-1">+{kartState.bonusWords}</span> : null}
+                    </span>
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">words on page</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Sidebar — hidden in distraction-free mode */}
