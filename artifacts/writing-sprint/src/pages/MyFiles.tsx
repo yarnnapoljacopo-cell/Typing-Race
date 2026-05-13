@@ -633,6 +633,30 @@ export default function MyFiles() {
     const sel = window.getSelection();
     if (!div || !sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
+
+    // If the caret sits at offset 0 of a residual empty text node (the
+    // textAfter node appended by a previous Enter call), remove it before
+    // inserting.  Otherwise range.insertNode splits the empty node, leaving a
+    // phantom empty prefix between the previous <br> and the new one — which
+    // adds an extra visual line break, making None look like Double and Double
+    // look like Triple spacing on every Enter after the first.
+    if (
+      range.collapsed &&
+      range.startContainer.nodeType === Node.TEXT_NODE &&
+      (range.startContainer as Text).data === ""
+    ) {
+      const emptyNode = range.startContainer as Text;
+      const parent = emptyNode.parentNode!;
+      const nextSib = emptyNode.nextSibling;
+      parent.removeChild(emptyNode);
+      if (nextSib) {
+        range.setStartBefore(nextSib);
+      } else {
+        range.setStart(parent, parent.childNodes.length);
+      }
+      range.collapse(true);
+    }
+
     range.deleteContents();
     // Insert all <br> nodes atomically via a DocumentFragment.
     // A loop calling range.insertNode() per node is incorrect: the first call
