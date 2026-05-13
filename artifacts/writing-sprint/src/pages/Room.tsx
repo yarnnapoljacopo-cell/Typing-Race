@@ -726,7 +726,11 @@ export default function Room() {
     textareaInitDoneRef.current = true;
     try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch { /* ignore */ }
     if (!text) {
-      div.innerHTML = "<p><br></p>";
+      const p = document.createElement("p");
+      applyModeToP(p, writingStyle.paragraphMode);
+      p.innerHTML = "<br>";
+      div.innerHTML = "";
+      div.appendChild(p);
     } else {
       // Convert legacy <br>-based content to <p> elements; leave <p>-based content as-is
       div.innerHTML = text.includes("<p")
@@ -1180,19 +1184,25 @@ export default function Room() {
   const handleEditorFocus = useCallback(() => {
     const div = textareaRef.current;
     if (!div) return;
-    // Ensure editor always has at least one <p> to type into
+    // Ensure editor always has at least one <p> to type into, with inline
+    // spacing styles matching the current mode so line 0 behaves identically
+    // to every subsequent paragraph created by insertParagraphAtCursor.
     if (!div.querySelector("p")) {
-      div.innerHTML = "<p><br></p>";
+      const p = document.createElement("p");
+      applyModeToP(p, writingStyle.paragraphMode);
+      p.innerHTML = "<br>";
+      div.innerHTML = "";
+      div.appendChild(p);
       const sel = window.getSelection();
       if (sel) {
         const r = document.createRange();
-        r.setStart(div.firstChild!, 0);
+        r.setStart(p, 0);
         r.collapse(true);
         sel.removeAllRanges();
         sel.addRange(r);
       }
     }
-  }, []);
+  }, [writingStyle.paragraphMode]);
 
   // Insert a new <p> at the cursor, splitting the current paragraph.
   // One Enter press = one new paragraph, regardless of mode.
