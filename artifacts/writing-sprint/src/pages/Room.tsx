@@ -55,8 +55,9 @@ function countWords(str: string): number {
 
 function editorPlainText(el: HTMLElement): string {
   return el.innerHTML
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<[^>]+>/g, "")
+    .replace(/<\/p>/gi, " ")      // paragraph boundary → word separator
+    .replace(/<br\s*\/?>/gi, " ") // explicit line-break → word separator
+    .replace(/<[^>]+>/g, "")      // strip remaining tags
     .replace(/&nbsp;/g, " ");
 }
 
