@@ -1756,7 +1756,7 @@ export default function Room() {
               )}
 
               <div
-                style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", overflow: "hidden", flex: 1, display: "flex", flexDirection: "column", minHeight: 400 }}
+                style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 400 }}
                 className={`${kartState.boldText ? "kart-banana-hit" : ""}${kartState.blurCounter ? " kart-blur-counter" : ""}`}
               >
                 {/* nothing before the editor now */}
@@ -1774,7 +1774,7 @@ export default function Room() {
                       : "Warm up here while you wait for the sprint to start…"
                   }
                   data-has-content={text.trim().length > 0 ? "true" : undefined}
-                  className={`writing-editor flex-1 w-full focus:outline-none text-foreground overflow-auto min-h-[380px]${
+                  className={`writing-editor w-full focus:outline-none text-foreground min-h-[380px]${
                     readMode ? " cursor-default select-text" : (!isRunning && !isWaiting && !isCountdown) ? " opacity-60 cursor-not-allowed" : ""
                   }`}
                   style={{
