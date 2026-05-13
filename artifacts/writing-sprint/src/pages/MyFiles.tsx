@@ -129,6 +129,7 @@ export default function MyFiles() {
 
   const [focusMode, setFocusMode] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
+  const [paragraphMode, setParagraphMode] = useState<"none" | "indent" | "double">("none");
   const [autosaveShown, setAutosaveShown] = useState(false);
 
   // Daily goal
@@ -598,6 +599,47 @@ export default function MyFiles() {
     const bodyRect = body.getBoundingClientRect();
     body.scrollTop += (rect.top - bodyRect.top) - body.clientHeight / 2;
   };
+
+  // ── Paragraph-mode Enter handler ────────────────────────
+  const insertBrAtCursor = useCallback((count: 1 | 2) => {
+    const div = contentRef.current;
+    const sel = window.getSelection();
+    if (!div || !sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    const brs = Array.from({ length: count }, () => document.createElement("br"));
+    for (let i = brs.length - 1; i >= 0; i--) range.insertNode(brs[i]);
+    const lastBr = brs[brs.length - 1];
+    range.setStartAfter(lastBr);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    // Strip empty text nodes left by insertNode splitting a text node at its
+    // end — otherwise the sentinel check below sees a "" node as lastChild.
+    let after = lastBr.nextSibling;
+    while (after && after.nodeType === Node.TEXT_NODE && (after as Text).data === "") {
+      const next = after.nextSibling;
+      after.parentNode?.removeChild(after);
+      after = next;
+    }
+    if (lastBr === div.lastChild) div.appendChild(document.createElement("br"));
+  }, []);
+
+  const handleEditorKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (paragraphMode === "indent") {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      document.execCommand("insertHTML", false, "<br>\u00a0\u00a0\u00a0\u00a0");
+    } else if (paragraphMode === "double") {
+      insertBrAtCursor(2);
+    } else {
+      insertBrAtCursor(1);
+    }
+    updateWordCount();
+    scheduleAutosave();
+    typewriterScroll();
+  }, [paragraphMode, insertBrAtCursor, typewriterScroll]);
 
   // ── Status menu close on outside click ──────────────────
   useEffect(() => {
@@ -1205,6 +1247,19 @@ export default function MyFiles() {
                 <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("[ ] "); }} title="Checkbox">☐</button>
                 <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("---\n\n"); }} title="Scene break">···</button>
                 <div className="tb-sep" />
+                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em", textTransform: "uppercase", marginRight: 2 }}>¶</span>
+                {(["none", "indent", "double"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    className={`tb-btn${paragraphMode === mode ? " active" : ""}`}
+                    onClick={() => setParagraphMode(mode)}
+                    title={mode === "none" ? "Single line break" : mode === "indent" ? "Indent new paragraph" : "Double line break"}
+                    style={{ textTransform: "capitalize", fontSize: 10, padding: "0 6px" }}
+                  >
+                    {mode === "none" ? "None" : mode === "indent" ? "Indent" : "Double"}
+                  </button>
+                ))}
+                <div className="tb-sep" />
                 <button
                   className={`tb-btn${typewriterMode ? " active" : ""}`}
                   onClick={() => setTypewriterMode((v) => !v)}
@@ -1266,6 +1321,7 @@ export default function MyFiles() {
                   contentEditable
                   suppressContentEditableWarning
                   data-placeholder="Start writing…"
+                  onKeyDown={handleEditorKeyDown}
                   // Initial content is loaded imperatively in openDoc() via
                   // loadEditorContent so we can choose between innerHTML
                   // (rich) and textContent (legacy plain) safely.
