@@ -313,8 +313,19 @@
 .writing-editor {
   word-break: break-word;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
   max-width: 100%;
+}
+
+.writing-editor p {
+  line-height: 1.4;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.writing-editor[data-paragraph-mode="double"] p {
+  line-height: 1.7;
+  margin-bottom: 28px;
+  margin-top: 0;
 }
 
 .writing-editor:focus {

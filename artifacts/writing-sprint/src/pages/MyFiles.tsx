@@ -197,19 +197,18 @@ export default function MyFiles() {
   const loadEditorContent = useCallback((raw: string) => {
     const div = contentRef.current;
     if (!div) return;
-    // Tell Chrome to use <br> as the paragraph separator instead of <div>.
-    // Without this, typing at a container-level caret offset causes Chrome to
-    // wrap the next character in a <div> block, producing phantom extra spacing.
-    try { document.execCommand("defaultParagraphSeparator", false, "br"); } catch { /* ignore */ }
+    try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch { /* ignore */ }
     if (!raw) {
-      div.innerHTML = "";
+      div.innerHTML = "<p><br></p>";
     } else if (raw.startsWith(RICH_PREFIX)) {
-      // Saved by this editor — load HTML after defensive sanitation.
-      div.innerHTML = sanitizeStoredHtml(raw.slice(RICH_PREFIX.length));
+      const html = sanitizeStoredHtml(raw.slice(RICH_PREFIX.length));
+      // Convert legacy <br>-based content to <p> elements; leave <p>-based as-is
+      div.innerHTML = html.includes("<p")
+        ? html
+        : html.split(/<br\s*\/?>/gi).map(s => `<p>${s || "<br>"}</p>`).join("");
     } else {
-      // Legacy / plain text: load as text. The CSS rule white-space:
-      // pre-wrap on .editor-content preserves the user's newlines.
-      div.textContent = raw;
+      // Legacy plain text: wrap lines in <p> elements
+      div.innerHTML = raw.split(/\n/g).map(s => `<p>${s || "<br>"}</p>`).join("");
     }
   }, []);
 
@@ -605,71 +604,68 @@ export default function MyFiles() {
   };
 
   // ── Paragraph-mode Enter handler ────────────────────────
-  // When Chrome focuses an empty contentEditable it silently inserts a <br>
-  // as a cursor anchor, landing the caret after it — so the first typed
-  // character appears on line 2. Remove that auto-<br> on focus.
   const handleEditorFocus = useCallback(() => {
     const div = contentRef.current;
     if (!div) return;
-    if (
-      div.childNodes.length === 1 &&
-      div.firstChild instanceof HTMLBRElement &&
-      !div.getAttribute("data-has-content")
-    ) {
-      div.removeChild(div.firstChild);
+    if (!div.querySelector("p")) {
+      div.innerHTML = "<p><br></p>";
       const sel = window.getSelection();
       if (sel) {
-        const range = document.createRange();
-        range.setStart(div, 0);
-        range.collapse(true);
+        const r = document.createRange();
+        r.setStart(div.firstChild!, 0);
+        r.collapse(true);
         sel.removeAllRanges();
-        sel.addRange(range);
+        sel.addRange(r);
       }
     }
   }, []);
 
-  const insertBrAtCursor = useCallback((count: 1 | 2) => {
+  const insertParagraphAtCursor = useCallback(() => {
     const div = contentRef.current;
     const sel = window.getSelection();
     if (!div || !sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
     range.deleteContents();
 
-    // Insert <br> nodes atomically. A loop with range.insertNode() breaks
-    // because the first call expands the collapsed range to span the inserted
-    // node, so the second call's implicit deleteContents() removes the first <br>.
-    const frag = document.createDocumentFragment();
-    const brs: HTMLBRElement[] = [];
-    for (let i = 0; i < count; i++) {
-      const br = document.createElement("br");
-      brs.push(br);
-      frag.appendChild(br);
-    }
-    range.insertNode(frag);
-    const lastBr = brs[count - 1];
-
-    // Remove the empty text-node tail that insertNode leaves when it splits
-    // a text node exactly at its end.
-    let tail = lastBr.nextSibling;
-    while (tail instanceof Text && tail.data === "") {
-      const next = tail.nextSibling;
-      tail.parentNode!.removeChild(tail);
-      tail = next;
+    let currentP: HTMLElement | null = null;
+    let node: Node | null = range.startContainer;
+    while (node && node !== div) {
+      if ((node as Element).nodeName === "P") { currentP = node as HTMLElement; break; }
+      node = node.parentNode;
     }
 
-    // Place the cursor after the last <br>.
-    // white-space:pre-wrap makes the new line fully visible without a sentinel.
-    range.setStartAfter(lastBr);
-    range.collapse(true);
+    const newP = document.createElement("p");
+
+    if (currentP) {
+      const splitRange = document.createRange();
+      splitRange.setStart(range.startContainer, range.startOffset);
+      splitRange.setEnd(currentP, currentP.childNodes.length);
+      newP.appendChild(splitRange.extractContents());
+      currentP.after(newP);
+      if (!currentP.textContent && !currentP.querySelector("br")) {
+        currentP.appendChild(document.createElement("br"));
+      }
+    } else {
+      div.appendChild(newP);
+    }
+
+    if (!newP.textContent && !newP.querySelector("br")) {
+      newP.appendChild(document.createElement("br"));
+    }
+
+    const r = document.createRange();
+    const fc = newP.firstChild;
+    r.setStart(fc instanceof Text ? fc : newP, 0);
+    r.collapse(true);
     sel.removeAllRanges();
-    sel.addRange(range);
+    sel.addRange(r);
   }, []);
 
   const handleEditorKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
+    insertParagraphAtCursor();
     if (paragraphMode === "indent") {
-      insertBrAtCursor(1);
       const indentSel = window.getSelection();
       if (indentSel && indentSel.rangeCount > 0) {
         const r = indentSel.getRangeAt(0);
@@ -680,15 +676,11 @@ export default function MyFiles() {
         indentSel.removeAllRanges();
         indentSel.addRange(r);
       }
-    } else if (paragraphMode === "double") {
-      insertBrAtCursor(2);
-    } else {
-      insertBrAtCursor(1);
     }
     updateWordCount();
     scheduleAutosave();
     typewriterScroll();
-  }, [paragraphMode, insertBrAtCursor, typewriterScroll]);
+  }, [paragraphMode, insertParagraphAtCursor, typewriterScroll]);
 
   // ── Status menu close on outside click ──────────────────
   useEffect(() => {
@@ -1370,6 +1362,7 @@ export default function MyFiles() {
                   contentEditable
                   suppressContentEditableWarning
                   data-placeholder="Start writing…"
+                  data-paragraph-mode={paragraphMode}
                   onFocus={handleEditorFocus}
                   onKeyDown={handleEditorKeyDown}
                   // Initial content is loaded imperatively in openDoc() via

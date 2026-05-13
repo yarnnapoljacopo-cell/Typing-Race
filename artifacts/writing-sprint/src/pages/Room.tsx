@@ -709,15 +709,18 @@ export default function Room() {
     const div = textareaRef.current;
     if (!div) return; // div not in DOM yet — will retry when participantId changes
     textareaInitDoneRef.current = true;
-    // Tell Chrome to insert <br> (not <div>) when it needs a block separator.
-    // This prevents the auto-<div>-wrapping that adds phantom paragraph spacing
-    // when the caret sits at a container-level offset after an Enter press.
-    try { document.execCommand("defaultParagraphSeparator", false, "br"); } catch { /* ignore */ }
-    if (!text) return;
-    div.innerHTML = text;
+    try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch { /* ignore */ }
+    if (!text) {
+      div.innerHTML = "<p><br></p>";
+    } else {
+      // Convert legacy <br>-based content to <p> elements; leave <p>-based content as-is
+      div.innerHTML = text.includes("<p")
+        ? text
+        : text.split(/<br\s*\/?>/gi).map(s => `<p>${s || "<br>"}</p>`).join("");
+    }
     // Cursor to end
     const sel = window.getSelection();
-    if (sel && div.lastChild) {
+    if (sel) {
       const range = document.createRange();
       range.selectNodeContents(div);
       range.collapse(false);
@@ -1159,76 +1162,79 @@ export default function Room() {
     if (writingStyle.typewriterMode) requestAnimationFrame(scrollToCursor);
   }, [applyText, writingStyle.typewriterMode, scrollToCursor]);
 
-  // When Chrome focuses an empty contentEditable it silently inserts a <br>
-  // as a cursor anchor.  The caret lands *after* that <br>, so the user's
-  // first typed character appears on line 2 (with an invisible empty line 1).
-  // On focus, detect this state and remove the auto-<br> so line 1 is always
-  // the real first writing line.
   const handleEditorFocus = useCallback(() => {
     const div = textareaRef.current;
     if (!div) return;
-    if (
-      div.childNodes.length === 1 &&
-      div.firstChild instanceof HTMLBRElement &&
-      !div.getAttribute("data-has-content")
-    ) {
-      div.removeChild(div.firstChild);
+    // Ensure editor always has at least one <p> to type into
+    if (!div.querySelector("p")) {
+      div.innerHTML = "<p><br></p>";
       const sel = window.getSelection();
       if (sel) {
-        const range = document.createRange();
-        range.setStart(div, 0);
-        range.collapse(true);
+        const r = document.createRange();
+        r.setStart(div.firstChild!, 0);
+        r.collapse(true);
         sel.removeAllRanges();
-        sel.addRange(range);
+        sel.addRange(r);
       }
     }
   }, []);
 
-  // Insert <br> element(s) at the current selection using the Range API (cross-browser).
-  const insertBrAtCursor = useCallback((count: 1 | 2) => {
+  // Insert a new <p> at the cursor, splitting the current paragraph.
+  // One Enter press = one new paragraph, regardless of mode.
+  // CSS on the editor controls spacing (line-height / margin) per mode.
+  const insertParagraphAtCursor = useCallback(() => {
     const div = textareaRef.current;
     const sel = window.getSelection();
     if (!div || !sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
     range.deleteContents();
 
-    // Insert <br> nodes atomically. A loop with range.insertNode() breaks
-    // because the first call expands the collapsed range to span the inserted
-    // node, so the second call's implicit deleteContents() removes the first <br>.
-    const frag = document.createDocumentFragment();
-    const brs: HTMLBRElement[] = [];
-    for (let i = 0; i < count; i++) {
-      const br = document.createElement("br");
-      brs.push(br);
-      frag.appendChild(br);
-    }
-    range.insertNode(frag);
-    const lastBr = brs[count - 1];
-
-    // Remove the empty text-node tail that insertNode leaves when it splits
-    // a text node exactly at its end.
-    let tail = lastBr.nextSibling;
-    while (tail instanceof Text && tail.data === "") {
-      const next = tail.nextSibling;
-      tail.parentNode!.removeChild(tail);
-      tail = next;
+    // Walk up from the cursor to find the enclosing <p>
+    let currentP: HTMLElement | null = null;
+    let node: Node | null = range.startContainer;
+    while (node && node !== div) {
+      if ((node as Element).nodeName === "P") { currentP = node as HTMLElement; break; }
+      node = node.parentNode;
     }
 
-    // Place the cursor after the last <br>.
-    // white-space:pre-wrap makes the new line fully visible without a sentinel.
-    range.setStartAfter(lastBr);
-    range.collapse(true);
+    const newP = document.createElement("p");
+
+    if (currentP) {
+      // Extract everything from cursor to end of currentP into newP
+      const splitRange = document.createRange();
+      splitRange.setStart(range.startContainer, range.startOffset);
+      splitRange.setEnd(currentP, currentP.childNodes.length);
+      newP.appendChild(splitRange.extractContents());
+      currentP.after(newP);
+      // Keep currentP non-empty so the cursor line stays visible
+      if (!currentP.textContent && !currentP.querySelector("br")) {
+        currentP.appendChild(document.createElement("br"));
+      }
+    } else {
+      // Cursor is directly in the editor div (e.g. first focus on empty editor)
+      div.appendChild(newP);
+    }
+
+    // New paragraph needs at least a <br> so the cursor is visible on the line
+    if (!newP.textContent && !newP.querySelector("br")) {
+      newP.appendChild(document.createElement("br"));
+    }
+
+    // Place cursor at the start of the new paragraph
+    const r = document.createRange();
+    const fc = newP.firstChild;
+    r.setStart(fc instanceof Text ? fc : newP, 0);
+    r.collapse(true);
     sel.removeAllRanges();
-    sel.addRange(range);
+    sel.addRange(r);
   }, []);
 
-  // Normalise Enter across browsers and apply paragraph mode
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
+    insertParagraphAtCursor();
     if (writingStyle.paragraphMode === "indent") {
-      // Use DOM API (execCommand is deprecated and unreliable on first line)
-      insertBrAtCursor(1);
+      // Add leading indent after the new paragraph is created
       const indentSel = window.getSelection();
       if (indentSel && indentSel.rangeCount > 0) {
         const r = indentSel.getRangeAt(0);
@@ -1239,18 +1245,10 @@ export default function Room() {
         indentSel.removeAllRanges();
         indentSel.addRange(r);
       }
-    } else if (writingStyle.paragraphMode === "double") {
-      // Two line breaks for visual paragraph spacing (DOM API = cross-browser)
-      insertBrAtCursor(2);
-    } else {
-      // Single line break — "none" mode.  Use DOM API because
-      // document.execCommand("insertLineBreak") is unsupported in Firefox.
-      insertBrAtCursor(1);
     }
     applyText();
-    // rAF so the new line is in the DOM before we compute the caret rect
     if (writingStyle.typewriterMode) requestAnimationFrame(scrollToCursor);
-  }, [writingStyle.paragraphMode, writingStyle.typewriterMode, applyText, scrollToCursor, insertBrAtCursor]);
+  }, [writingStyle.paragraphMode, writingStyle.typewriterMode, applyText, scrollToCursor, insertParagraphAtCursor]);
 
   // Strip pasted HTML — keep only the plain text
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -1814,6 +1812,7 @@ export default function Room() {
                       : "Warm up here while you wait for the sprint to start…"
                   }
                   data-has-content={text.trim().length > 0 ? "true" : undefined}
+                  data-paragraph-mode={writingStyle.paragraphMode}
                   className={`writing-editor w-full focus:outline-none text-foreground min-h-[380px]${
                     readMode ? " cursor-default select-text" : (!isRunning && !isWaiting && !isCountdown) ? " opacity-60 cursor-not-allowed" : ""
                   }`}
