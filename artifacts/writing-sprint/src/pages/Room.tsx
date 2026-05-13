@@ -53,6 +53,20 @@ function countWords(str: string): number {
   return m ? m.length : 0;
 }
 
+// Apply per-paragraph inline styles for a given spacing mode.
+// Inline styles win over the CSS default so each <p> carries its own mode.
+function applyModeToP(p: HTMLElement, mode: string): void {
+  if (mode === "double") {
+    p.style.lineHeight = "1.7";
+    p.style.marginBottom = "28px";
+    p.style.marginTop = "0";
+  } else {
+    p.style.lineHeight = "1.4";
+    p.style.marginBottom = "0";
+    p.style.marginTop = "0";
+  }
+}
+
 function editorPlainText(el: HTMLElement): string {
   return el.innerHTML
     .replace(/<\/p>/gi, " ")      // paragraph boundary → word separator
@@ -1199,6 +1213,9 @@ export default function Room() {
     }
 
     const newP = document.createElement("p");
+    // Stamp the current mode as inline styles so this paragraph keeps its
+    // spacing even if the user switches modes later without a selection.
+    applyModeToP(newP, writingStyle.paragraphMode);
 
     if (currentP) {
       // Extract everything from cursor to end of currentP into newP
@@ -1228,7 +1245,7 @@ export default function Room() {
     r.collapse(true);
     sel.removeAllRanges();
     sel.addRange(r);
-  }, []);
+  }, [writingStyle.paragraphMode]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Enter") return;
@@ -1261,6 +1278,23 @@ export default function Room() {
   }, [applyText]);
 
   const handleStyleChange = (partial: Partial<WritingStyle>) => {
+    // Paragraph-mode changes are applied selectively:
+    // • If text is selected → restyle only the <p> elements that intersect the selection.
+    // • If nothing is selected → don't touch existing paragraphs; new mode applies to
+    //   future paragraphs only (inline styles set at creation time in insertParagraphAtCursor).
+    if ("paragraphMode" in partial && partial.paragraphMode !== writingStyle.paragraphMode) {
+      const mode = partial.paragraphMode!;
+      const div = textareaRef.current;
+      const sel = window.getSelection();
+      if (div && sel && !sel.isCollapsed && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        if (div.contains(range.commonAncestorContainer)) {
+          div.querySelectorAll("p").forEach((p) => {
+            if (range.intersectsNode(p)) applyModeToP(p as HTMLElement, mode);
+          });
+        }
+      }
+    }
     setWritingStyle((prev) => {
       const next = { ...prev, ...partial };
       try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
@@ -1813,7 +1847,6 @@ export default function Room() {
                       : "Warm up here while you wait for the sprint to start…"
                   }
                   data-has-content={text.trim().length > 0 ? "true" : undefined}
-                  data-paragraph-mode={writingStyle.paragraphMode}
                   className={`writing-editor w-full focus:outline-none text-foreground min-h-[380px]${
                     readMode ? " cursor-default select-text" : (!isRunning && !isWaiting && !isCountdown) ? " opacity-60 cursor-not-allowed" : ""
                   }`}

@@ -26,6 +26,19 @@ const wc = (t: string) =>
   t.trim() ? t.trim().split(/\s+/).length : 0;
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+// Apply per-paragraph inline styles for a given spacing mode.
+function applyModeToPMyFiles(p: HTMLElement, mode: string): void {
+  if (mode === "double") {
+    p.style.lineHeight = "1.7";
+    p.style.marginBottom = "28px";
+    p.style.marginTop = "0";
+  } else {
+    p.style.lineHeight = "1.4";
+    p.style.marginBottom = "0";
+    p.style.marginTop = "0";
+  }
+}
+
 function loadRecent(): RecentEntry[] {
   try {
     return JSON.parse(localStorage.getItem("folio_recent") || "[]");
@@ -635,6 +648,9 @@ export default function MyFiles() {
     }
 
     const newP = document.createElement("p");
+    // Stamp current mode as inline styles so this paragraph keeps its spacing
+    // even if the user switches modes later without a selection.
+    applyModeToPMyFiles(newP, paragraphMode);
 
     if (currentP) {
       const splitRange = document.createRange();
@@ -659,7 +675,7 @@ export default function MyFiles() {
     r.collapse(true);
     sel.removeAllRanges();
     sel.addRange(r);
-  }, []);
+  }, [paragraphMode]);
 
   const handleEditorKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Enter") return;
@@ -1293,7 +1309,19 @@ export default function MyFiles() {
                   <button
                     key={mode}
                     className={`tb-btn${paragraphMode === mode ? " active" : ""}`}
-                    onClick={() => setParagraphMode(mode)}
+                    onClick={() => {
+                      const div = contentRef.current;
+                      const sel = window.getSelection();
+                      if (div && sel && !sel.isCollapsed && sel.rangeCount > 0) {
+                        const range = sel.getRangeAt(0);
+                        if (div.contains(range.commonAncestorContainer)) {
+                          div.querySelectorAll("p").forEach((p) => {
+                            if (range.intersectsNode(p)) applyModeToPMyFiles(p as HTMLElement, mode);
+                          });
+                        }
+                      }
+                      setParagraphMode(mode);
+                    }}
                     title={mode === "none" ? "Single line break" : mode === "indent" ? "Indent new paragraph" : "Double line break"}
                     style={{ textTransform: "capitalize", fontSize: 10, padding: "0 6px" }}
                   >
@@ -1362,7 +1390,6 @@ export default function MyFiles() {
                   contentEditable
                   suppressContentEditableWarning
                   data-placeholder="Start writing…"
-                  data-paragraph-mode={paragraphMode}
                   onFocus={handleEditorFocus}
                   onKeyDown={handleEditorKeyDown}
                   // Initial content is loaded imperatively in openDoc() via

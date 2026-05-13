@@ -322,12 +322,6 @@
   white-space: pre-wrap;
 }
 
-.writing-editor[data-paragraph-mode="double"] p {
-  line-height: 1.7;
-  margin-bottom: 28px;
-  margin-top: 0;
-}
-
 .writing-editor:focus {
   outline: none;
 }
