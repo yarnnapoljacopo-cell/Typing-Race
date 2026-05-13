@@ -442,6 +442,10 @@ export default function Room() {
 
   // ── "Slow Bitch." — fired every 5 min if behind the leader ─────────────
   const netWordCountRef = useRef<number>(0);
+  // Sync ref so applyText can read the current paragraph mode without adding
+  // writingStyle.paragraphMode to its dep array (which would cascade rebuilds).
+  const paragraphModeRef = useRef(writingStyle.paragraphMode);
+  paragraphModeRef.current = writingStyle.paragraphMode;
   const slowBitchHideTimerRef = useRef<number | null>(null);
   // Always-current snapshot of room so the interval doesn't read stale state
   const roomRef = useRef<RoomState | null>(null);
@@ -977,6 +981,25 @@ export default function Room() {
     const div = textareaRef.current;
     if (!div) return;
 
+    // Guard: if the user deleted all text and the browser collapsed the div to
+    // a bare text node or left it completely empty, reinitialize with a clean
+    // styled <p> so the cursor and word count continue working from zero.
+    if (newHtml === undefined && !div.querySelector("p")) {
+      const p = document.createElement("p");
+      applyModeToP(p, paragraphModeRef.current);
+      p.innerHTML = "<br>";
+      div.innerHTML = "";
+      div.appendChild(p);
+      const s = window.getSelection();
+      if (s) {
+        const r = document.createRange();
+        r.setStart(p, 0);
+        r.collapse(true);
+        s.removeAllRanges();
+        s.addRange(r);
+      }
+    }
+
     if (newHtml !== undefined) {
       // Programmatic update — set innerHTML and move cursor to end
       div.innerHTML = newHtml;
@@ -1297,11 +1320,24 @@ export default function Room() {
       const div = textareaRef.current;
       const sel = window.getSelection();
       if (div && sel && !sel.isCollapsed && sel.rangeCount > 0) {
+        // Selection exists: restyle every <p> that intersects it.
         const range = sel.getRangeAt(0);
         if (div.contains(range.commonAncestorContainer)) {
           div.querySelectorAll("p").forEach((p) => {
             if (range.intersectsNode(p)) applyModeToP(p as HTMLElement, mode);
           });
+        }
+      } else if (div && sel && sel.rangeCount > 0) {
+        // No selection: restyle only the paragraph the cursor is currently in
+        // so the very next Enter already produces correctly-spaced output.
+        const range = sel.getRangeAt(0);
+        let node: Node | null = range.startContainer;
+        while (node && node !== div) {
+          if ((node as Element).nodeName === "P") {
+            applyModeToP(node as HTMLElement, mode);
+            break;
+          }
+          node = node.parentNode;
         }
       }
     }
