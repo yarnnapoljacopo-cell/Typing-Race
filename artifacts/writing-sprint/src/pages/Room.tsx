@@ -1415,8 +1415,8 @@ export default function Room() {
     </>}
     <div className={distractionFree
       ? "fixed inset-0 z-50 bg-background flex flex-col overflow-auto"
-      : "min-h-screen w-full flex flex-col gap-4"
-    } style={!distractionFree ? { position: "relative", zIndex: 1 } : undefined}>
+      : "w-full flex flex-col gap-4"
+    } style={!distractionFree ? { position: "relative", zIndex: 1, height: "100dvh", overflowY: "auto", overflowX: "hidden" } : undefined}>
 
       {/* Chest award modal — shown when timer ends naturally */}
       {chestAwarded && (
@@ -1566,7 +1566,7 @@ export default function Room() {
           />
         </div>
       ) : (
-        <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col"} style={!distractionFree ? { padding: "16px 20px 80px" } : undefined}>
+        <div className={distractionFree ? "flex-1 flex flex-col" : "flex flex-col"} style={!distractionFree ? { padding: "16px 20px 80px" } : undefined}>
           {/* Race / boss track + sticky timer — hidden in distraction-free mode */}
           {!distractionFree && (
             <div
