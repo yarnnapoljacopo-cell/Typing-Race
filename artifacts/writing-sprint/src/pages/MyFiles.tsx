@@ -197,6 +197,10 @@ export default function MyFiles() {
   const loadEditorContent = useCallback((raw: string) => {
     const div = contentRef.current;
     if (!div) return;
+    // Tell Chrome to use <br> as the paragraph separator instead of <div>.
+    // Without this, typing at a container-level caret offset causes Chrome to
+    // wrap the next character in a <div> block, producing phantom extra spacing.
+    try { document.execCommand("defaultParagraphSeparator", false, "br"); } catch { /* ignore */ }
     if (!raw) {
       div.innerHTML = "";
     } else if (raw.startsWith(RICH_PREFIX)) {
@@ -601,36 +605,88 @@ export default function MyFiles() {
   };
 
   // ── Paragraph-mode Enter handler ────────────────────────
+  // When Chrome focuses an empty contentEditable it silently inserts a <br>
+  // as a cursor anchor, landing the caret after it — so the first typed
+  // character appears on line 2. Remove that auto-<br> on focus.
+  const handleEditorFocus = useCallback(() => {
+    const div = contentRef.current;
+    if (!div) return;
+    if (
+      div.childNodes.length === 1 &&
+      div.firstChild instanceof HTMLBRElement &&
+      !div.getAttribute("data-has-content")
+    ) {
+      div.removeChild(div.firstChild);
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.setStart(div, 0);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+  }, []);
+
   const insertBrAtCursor = useCallback((count: 1 | 2) => {
     const div = contentRef.current;
     const sel = window.getSelection();
     if (!div || !sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
     range.deleteContents();
-    const brs = Array.from({ length: count }, () => document.createElement("br"));
-    for (let i = brs.length - 1; i >= 0; i--) range.insertNode(brs[i]);
-    const lastBr = brs[brs.length - 1];
-    range.setStartAfter(lastBr);
-    range.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(range);
-    // Strip empty text nodes left by insertNode splitting a text node at its
-    // end — otherwise the sentinel check below sees a "" node as lastChild.
+    // Insert all <br> nodes atomically via a DocumentFragment.
+    // A loop calling range.insertNode() per node is incorrect: the first call
+    // expands the collapsed range to span the inserted node, so the second
+    // call's implicit deleteContents() removes the first <br>.
+    const frag = document.createDocumentFragment();
+    const brs: HTMLBRElement[] = [];
+    for (let i = 0; i < count; i++) {
+      const br = document.createElement("br");
+      brs.push(br);
+      frag.appendChild(br);
+    }
+    range.insertNode(frag);
+    const lastBr = brs[count - 1];
+    // Remove any empty text-node tail left by text-node splitting.
     let after = lastBr.nextSibling;
     while (after && after.nodeType === Node.TEXT_NODE && (after as Text).data === "") {
       const next = after.nextSibling;
       after.parentNode?.removeChild(after);
       after = next;
     }
-    if (lastBr === div.lastChild) div.appendChild(document.createElement("br"));
+    // Append an empty text node and place the caret inside it (offset 0).
+    // A caret at a container-level offset causes Chrome to wrap the next typed
+    // character in a <div> block, adding phantom paragraph spacing on every
+    // subsequent line. A caret inside a text node avoids this entirely.
+    const brParent = (lastBr.parentNode as Node) ?? div;
+    const textAfter = document.createTextNode("");
+    const nextSib = lastBr.nextSibling;
+    if (nextSib) {
+      brParent.insertBefore(textAfter, nextSib);
+    } else {
+      brParent.appendChild(textAfter);
+    }
+    range.setStart(textAfter, 0);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
   }, []);
 
   const handleEditorKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
     if (paragraphMode === "indent") {
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      document.execCommand("insertHTML", false, "<br>\u00a0\u00a0\u00a0\u00a0");
+      insertBrAtCursor(1);
+      const indentSel = window.getSelection();
+      if (indentSel && indentSel.rangeCount > 0) {
+        const r = indentSel.getRangeAt(0);
+        const indent = document.createTextNode("\u00a0\u00a0\u00a0\u00a0");
+        r.insertNode(indent);
+        r.setStartAfter(indent);
+        r.collapse(true);
+        indentSel.removeAllRanges();
+        indentSel.addRange(r);
+      }
     } else if (paragraphMode === "double") {
       insertBrAtCursor(2);
     } else {
@@ -1321,6 +1377,7 @@ export default function MyFiles() {
                   contentEditable
                   suppressContentEditableWarning
                   data-placeholder="Start writing…"
+                  onFocus={handleEditorFocus}
                   onKeyDown={handleEditorKeyDown}
                   // Initial content is loaded imperatively in openDoc() via
                   // loadEditorContent so we can choose between innerHTML
