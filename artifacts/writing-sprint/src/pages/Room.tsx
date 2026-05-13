@@ -1155,42 +1155,47 @@ export default function Room() {
     if (writingStyle.typewriterMode) requestAnimationFrame(scrollToCursor);
   }, [applyText, writingStyle.typewriterMode, scrollToCursor]);
 
-  // Insert a <br> at the current selection using the Range API (cross-browser).
-  // A lone <br> at the end of a contenteditable div leaves the cursor visually
-  // stuck; a trailing sentinel <br> makes the new line visible in all engines.
+  // Insert <br> element(s) at the current selection using the Range API (cross-browser).
   const insertBrAtCursor = useCallback((count: 1 | 2) => {
     const div = textareaRef.current;
     const sel = window.getSelection();
     if (!div || !sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
     range.deleteContents();
-    const brs = Array.from({ length: count }, () => document.createElement("br"));
-    // Insert in reverse so the first br ends up first in the DOM
-    for (let i = brs.length - 1; i >= 0; i--) range.insertNode(brs[i]);
-    // Move caret after the last inserted br
-    const lastBr = brs[brs.length - 1];
-    range.setStartAfter(lastBr);
-    range.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(range);
-    // range.insertNode splits text nodes at the cursor offset, leaving an empty
-    // text node ("") immediately after the inserted <br> when the cursor was at
-    // the very end of a text run.  That empty node becomes div.lastChild and
-    // defeats the sentinel check below — remove it first.
+
+    // Insert all <br> nodes atomically via a DocumentFragment.
+    // A loop calling range.insertNode() per node is incorrect: the first call
+    // expands the (collapsed) range to span the inserted node, so the second
+    // call's implicit deleteContents() removes the first <br>, leaving only
+    // one line-break regardless of `count`.
+    const frag = document.createDocumentFragment();
+    const brs: HTMLBRElement[] = [];
+    for (let i = 0; i < count; i++) {
+      const br = document.createElement("br");
+      brs.push(br);
+      frag.appendChild(br);
+    }
+    range.insertNode(frag);
+
+    const lastBr = brs[count - 1];
+
+    // range.insertNode splits the text node at the cursor offset, leaving an
+    // empty text node ("") immediately after the last <br> — remove it.
     let after = lastBr.nextSibling;
     while (after && after.nodeType === Node.TEXT_NODE && (after as Text).data === "") {
       const next = after.nextSibling;
       after.parentNode?.removeChild(after);
       after = next;
     }
-    // Ensure cursor is visible: if the last <br> is the final node in its
-    // parent (which may be a <p>/<div> wrapper Chrome inserts on the first
-    // line, or the editor div itself), add a sentinel <br> so the browser
-    // renders a new visible line regardless of nesting depth.
-    const brParent = (lastBr.parentNode as Element) ?? div;
-    if (lastBr === brParent.lastChild) {
-      brParent.appendChild(document.createElement("br"));
-    }
+
+    // Place caret after the last inserted <br>.
+    // No sentinel <br> is needed: the editor uses white-space: pre-wrap,
+    // which makes the line after a trailing <br> fully visible and reachable
+    // by the cursor — a sentinel would only create an unwanted extra blank line.
+    range.setStartAfter(lastBr);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
   }, []);
 
   // Normalise Enter across browsers and apply paragraph mode
