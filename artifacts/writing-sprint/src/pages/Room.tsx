@@ -709,6 +709,10 @@ export default function Room() {
     const div = textareaRef.current;
     if (!div) return; // div not in DOM yet — will retry when participantId changes
     textareaInitDoneRef.current = true;
+    // Tell Chrome to insert <br> (not <div>) when it needs a block separator.
+    // This prevents the auto-<div>-wrapping that adds phantom paragraph spacing
+    // when the caret sits at a container-level offset after an Enter press.
+    try { document.execCommand("defaultParagraphSeparator", false, "br"); } catch { /* ignore */ }
     if (!text) return;
     div.innerHTML = text;
     // Cursor to end
@@ -1155,6 +1159,31 @@ export default function Room() {
     if (writingStyle.typewriterMode) requestAnimationFrame(scrollToCursor);
   }, [applyText, writingStyle.typewriterMode, scrollToCursor]);
 
+  // When Chrome focuses an empty contentEditable it silently inserts a <br>
+  // as a cursor anchor.  The caret lands *after* that <br>, so the user's
+  // first typed character appears on line 2 (with an invisible empty line 1).
+  // On focus, detect this state and remove the auto-<br> so line 1 is always
+  // the real first writing line.
+  const handleEditorFocus = useCallback(() => {
+    const div = textareaRef.current;
+    if (!div) return;
+    if (
+      div.childNodes.length === 1 &&
+      div.firstChild instanceof HTMLBRElement &&
+      !div.getAttribute("data-has-content")
+    ) {
+      div.removeChild(div.firstChild);
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.setStart(div, 0);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+  }, []);
+
   // Insert <br> element(s) at the current selection using the Range API (cross-browser).
   const insertBrAtCursor = useCallback((count: 1 | 2) => {
     const div = textareaRef.current;
@@ -1188,11 +1217,21 @@ export default function Room() {
       after = next;
     }
 
-    // Place caret after the last inserted <br>.
-    // No sentinel <br> is needed: the editor uses white-space: pre-wrap,
-    // which makes the line after a trailing <br> fully visible and reachable
-    // by the cursor — a sentinel would only create an unwanted extra blank line.
-    range.setStartAfter(lastBr);
+    // Insert an empty text node immediately after the last <br> and position
+    // the caret at offset 0 inside it.  When the caret sits at a container-level
+    // offset (i.e. not inside a text node), Chrome auto-wraps the next typed
+    // character in a <div> block element, which adds unwanted paragraph spacing
+    // on every line after the first Enter.  A caret inside a text node — even
+    // an empty one — tells Chrome to extend that node instead of creating a new block.
+    const brParent = (lastBr.parentNode as Node) ?? div;
+    const textAfter = document.createTextNode("");
+    const nextSib = lastBr.nextSibling;
+    if (nextSib) {
+      brParent.insertBefore(textAfter, nextSib);
+    } else {
+      brParent.appendChild(textAfter);
+    }
+    range.setStart(textAfter, 0);
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
@@ -1779,6 +1818,7 @@ export default function Room() {
                   ref={textareaRef}
                   contentEditable={!readMode && (isRunning || isWaiting || isCountdown)}
                   suppressContentEditableWarning
+                  onFocus={handleEditorFocus}
                   onInput={handleInput}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
