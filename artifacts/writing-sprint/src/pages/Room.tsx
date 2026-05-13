@@ -18,7 +18,7 @@ import { EmoteBar, EmoteOverlay } from "@/components/EmoteBar";
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
 import { SpectatorView } from "@/components/SpectatorView";
 import { Button } from "@/components/ui/button";
-import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck, BookOpen, PenLine, Maximize2, Minimize2, LogOut, NotebookPen } from "lucide-react";
+import { Copy, AlertCircle, Loader2, Play, WifiOff, Eye, Download, BookCheck, BookOpen, PenLine, Maximize2, Minimize2, LogOut, NotebookPen, Clock } from "lucide-react";
 import StickyNote from "./StickyNote";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -1567,73 +1567,115 @@ export default function Room() {
         </div>
       ) : (
         <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col"} style={!distractionFree ? { padding: "16px 20px 80px" } : undefined}>
-          {/* Race / boss track — hidden in distraction-free mode */}
+          {/* Race / boss track + sticky timer — hidden in distraction-free mode */}
           {!distractionFree && (
             <div
-              className="sticky z-20 pb-2"
+              className="sticky z-20"
               style={{ top: 56, background: "var(--bg-solid)", maxWidth: 1100, margin: "0 auto", width: "100%" }}
               onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
-            ><>
-              {room.mode === "gladiator" ? (
-                <>
-                  {/* Arena scene — visible during waiting, countdown, and running */}
-                  {(isWaiting || isCountdown || isRunning) && room.gladiatorDeathGap && (
-                    <GladiatorHUD
-                      state={gladiatorState}
-                      deathGap={room.gladiatorDeathGap}
-                      myName={myParticipant?.name ?? "You"}
-                      opponentName={otherParticipants[0]?.name ?? null}
-                      isRunning={isRunning}
+            >
+              <div style={{ display: "flex", gap: 12, alignItems: "stretch", paddingBottom: 8 }}>
+                {/* Race / boss / gladiator track */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {room.mode === "gladiator" ? (
+                    <>
+                      {/* Arena scene — visible during waiting, countdown, and running */}
+                      {(isWaiting || isCountdown || isRunning) && room.gladiatorDeathGap && (
+                        <GladiatorHUD
+                          state={gladiatorState}
+                          deathGap={room.gladiatorDeathGap}
+                          myName={myParticipant?.name ?? "You"}
+                          opponentName={otherParticipants[0]?.name ?? null}
+                          isRunning={isRunning}
+                        />
+                      )}
+                    </>
+                  ) : room.mode === "boss" && room.bossWordGoal ? (
+                    <BossTrack
+                      participants={room.participants}
+                      currentParticipantId={participantId}
+                      bossWordGoal={room.bossWordGoal}
+                    />
+                  ) : (
+                    <RaceTrack
+                      participants={room.participants}
+                      currentParticipantId={participantId}
+                      durationMinutes={room.durationMinutes}
+                      wordGoal={room.wordGoal}
+                      reaperWordCount={reaperWordCount}
+                      carOffsets={room.mode === "kart" ? kartState.carOffsets : undefined}
+                      starActiveIds={room.mode === "kart" ? kartState.starActiveIds : undefined}
+                      isKartMode={room.mode === "kart"}
+                      localWordCount={isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : undefined}
+                      hostCarSkin={room.hostCarSkin}
+                      hostRoadSkin={room.hostRoadSkin}
+                      roomMode={room.mode}
                     />
                   )}
-                </>
-              ) : room.mode === "boss" && room.bossWordGoal ? (
-                <BossTrack
-                  participants={room.participants}
-                  currentParticipantId={participantId}
-                  bossWordGoal={room.bossWordGoal}
-                />
-              ) : (
-                <RaceTrack
-                  participants={room.participants}
-                  currentParticipantId={participantId}
-                  durationMinutes={room.durationMinutes}
-                  wordGoal={room.wordGoal}
-                  reaperWordCount={reaperWordCount}
-                  carOffsets={room.mode === "kart" ? kartState.carOffsets : undefined}
-                  starActiveIds={room.mode === "kart" ? kartState.starActiveIds : undefined}
-                  isKartMode={room.mode === "kart"}
-                  localWordCount={isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : undefined}
-                  hostCarSkin={room.hostCarSkin}
-                  hostRoadSkin={room.hostRoadSkin}
-                  roomMode={room.mode}
-                />
-              )}
-              {/* Death Mode: grace-period countdown banner */}
-              {graceCountdown !== null && isRunning && (
-                <div className="flex items-center justify-center gap-3 rounded-xl border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm font-bold text-red-700 dark:text-red-300 animate-in fade-in duration-200">
-                  <span className="text-xl tabular-nums">{graceCountdown}</span>
-                  <span>The reaper caught you — keep typing or you're out!</span>
-                  <span className="text-xl">💀</span>
+                  {/* Death Mode: grace-period countdown banner */}
+                  {graceCountdown !== null && isRunning && (
+                    <div className="flex items-center justify-center gap-3 rounded-xl border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm font-bold text-red-700 dark:text-red-300 animate-in fade-in duration-200">
+                      <span className="text-xl tabular-nums">{graceCountdown}</span>
+                      <span>The reaper caught you — keep typing or you're out!</span>
+                      <span className="text-xl">💀</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </>
-            {/* Compact timer — always visible in the sticky area while scrolling */}
-            {(isCountdown || isRunning) && (() => {
-              const secs = isCountdown ? (room.countdownTimeLeft ?? 0) : (room.timeLeft ?? 0);
-              const mm = Math.floor(secs / 60);
-              const ss = String(secs % 60).padStart(2, "0");
-              const isLow = isRunning && secs > 0 && secs <= 60;
-              return (
-                <div className="flex items-center justify-center gap-2 pt-1.5 pb-0.5">
-                  <span className={`text-sm font-mono font-bold tabular-nums ${isLow ? "text-destructive" : "text-muted-foreground"}`}>
-                    {isCountdown ? `Starting in ${mm}:${ss}` : `${mm}:${ss} remaining`}
-                  </span>
-                  {isLow && <span className="text-xs animate-pulse">⏰</span>}
+
+                {/* Sticky inline timer — always visible while scrolling, aligns with sidebar */}
+                <div style={{ width: 240, flexShrink: 0, display: "flex", alignItems: "stretch" }}>
+                  {(() => {
+                    if (isRunning || isCountdown) {
+                      const secs = isCountdown ? (room.countdownTimeLeft ?? 0) : (room.timeLeft ?? 0);
+                      const mm = String(Math.floor(secs / 60)).padStart(2, "0");
+                      const ss = String(secs % 60).padStart(2, "0");
+                      const isLow = isRunning && secs > 0 && secs <= 60;
+                      return (
+                        <div style={{
+                          flex: 1,
+                          background: isLow ? "rgba(254,226,226,0.95)" : "rgba(255,255,255,0.92)",
+                          backdropFilter: "blur(16px)",
+                          WebkitBackdropFilter: "blur(16px)",
+                          border: `1px solid ${isLow ? "rgba(220,38,38,0.25)" : "rgba(255,255,255,0.9)"}`,
+                          borderRadius: 14,
+                          boxShadow: "0 4px 20px rgba(107,143,212,0.08)",
+                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                          padding: "8px 12px",
+                        }}>
+                          <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "2.2rem", letterSpacing: "-0.04em", color: isLow ? "#dc2626" : "#1a1a2e", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+                            {mm}:{ss}
+                          </div>
+                          <div style={{ fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, color: isLow ? "#dc2626" : "#7a7a92", marginTop: 4 }}>
+                            {isLow ? "⏰ Final minute!" : isCountdown ? "Until start" : "Remaining"}
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (isWaiting) {
+                      return (
+                        <div style={{
+                          flex: 1,
+                          background: "rgba(255,255,255,0.88)",
+                          backdropFilter: "blur(16px)",
+                          WebkitBackdropFilter: "blur(16px)",
+                          border: "1px solid rgba(255,255,255,0.9)",
+                          borderRadius: 14,
+                          boxShadow: "0 4px 20px rgba(107,143,212,0.08)",
+                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                          gap: 6, padding: "8px 12px",
+                        }}>
+                          <Clock size={20} style={{ color: "#6B8FD4" }} />
+                          <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#7a7a92", textAlign: "center", lineHeight: 1.4 }}>
+                            Waiting to start
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
-              );
-            })()}
-          </div>
+              </div>
+            </div>
           )}
 
           <div
@@ -1804,14 +1846,6 @@ export default function Room() {
 
             {/* Sidebar — hidden in distraction-free mode */}
             {!distractionFree && <div className="flex flex-col gap-3 ws-room-sidebar" style={{ width: 240, minWidth: 240 }}>
-              <div
-                className="transition-opacity duration-500"
-                style={{ opacity: isTyping && isRunning ? 0.3 : 1 }}
-                onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
-              >
-                <Timer timeLeft={room.timeLeft} countdownTimeLeft={room.countdownTimeLeft} status={room.status} />
-              </div>
-
               {/* Pot indicator — shows total Spirit Coins bet on this sprint */}
               {(betSummary?.totalPot ?? 0) > 0 && (
                 <div
