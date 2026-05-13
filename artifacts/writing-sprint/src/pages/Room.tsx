@@ -1905,7 +1905,7 @@ export default function Room() {
                   )}
                   <div className="kart-word-count bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
                     <span className="font-mono font-semibold text-sm text-foreground">
-                      {wordCount}
+                      {netWordCount}
                       {room.mode === "kart" && kartState.bonusWords > 0 ? <span className="text-orange-400 text-xs ml-1">+{kartState.bonusWords}</span> : null}
                     </span>
                     <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">words</span>
