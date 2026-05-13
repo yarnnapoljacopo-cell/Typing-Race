@@ -1643,8 +1643,14 @@ export default function Room() {
                       return (
                         <div style={{
                           flex: 1,
+                          background: isLow ? "rgba(254,226,226,0.95)" : "rgba(255,255,255,0.92)",
+                          backdropFilter: "blur(16px)",
+                          WebkitBackdropFilter: "blur(16px)",
+                          border: `1px solid ${isLow ? "rgba(220,38,38,0.25)" : "rgba(255,255,255,0.9)"}`,
+                          borderRadius: 14,
+                          boxShadow: "0 4px 20px rgba(107,143,212,0.08)",
                           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                          padding: "4px 12px",
+                          padding: "8px 12px",
                         }}>
                           <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "2.2rem", letterSpacing: "-0.04em", color: isLow ? "#dc2626" : "#1a1a2e", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
                             {mm}:{ss}
@@ -1659,6 +1665,12 @@ export default function Room() {
                       return (
                         <div style={{
                           flex: 1,
+                          background: "rgba(255,255,255,0.88)",
+                          backdropFilter: "blur(16px)",
+                          WebkitBackdropFilter: "blur(16px)",
+                          border: "1px solid rgba(255,255,255,0.9)",
+                          borderRadius: 14,
+                          boxShadow: "0 4px 20px rgba(107,143,212,0.08)",
                           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                           gap: 6, padding: "8px 12px",
                         }}>
@@ -1795,27 +1807,6 @@ export default function Room() {
                   >
                     Capsule saved
                   </div>
-                  {/* Persistent save-status pill — always visible, never flashes away */}
-                  {saveStatus !== "unsaved" && (
-                    <div
-                      className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border transition-all duration-500 ${
-                        saveStatus === "cloud"
-                          ? "bg-green-50 border-green-200 text-green-700 dark:bg-green-950/30 dark:border-green-800 dark:text-green-400"
-                          : "bg-muted border text-muted-foreground"
-                      }`}
-                      title={
-                        saveStatus === "cloud"
-                          ? "Saved on this device and backed up to the server"
-                          : "Saved on this device — server backup in progress"
-                      }
-                    >
-                      {saveStatus === "cloud" ? (
-                        <><span>✓</span><span>Device + Cloud</span></>
-                      ) : (
-                        <><span>✓</span><span>Device</span></>
-                      )}
-                    </div>
-                  )}
                 </div>
                 {/* Slow Bitch notification — below the badge row */}
                 <div
@@ -1830,15 +1821,31 @@ export default function Room() {
                   </span>
                 </div>
               </div>
-              {/* Word count — outside the writing card, bottom-right of writing area */}
+              {/* Word count + auto-save — outside the writing card, bottom-right */}
               {!distractionFree && (
-                <div className="flex justify-end px-1 pt-1.5">
+                <div className="flex items-center justify-end gap-2 px-1 pt-1.5">
+                  {saveStatus !== "unsaved" && (
+                    <div
+                      className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border transition-all duration-500 ${
+                        saveStatus === "cloud"
+                          ? "bg-green-50 border-green-200 text-green-700 dark:bg-green-950/30 dark:border-green-800 dark:text-green-400"
+                          : "bg-muted border text-muted-foreground"
+                      }`}
+                      title={saveStatus === "cloud" ? "Saved on this device and backed up to the server" : "Saved on this device — server backup in progress"}
+                    >
+                      {saveStatus === "cloud" ? (
+                        <><span>✓</span><span>Device + Cloud</span></>
+                      ) : (
+                        <><span>✓</span><span>Device</span></>
+                      )}
+                    </div>
+                  )}
                   <div className="kart-word-count bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
                     <span className="font-mono font-semibold text-sm text-foreground">
                       {wordCount}
                       {room.mode === "kart" && kartState.bonusWords > 0 ? <span className="text-orange-400 text-xs ml-1">+{kartState.bonusWords}</span> : null}
                     </span>
-                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">words on page</span>
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">words</span>
                   </div>
                 </div>
               )}

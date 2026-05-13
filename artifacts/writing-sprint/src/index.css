@@ -70,6 +70,7 @@
 
 /* ── Background decoration tokens (light) ─────────────────────────────── */
 :root {
+  --surface: #fff;
   --bg-solid: #F5F2EC;
   --bg-grid-color: rgba(107,143,212,0.05);
   --bg-orb1: radial-gradient(circle, rgba(107,143,212,0.18) 0%, transparent 70%);
@@ -164,6 +165,7 @@
 
 /* Dark mode — matches reference dark design (#1c1b26 base) */
 .dark {
+  --surface: #26252f;
   /* Background decoration overrides */
   --bg-solid: #1c1b26;
   --bg-grid-color: rgba(255,255,255,0.03);
