@@ -1030,6 +1030,13 @@ export default function Room() {
       idleTimerRef.current = window.setTimeout(() => setIsTyping(false), 2000);
     }
 
+    // If the user wiped the editor clean during a sprint, reset the baseline
+    // so the car/counter starts from 0 again when they resume typing.
+    if (wc === 0 && roomRef.current?.status === "running") {
+      baselineWordCountRef.current = 0;
+      lastCapsuleThresholdRef.current = 0;
+    }
+
     // Net words = words typed SINCE sprint started (baseline subtracted)
     const netWc = Math.max(0, wc - baselineWordCountRef.current);
     setLatestText(html, netWc);
