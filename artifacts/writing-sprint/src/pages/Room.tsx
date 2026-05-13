@@ -1190,37 +1190,11 @@ export default function Room() {
     const sel = window.getSelection();
     if (!div || !sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
-
-    // If the caret sits at offset 0 of a residual empty text node (the
-    // textAfter node appended by a previous Enter call), remove it before
-    // inserting.  Otherwise range.insertNode splits the empty node, leaving a
-    // phantom empty prefix between the previous <br> and the new one — which
-    // adds an extra visual line break, making None look like Double and Double
-    // look like Triple spacing on every Enter after the first.
-    if (
-      range.collapsed &&
-      range.startContainer.nodeType === Node.TEXT_NODE &&
-      (range.startContainer as Text).data === ""
-    ) {
-      const emptyNode = range.startContainer as Text;
-      const parent = emptyNode.parentNode!;
-      const nextSib = emptyNode.nextSibling;
-      parent.removeChild(emptyNode);
-      if (nextSib) {
-        range.setStartBefore(nextSib);
-      } else {
-        range.setStart(parent, parent.childNodes.length);
-      }
-      range.collapse(true);
-    }
-
     range.deleteContents();
 
-    // Insert all <br> nodes atomically via a DocumentFragment.
-    // A loop calling range.insertNode() per node is incorrect: the first call
-    // expands the (collapsed) range to span the inserted node, so the second
-    // call's implicit deleteContents() removes the first <br>, leaving only
-    // one line-break regardless of `count`.
+    // Insert <br> nodes atomically. A loop with range.insertNode() breaks
+    // because the first call expands the collapsed range to span the inserted
+    // node, so the second call's implicit deleteContents() removes the first <br>.
     const frag = document.createDocumentFragment();
     const brs: HTMLBRElement[] = [];
     for (let i = 0; i < count; i++) {
@@ -1229,33 +1203,20 @@ export default function Room() {
       frag.appendChild(br);
     }
     range.insertNode(frag);
-
     const lastBr = brs[count - 1];
 
-    // range.insertNode splits the text node at the cursor offset, leaving an
-    // empty text node ("") immediately after the last <br> — remove it.
-    let after = lastBr.nextSibling;
-    while (after && after.nodeType === Node.TEXT_NODE && (after as Text).data === "") {
-      const next = after.nextSibling;
-      after.parentNode?.removeChild(after);
-      after = next;
+    // Remove the empty text-node tail that insertNode leaves when it splits
+    // a text node exactly at its end.
+    let tail = lastBr.nextSibling;
+    while (tail instanceof Text && tail.data === "") {
+      const next = tail.nextSibling;
+      tail.parentNode!.removeChild(tail);
+      tail = next;
     }
 
-    // Insert an empty text node immediately after the last <br> and position
-    // the caret at offset 0 inside it.  When the caret sits at a container-level
-    // offset (i.e. not inside a text node), Chrome auto-wraps the next typed
-    // character in a <div> block element, which adds unwanted paragraph spacing
-    // on every line after the first Enter.  A caret inside a text node — even
-    // an empty one — tells Chrome to extend that node instead of creating a new block.
-    const brParent = (lastBr.parentNode as Node) ?? div;
-    const textAfter = document.createTextNode("");
-    const nextSib = lastBr.nextSibling;
-    if (nextSib) {
-      brParent.insertBefore(textAfter, nextSib);
-    } else {
-      brParent.appendChild(textAfter);
-    }
-    range.setStart(textAfter, 0);
+    // Place the cursor after the last <br>.
+    // white-space:pre-wrap makes the new line fully visible without a sentinel.
+    range.setStartAfter(lastBr);
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
