@@ -1,0 +1,90 @@
+I completely understand — Windsurf caused way too much damage. Go back to Replit, it's the right call for your project.
+Here's one clean, precise prompt to give Replit Agent for everything you want:
+In artifacts/writing-sprint/src/pages/MyFiles.tsx, make these three changes. Do not touch any other file, especially not Room.tsx.
+Change 1 — Font size applies only to selected text
+The font size buttons currently set fontSize state which changes the entire editor. Instead:
+If text is selected: wrap only the selected text in <span style="font-size: Xpx"> using execCommand("fontSize", "7") then replace the resulting <font size="7"> elements with <span style="font-size: Xpx"> elements
+If nothing is selected: set global fontSize state as before
+The key is to restore the saved selection from savedRangeRef.current before calling execCommand, since e.preventDefault() on mousedown may have shifted focus.
+Replace the font size button onMouseDown with:
+tsx
+onMouseDown={(e) => {
+  e.preventDefault();
+  const saved = savedRangeRef.current;
+  const div = contentRef.current;
+  if (saved && !saved.collapsed && div) {
+    div.focus();
+    const sel = window.getSelection();
+    if (sel) { sel.removeAllRanges(); sel.addRange(saved); }
+    document.execCommand("fontSize", false, "7");
+    div.querySelectorAll("font[size='7']").forEach((el) => {
+      const span = document.createElement("span");
+      span.style.fontSize = `${size}px`;
+      while (el.firstChild) span.appendChild(el.firstChild);
+      el.replaceWith(span);
+    });
+    scheduleAutosave();
+    updateWordCount();
+    localStorage.setItem("folio_font_size", size.toString());
+  } else {
+    setFontSize(size);
+    localStorage.setItem("folio_font_size", size.toString());
+  }
+}}
+Change 2 — None/Indent/Double applies only to selected paragraphs
+The paragraph mode buttons should:
+If text is selected: apply inline styles only to <p> and <div> elements that intersect the selection, without changing global paragraphMode state
+If nothing is selected: just call setParagraphMode(mode) which applies the CSS class globally for future text
+Replace the paragraph mode button onMouseDown with:
+tsx
+onMouseDown={(e) => {
+  e.preventDefault();
+  const div = contentRef.current;
+  const saved = savedRangeRef.current;
+  if (saved && !saved.collapsed && div && div.contains(saved.commonAncestorContainer)) {
+    div.querySelectorAll("p, div:not([id]):not([class])").forEach((p) => {
+      if (saved.intersectsNode(p)) {
+        const el = p as HTMLElement;
+        if (mode === "double") {
+          el.style.lineHeight = "1.7";
+          el.style.marginBottom = "28px";
+          el.style.marginTop = "0";
+          el.style.textIndent = "";
+        } else if (mode === "indent") {
+          el.style.lineHeight = "1.7";
+          el.style.marginBottom = "0";
+          el.style.marginTop = "0";
+          el.style.textIndent = "2em";
+        } else {
+          el.style.lineHeight = "1.4";
+          el.style.marginBottom = "0";
+          el.style.marginTop = "0";
+          el.style.textIndent = "";
+        }
+      }
+    });
+    scheduleAutosave();
+  } else {
+    setParagraphMode(mode);
+  }
+}}
+Change 3 — Shift+Enter = single line, Enter = double space in double mode
+Replace the handleEditorKeyDown function with:
+ts
+const handleEditorKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  if (e.shiftKey) {
+    insertParagraphSpacing("\n");
+  } else if (paragraphMode === "indent") {
+    insertParagraphSpacing("\n\u00a0\u00a0\u00a0\u00a0");
+  } else if (paragraphMode === "double") {
+    insertParagraphSpacing("\n\n");
+  } else {
+    insertParagraphSpacing("\n");
+  }
+  updateWordCount();
+  scheduleAutosave();
+  typewriterScroll();
+}, [paragraphMode, insertParagraphSpacing, updateWordCount, scheduleAutosave, typewriterScroll]);
+Only modify artifacts/writing-sprint/src/pages/MyFiles.tsx. Do not touch Room.tsx or any other file.

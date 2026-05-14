@@ -1252,6 +1252,15 @@ export default function Room() {
       node = node.parentNode;
     }
 
+    // Ensure the paragraph we're splitting from also has the correct mode
+    // stamped on it. When the user clicks a toolbar button to change mode,
+    // the editor loses focus and the selection is cleared, so handleStyleChange
+    // may not have applied the new mode to this paragraph. Stamping it here
+    // guarantees the gap appears immediately on the first Enter press.
+    if (currentP) {
+      applyModeToP(currentP, writingStyle.paragraphMode);
+    }
+
     const newP = document.createElement("p");
     // Stamp the current mode as inline styles so this paragraph keeps its
     // spacing even if the user switches modes later without a selection.
