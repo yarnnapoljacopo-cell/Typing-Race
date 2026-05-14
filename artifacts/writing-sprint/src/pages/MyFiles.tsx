@@ -143,6 +143,7 @@ export default function MyFiles() {
   const [focusMode, setFocusMode] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [paragraphMode, setParagraphMode] = useState<"none" | "indent" | "double">("none");
+  const [fontSize, setFontSize] = useState(() => parseInt(localStorage.getItem("folio_font_size") || "16", 10));
   const [autosaveShown, setAutosaveShown] = useState(false);
 
   // Daily goal
@@ -680,8 +681,12 @@ export default function MyFiles() {
   const handleEditorKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
-    insertParagraphAtCursor();
-    if (paragraphMode === "indent") {
+    if (e.shiftKey) {
+      // Soft line break — stays inside the current paragraph, no double spacing
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      document.execCommand("insertLineBreak");
+    } else if (paragraphMode === "indent") {
+      insertParagraphAtCursor();
       const indentSel = window.getSelection();
       if (indentSel && indentSel.rangeCount > 0) {
         const r = indentSel.getRangeAt(0);
@@ -692,11 +697,13 @@ export default function MyFiles() {
         indentSel.removeAllRanges();
         indentSel.addRange(r);
       }
+    } else {
+      insertParagraphAtCursor();
     }
     updateWordCount();
     scheduleAutosave();
     typewriterScroll();
-  }, [paragraphMode, insertParagraphAtCursor, typewriterScroll]);
+  }, [paragraphMode, insertParagraphAtCursor, updateWordCount, scheduleAutosave, typewriterScroll]);
 
   // ── Status menu close on outside click ──────────────────
   useEffect(() => {
@@ -1304,23 +1311,77 @@ export default function MyFiles() {
                 <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("[ ] "); }} title="Checkbox">☐</button>
                 <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("---\n\n"); }} title="Scene break">···</button>
                 <div className="tb-sep" />
+                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em", textTransform: "uppercase", marginRight: 2 }}>A</span>
+                {([12, 14, 16, 18, 20, 24] as const).map((size) => (
+                  <button
+                    key={size}
+                    className={`tb-btn${fontSize === size ? " active" : ""}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const saved = savedRangeRef.current;
+                      const div = contentRef.current;
+                      if (saved && !saved.collapsed && div) {
+                        div.focus();
+                        const sel = window.getSelection();
+                        if (sel) { sel.removeAllRanges(); sel.addRange(saved); }
+                        // eslint-disable-next-line @typescript-eslint/no-deprecated
+                        document.execCommand("fontSize", false, "7");
+                        div.querySelectorAll("font[size='7']").forEach((el) => {
+                          const span = document.createElement("span");
+                          span.style.fontSize = `${size}px`;
+                          while (el.firstChild) span.appendChild(el.firstChild);
+                          el.replaceWith(span);
+                        });
+                        scheduleAutosave();
+                        updateWordCount();
+                        localStorage.setItem("folio_font_size", size.toString());
+                      } else {
+                        setFontSize(size);
+                        localStorage.setItem("folio_font_size", size.toString());
+                      }
+                    }}
+                    style={{ fontSize: 9, padding: "0 4px" }}
+                    title={`Font size ${size}px`}
+                  >
+                    {size}
+                  </button>
+                ))}
+                <div className="tb-sep" />
                 <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em", textTransform: "uppercase", marginRight: 2 }}>¶</span>
                 {(["none", "indent", "double"] as const).map((mode) => (
                   <button
                     key={mode}
                     className={`tb-btn${paragraphMode === mode ? " active" : ""}`}
-                    onClick={() => {
+                    onMouseDown={(e) => {
+                      e.preventDefault();
                       const div = contentRef.current;
-                      const sel = window.getSelection();
-                      if (div && sel && !sel.isCollapsed && sel.rangeCount > 0) {
-                        const range = sel.getRangeAt(0);
-                        if (div.contains(range.commonAncestorContainer)) {
-                          div.querySelectorAll("p").forEach((p) => {
-                            if (range.intersectsNode(p)) applyModeToPMyFiles(p as HTMLElement, mode);
-                          });
-                        }
+                      const saved = savedRangeRef.current;
+                      if (saved && !saved.collapsed && div && div.contains(saved.commonAncestorContainer)) {
+                        div.querySelectorAll("p, div:not([id]):not([class])").forEach((p) => {
+                          if (saved.intersectsNode(p)) {
+                            const el = p as HTMLElement;
+                            if (mode === "double") {
+                              el.style.lineHeight = "1.7";
+                              el.style.marginBottom = "28px";
+                              el.style.marginTop = "0";
+                              el.style.textIndent = "";
+                            } else if (mode === "indent") {
+                              el.style.lineHeight = "1.7";
+                              el.style.marginBottom = "0";
+                              el.style.marginTop = "0";
+                              el.style.textIndent = "2em";
+                            } else {
+                              el.style.lineHeight = "1.4";
+                              el.style.marginBottom = "0";
+                              el.style.marginTop = "0";
+                              el.style.textIndent = "";
+                            }
+                          }
+                        });
+                        scheduleAutosave();
+                      } else {
+                        setParagraphMode(mode);
                       }
-                      setParagraphMode(mode);
                     }}
                     title={mode === "none" ? "Single line break" : mode === "indent" ? "Indent new paragraph" : "Double line break"}
                     style={{ textTransform: "capitalize", fontSize: 10, padding: "0 6px" }}
@@ -1390,6 +1451,7 @@ export default function MyFiles() {
                   contentEditable
                   suppressContentEditableWarning
                   data-placeholder="Start writing…"
+                  style={{ fontSize: `${fontSize}px` }}
                   onFocus={handleEditorFocus}
                   onKeyDown={handleEditorKeyDown}
                   // Initial content is loaded imperatively in openDoc() via
