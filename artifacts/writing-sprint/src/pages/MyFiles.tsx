@@ -255,7 +255,7 @@ export default function MyFiles() {
     localStorage.setItem("folio_recent", JSON.stringify(recentDocs));
   }, [recentDocs]);
   useEffect(() => {
-    localStorage.setItem("folio_daily_goal", String(dailyGoal));
+    localStorage.setItem("daily_goal", String(dailyGoal));
   }, [dailyGoal]);
   useEffect(() => {
     localStorage.setItem("folio_daily_words", String(dailyWords));

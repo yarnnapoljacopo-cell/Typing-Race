@@ -1,0 +1,30 @@
+Good — fontSize and paragraphMode are already saved to localStorage and restored on mount. But inline font size changes made via <span> elements (selected text) are saved as part of the HTML content, so they should persist. The issue is likely that normalizeFormatting() (the ✨ button) strips all inline styles including font sizes.
+Also the trackTyping hook already excludes paste events — but it's only called from handleEditorKeyDownForWordCount in MyFiles, not from the sprint room. So sprint words aren't being counted toward the daily goal at all.
+Here's the full prompt for Replit:
+In artifacts/writing-sprint/src/hooks/useDailyWordCounter.ts and artifacts/writing-sprint/src/pages/MyFiles.tsx and artifacts/writing-sprint/src/pages/Room.tsx, make these fixes:
+Fix 1 — Daily word goal: don't count pasted words, do count sprint words
+In useDailyWordCounter.ts, the trackTyping function already correctly ignores paste events and only counts on spacebar/Enter. This is correct — no change needed here.
+In artifacts/writing-sprint/src/pages/Room.tsx, the sprint room never calls trackTyping so sprint words are never counted toward the daily goal. Fix this by:
+Importing useDailyWordCounter at the top of Room.tsx
+Calling const { trackTyping } = useDailyWordCounter() inside the Room component
+In the editor's onKeyDown handler (where the textarea/contentEditable handles key presses), add trackTyping(e.nativeEvent) so sprint typing is counted toward the daily goal
+Fix 2 — Font sizes and formatting saved when exiting Folio
+In artifacts/writing-sprint/src/pages/MyFiles.tsx, the normalizeFormatting function (the ✨ button, around line 620) strips ALL inline styles including font sizes set on selected text. This causes font sizes to be lost.
+Fix normalizeFormatting to preserve font-size inline styles while still removing other unwanted styles. Replace the style-stripping logic with:
+ts
+elements.forEach(el => {
+  // Preserve font-size if set
+  const fontSize = (el as HTMLElement).style?.fontSize;
+  el.removeAttribute('style');
+  el.removeAttribute('class');
+  el.removeAttribute('id');
+  if (fontSize) (el as HTMLElement).style.fontSize = fontSize;
+});
+Also make sure saveCurrentDoc is called when the user navigates away from the Folio. Find where setLocation is called to go back to /portal (the back button in the topbar) and add saveCurrentDoc() before it:
+tsx
+onClick={() => { saveCurrentDoc(); setLocation("/portal"); }}
+Only modify these three files:
+artifacts/writing-sprint/src/hooks/useDailyWordCounter.ts
+artifacts/writing-sprint/src/pages/MyFiles.tsx
+artifacts/writing-sprint/src/pages/Room.tsx
+Do not change any other files.
