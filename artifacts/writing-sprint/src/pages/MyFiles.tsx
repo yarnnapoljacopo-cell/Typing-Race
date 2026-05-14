@@ -1311,41 +1311,43 @@ export default function MyFiles() {
                 <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("[ ] "); }} title="Checkbox">☐</button>
                 <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("---\n\n"); }} title="Scene break">···</button>
                 <div className="tb-sep" />
-                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em", textTransform: "uppercase", marginRight: 2 }}>A</span>
-                {([12, 14, 16, 18, 20, 24] as const).map((size) => (
-                  <button
-                    key={size}
-                    className={`tb-btn${fontSize === size ? " active" : ""}`}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      const saved = savedRangeRef.current;
-                      const div = contentRef.current;
-                      if (saved && !saved.collapsed && div) {
-                        div.focus();
-                        const sel = window.getSelection();
-                        if (sel) { sel.removeAllRanges(); sel.addRange(saved); }
-                        // eslint-disable-next-line @typescript-eslint/no-deprecated
-                        document.execCommand("fontSize", false, "7");
-                        div.querySelectorAll("font[size='7']").forEach((el) => {
-                          const span = document.createElement("span");
-                          span.style.fontSize = `${size}px`;
-                          while (el.firstChild) span.appendChild(el.firstChild);
-                          el.replaceWith(span);
-                        });
-                        scheduleAutosave();
-                        updateWordCount();
-                        localStorage.setItem("folio_font_size", size.toString());
-                      } else {
-                        setFontSize(size);
-                        localStorage.setItem("folio_font_size", size.toString());
-                      }
-                    }}
-                    style={{ fontSize: 9, padding: "0 4px" }}
-                    title={`Font size ${size}px`}
-                  >
-                    {size}
-                  </button>
-                ))}
+                <select
+                  className="tb-select"
+                  value={fontSize}
+                  onMouseDown={() => {
+                    const saved = savedRangeRef.current;
+                    if (saved) savedRangeRef.current = saved.cloneRange();
+                  }}
+                  onChange={(e) => {
+                    const size = parseInt(e.target.value, 10);
+                    const saved = savedRangeRef.current;
+                    const div = contentRef.current;
+                    if (saved && !saved.collapsed && div) {
+                      div.focus();
+                      const sel = window.getSelection();
+                      if (sel) { sel.removeAllRanges(); sel.addRange(saved); }
+                      // eslint-disable-next-line @typescript-eslint/no-deprecated
+                      document.execCommand("fontSize", false, "7");
+                      div.querySelectorAll("font[size='7']").forEach((el) => {
+                        const span = document.createElement("span");
+                        span.style.fontSize = `${size}px`;
+                        while (el.firstChild) span.appendChild(el.firstChild);
+                        el.replaceWith(span);
+                      });
+                      scheduleAutosave();
+                      updateWordCount();
+                      localStorage.setItem("folio_font_size", size.toString());
+                    } else {
+                      setFontSize(size);
+                      localStorage.setItem("folio_font_size", size.toString());
+                    }
+                  }}
+                  title="Font size"
+                >
+                  {[12, 14, 15, 16, 18, 20, 22, 24].map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
                 <div className="tb-sep" />
                 <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em", textTransform: "uppercase", marginRight: 2 }}>¶</span>
                 {(["none", "indent", "double"] as const).map((mode) => (
@@ -1384,7 +1386,7 @@ export default function MyFiles() {
                       }
                     }}
                     title={mode === "none" ? "Single line break" : mode === "indent" ? "Indent new paragraph" : "Double line break"}
-                    style={{ textTransform: "capitalize", fontSize: 10, padding: "0 6px" }}
+                    style={{ textTransform: "capitalize", fontSize: 10, padding: "0 6px", marginLeft: 4, marginRight: 4 }}
                   >
                     {mode === "none" ? "None" : mode === "indent" ? "Indent" : "Double"}
                   </button>
