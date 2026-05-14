@@ -904,9 +904,11 @@ export default function MyFiles() {
   return (
     <div className={`folio-root${focusMode ? " focus-mode" : ""}${typewriterMode ? " typewriter-mode" : ""}`}>
       {/* Focus exit button (visible only in focus mode) */}
-      <button className="btn btn-ghost focus-exit" onClick={() => setFocusMode(false)}>
-        <Ico.Focus /> Exit Focus
-      </button>
+      {focusMode && (
+        <button className="btn btn-ghost focus-exit" onClick={() => setFocusMode(false)}>
+          <Ico.Focus /> Exit Focus
+        </button>
+      )}
 
       {/* TOP BAR */}
       <div className="folio-topbar">
