@@ -15,8 +15,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -52,13 +50,17 @@ jobs:
     name: Build Windows (.exe)
     runs-on: windows-latest
     steps:
+      - name: Configure git for Windows
+        run: |
+          git config --global core.longpaths true
+          git config --global core.autocrlf false
+          git config --global core.protectNTFS false
+
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -98,8 +100,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Setup Node
         uses: actions/setup-node@v4
