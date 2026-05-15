@@ -169,7 +169,17 @@ export default function MyFiles() {
 
   // Grammar check state
   type LtStatus = "idle" | "checking" | number;
+  interface LtMatch {
+    message: string;
+    offset: number;
+    length: number;
+    replacements: { value: string }[];
+    rule: { issueType?: string };
+    context: { text: string; offset: number; length: number };
+  }
   const [ltStatus, setLtStatus] = useState<LtStatus>("idle");
+  const [ltMatches, setLtMatches] = useState<LtMatch[]>([]);
+  const [ltPanelOpen, setLtPanelOpen] = useState(false);
   const ltTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ltLastTextRef = useRef<string>("");
 
@@ -365,7 +375,7 @@ export default function MyFiles() {
       const text = contentRef.current?.innerText ?? "";
       if (text === ltLastTextRef.current) return;
       ltLastTextRef.current = text;
-      if (!text.trim() || text.length < 15) { setLtStatus("idle"); return; }
+      if (!text.trim() || text.length < 15) { setLtStatus("idle"); setLtMatches([]); return; }
       setLtStatus("checking");
       try {
         const res = await fetch("https://api.languagetool.org/v2/check", {
@@ -375,12 +385,50 @@ export default function MyFiles() {
         });
         if (!res.ok) { setLtStatus("idle"); return; }
         const data = await res.json();
-        setLtStatus((data.matches ?? []).length);
+        const matches = data.matches ?? [];
+        setLtMatches(matches);
+        setLtStatus(matches.length);
+        if (matches.length === 0) setLtPanelOpen(false);
       } catch {
         setLtStatus("idle");
       }
     }, 1600);
   }, []);
+
+  // Find and select a range of text in the contentEditable by offset+length
+  // (offsets come from LanguageTool which uses innerText positions).
+  const selectIssueInEditor = useCallback((offset: number, length: number): Range | null => {
+    const div = contentRef.current;
+    if (!div) return null;
+    const flaggedText = ltLastTextRef.current.substring(offset, offset + length);
+    if (!flaggedText) return null;
+    div.focus();
+    const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT);
+    let node: Text | null;
+    while ((node = walker.nextNode() as Text | null)) {
+      const idx = (node.textContent ?? "").indexOf(flaggedText);
+      if (idx !== -1) {
+        const range = document.createRange();
+        range.setStart(node, idx);
+        range.setEnd(node, idx + flaggedText.length);
+        const sel = window.getSelection();
+        if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+        node.parentElement?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        return range;
+      }
+    }
+    return null;
+  }, []);
+
+  const applyFix = useCallback((offset: number, length: number, replacement: string) => {
+    selectIssueInEditor(offset, length);
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    document.execCommand("insertText", false, replacement);
+    scheduleAutosave();
+    updateWordCount();
+    ltLastTextRef.current = "";
+    scheduleGrammarCheck();
+  }, [selectIssueInEditor, scheduleGrammarCheck]);
 
   const autoResize = (el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -415,6 +463,8 @@ export default function MyFiles() {
       contentRef.current?.focus();
       // Reset grammar status for the new doc
       setLtStatus("idle");
+      setLtMatches([]);
+      setLtPanelOpen(false);
       ltLastTextRef.current = "";
     }, 0);
     setFindOpen(false);
@@ -1439,17 +1489,48 @@ export default function MyFiles() {
                 >⛶</button>
                 <div className="tb-sep" />
                 {ltStatus === "checking" && (
-                  <span className="lt-badge lt-checking" title="Checking grammar…">checking…</span>
+                  <span className="lt-badge lt-checking">checking…</span>
                 )}
                 {ltStatus !== "idle" && ltStatus !== "checking" && (
-                  <span
-                    className={`lt-badge ${ltStatus === 0 ? "lt-ok" : "lt-warn"}`}
-                    title={ltStatus === 0 ? "No issues found" : `${ltStatus} grammar/spelling issue${ltStatus === 1 ? "" : "s"} found`}
+                  <button
+                    className={`lt-badge lt-badge-btn ${ltStatus === 0 ? "lt-ok" : "lt-warn"}`}
+                    title={ltStatus === 0 ? "No issues found" : "Click to see issues"}
+                    onClick={() => ltStatus !== 0 && setLtPanelOpen((v) => !v)}
                   >
-                    {ltStatus === 0 ? "✓ grammar" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"}`}
-                  </span>
+                    {ltStatus === 0 ? "✓ grammar" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"} ▾`}
+                  </button>
                 )}
               </div>
+
+              {/* Grammar issues panel */}
+              {ltPanelOpen && ltMatches.length > 0 && (
+                <div className="lt-panel">
+                  {ltMatches.map((m, i) => {
+                    const before = m.context.text.slice(0, m.context.offset);
+                    const flagged = m.context.text.slice(m.context.offset, m.context.offset + m.context.length);
+                    const after = m.context.text.slice(m.context.offset + m.context.length);
+                    const topSuggestion = m.replacements[0]?.value;
+                    return (
+                      <div key={i} className="lt-issue-row" onClick={() => selectIssueInEditor(m.offset, m.length)}>
+                        <div className="lt-issue-context">
+                          <span className="lt-ctx-dim">{before}</span>
+                          <span className={`lt-ctx-flag ${m.rule.issueType === "misspelling" ? "lt-ctx-spell" : "lt-ctx-gram"}`}>{flagged}</span>
+                          <span className="lt-ctx-dim">{after}</span>
+                        </div>
+                        <div className="lt-issue-msg">{m.message}</div>
+                        {topSuggestion && (
+                          <button
+                            className="lt-fix-btn"
+                            onClick={(e) => { e.stopPropagation(); applyFix(m.offset, m.length, topSuggestion); setLtPanelOpen(false); }}
+                          >
+                            Fix: "{topSuggestion}"
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Find bar */}
               {findOpen && (
