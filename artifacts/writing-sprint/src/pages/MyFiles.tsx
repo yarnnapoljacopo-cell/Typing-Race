@@ -167,6 +167,12 @@ export default function MyFiles() {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [editorWordCount, setEditorWordCount] = useState(0);
 
+  // Grammar check state
+  type LtStatus = "idle" | "checking" | number;
+  const [ltStatus, setLtStatus] = useState<LtStatus>("idle");
+  const ltTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ltLastTextRef = useRef<string>("");
+
   // Plain text from the editor (used for word count, find, sprint seed, save).
   const editorText = useCallback(
     (): string => contentRef.current?.innerText ?? "",
@@ -353,6 +359,29 @@ export default function MyFiles() {
     setEditorWordCount(wc(t));
   }, []);
 
+  const scheduleGrammarCheck = useCallback(() => {
+    if (ltTimerRef.current) clearTimeout(ltTimerRef.current);
+    ltTimerRef.current = setTimeout(async () => {
+      const text = contentRef.current?.innerText ?? "";
+      if (text === ltLastTextRef.current) return;
+      ltLastTextRef.current = text;
+      if (!text.trim() || text.length < 15) { setLtStatus("idle"); return; }
+      setLtStatus("checking");
+      try {
+        const res = await fetch("https://api.languagetool.org/v2/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ text, language: "en-US" }).toString(),
+        });
+        if (!res.ok) { setLtStatus("idle"); return; }
+        const data = await res.json();
+        setLtStatus((data.matches ?? []).length);
+      } catch {
+        setLtStatus("idle");
+      }
+    }, 1600);
+  }, []);
+
   const autoResize = (el: HTMLTextAreaElement | null) => {
     if (!el) return;
     el.style.height = "auto";
@@ -384,6 +413,9 @@ export default function MyFiles() {
       prevWordsRef.current = wc(doc.name + " " + (contentRef.current?.innerText || docPlainText(doc.content)));
       updateWordCount();
       contentRef.current?.focus();
+      // Reset grammar status for the new doc
+      setLtStatus("idle");
+      ltLastTextRef.current = "";
     }, 0);
     setFindOpen(false);
   };
@@ -1405,6 +1437,18 @@ export default function MyFiles() {
                   onClick={() => setFocusMode((v) => !v)}
                   title="Focus mode"
                 >⛶</button>
+                <div className="tb-sep" />
+                {ltStatus === "checking" && (
+                  <span className="lt-badge lt-checking" title="Checking grammar…">checking…</span>
+                )}
+                {ltStatus !== "idle" && ltStatus !== "checking" && (
+                  <span
+                    className={`lt-badge ${ltStatus === 0 ? "lt-ok" : "lt-warn"}`}
+                    title={ltStatus === 0 ? "No issues found" : `${ltStatus} grammar/spelling issue${ltStatus === 1 ? "" : "s"} found`}
+                  >
+                    {ltStatus === 0 ? "✓ grammar" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"}`}
+                  </span>
+                )}
               </div>
 
               {/* Find bar */}
@@ -1473,6 +1517,7 @@ export default function MyFiles() {
                     updateWordCount();
                     scheduleAutosave();
                     typewriterScroll();
+                    scheduleGrammarCheck();
                   }}
                 />
               </div>

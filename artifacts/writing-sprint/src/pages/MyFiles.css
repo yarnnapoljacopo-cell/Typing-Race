@@ -144,6 +144,13 @@
 .tb-sep{width:1px;height:18px;background:var(--border);margin:0 3px;flex-shrink:0}
 .tb-select{height:26px;border:1px solid var(--border);border-radius:5px;background:var(--bg);font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-secondary);padding:0 6px;outline:none;cursor:pointer}
 .tb-select:focus{border-color:var(--accent)}
+.lt-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;letter-spacing:.02em;white-space:nowrap;flex-shrink:0}
+.lt-ok{background:#dcfce7;color:#16a34a}
+.lt-warn{background:#fff7ed;color:#c2410c}
+.lt-checking{background:var(--bg);color:var(--text-secondary)}
+.dark .folio-root .lt-ok{background:#14532d;color:#4ade80}
+.dark .folio-root .lt-warn{background:#431407;color:#fb923c}
+.dark .folio-root .lt-checking{color:var(--text-secondary)}
 
 .search-bar{display:none;align-items:center;gap:8px;padding:8px 16px;background:var(--accent-light);border-bottom:1px solid #c8daf0;flex-shrink:0}
 .search-bar.open{display:flex}
