@@ -179,9 +179,11 @@ export default function MyFiles() {
   }
   const [ltStatus, setLtStatus] = useState<LtStatus>("idle");
   const [ltMatches, setLtMatches] = useState<LtMatch[]>([]);
-  const [ltPanelOpen, setLtPanelOpen] = useState(false);
+  const [ltTooltip, setLtTooltip] = useState<{ match: LtMatch; x: number; y: number } | null>(null);
   const ltTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ltLastTextRef = useRef<string>("");
+  const ltTooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const applyingMarksRef = useRef(false);
 
   // Plain text from the editor (used for word count, find, sprint seed, save).
   const editorText = useCallback(
@@ -312,7 +314,18 @@ export default function MyFiles() {
     // Persist HTML so formatting survives reload; word count uses plain text.
     // Tag with a sentinel so loadEditorContent can distinguish rich content
     // from legacy plain text without using a brittle heuristic.
-    const html = contentRef.current?.innerHTML || "";
+    // Clone and strip lt-mark spans so grammar highlights are never persisted.
+    const html = (() => {
+      const div = contentRef.current;
+      if (!div) return "";
+      const clone = div.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll(".lt-mark").forEach((mark) => {
+        const p = mark.parentNode!;
+        while (mark.firstChild) p.insertBefore(mark.firstChild, mark);
+        p.removeChild(mark);
+      });
+      return clone.innerHTML;
+    })();
     const contentVal = html ? RICH_PREFIX + html : "";
     const contentPlain = contentRef.current?.innerText || "";
     const newWC = wc(titleVal + " " + contentPlain);
@@ -369,13 +382,59 @@ export default function MyFiles() {
     setEditorWordCount(wc(t));
   }, []);
 
+  // Remove all lt-mark spans from the contentEditable, restoring plain text nodes.
+  const clearMarks = useCallback(() => {
+    const div = contentRef.current;
+    if (!div) return;
+    div.querySelectorAll(".lt-mark").forEach((mark) => {
+      const p = mark.parentNode;
+      if (!p) return;
+      while (mark.firstChild) p.insertBefore(mark.firstChild, mark);
+      p.removeChild(mark);
+    });
+    div.normalize();
+  }, []);
+
+  // Wrap each match's text in a <mark> span for inline highlighting.
+  const applyMarks = useCallback((matches: LtMatch[]) => {
+    const div = contentRef.current;
+    if (!div) return;
+    applyingMarksRef.current = true;
+    clearMarks();
+    // Process in reverse offset order so later insertions don't shift earlier text positions.
+    const sorted = [...matches].sort((a, b) => b.offset - a.offset);
+    for (const m of sorted) {
+      const flaggedText = ltLastTextRef.current.substring(m.offset, m.offset + m.length);
+      if (!flaggedText.trim()) continue;
+      // Fresh walker each iteration — previous insertions change the tree.
+      const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT);
+      let node: Text | null;
+      while ((node = walker.nextNode() as Text | null)) {
+        if ((node.parentElement as HTMLElement)?.classList.contains("lt-mark")) continue;
+        const idx = (node.textContent ?? "").indexOf(flaggedText);
+        if (idx !== -1) {
+          const mark = document.createElement("mark");
+          mark.className = `lt-mark ${m.rule.issueType === "misspelling" ? "lt-spell" : "lt-gram"}`;
+          mark.dataset.ltOffset = String(m.offset);
+          mark.dataset.ltLength = String(m.length);
+          const range = document.createRange();
+          range.setStart(node, idx);
+          range.setEnd(node, idx + flaggedText.length);
+          try { range.surroundContents(mark); } catch { /* range crosses element boundary — skip */ }
+          break;
+        }
+      }
+    }
+    applyingMarksRef.current = false;
+  }, [clearMarks]);
+
   const scheduleGrammarCheck = useCallback(() => {
     if (ltTimerRef.current) clearTimeout(ltTimerRef.current);
     ltTimerRef.current = setTimeout(async () => {
       const text = contentRef.current?.innerText ?? "";
       if (text === ltLastTextRef.current) return;
       ltLastTextRef.current = text;
-      if (!text.trim() || text.length < 15) { setLtStatus("idle"); setLtMatches([]); return; }
+      if (!text.trim() || text.length < 15) { setLtStatus("idle"); setLtMatches([]); clearMarks(); return; }
       setLtStatus("checking");
       try {
         const res = await fetch("https://api.languagetool.org/v2/check", {
@@ -388,47 +447,41 @@ export default function MyFiles() {
         const matches = data.matches ?? [];
         setLtMatches(matches);
         setLtStatus(matches.length);
-        if (matches.length === 0) setLtPanelOpen(false);
+        applyMarks(matches);
       } catch {
         setLtStatus("idle");
       }
     }, 1600);
-  }, []);
+  }, [clearMarks, applyMarks]);
 
-  // Find and select a range of text in the contentEditable by offset+length
-  // (offsets come from LanguageTool which uses innerText positions).
-  const selectIssueInEditor = useCallback((offset: number, length: number): Range | null => {
+  // Replace the marked text with the chosen suggestion, then re-check.
+  const applyFixMark = useCallback((offset: number, length: number, replacement: string) => {
     const div = contentRef.current;
-    if (!div) return null;
-    const flaggedText = ltLastTextRef.current.substring(offset, offset + length);
-    if (!flaggedText) return null;
-    div.focus();
-    const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT);
-    let node: Text | null;
-    while ((node = walker.nextNode() as Text | null)) {
-      const idx = (node.textContent ?? "").indexOf(flaggedText);
-      if (idx !== -1) {
-        const range = document.createRange();
-        range.setStart(node, idx);
-        range.setEnd(node, idx + flaggedText.length);
-        const sel = window.getSelection();
-        if (sel) { sel.removeAllRanges(); sel.addRange(range); }
-        node.parentElement?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-        return range;
-      }
+    if (!div) return;
+    const mark = div.querySelector(`.lt-mark[data-lt-offset="${offset}"][data-lt-length="${length}"]`);
+    if (mark?.parentNode) {
+      mark.parentNode.replaceChild(document.createTextNode(replacement), mark);
+      div.normalize();
     }
-    return null;
-  }, []);
-
-  const applyFix = useCallback((offset: number, length: number, replacement: string) => {
-    selectIssueInEditor(offset, length);
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    document.execCommand("insertText", false, replacement);
     scheduleAutosave();
     updateWordCount();
     ltLastTextRef.current = "";
     scheduleGrammarCheck();
-  }, [selectIssueInEditor, scheduleGrammarCheck]);
+  }, [scheduleGrammarCheck]);
+
+  // Remove a single mark without fixing — leaves original text intact.
+  const ignoreMark = useCallback((offset: number, length: number) => {
+    const div = contentRef.current;
+    if (!div) return;
+    const mark = div.querySelector(`.lt-mark[data-lt-offset="${offset}"][data-lt-length="${length}"]`);
+    if (mark?.parentNode) {
+      while (mark.firstChild) mark.parentNode.insertBefore(mark.firstChild, mark);
+      mark.parentNode.removeChild(mark);
+      div.normalize();
+    }
+    setLtMatches((prev) => prev.filter((m) => !(m.offset === offset && m.length === length)));
+    setLtStatus((prev) => (typeof prev === "number" ? Math.max(0, prev - 1) : prev));
+  }, []);
 
   const autoResize = (el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -464,7 +517,8 @@ export default function MyFiles() {
       // Reset grammar status for the new doc
       setLtStatus("idle");
       setLtMatches([]);
-      setLtPanelOpen(false);
+      setLtTooltip(null);
+      clearMarks();
       ltLastTextRef.current = "";
     }, 0);
     setFindOpen(false);
@@ -1492,45 +1546,14 @@ export default function MyFiles() {
                   <span className="lt-badge lt-checking">checking…</span>
                 )}
                 {ltStatus !== "idle" && ltStatus !== "checking" && (
-                  <button
-                    className={`lt-badge lt-badge-btn ${ltStatus === 0 ? "lt-ok" : "lt-warn"}`}
-                    title={ltStatus === 0 ? "No issues found" : "Click to see issues"}
-                    onClick={() => ltStatus !== 0 && setLtPanelOpen((v) => !v)}
+                  <span
+                    className={`lt-badge ${ltStatus === 0 ? "lt-ok" : "lt-warn"}`}
+                    title={ltStatus === 0 ? "No issues found" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"} — hover the underlined text`}
                   >
-                    {ltStatus === 0 ? "✓ grammar" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"} ▾`}
-                  </button>
+                    {ltStatus === 0 ? "✓ grammar" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"}`}
+                  </span>
                 )}
               </div>
-
-              {/* Grammar issues panel */}
-              {ltPanelOpen && ltMatches.length > 0 && (
-                <div className="lt-panel">
-                  {ltMatches.map((m, i) => {
-                    const before = m.context.text.slice(0, m.context.offset);
-                    const flagged = m.context.text.slice(m.context.offset, m.context.offset + m.context.length);
-                    const after = m.context.text.slice(m.context.offset + m.context.length);
-                    const topSuggestion = m.replacements[0]?.value;
-                    return (
-                      <div key={i} className="lt-issue-row" onClick={() => selectIssueInEditor(m.offset, m.length)}>
-                        <div className="lt-issue-context">
-                          <span className="lt-ctx-dim">{before}</span>
-                          <span className={`lt-ctx-flag ${m.rule.issueType === "misspelling" ? "lt-ctx-spell" : "lt-ctx-gram"}`}>{flagged}</span>
-                          <span className="lt-ctx-dim">{after}</span>
-                        </div>
-                        <div className="lt-issue-msg">{m.message}</div>
-                        {topSuggestion && (
-                          <button
-                            className="lt-fix-btn"
-                            onClick={(e) => { e.stopPropagation(); applyFix(m.offset, m.length, topSuggestion); setLtPanelOpen(false); }}
-                          >
-                            Fix: "{topSuggestion}"
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
 
               {/* Find bar */}
               {findOpen && (
@@ -1583,6 +1606,20 @@ export default function MyFiles() {
                   style={{ fontSize: `${fontSize}px` }}
                   onFocus={handleEditorFocus}
                   onKeyDown={handleEditorKeyDown}
+                  onMouseOver={(e) => {
+                    const mark = (e.target as HTMLElement).closest(".lt-mark") as HTMLElement | null;
+                    if (!mark) return;
+                    if (ltTooltipTimerRef.current) clearTimeout(ltTooltipTimerRef.current);
+                    const offset = parseInt(mark.dataset.ltOffset ?? "0");
+                    const length = parseInt(mark.dataset.ltLength ?? "0");
+                    const m = ltMatches.find((x) => x.offset === offset && x.length === length);
+                    if (!m) return;
+                    const rect = mark.getBoundingClientRect();
+                    setLtTooltip({ match: m, x: rect.left, y: rect.bottom + 6 });
+                  }}
+                  onMouseLeave={() => {
+                    ltTooltipTimerRef.current = setTimeout(() => setLtTooltip(null), 200);
+                  }}
                   // Initial content is loaded imperatively in openDoc() via
                   // loadEditorContent so we can choose between innerHTML
                   // (rich) and textContent (legacy plain) safely.
@@ -1826,6 +1863,41 @@ export default function MyFiles() {
 
       {/* TOAST */}
       <div className={`folio-toast${toastShow ? " show" : ""}`}>{toastMsg}</div>
+
+      {/* GRAMMAR TOOLTIP — fixed-position popover shown on lt-mark hover */}
+      {ltTooltip && (
+        <div
+          className="lt-tooltip"
+          style={{ left: Math.min(ltTooltip.x, window.innerWidth - 310), top: ltTooltip.y }}
+          onMouseEnter={() => { if (ltTooltipTimerRef.current) clearTimeout(ltTooltipTimerRef.current); }}
+          onMouseLeave={() => { ltTooltipTimerRef.current = setTimeout(() => setLtTooltip(null), 100); }}
+        >
+          <div className="lt-tooltip-msg">{ltTooltip.match.message}</div>
+          <div className="lt-tooltip-actions">
+            {ltTooltip.match.replacements.slice(0, 3).map((r, i) => (
+              <button
+                key={i}
+                className="lt-tooltip-fix"
+                onClick={() => {
+                  applyFixMark(ltTooltip.match.offset, ltTooltip.match.length, r.value);
+                  setLtTooltip(null);
+                }}
+              >
+                {r.value}
+              </button>
+            ))}
+            <button
+              className="lt-tooltip-ignore"
+              onClick={() => {
+                ignoreMark(ltTooltip.match.offset, ltTooltip.match.length);
+                setLtTooltip(null);
+              }}
+            >
+              Ignore
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

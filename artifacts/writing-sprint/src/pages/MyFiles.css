@@ -145,28 +145,30 @@
 .tb-select{height:26px;border:1px solid var(--border);border-radius:5px;background:var(--bg);font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-secondary);padding:0 6px;outline:none;cursor:pointer}
 .tb-select:focus{border-color:var(--accent)}
 .lt-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;letter-spacing:.02em;white-space:nowrap;flex-shrink:0}
-.lt-badge-btn{border:none;cursor:pointer;font-family:inherit}
 .lt-ok{background:#dcfce7;color:#16a34a}
 .lt-warn{background:#fff7ed;color:#c2410c}
 .lt-checking{background:var(--bg);color:var(--text-secondary)}
 .dark .folio-root .lt-ok{background:#14532d;color:#4ade80}
 .dark .folio-root .lt-warn{background:#431407;color:#fb923c}
 .dark .folio-root .lt-checking{color:var(--text-secondary)}
-.lt-panel{border-bottom:1px solid var(--border-light);background:var(--surface);max-height:260px;overflow-y:auto;flex-shrink:0}
-.lt-issue-row{padding:10px 16px;border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .1s}
-.lt-issue-row:last-child{border-bottom:none}
-.lt-issue-row:hover{background:var(--bg)}
-.lt-issue-context{font-size:13px;margin-bottom:4px;line-height:1.4}
-.lt-ctx-dim{color:var(--text-secondary)}
-.lt-ctx-flag{font-weight:600;text-decoration:underline wavy}
-.lt-ctx-gram{color:#dc2626;text-decoration-color:#dc2626}
-.lt-ctx-spell{color:#ea580c;text-decoration-color:#ea580c}
-.lt-issue-msg{font-size:12px;color:var(--text-secondary);margin-bottom:6px}
-.lt-fix-btn{font-size:12px;font-weight:600;padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--accent);cursor:pointer;font-family:inherit;transition:background .1s}
-.lt-fix-btn:hover{background:var(--accent-light)}
-.dark .folio-root .lt-panel{background:var(--surface);border-color:var(--border)}
-.dark .folio-root .lt-issue-row:hover{background:var(--surface-hover)}
-.dark .folio-root .lt-fix-btn{background:var(--surface);border-color:var(--border)}
+
+/* Inline grammar/spell highlights inside the contentEditable */
+.lt-mark{background:transparent;border-radius:2px;cursor:default}
+.lt-gram{text-decoration:underline wavy #dc2626;background:rgba(220,38,38,0.06)}
+.lt-spell{text-decoration:underline wavy #ea580c;background:rgba(234,88,12,0.06)}
+
+/* Hover popover */
+.lt-tooltip{position:fixed;z-index:9999;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,0.13);padding:12px 14px;max-width:300px;min-width:180px;font-family:'DM Sans',sans-serif}
+.lt-tooltip-msg{font-size:13px;color:#374151;line-height:1.45;margin-bottom:10px}
+.lt-tooltip-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.lt-tooltip-fix{font-size:12px;font-weight:600;padding:4px 11px;border-radius:7px;border:none;background:#2563eb;color:#fff;cursor:pointer;font-family:inherit;transition:background .12s}
+.lt-tooltip-fix:hover{background:#1d4ed8}
+.lt-tooltip-ignore{font-size:12px;font-weight:500;padding:4px 11px;border-radius:7px;border:1px solid #e5e7eb;background:#f9fafb;color:#6b7280;cursor:pointer;font-family:inherit;transition:background .12s}
+.lt-tooltip-ignore:hover{background:#f3f4f6}
+.dark .lt-tooltip{background:#1e2130;border-color:#3a3f52;color:#e2e8f0}
+.dark .lt-tooltip-msg{color:#cbd5e1}
+.dark .lt-tooltip-ignore{background:#2a2f45;border-color:#3a3f52;color:#94a3b8}
+.dark .lt-tooltip-ignore:hover{background:#313650}
 
 .search-bar{display:none;align-items:center;gap:8px;padding:8px 16px;background:var(--accent-light);border-bottom:1px solid #c8daf0;flex-shrink:0}
 .search-bar.open{display:flex}
