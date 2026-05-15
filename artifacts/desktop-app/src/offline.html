@@ -104,12 +104,42 @@
     height: 3px; background: var(--border); position: relative; flex-shrink: 0;
   }
   #progress-bar { height: 100%; background: var(--accent); transition: width .4s ease; width: 0; }
+  #writing-wrapper {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
   #writing-area {
-    flex: 1; padding: 40px 10%; font-size: 16px; line-height: 1.85;
-    border: none; outline: none; background: transparent; color: var(--text);
-    resize: none; font-family: 'Georgia', serif; font-size: 17px;
+    position: absolute;
+    inset: 0;
+    padding: 40px 10%;
+    font-size: 17px; line-height: 1.85;
+    border: none; outline: none;
+    background: transparent; color: var(--text);
+    resize: none; font-family: 'Georgia', serif;
+    box-sizing: border-box;
+    z-index: 2;
   }
   #writing-area::placeholder { color: var(--muted); }
+  #grammar-overlay {
+    position: absolute;
+    inset: 0;
+    padding: 40px 10%;
+    font-size: 17px; line-height: 1.85;
+    font-family: 'Georgia', serif;
+    color: transparent;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: hidden;
+    pointer-events: none;
+    box-sizing: border-box;
+    z-index: 1;
+  }
+  .lt-issue { background: transparent; color: transparent; }
+  .lt-grammar { text-decoration: underline wavy #ef4444; }
+  .lt-spelling { text-decoration: underline wavy #f97316; }
+  .lt-style   { text-decoration: underline wavy #3b82f6; }
+  #lt-status { font-size: 11px; color: var(--muted); transition: color .2s; }
   #sprint-footer {
     display: flex; align-items: center; justify-content: space-between;
     padding: 10px 20px; background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0;
@@ -238,14 +268,18 @@
       </div>
     </div>
     <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
-    <textarea
-      id="writing-area"
-      placeholder="Start writing… your words are automatically saved."
-      spellcheck="true"
-      oninput="onWrite()"
-    ></textarea>
+    <div id="writing-wrapper">
+      <div id="grammar-overlay" aria-hidden="true"></div>
+      <textarea
+        id="writing-area"
+        placeholder="Start writing… your words are automatically saved."
+        spellcheck="false"
+        oninput="onWrite()"
+      ></textarea>
+    </div>
     <div id="sprint-footer">
       <span class="wpm-badge" id="wpm-badge">— wpm</span>
+      <span id="lt-status"></span>
       <span style="font-size:12px;color:var(--muted);" id="goal-progress"></span>
     </div>
   </div>
@@ -353,6 +387,9 @@ function startSprint() {
   document.getElementById('wc-num').textContent = '0';
   document.getElementById('timer-display').classList.remove('warning');
   updateGoalProgress(0, goal);
+  ltLastText = '';
+  updateGrammarOverlay('', []);
+  updateLtStatus(0, false);
 
   showView('sprint-view');
   document.getElementById('writing-area').focus();
@@ -395,6 +432,7 @@ function onWrite() {
   }
 
   updateGoalProgress(wc, window._sprintGoal);
+  scheduleGrammarCheck();
 }
 
 function updateGoalProgress(wc, goal) {
@@ -595,6 +633,100 @@ if (window.electronAPI) {
   window.electronAPI.onGoOffline?.(() => { /* already offline */ });
   window.electronAPI.onGoOnline?.(() => tryGoOnline());
 }
+
+// ── LanguageTool grammar check ────────────────────────────────────────────────
+let ltTimer = null;
+let ltLastText = '';
+
+function scheduleGrammarCheck() {
+  clearTimeout(ltTimer);
+  ltTimer = setTimeout(runGrammarCheck, 1600);
+}
+
+async function runGrammarCheck() {
+  const text = document.getElementById('writing-area').value;
+  if (text === ltLastText) return;
+  ltLastText = text;
+  if (!text.trim() || text.length < 15) {
+    updateGrammarOverlay(text, []);
+    updateLtStatus(0, false);
+    return;
+  }
+  updateLtStatus(0, true);
+  try {
+    const body = new URLSearchParams({ text, language: 'en-US' });
+    const res = await fetch('https://api.languagetool.org/v2/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    if (!res.ok) { updateLtStatus(0, false); return; }
+    const data = await res.json();
+    const matches = data.matches || [];
+    updateGrammarOverlay(text, matches);
+    updateLtStatus(matches.length, false);
+  } catch {
+    updateLtStatus(0, false);
+  }
+}
+
+function _escChar(ch) {
+  if (ch === '&') return '&amp;';
+  if (ch === '<') return '&lt;';
+  if (ch === '>') return '&gt;';
+  return ch;
+}
+
+function updateGrammarOverlay(text, matches) {
+  const overlay = document.getElementById('grammar-overlay');
+  if (!overlay) return;
+  const sorted = [...matches].sort((a, b) => a.offset - b.offset);
+  let html = '';
+  let pos = 0;
+  for (const m of sorted) {
+    const s = m.offset, e = s + m.length;
+    if (s < pos || s >= text.length) continue;
+    for (let i = pos; i < s; i++) html += _escChar(text[i]);
+    const type = m.rule?.issueType;
+    const cls = type === 'misspelling' ? 'lt-spelling' : type === 'style' ? 'lt-style' : 'lt-grammar';
+    const msg = (m.message || '').replace(/"/g, '&quot;');
+    const suggestion = m.replacements?.[0]?.value || '';
+    const tip = suggestion ? `${msg} → "${suggestion}"` : msg;
+    let chunk = '';
+    for (let i = s; i < e && i < text.length; i++) chunk += _escChar(text[i]);
+    html += `<mark class="lt-issue ${cls}" title="${tip}">${chunk}</mark>`;
+    pos = e;
+  }
+  for (let i = pos; i < text.length; i++) html += _escChar(text[i]);
+  overlay.innerHTML = html;
+  const ta = document.getElementById('writing-area');
+  if (ta) overlay.scrollTop = ta.scrollTop;
+}
+
+function updateLtStatus(count, checking) {
+  const el = document.getElementById('lt-status');
+  if (!el) return;
+  if (checking) {
+    el.textContent = '…checking';
+    el.style.color = 'var(--muted)';
+  } else if (count === 0) {
+    el.textContent = '✓ grammar';
+    el.style.color = 'var(--success)';
+  } else {
+    el.textContent = `${count} issue${count === 1 ? '' : 's'}`;
+    el.style.color = '#f97316';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const ta = document.getElementById('writing-area');
+  if (ta) {
+    ta.addEventListener('scroll', () => {
+      const ov = document.getElementById('grammar-overlay');
+      if (ov) ov.scrollTop = ta.scrollTop;
+    });
+  }
+});
 </script>
 </body>
 </html>
