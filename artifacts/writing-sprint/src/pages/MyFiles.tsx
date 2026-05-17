@@ -1449,7 +1449,7 @@ export default function MyFiles() {
               <Ico.Close />
             </button>
             <iframe
-              src={`${import.meta.env.BASE_URL}novel-notes.html`}
+              src={`${import.meta.env.BASE_URL}novel-notes.html?src=folio`}
               className="nn-overlay-frame"
               title="Novel Notes"
             />

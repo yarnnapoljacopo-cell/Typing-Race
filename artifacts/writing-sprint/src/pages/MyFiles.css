@@ -572,7 +572,7 @@ select.fsv-input{appearance:none;background-image:url("data:image/svg+xml;utf8,<
 
 /* Novel Notes fullscreen overlay */
 .nn-overlay {
-  position:absolute;inset:0;z-index:500;
+  position:fixed;inset:0;z-index:500;
   display:flex;flex-direction:column;background:#fff;
 }
 .nn-overlay-close {
