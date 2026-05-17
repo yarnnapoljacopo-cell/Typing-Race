@@ -1051,6 +1051,42 @@ export default function MyFiles() {
         <button className="topbar-logo" onClick={() => setLocation("/portal")} title="Back to Writing Sprint">
           <Ico.Logo /> Folio
         </button>
+        <a
+          href="novel-notes.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "0 12px",
+            height: 30,
+            borderRadius: 8,
+            border: "1px solid var(--border)",
+            background: "none",
+            fontSize: 12,
+            fontWeight: 500,
+            color: "var(--text-secondary)",
+            textDecoration: "none",
+            transition: "all .15s",
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.background = "var(--surface-hover)";
+            (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-primary)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.background = "none";
+            (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-secondary)";
+          }}
+          title="Open Novel Notes worldbuilding wiki"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+          Novel Notes
+        </a>
         <div className="topbar-spacer" />
 
         {dailyGoal > 0 && (
