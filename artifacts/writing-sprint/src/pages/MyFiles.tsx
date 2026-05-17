@@ -207,17 +207,15 @@ export default function MyFiles() {
   const [novelNotesOpen, setNovelNotesOpen] = useState(false);
 
   useEffect(() => {
+    const close = () => setNovelNotesOpen(false);
     function onMessage(e: MessageEvent) {
-      if (e.data?.type === "nn:back") setNovelNotesOpen(false);
+      if (e.data?.type === "nn:back") close();
     }
-    function onStorage(e: StorageEvent) {
-      if (e.key === "nn_back") setNovelNotesOpen(false);
-    }
+    window.addEventListener("nn:back", close);
     window.addEventListener("message", onMessage);
-    window.addEventListener("storage", onStorage);
     return () => {
+      window.removeEventListener("nn:back", close);
       window.removeEventListener("message", onMessage);
-      window.removeEventListener("storage", onStorage);
     };
   }, []);
   const [typewriterMode, setTypewriterMode] = useState(false);

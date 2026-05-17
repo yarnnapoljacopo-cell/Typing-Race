@@ -35,6 +35,7 @@ export default function NovelNotes() {
   }, [isSignedIn, getToken, sendDataToIframe]);
 
   useEffect(() => {
+    const goBack = () => navigate("/my-files");
     const handler = (e: MessageEvent) => {
       if (!iframeRef.current || e.source !== iframeRef.current.contentWindow) return;
       const msg = e.data as { type: string; data?: unknown };
@@ -42,7 +43,7 @@ export default function NovelNotes() {
         iframeReadyRef.current = true;
         if (serverDataRef.current !== null) sendDataToIframe();
       } else if (msg.type === "nn:back") {
-        navigate("/my-files");
+        goBack();
       } else if (msg.type === "nn:save" && isSignedIn) {
         getToken().then((token) => {
           if (!token) return;
@@ -54,8 +55,12 @@ export default function NovelNotes() {
         });
       }
     };
+    window.addEventListener("nn:back", goBack);
     window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
+    return () => {
+      window.removeEventListener("nn:back", goBack);
+      window.removeEventListener("message", handler);
+    };
   }, [isSignedIn, getToken, navigate, sendDataToIframe]);
 
   return (
