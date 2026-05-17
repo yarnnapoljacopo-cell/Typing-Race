@@ -1550,7 +1550,7 @@ export default function Room() {
     <div className={distractionFree
       ? "fixed inset-0 z-50 bg-background flex flex-col overflow-auto"
       : "w-full flex flex-col gap-4"
-    } style={!distractionFree ? { position: "relative", zIndex: 1, height: "100dvh", overflowY: "auto", overflowX: "hidden" } : undefined}>
+    } style={!distractionFree ? { position: "relative", zIndex: 1, height: "100dvh", overflow: "hidden", overflowX: "hidden" } : undefined}>
 
       {/* Chest award modal — shown when timer ends naturally */}
       {chestAwarded && (
@@ -1700,12 +1700,11 @@ export default function Room() {
           />
         </div>
       ) : (
-        <div className={distractionFree ? "flex-1 flex flex-col" : "flex flex-col"} style={!distractionFree ? { padding: "16px 20px 80px" } : undefined}>
-          {/* Race / boss track + sticky timer — hidden in distraction-free mode */}
+        <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col"} style={!distractionFree ? { padding: "16px 20px 16px", minHeight: 0 } : undefined}>
+          {/* Race / boss track + timer — hidden in distraction-free mode */}
           {!distractionFree && (
             <div
-              className="sticky z-20"
-              style={{ top: 56, maxWidth: 1100, margin: "0 auto", width: "100%", paddingTop: 6 }}
+              style={{ maxWidth: 1100, margin: "0 auto", width: "100%", paddingTop: 6, flexShrink: 0 }}
               onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
             >
               <div style={{ display: "flex", gap: 12, alignItems: "stretch", paddingBottom: 8 }}>
@@ -1814,11 +1813,11 @@ export default function Room() {
 
           <div
             className={distractionFree ? "flex-1 flex flex-col px-6 md:px-24 py-4" : "ws-room-grid"}
-            style={!distractionFree ? { gap: 16, flex: 1, maxWidth: 1100, margin: "0 auto", width: "100%" } : undefined}
+            style={!distractionFree ? { gap: 16, flex: 1, minHeight: 0, maxWidth: 1100, margin: "0 auto", width: "100%" } : undefined}
           >
 
             {/* Writing area */}
-            <div className={distractionFree ? "flex-1 flex flex-col max-w-3xl mx-auto w-full" : "flex flex-col"}>
+            <div className={distractionFree ? "flex-1 flex flex-col max-w-3xl mx-auto w-full" : "flex flex-col h-full"} style={!distractionFree ? { minHeight: 0 } : undefined}>
               {/* Distraction-free minimal top bar */}
               {distractionFree && (
                 <div className="flex items-center justify-between mb-3 px-1">
@@ -1890,7 +1889,7 @@ export default function Room() {
               )}
 
               <div
-                style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 400 }}
+                style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", overflow: "hidden", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}
                 className={`${kartState.boldText ? "kart-banana-hit" : ""}${kartState.blurCounter ? " kart-blur-counter" : ""}`}
               >
                 {/* nothing before the editor now */}
@@ -1909,13 +1908,16 @@ export default function Room() {
                       : "Warm up here while you wait for the sprint to start…"
                   }
                   data-has-content={text.trim().length > 0 ? "true" : undefined}
-                  className={`writing-editor w-full focus:outline-none text-foreground min-h-[380px]${
+                  className={`writing-editor w-full focus:outline-none text-foreground${
                     readMode ? " cursor-default select-text" : (!isRunning && !isWaiting && !isCountdown) ? " opacity-60 cursor-not-allowed" : ""
                   }`}
                   style={{
                     padding: "20px 24px",
                     background: "transparent",
                     border: "none",
+                    flex: 1,
+                    overflowY: "auto",
+                    minHeight: 0,
                     fontFamily: writingStyle.fontFamily,
                     fontSize: `${writingStyle.fontSize}px`,
                     lineHeight: readMode ? 1.9 : writingStyle.lineHeight,
@@ -1977,7 +1979,7 @@ export default function Room() {
             </div>
 
             {/* Sidebar — hidden in distraction-free mode */}
-            {!distractionFree && <div className="flex flex-col gap-3 ws-room-sidebar" style={{ width: 240, minWidth: 240 }}>
+            {!distractionFree && <div className="flex flex-col gap-3 ws-room-sidebar" style={{ width: 240, minWidth: 240, alignSelf: "start" }}>
               {/* Pot indicator — shows total Spirit Coins bet on this sprint */}
               {(betSummary?.totalPot ?? 0) > 0 && (
                 <div

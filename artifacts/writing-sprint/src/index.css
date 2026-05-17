@@ -532,6 +532,11 @@ html.villain h1, html.villain h2 {
 .ws-room-grid {
   display: grid;
   grid-template-columns: 1fr 240px;
+  align-items: stretch;
+  min-height: 0;
+}
+.ws-room-sidebar {
+  align-self: start;
 }
 @media (max-width: 860px) {
   .ws-room-grid {
