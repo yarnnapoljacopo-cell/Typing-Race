@@ -184,24 +184,6 @@ function FolioLogoMenu({ onBack }: { onBack: () => void }) {
             Writing Sprint
           </button>
 
-          <div style={{ height: 1, background: "var(--border)", margin: "4px 6px" }} />
-
-          <button
-            onClick={() => { setOpen(false); navigate("/novel-notes"); }}
-            style={{
-              display: "flex", alignItems: "center", gap: 9, width: "100%",
-              padding: "8px 10px", borderRadius: 7, border: "none", background: "none",
-              cursor: "pointer", fontSize: 13, color: "var(--text-secondary)",
-              fontFamily: "inherit", textAlign: "left", transition: "background .12s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            </svg>
-            Novel Notes
-          </button>
         </div>
       )}
     </div>
@@ -222,6 +204,15 @@ export default function MyFiles() {
   const [statusMenuPos, setStatusMenuPos] = useState({ top: 0, left: 0 });
 
   const [focusMode, setFocusMode] = useState(false);
+  const [novelNotesOpen, setNovelNotesOpen] = useState(false);
+
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      if (e.data?.type === "nn:back") setNovelNotesOpen(false);
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [paragraphMode, setParagraphMode] = useState<"none" | "indent" | "double">("none");
   const [fontSize, setFontSize] = useState(() => parseInt(localStorage.getItem("folio_font_size") || "16", 10));
@@ -1221,6 +1212,13 @@ export default function MyFiles() {
             </div>
           </div>
 
+          <button className="sidebar-novel-notes-btn" onClick={() => setNovelNotesOpen(true)}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            Novel Notes
+          </button>
+
           <div className="sidebar-tree">
             {recentVisible.length > 0 && (
               <>
@@ -1443,6 +1441,20 @@ export default function MyFiles() {
             )}
           </div>
         </aside>
+
+        {/* NOVEL NOTES OVERLAY */}
+        {novelNotesOpen && (
+          <div className="nn-overlay">
+            <button className="nn-overlay-close" onClick={() => setNovelNotesOpen(false)} title="Close Novel Notes">
+              <Ico.Close />
+            </button>
+            <iframe
+              src={`${import.meta.env.BASE_URL}novel-notes.html`}
+              className="nn-overlay-frame"
+              title="Novel Notes"
+            />
+          </div>
+        )}
 
         {/* MAIN */}
         <div className="folio-main">

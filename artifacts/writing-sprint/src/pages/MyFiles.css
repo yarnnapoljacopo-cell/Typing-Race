@@ -558,3 +558,31 @@ select.fsv-input{appearance:none;background-image:url("data:image/svg+xml;utf8,<
   from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* Novel Notes sidebar button */
+.sidebar-novel-notes-btn {
+  display:flex;align-items:center;gap:8px;width:100%;
+  padding:7px 12px;border:none;background:none;cursor:pointer;
+  font-size:12px;font-weight:600;letter-spacing:.06em;
+  color:var(--text-muted);font-family:inherit;text-align:left;
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  transition:background .12s,color .12s;
+}
+.sidebar-novel-notes-btn:hover{background:var(--sidebar-active);color:var(--text-primary)}
+
+/* Novel Notes fullscreen overlay */
+.nn-overlay {
+  position:absolute;inset:0;z-index:500;
+  display:flex;flex-direction:column;background:#fff;
+}
+.nn-overlay-close {
+  position:absolute;top:12px;right:14px;z-index:10;
+  width:30px;height:30px;border-radius:8px;border:1px solid var(--border);
+  background:var(--surface);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-secondary);transition:background .12s,color .12s;
+}
+.nn-overlay-close:hover{background:var(--surface-hover);color:var(--text-primary)}
+.nn-overlay-frame {
+  width:100%;height:100%;border:none;flex:1;
+}
