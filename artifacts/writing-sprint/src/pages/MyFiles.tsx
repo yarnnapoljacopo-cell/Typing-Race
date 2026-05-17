@@ -265,6 +265,7 @@ export default function MyFiles() {
   const [ltTooltip, setLtTooltip] = useState<{ match: LtMatch; x: number; y: number } | null>(null);
   const ltTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ltLastTextRef = useRef<string>("");
+  const ltRequestIdRef = useRef(0);
   const ltTooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const applyingMarksRef = useRef(false);
 
@@ -484,29 +485,41 @@ export default function MyFiles() {
     if (!div) return;
     applyingMarksRef.current = true;
     clearMarks();
-    // Process in reverse offset order so later insertions don't shift earlier text positions.
-    const sorted = [...matches].sort((a, b) => b.offset - a.offset);
-    for (const m of sorted) {
-      const flaggedText = ltLastTextRef.current.substring(m.offset, m.offset + m.length);
-      if (!flaggedText.trim()) continue;
-      // Fresh walker each iteration — previous insertions change the tree.
+
+    // Walk text nodes accumulating absolute character positions.
+    // Skips text already inside .lt-mark nodes (safe for re-entry).
+    const findPos = (targetOffset: number): { node: Text; offset: number } | null => {
       const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT);
+      let accumulated = 0;
       let node: Text | null;
       while ((node = walker.nextNode() as Text | null)) {
         if ((node.parentElement as HTMLElement)?.classList.contains("lt-mark")) continue;
-        const idx = (node.textContent ?? "").indexOf(flaggedText);
-        if (idx !== -1) {
-          const mark = document.createElement("mark");
-          mark.className = `lt-mark ${m.rule.issueType === "misspelling" ? "lt-spell" : "lt-gram"}`;
-          mark.dataset.ltOffset = String(m.offset);
-          mark.dataset.ltLength = String(m.length);
-          const range = document.createRange();
-          range.setStart(node, idx);
-          range.setEnd(node, idx + flaggedText.length);
-          try { range.surroundContents(mark); } catch { /* range crosses element boundary — skip */ }
-          break;
+        const len = (node.textContent ?? "").length;
+        if (accumulated + len > targetOffset) {
+          return { node, offset: targetOffset - accumulated };
         }
+        accumulated += len;
       }
+      return null;
+    };
+
+    // Process in reverse offset order so later insertions don't shift earlier positions.
+    const sorted = [...matches].sort((a, b) => b.offset - a.offset);
+    for (const m of sorted) {
+      if (!ltLastTextRef.current.substring(m.offset, m.offset + m.length).trim()) continue;
+      const startPos = findPos(m.offset);
+      const endPos   = findPos(m.offset + m.length);
+      if (!startPos || !endPos) continue;
+      const mark = document.createElement("mark");
+      mark.className = `lt-mark ${m.rule.issueType === "misspelling" ? "lt-spell" : "lt-gram"}`;
+      mark.dataset.ltOffset = String(m.offset);
+      mark.dataset.ltLength = String(m.length);
+      try {
+        const range = document.createRange();
+        range.setStart(startPos.node, startPos.offset);
+        range.setEnd(endPos.node, endPos.offset);
+        range.surroundContents(mark);
+      } catch { /* range crosses element boundary — skip */ }
     }
     applyingMarksRef.current = false;
   }, [clearMarks]);
@@ -519,20 +532,23 @@ export default function MyFiles() {
       ltLastTextRef.current = text;
       if (!text.trim() || text.length < 15) { setLtStatus("idle"); setLtMatches([]); clearMarks(); return; }
       setLtStatus("checking");
+      const reqId = ++ltRequestIdRef.current;
       try {
         const res = await fetch("https://api.languagetool.org/v2/check", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({ text, language: "en-US" }).toString(),
         });
+        if (ltRequestIdRef.current !== reqId) return;
         if (!res.ok) { setLtStatus("idle"); return; }
         const data = await res.json();
+        if (ltRequestIdRef.current !== reqId) return;
         const matches = data.matches ?? [];
         setLtMatches(matches);
         setLtStatus(matches.length);
         applyMarks(matches);
       } catch {
-        setLtStatus("idle");
+        if (ltRequestIdRef.current === reqId) setLtStatus("idle");
       }
     }, 1600);
   }, [clearMarks, applyMarks]);
@@ -550,7 +566,7 @@ export default function MyFiles() {
     updateWordCount();
     ltLastTextRef.current = "";
     scheduleGrammarCheck();
-  }, [scheduleGrammarCheck]);
+  }, [scheduleGrammarCheck, scheduleAutosave, updateWordCount]);
 
   // Remove a single mark without fixing — leaves original text intact.
   const ignoreMark = useCallback((offset: number, length: number) => {
