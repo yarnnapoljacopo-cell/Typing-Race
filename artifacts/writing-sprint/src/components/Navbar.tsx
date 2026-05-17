@@ -64,33 +64,6 @@ export function Navbar() {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-        <a
-          href={`${basePath}/novel-notes.html`}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "0 12px",
-            height: 34,
-            borderRadius: 9,
-            border: isDark ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(107,143,212,0.18)",
-            background: isDark ? "rgba(255,255,255,0.05)" : "rgba(107,143,212,0.05)",
-            fontSize: 13,
-            fontWeight: 500,
-            color: isDark ? "rgba(255,255,255,0.7)" : "#4a5568",
-            textDecoration: "none",
-            transition: "all 0.2s",
-            flexShrink: 0,
-            whiteSpace: "nowrap",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-          </svg>
-          Novel Notes
-        </a>
         <UserStatsDropdown />
         <button
           onClick={toggleDarkMode}

@@ -127,6 +127,89 @@ const Ico = {
   ),
 };
 
+function FolioLogoMenu({ onBack }: { onBack: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        className="topbar-logo"
+        onClick={() => setOpen((v) => !v)}
+        title="Folio menu"
+        style={{ gap: 6 }}
+      >
+        <Ico.Logo /> Folio
+        <svg
+          width="10" height="10" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ opacity: 0.5, transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", left: 0,
+          background: "var(--surface)", border: "1px solid var(--border)",
+          borderRadius: 10, boxShadow: "0 8px 28px rgba(0,0,0,.13)",
+          padding: "6px", minWidth: 180, zIndex: 200,
+          animation: "folioMenuIn .13s ease",
+        }}>
+          <button
+            onClick={() => { setOpen(false); onBack(); }}
+            style={{
+              display: "flex", alignItems: "center", gap: 9, width: "100%",
+              padding: "8px 10px", borderRadius: 7, border: "none", background: "none",
+              cursor: "pointer", fontSize: 13, color: "var(--text-secondary)",
+              fontFamily: "inherit", textAlign: "left", transition: "background .12s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Writing Sprint
+          </button>
+
+          <div style={{ height: 1, background: "var(--border)", margin: "4px 6px" }} />
+
+          <a
+            href="novel-notes.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setOpen(false)}
+            style={{
+              display: "flex", alignItems: "center", gap: 9, width: "100%",
+              padding: "8px 10px", borderRadius: 7,
+              fontSize: 13, color: "var(--text-secondary)",
+              textDecoration: "none", transition: "background .12s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            Novel Notes
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MyFiles() {
   const [, setLocation] = useLocation();
 
@@ -1048,45 +1131,7 @@ export default function MyFiles() {
 
       {/* TOP BAR */}
       <div className="folio-topbar">
-        <button className="topbar-logo" onClick={() => setLocation("/portal")} title="Back to Writing Sprint">
-          <Ico.Logo /> Folio
-        </button>
-        <a
-          href="novel-notes.html"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "0 12px",
-            height: 30,
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "none",
-            fontSize: 12,
-            fontWeight: 500,
-            color: "var(--text-secondary)",
-            textDecoration: "none",
-            transition: "all .15s",
-            flexShrink: 0,
-            whiteSpace: "nowrap",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLAnchorElement).style.background = "var(--surface-hover)";
-            (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-primary)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLAnchorElement).style.background = "none";
-            (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-secondary)";
-          }}
-          title="Open Novel Notes worldbuilding wiki"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-          </svg>
-          Novel Notes
-        </a>
+        <FolioLogoMenu onBack={() => setLocation("/portal")} />
         <div className="topbar-spacer" />
 
         {dailyGoal > 0 && (

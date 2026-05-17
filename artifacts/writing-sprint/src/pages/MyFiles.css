@@ -553,3 +553,8 @@ select.fsv-input{appearance:none;background-image:url("data:image/svg+xml;utf8,<
 .dark .proj-search-hit:hover{background:rgba(255,255,255,.05)}
 .dark .proj-search-hit-count{color:#9badde;background:rgba(155,173,222,.16)}
 .dark .proj-search-hit-snippet mark{background:#7c6a2b;color:#ffe9b0}
+
+@keyframes folioMenuIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
