@@ -130,6 +130,7 @@ const Ico = {
 function FolioLogoMenu({ onBack }: { onBack: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const [, navigate] = useLocation();
 
   useEffect(() => {
     if (!open) return;
@@ -185,16 +186,13 @@ function FolioLogoMenu({ onBack }: { onBack: () => void }) {
 
           <div style={{ height: 1, background: "var(--border)", margin: "4px 6px" }} />
 
-          <a
-            href="novel-notes.html"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setOpen(false)}
+          <button
+            onClick={() => { setOpen(false); navigate("/novel-notes"); }}
             style={{
               display: "flex", alignItems: "center", gap: 9, width: "100%",
-              padding: "8px 10px", borderRadius: 7,
-              fontSize: 13, color: "var(--text-secondary)",
-              textDecoration: "none", transition: "background .12s",
+              padding: "8px 10px", borderRadius: 7, border: "none", background: "none",
+              cursor: "pointer", fontSize: 13, color: "var(--text-secondary)",
+              fontFamily: "inherit", textAlign: "left", transition: "background .12s",
             }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
@@ -203,7 +201,7 @@ function FolioLogoMenu({ onBack }: { onBack: () => void }) {
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
             Novel Notes
-          </a>
+          </button>
         </div>
       )}
     </div>

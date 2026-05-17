@@ -28,6 +28,7 @@ const Crafting = lazy(() => import("@/pages/Crafting"));
 const Quests = lazy(() => import("@/pages/Quests"));
 const Streak = lazy(() => import("@/pages/Streak"));
 const Stats = lazy(() => import("@/pages/Stats"));
+const NovelNotes = lazy(() => import("@/pages/NovelNotes"));
 
 function RouteFallback() {
   return (
@@ -687,6 +688,7 @@ function ClerkProviderWithRoutes() {
                 <Route path="/chests" component={Chests} />
                 <Route path="/crafting" component={Crafting} />
                 <Route path="/quests" component={Quests} />
+                <Route path="/novel-notes" component={NovelNotes} />
                 <Route path="/sign-in/*?" component={SignInPage} />
                 <Route path="/sign-up/*?" component={SignUpPage} />
                 <Route component={NotFound} />
