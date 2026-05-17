@@ -63,11 +63,31 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'DM Sans'
 /* ── LAYOUT ── */
 .app {display:flex;height:100vh;padding-top:var(--topbar-h)}
 
-/* ── SIDEBAR ── */
-.sidebar {
-  width:var(--sidebar-w);background:var(--sidebar-bg);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;
+/* ── SIDEBAR (hidden — project list lives in the topbar dropdown) ── */
+.sidebar { display:none; }
+
+/* ── PROJECT PANEL ── */
+.proj-panel {
+  position:fixed;top:var(--topbar-h);left:0;
+  width:240px;max-height:calc(100vh - var(--topbar-h));
+  background:var(--surface);border-right:1px solid var(--border);border-bottom:1px solid var(--border);
+  overflow-y:auto;z-index:200;
+  transform:translateX(-100%);transition:transform .2s ease;
+  box-shadow:4px 0 16px rgba(0,0,0,.08);
+  display:flex;flex-direction:column;
 }
+.proj-panel.open { transform:translateX(0); }
+.proj-panel-header {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 12px 10px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.proj-panel-label { font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted) }
+.proj-toggle-btn {
+  display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:7px;
+  border:none;background:none;cursor:pointer;font-size:12px;font-weight:500;
+  color:var(--text-secondary);font-family:'DM Sans',sans-serif;transition:background .12s;
+}
+.proj-toggle-btn:hover { background:var(--surface-hover); }
 .sidebar-header {
   padding:14px 14px 10px;border-bottom:1px solid var(--border);
   display:flex;align-items:center;justify-content:space-between;
@@ -842,34 +862,35 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'DM Sans'
     Novel Notes
   </div>
   <div style="width:1px;height:22px;background:var(--border);margin:0 4px"></div>
-  <span id="topbarTitle" class="topbar-title">Select a project</span>
+  <button class="proj-toggle-btn" id="projToggleBtn" onclick="toggleProjPanel()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    Projects
+  </button>
+  <span id="topbarTitle" class="topbar-title"></span>
   <div class="topbar-spacer"></div>
-  <button class="btn btn-ghost btn-sm" onclick="window.history.back()">← Back to Folio</button>
+  <button class="btn btn-ghost btn-sm" onclick="handleBack()">← Back to Folio</button>
+</div>
+
+<!-- PROJECT PANEL -->
+<div class="proj-panel" id="projPanel">
+  <div class="proj-panel-header">
+    <span class="proj-panel-label">Your Projects</span>
+    <button class="sidebar-new-btn" onclick="openCreateModal()" title="New project">＋</button>
+  </div>
+  <div class="sidebar-list" id="projectList">
+    <div class="no-projects"><strong>Loading…</strong></div>
+  </div>
 </div>
 
 <!-- APP -->
 <div class="app">
-
-  <!-- LEFT SIDEBAR: projects -->
-  <div class="sidebar">
-    <div class="sidebar-header">
-      <span class="sidebar-header-label">Your Projects</span>
-      <button class="sidebar-new-btn" onclick="openCreateModal()" title="New project">＋</button>
-    </div>
-    <div class="sidebar-list" id="projectList">
-      <div class="no-projects">
-        <strong>Loading…</strong>
-        Reading your Folio projects
-      </div>
-    </div>
-  </div>
 
   <!-- MAIN -->
   <div class="main" id="mainArea">
     <div class="welcome">
       <div class="welcome-icon" style="opacity:.35;color:var(--text-secondary)"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
       <h2>Novel Notes</h2>
-      <p>Select a project from the sidebar to open its wiki. Build your world, track characters, and design your power systems.</p>
+      <p>Click <strong>Projects</strong> in the top bar to open or create a project. Build your world, track characters, and design your power systems.</p>
     </div>
   </div>
 
@@ -959,7 +980,12 @@ const NN_KEY = 'novel_notes_v1';
 let nnData = {};
 
 async function loadNN()   { const s = await idbGet(NN_KEY); if (s) nnData = s; }
-async function saveNN()   { await idbSet(NN_KEY, nnData); }
+async function saveNN() {
+  await idbSet(NN_KEY, nnData);
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'nn:save', data: nnData }, '*');
+  }
+}
 function ensureProj(pid)  { if (!nnData[pid]) nnData[pid] = { sections:{}, cards:{} }; }
 function getCards(pid, sid) {
   ensureProj(pid);
@@ -1104,9 +1130,32 @@ function selectProject(pid) {
   const p = projects.find(function(x) { return x.id === pid; });
   const tb = el('topbarTitle');
   if (tb) tb.textContent = p ? p.name : '';
+  const panel = el('projPanel');
+  if (panel) panel.classList.remove('open');
   renderProjectList();
   renderWiki();
 }
+
+function handleBack() {
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'nn:back' }, '*');
+  } else {
+    window.history.back();
+  }
+}
+
+function toggleProjPanel() {
+  const panel = el('projPanel');
+  if (panel) panel.classList.toggle('open');
+}
+
+document.addEventListener('click', function(e) {
+  const btn = el('projToggleBtn');
+  const panel = el('projPanel');
+  if (!panel || !panel.classList.contains('open')) return;
+  if (btn && btn.contains(e.target)) return;
+  if (!panel.contains(e.target)) panel.classList.remove('open');
+});
 
 // ── Wiki frame ────────────────────────────────────────────────────────────────
 function renderWiki() {
@@ -2505,6 +2554,22 @@ window.initTable = safe(setupTable);  // alias - was renamed to setupTable
 window.getCardData = safe(getCardData);
 window.rerenderCard = safe(rerenderCard);
 window.el = safe(el);
+// ── Embedded sync (postMessage bridge with parent React app) ──────────────────
+const _isEmbedded = window.parent !== window;
+if (_isEmbedded) {
+  window.addEventListener('message', function(e) {
+    if (e.source !== window.parent) return;
+    const msg = e.data;
+    if (!msg || msg.type !== 'nn:init') return;
+    if (msg.data && msg.data.nnData && Object.keys(msg.data.nnData).length > 0) {
+      nnData = msg.data.nnData;
+      idbSet(NN_KEY, nnData);
+    }
+    renderProjectList();
+    if (activePid) renderWiki();
+  });
+}
+
 try {
   await loadNN();
   const stored = await idbGet('folio_state');
@@ -2515,6 +2580,10 @@ try {
 } catch(e) {
   console.error('Novel Notes startup:', e);
   renderProjectList();
+}
+
+if (_isEmbedded) {
+  window.parent.postMessage({ type: 'nn:ready' }, '*');
 }
 
 </script>

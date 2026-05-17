@@ -1,37 +1,69 @@
+import { useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@clerk/react";
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export default function NovelNotes() {
   const [, navigate] = useLocation();
+  const { getToken, isSignedIn } = useAuth();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const serverDataRef = useRef<unknown>(null);
+  const iframeReadyRef = useRef(false);
+
+  const sendDataToIframe = useCallback(() => {
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "nn:init", data: { nnData: serverDataRef.current } },
+      "*",
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    getToken().then((token) => {
+      if (!token) return;
+      fetch(`${basePath}/api/novel-notes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          serverDataRef.current = d.nnData ?? null;
+          if (iframeReadyRef.current) sendDataToIframe();
+        })
+        .catch(() => {});
+    });
+  }, [isSignedIn, getToken, sendDataToIframe]);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (!iframeRef.current || e.source !== iframeRef.current.contentWindow) return;
+      const msg = e.data as { type: string; data?: unknown };
+      if (msg.type === "nn:ready") {
+        iframeReadyRef.current = true;
+        if (serverDataRef.current !== null) sendDataToIframe();
+      } else if (msg.type === "nn:back") {
+        navigate("/my-files");
+      } else if (msg.type === "nn:save" && isSignedIn) {
+        getToken().then((token) => {
+          if (!token) return;
+          fetch(`${basePath}/api/novel-notes`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ nnData: msg.data }),
+          }).catch(() => {});
+        });
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [isSignedIn, getToken, navigate, sendDataToIframe]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden" }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10,
-        padding: "8px 14px", borderBottom: "1px solid var(--border)",
-        background: "var(--surface)", flexShrink: 0,
-      }}>
-        <button
-          onClick={() => navigate("/my-files")}
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "5px 10px", borderRadius: 7, border: "1px solid var(--border)",
-            background: "none", cursor: "pointer", fontSize: 13,
-            color: "var(--text-secondary)", fontFamily: "inherit",
-            transition: "background .12s",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-          Back to Folio
-        </button>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>Novel Notes</span>
-      </div>
+    <div style={{ height: "100dvh", overflow: "hidden" }}>
       <iframe
+        ref={iframeRef}
         src="/novel-notes.html"
-        style={{ flex: 1, border: "none", width: "100%", display: "block" }}
+        style={{ width: "100%", height: "100%", border: "none", display: "block" }}
         title="Novel Notes"
       />
     </div>

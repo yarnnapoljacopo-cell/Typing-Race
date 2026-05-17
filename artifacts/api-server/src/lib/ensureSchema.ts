@@ -394,6 +394,12 @@ export async function ensureSchema(): Promise<void> {
         state       JSONB        NOT NULL DEFAULT '{}'::jsonb,
         updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
       );
+
+      CREATE TABLE IF NOT EXISTS novel_notes_state (
+        user_id     VARCHAR(100) PRIMARY KEY,
+        nn_data     JSONB        NOT NULL DEFAULT '{}'::jsonb,
+        updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
     `);
 
     // ── Phase 3: seed static data ─────────────────────────────────────────

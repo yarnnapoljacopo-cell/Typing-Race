@@ -919,6 +919,18 @@ export default function Room() {
     // includes warm-up text, inflating saved word counts and ranking.
     const finalNetWords = Math.max(0, finalWords - baselineWordCountRef.current);
     serverSaveNow(finalHtml, finalNetWords);
+    // Credit sprint words to the Folio daily word goal counter.
+    if (finalNetWords > 0) {
+      try {
+        const today = new Date().toISOString().slice(0, 10);
+        const storedDate = localStorage.getItem("folio_daily_date") || "";
+        const prevWords = storedDate === today
+          ? parseInt(localStorage.getItem("folio_daily_words") || "0", 10)
+          : 0;
+        localStorage.setItem("folio_daily_date", today);
+        localStorage.setItem("folio_daily_words", String(prevWords + finalNetWords));
+      } catch { /* storage unavailable */ }
+    }
     if (!finalHtml) return;
     setCapsules((prev) => {
       const filtered = prev.filter((c) => !c.isFinal);

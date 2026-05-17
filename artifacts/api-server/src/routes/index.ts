@@ -14,6 +14,7 @@ import questsRouter from "./quests";
 import streakRouter from "./streak";
 import skinsRouter from "./skins";
 import folioRouter from "./folio";
+import novelNotesRouter from "./novelNotes";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(questsRouter);
 router.use(streakRouter);
 router.use(skinsRouter);
 router.use(folioRouter);
+router.use(novelNotesRouter);
 
 export default router;
