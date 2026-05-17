@@ -63,8 +63,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'DM Sans'
 /* ── LAYOUT ── */
 .app {display:flex;height:100vh;padding-top:var(--topbar-h)}
 
-/* ── SIDEBAR (hidden — project list lives in the topbar dropdown) ── */
-.sidebar { display:none; }
+/* ── SIDEBAR ── */
+.sidebar {
+  width:var(--sidebar-w);background:var(--sidebar-bg);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;
+}
 
 /* ── PROJECT PANEL ── */
 .proj-panel {
@@ -861,36 +864,31 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'DM Sans'
     </div>
     Novel Notes
   </div>
-  <div style="width:1px;height:22px;background:var(--border);margin:0 4px"></div>
-  <button class="proj-toggle-btn" id="projToggleBtn" onclick="toggleProjPanel()">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    Projects
-  </button>
   <span id="topbarTitle" class="topbar-title"></span>
   <div class="topbar-spacer"></div>
   <button class="btn btn-ghost btn-sm" onclick="handleBack()">← Back to Folio</button>
 </div>
 
-<!-- PROJECT PANEL -->
-<div class="proj-panel" id="projPanel">
-  <div class="proj-panel-header">
-    <span class="proj-panel-label">Your Projects</span>
-    <button class="sidebar-new-btn" onclick="openCreateModal()" title="New project">＋</button>
-  </div>
-  <div class="sidebar-list" id="projectList">
-    <div class="no-projects"><strong>Loading…</strong></div>
-  </div>
-</div>
-
 <!-- APP -->
 <div class="app">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-header-label">Projects</span>
+      <button class="sidebar-new-btn" onclick="openCreateModal()" title="New project">＋</button>
+    </div>
+    <div class="sidebar-list" id="projectList">
+      <div class="no-projects"><strong>Loading…</strong></div>
+    </div>
+  </div>
 
   <!-- MAIN -->
   <div class="main" id="mainArea">
     <div class="welcome">
       <div class="welcome-icon" style="opacity:.35;color:var(--text-secondary)"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
       <h2>Novel Notes</h2>
-      <p>Click <strong>Projects</strong> in the top bar to open or create a project. Build your world, track characters, and design your power systems.</p>
+      <p>Select a project from the sidebar, or hit <strong>＋</strong> to create one. Build your world, track characters, and design your power systems.</p>
     </div>
   </div>
 
@@ -1130,8 +1128,6 @@ function selectProject(pid) {
   const p = projects.find(function(x) { return x.id === pid; });
   const tb = el('topbarTitle');
   if (tb) tb.textContent = p ? p.name : '';
-  const panel = el('projPanel');
-  if (panel) panel.classList.remove('open');
   renderProjectList();
   renderWiki();
 }
@@ -1144,18 +1140,6 @@ function handleBack() {
   }
 }
 
-function toggleProjPanel() {
-  const panel = el('projPanel');
-  if (panel) panel.classList.toggle('open');
-}
-
-document.addEventListener('click', function(e) {
-  const btn = el('projToggleBtn');
-  const panel = el('projPanel');
-  if (!panel || !panel.classList.contains('open')) return;
-  if (btn && btn.contains(e.target)) return;
-  if (!panel.contains(e.target)) panel.classList.remove('open');
-});
 
 // ── Wiki frame ────────────────────────────────────────────────────────────────
 function renderWiki() {
