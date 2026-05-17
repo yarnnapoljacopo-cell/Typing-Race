@@ -1134,8 +1134,9 @@ function selectProject(pid) {
 
 function handleBack() {
   const fromFolio = new URLSearchParams(location.search).get('src') === 'folio';
-  if (fromFolio && window.parent !== window) {
-    window.parent.postMessage({ type: 'nn:back' }, '*');
+  if (fromFolio) {
+    localStorage.setItem('nn_back', Date.now().toString());
+    try { window.parent.postMessage({ type: 'nn:back' }, '*'); } catch(e) {}
   } else {
     window.history.back();
   }

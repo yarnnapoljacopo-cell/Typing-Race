@@ -210,8 +210,15 @@ export default function MyFiles() {
     function onMessage(e: MessageEvent) {
       if (e.data?.type === "nn:back") setNovelNotesOpen(false);
     }
+    function onStorage(e: StorageEvent) {
+      if (e.key === "nn_back") setNovelNotesOpen(false);
+    }
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [paragraphMode, setParagraphMode] = useState<"none" | "indent" | "double">("none");
