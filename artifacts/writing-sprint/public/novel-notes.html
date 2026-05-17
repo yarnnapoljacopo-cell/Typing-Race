@@ -2539,6 +2539,7 @@ window.initTable = safe(setupTable);  // alias - was renamed to setupTable
 window.getCardData = safe(getCardData);
 window.rerenderCard = safe(rerenderCard);
 window.el = safe(el);
+window.handleBack = handleBack;
 // ── Embedded sync (postMessage bridge with parent React app) ──────────────────
 const _isEmbedded = new URLSearchParams(location.search).get('src') === 'folio';
 if (_isEmbedded) {
