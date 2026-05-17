@@ -569,6 +569,12 @@ function FolioSync() {
   return null;
 }
 
+function SidebarWithRoute() {
+  const [path] = useLocation();
+  if (path.startsWith("/novel-notes")) return null;
+  return <Sidebar />;
+}
+
 // Must be placed inside <ClerkProvider> so useAuth() is valid.
 function TimedClerkLoaded({ timedOut, children }: { timedOut: boolean; children: ReactNode }) {
   const { isLoaded } = useAuth();
@@ -667,7 +673,7 @@ function ClerkProviderWithRoutes() {
           <ClerkQueryClientCacheInvalidator />
           <FolioSync />
           <TooltipProvider>
-            <Sidebar />
+            <SidebarWithRoute />
             <LevelUpListener />
             <Suspense fallback={<RouteFallback />}>
               <Switch>
