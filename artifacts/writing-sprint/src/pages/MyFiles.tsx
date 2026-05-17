@@ -192,8 +192,6 @@ function FolioLogoMenu({ onBack }: { onBack: () => void }) {
 
 export default function MyFiles() {
   const [, setLocation] = useLocation();
-
-  // ── State ───────────────────────────────────────────────
   const { state, setState, isOnline, isSyncing } = useFolio();
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
