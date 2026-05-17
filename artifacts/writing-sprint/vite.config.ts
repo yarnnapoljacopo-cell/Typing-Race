@@ -66,6 +66,9 @@ export default defineConfig({
     headers: {
       "Cache-Control": "no-store",
     },
+    ...(process.env.REPL_ID
+      ? { hmr: { clientPort: 443 } }
+      : {}),
     fs: {
       strict: true,
     },
