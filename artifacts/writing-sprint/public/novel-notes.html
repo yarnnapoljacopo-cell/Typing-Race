@@ -139,6 +139,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'DM Sans'
 .project-name{font-size:13px;font-weight:500;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .project-item.active .project-name{color:var(--text-primary)}
 .project-meta{font-size:11px;color:var(--text-muted);margin-top:1px}
+.project-item-actions{display:none;align-items:center;gap:2px;flex-shrink:0;margin-left:2px}
+.project-item:hover .project-item-actions,.project-item.active .project-item-actions{display:flex}
+.proj-action-btn{width:22px;height:22px;border-radius:5px;border:none;background:none;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;transition:background .12s,color .12s;flex-shrink:0;font-family:'DM Sans',sans-serif}
+.proj-action-btn:hover{background:var(--surface-hover);color:var(--text-primary)}
+.proj-action-btn.danger:hover{background:var(--danger-light);color:var(--danger)}
 .no-projects{padding:30px 16px;text-align:center;color:var(--text-muted);font-size:13px;line-height:1.6}
 .no-projects strong{display:block;font-size:15px;margin-bottom:6px;color:var(--text-secondary)}
 
@@ -778,6 +783,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'DM Sans'
 
 /* ── NOTE CARD — clean elegant ── */
 .note-card { background:var(--surface) !important; border:1px solid var(--border) !important; min-width:240px; }
+.note-card .card-close { color:var(--text-muted) !important; font-size:16px; }
+.note-card .card-close:hover { color:var(--danger) !important; }
 .note-card-inner { display:flex; flex-direction:column; height:100%; padding:14px 16px 10px; }
 .note-card-top { display:flex; align-items:center; gap:6px; margin-bottom:10px; }
 .note-title-input { flex:1; background:none; border:none; outline:none; font-family:'Lora',serif; font-size:15px; font-weight:600; color:var(--text-primary); }
@@ -913,8 +920,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'DM Sans'
 <!-- CREATE PROJECT MODAL -->
 <div class="modal-overlay" id="createModal" style="display:none" onclick="closeCreateModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-title">New Project</div>
-    <div class="modal-sub">Create a Novel Notes wiki for a new story</div>
+    <div class="modal-title" id="createModalTitle">New Project</div>
+    <div class="modal-sub" id="createModalSub">Create a Novel Notes wiki for a new story</div>
     <div class="modal-field">
       <label>Project Name</label>
       <input id="newProjName" placeholder="e.g. The Ember Chronicles" maxlength="60" oninput="updateModalPreview()"/>
@@ -940,7 +947,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'DM Sans'
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeCreateModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="createProject()">Create Project</button>
+      <button class="btn btn-primary" id="createModalBtn" onclick="createProject()">Create Project</button>
     </div>
   </div>
 </div>
@@ -1110,6 +1117,7 @@ const MODAL_ICONS = [
 
 let selectedIconId = MODAL_ICONS[0].id;
 let selectedColor  = PROJ_COLORS()[0];
+let _editingProjectId = null;
 function PROJ_COLORS() { return ['#7c5cbf','#3b6ea5','#2e7d5e','#b5485a','#e6a817','#5a6ea0','#9c5c5c','#4a7a6e']; }
 
 // ── Project list ──────────────────────────────────────────────────────────────
@@ -1127,7 +1135,11 @@ function renderProjectList() {
     return '<div class="project-item' + active + '" onclick="selectProject(\'' + p.id + '\')" data-id="' + p.id + '">'
          + '<div class="project-avatar" style="background:' + color + ';color:#fff;display:flex;align-items:center;justify-content:center">' + iconHtml + '</div>'
          + '<div class="project-info"><div class="project-name">' + esc(p.name) + '</div>'
-         + '<div class="project-meta">' + esc((p._nn && p._nn.genre) ? p._nn.genre : '') + '</div></div></div>';
+         + '<div class="project-meta">' + esc((p._nn && p._nn.genre) ? p._nn.genre : '') + '</div></div>'
+         + '<div class="project-item-actions" onclick="event.stopPropagation()">'
+         + '<button class="proj-action-btn" onclick="openEditProjectModal(\'' + p.id + '\')" title="Edit project">✎</button>'
+         + '<button class="proj-action-btn danger" onclick="deleteProject(\'' + p.id + '\')" title="Delete project">×</button>'
+         + '</div></div>';
   }).join('');
 }
 
@@ -2486,12 +2498,34 @@ function jumpToCard(cardId, sid) {
 
 // ── Create project ────────────────────────────────────────────────────────────
 function openCreateModal() {
+  _editingProjectId = null;
   selectedIconId = MODAL_ICONS[0].id;
   selectedColor  = PROJ_COLORS()[0];
   buildModalIcons();
   buildModalColors();
   el('newProjName').value  = '';
   el('newProjGenre').value = '';
+  el('createModalTitle').textContent = 'New Project';
+  el('createModalSub').textContent   = 'Create a Novel Notes wiki for a new story';
+  el('createModalBtn').textContent   = 'Create Project';
+  updateModalPreview();
+  el('createModal').style.display = 'flex';
+  setTimeout(function() { el('newProjName').focus(); }, 100);
+}
+
+function openEditProjectModal(pid) {
+  const p = projects.find(function(x) { return x.id === pid; });
+  if (!p) return;
+  _editingProjectId = pid;
+  selectedIconId = (p._nn && p._nn.iconId) ? p._nn.iconId : MODAL_ICONS[0].id;
+  selectedColor  = (p._nn && p._nn.color)  ? p._nn.color  : PROJ_COLORS()[0];
+  buildModalIcons();
+  buildModalColors();
+  el('newProjName').value  = p.name || '';
+  el('newProjGenre').value = (p._nn && p._nn.genre) ? p._nn.genre : '';
+  el('createModalTitle').textContent = 'Edit Project';
+  el('createModalSub').textContent   = 'Update the name, icon, or color';
+  el('createModalBtn').textContent   = 'Save Changes';
   updateModalPreview();
   el('createModal').style.display = 'flex';
   setTimeout(function() { el('newProjName').focus(); }, 100);
@@ -2546,15 +2580,60 @@ function updateModalPreview() {
 function createProject() {
   const name = el('newProjName') && el('newProjName').value.trim();
   if (!name) { el('newProjName').focus(); return; }
+  const genre = el('newProjGenre').value.trim();
+
+  if (_editingProjectId) {
+    const p = projects.find(function(x) { return x.id === _editingProjectId; });
+    if (p) {
+      p.name = name;
+      if (!p._nn) p._nn = {};
+      p._nn.genre  = genre;
+      p._nn.iconId = selectedIconId;
+      p._nn.color  = selectedColor;
+    }
+    saveProjects();
+    el('createModal').style.display = 'none';
+    _editingProjectId = null;
+    renderProjectList();
+    if (activePid === (p && p.id)) {
+      const tb = el('topbarTitle');
+      if (tb) tb.textContent = name;
+    }
+    return;
+  }
+
   const newProj = {
     id: uid(), name: name,
-    _nn: { genre: el('newProjGenre').value.trim(), iconId: selectedIconId, color: selectedColor },
+    _nn: { genre: genre, iconId: selectedIconId, color: selectedColor },
   };
   projects.push(newProj);
   saveProjects();
   el('createModal').style.display = 'none';
   renderProjectList();
   selectProject(newProj.id);
+}
+
+function deleteProject(pid) {
+  const p = projects.find(function(x) { return x.id === pid; });
+  showConfirmModal(
+    'Delete project?',
+    '"' + (p ? p.name : 'this project') + '" and all its cards will be permanently deleted. This cannot be undone.',
+    'Delete',
+    function() {
+      projects = projects.filter(function(x) { return x.id !== pid; });
+      delete nnData[pid];
+      saveProjects();
+      saveNN();
+      if (activePid === pid) {
+        activePid = null;
+        const main = el('mainArea');
+        if (main) main.innerHTML = '<div class="welcome"><div class="welcome-icon">📖</div><h2>Novel Notes</h2><p>Select a project from the sidebar to start building your wiki.</p></div>';
+        const tb = el('topbarTitle');
+        if (tb) tb.textContent = '';
+      }
+      renderProjectList();
+    }
+  );
 }
 
 async function saveProjects() {
@@ -2615,6 +2694,8 @@ window.addFrame = safe(addFrame);
 window.selectProject = safe(selectProject);
 window.selectSection = safe(selectSection);
 window.openCreateModal = safe(openCreateModal);
+window.openEditProjectModal = safe(openEditProjectModal);
+window.deleteProject = safe(deleteProject);
 window.closeCreateModal = safe(closeCreateModal);
 window.createProject = safe(createProject);
 window.deleteCard = safe(deleteCard);
