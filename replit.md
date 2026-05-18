@@ -101,6 +101,19 @@ The Folio (My Files) system stores writing projects/docs with offline + cross-de
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
 
+## Chapter Notes sidebar (May 2026)
+
+Per-chapter structured notes panel inside the Folio writing editor:
+- **Trigger**: "Notes" button at the far-right of the writing toolbar; amber dot indicator when notes exist for the current doc
+- **Layout**: 300px panel slides in from the right edge of `editor-panel`; editor shifts left (flex row) rather than overlaying
+- **Tabs**: Notes (summary, key moments, status tag pills, freeform notes), To-do (checklist + add input), Meta (POV, timeline, location, characters, themes)
+- **Status tags**: Needs Edit / First Draft / Polished / Cut? / Foreshadowing / POV Shift — toggle pills
+- **Quick-switcher**: horizontal pill row listing all docs in the active project (only shown when >1 doc); clicking switches the sidebar to that chapter
+- **Storage**: keyed by `docId` in `FolioState.chapterNotes: Record<string, ChapterNotesData>` — auto-persists to IndexedDB + server via existing folio sync
+- **Save**: explicit "Save notes" button in sidebar footer with 2s "Saved ✓" flash; draft resets automatically on doc switch
+- **Focus mode**: sidebar is hidden while focus mode is active
+- **Files**: `artifacts/writing-sprint/src/lib/folioStore.ts` (`ChapterNotesData`, `FolioState.chapterNotes`), `artifacts/writing-sprint/src/pages/MyFiles.tsx`, `artifacts/writing-sprint/src/pages/MyFiles.css`
+
 ## Profile customization (May 2026)
 
 User profiles support three customization fields stored on `user_profiles`:

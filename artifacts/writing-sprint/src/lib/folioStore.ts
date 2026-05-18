@@ -15,9 +15,23 @@ export interface FolioProject {
   docs: FolioDoc[];
 }
 
+export interface ChapterNotesData {
+  summary: string;
+  keyMoments: string;
+  tags: string[];
+  notes: string;
+  todos: { id: string; text: string; done: boolean }[];
+  pov: string;
+  timeline: string;
+  location: string;
+  characters: string;
+  themes: string;
+}
+
 export interface FolioState {
   projects: FolioProject[];
   notes?: Record<string, string>;
+  chapterNotes?: Record<string, ChapterNotesData>;
 }
 
 type FetchFn = (url: string, opts?: RequestInit) => Promise<Response>;
@@ -381,7 +395,12 @@ class FolioStore {
       ...(local.notes ?? {}),
     };
 
-    return { projects: Array.from(projectMap.values()), notes: mergedNotes };
+    const mergedChapterNotes = {
+      ...(server.chapterNotes ?? {}),
+      ...(local.chapterNotes ?? {}),
+    };
+
+    return { projects: Array.from(projectMap.values()), notes: mergedNotes, chapterNotes: mergedChapterNotes };
   }
 }
 

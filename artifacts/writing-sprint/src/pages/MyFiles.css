@@ -123,6 +123,62 @@
 .welcome-panel p{font-size:13px;text-align:center;max-width:260px;line-height:1.7}
 
 .editor-panel{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.editor-panel.notes-open{flex-direction:row}
+.editor-col{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+/* ── Chapter Notes Sidebar ───────────────────────────────────────────── */
+.cn-sidebar{width:300px;flex-shrink:0;display:flex;flex-direction:column;background:#faf8f5;border-left:1px solid var(--border);overflow:hidden}
+.dark .folio-root .cn-sidebar{background:#1a1c26;border-left-color:var(--border)}
+.cn-header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border-light);flex-shrink:0;background:inherit}
+.cn-header-title{flex:1;font-size:13px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cn-close{background:none;border:none;cursor:pointer;color:var(--text-muted);border-radius:6px;padding:3px;display:flex;align-items:center;transition:background .15s}
+.cn-close:hover{background:var(--bg)}
+.cn-switcher{display:flex;gap:5px;padding:8px 12px;border-bottom:1px solid var(--border-light);overflow-x:auto;flex-shrink:0;scrollbar-width:none}
+.cn-switcher::-webkit-scrollbar{display:none}
+.cn-switch-pill{flex-shrink:0;padding:3px 10px;border-radius:99px;border:1.5px solid var(--border);background:var(--surface);color:var(--text-secondary);font-family:'DM Sans',sans-serif;font-size:11.5px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.cn-switch-pill:hover{border-color:var(--accent);color:var(--accent)}
+.cn-switch-pill.active{border-color:var(--accent);background:var(--accent-light);color:var(--accent);font-weight:600}
+.cn-tabs{display:flex;border-bottom:1px solid var(--border-light);flex-shrink:0}
+.cn-tab{flex:1;height:34px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:12.5px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;font-weight:500}
+.cn-tab:hover{color:var(--text-secondary)}
+.cn-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.cn-body{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+.cn-field{display:flex;flex-direction:column;gap:4px}
+.cn-label{font-size:11px;font-weight:600;color:var(--text-secondary);letter-spacing:.03em;display:flex;justify-content:space-between;align-items:center;text-transform:uppercase}
+.cn-charcount{font-size:10px;font-weight:400;color:var(--text-muted);text-transform:none}
+.cn-input{height:30px;border:1px solid var(--border);border-radius:7px;padding:0 9px;font-family:'DM Sans',sans-serif;font-size:12.5px;color:var(--text-primary);outline:none;background:var(--bg);transition:border-color .15s;width:100%}
+.cn-input:focus{border-color:var(--accent)}
+.cn-textarea{border:1px solid var(--border);border-radius:7px;padding:7px 9px;font-family:'DM Sans',sans-serif;font-size:12.5px;color:var(--text-primary);outline:none;background:var(--bg);resize:vertical;line-height:1.6;transition:border-color .15s;width:100%;box-sizing:border-box}
+.cn-textarea:focus{border-color:var(--accent)}
+.cn-summary{min-height:44px}
+.cn-notes-ta{min-height:100px}
+.cn-tags{display:flex;flex-wrap:wrap;gap:5px}
+.cn-tag{padding:3px 9px;border-radius:99px;border:1.5px solid var(--border);background:var(--surface);color:var(--text-secondary);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;transition:all .15s;font-weight:500}
+.cn-tag:hover{border-color:var(--accent);color:var(--accent)}
+.cn-tag.active{border-color:#d97706;background:#fef3c7;color:#b45309;font-weight:600}
+.dark .folio-root .cn-tag.active{background:#422006;color:#fbbf24;border-color:#d97706}
+.cn-empty{font-size:12.5px;color:var(--text-muted);font-style:italic;text-align:center;padding:16px 0;margin:0}
+.cn-todo-list{display:flex;flex-direction:column;gap:2px}
+.cn-todo-item{display:flex;align-items:center;gap:8px;padding:5px 4px;border-radius:6px;transition:background .1s}
+.cn-todo-item:hover{background:var(--surface)}
+.cn-todo-item input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;cursor:pointer}
+.cn-todo-text{flex:1;font-size:12.5px;color:var(--text-primary);line-height:1.4}
+.cn-todo-text.done{text-decoration:line-through;color:var(--text-muted)}
+.cn-todo-del{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:15px;line-height:1;padding:2px 5px;border-radius:4px;opacity:0;transition:opacity .15s,color .15s;flex-shrink:0}
+.cn-todo-item:hover .cn-todo-del{opacity:1}
+.cn-todo-del:hover{color:#ef4444}
+.cn-todo-add{display:flex;gap:6px;padding-top:8px;border-top:1px solid var(--border-light);margin-top:4px}
+.cn-todo-input{flex:1;height:30px;border:1px solid var(--border);border-radius:7px;padding:0 9px;font-family:'DM Sans',sans-serif;font-size:12.5px;color:var(--text-primary);outline:none;background:var(--bg);transition:border-color .15s}
+.cn-todo-input:focus{border-color:var(--accent)}
+.cn-todo-addbtn{width:30px;height:30px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text-secondary);font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;font-weight:300;flex-shrink:0}
+.cn-todo-addbtn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.cn-footer{padding:10px 14px;border-top:1px solid var(--border-light);flex-shrink:0}
+.cn-save-btn{width:100%;height:32px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:background .18s,opacity .18s}
+.cn-save-btn:hover{background:var(--accent-hover)}
+.cn-dot{position:absolute;top:4px;right:4px;width:5px;height:5px;border-radius:50%;background:#d97706;pointer-events:none;flex-shrink:0}
+.dark .folio-root .cn-input,.dark .folio-root .cn-textarea{background:var(--surface);color:var(--text-primary);border-color:var(--border)}
+.dark .folio-root .cn-todo-input{background:var(--surface);color:var(--text-primary);border-color:var(--border)}
+.folio-root.focus-mode .cn-sidebar{display:none}
 .editor-topbar{padding:0 16px;height:50px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:8px;flex-shrink:0}
 .breadcrumb{font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:5px;min-width:0}
 .crumb-project{color:var(--accent);font-weight:500;white-space:nowrap}

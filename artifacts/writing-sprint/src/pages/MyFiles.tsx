@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import SprintPopup from "./SprintPopup";
 import StickyNote from "./StickyNote";
 import { useFolio } from "@/lib/useFolio";
-import type { FolioDoc as Doc, FolioProject as Project, FolioState } from "@/lib/folioStore";
+import type { FolioDoc as Doc, FolioProject as Project, FolioState, ChapterNotesData } from "@/lib/folioStore";
 import "./MyFiles.css";
 
 type StatusKey = "draft" | "progress" | "done" | "edit";
@@ -25,6 +25,13 @@ const uid = () =>
 const wc = (t: string) =>
   t.trim() ? t.trim().split(/\s+/).length : 0;
 const todayStr = () => new Date().toISOString().slice(0, 10);
+
+const emptyChapterNotes = (): ChapterNotesData => ({
+  summary: "", keyMoments: "", tags: [], notes: "", todos: [],
+  pov: "", timeline: "", location: "", characters: "", themes: "",
+});
+const chNotesHaveContent = (n?: ChapterNotesData): boolean =>
+  !!n && !!(n.summary || n.keyMoments || n.tags.length || n.notes || n.todos.length || n.pov || n.timeline || n.location || n.characters || n.themes);
 
 // Apply per-paragraph inline styles for a given spacing mode.
 function applyModeToPMyFiles(p: HTMLElement, mode: string): void {
@@ -203,6 +210,11 @@ export default function MyFiles() {
 
   const [focusMode, setFocusMode] = useState(false);
   const [novelNotesOpen, setNovelNotesOpen] = useState(false);
+  const [chNotesOpen, setChNotesOpen] = useState(false);
+  const [chNotesTab, setChNotesTab] = useState<"notes" | "todo" | "meta">("notes");
+  const [chNotesDraft, setChNotesDraft] = useState<ChapterNotesData>(emptyChapterNotes);
+  const [chNotesSaved, setChNotesSaved] = useState(false);
+  const [chNotesTodoInput, setChNotesTodoInput] = useState("");
 
   useEffect(() => {
     const close = () => setNovelNotesOpen(false);
@@ -216,6 +228,17 @@ export default function MyFiles() {
       window.removeEventListener("message", onMessage);
     };
   }, []);
+  // Reset chapter notes draft whenever the active doc changes
+  useEffect(() => {
+    if (!activeDocId) return;
+    const saved = state.chapterNotes?.[activeDocId];
+    setChNotesDraft(saved ? { ...emptyChapterNotes(), ...saved } : emptyChapterNotes());
+    setChNotesSaved(false);
+    setChNotesTodoInput("");
+  // We intentionally only re-run on doc switch, not every state update
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDocId]);
+
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [paragraphMode, setParagraphMode] = useState<"none" | "indent" | "double">("none");
   const [fontSize, setFontSize] = useState(() => parseInt(localStorage.getItem("folio_font_size") || "16", 10));
@@ -441,6 +464,16 @@ export default function MyFiles() {
       });
     }
   }, [activeProjectId, activeDocId, dailyGoal, showToast]);
+
+  const saveChapterNotes = useCallback(() => {
+    if (!activeDocId) return;
+    setState((prev) => ({
+      ...prev,
+      chapterNotes: { ...(prev.chapterNotes ?? {}), [activeDocId]: chNotesDraft },
+    }));
+    setChNotesSaved(true);
+    setTimeout(() => setChNotesSaved(false), 2000);
+  }, [activeDocId, chNotesDraft, setState]);
 
   // Autosave debounce
   const autosaveTimer = useRef<number | null>(null);
@@ -1466,7 +1499,8 @@ export default function MyFiles() {
               <p>Create a project in the sidebar, then add chapters or scenes to start writing.</p>
             </div>
           ) : (
-            <div className="editor-panel">
+            <div className={`editor-panel${chNotesOpen ? " notes-open" : ""}`}>
+              <div className="editor-col">
               <div className="editor-topbar">
                 <div className="breadcrumb">
                   <span className="crumb-project">{activeProject?.name}</span>
@@ -1661,6 +1695,24 @@ export default function MyFiles() {
                     {ltStatus === 0 ? "✓ grammar" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"}`}
                   </span>
                 )}
+                <div className="tb-sep" />
+                <button
+                  className={`tb-btn${chNotesOpen ? " active" : ""}`}
+                  onClick={() => setChNotesOpen((v) => !v)}
+                  title="Chapter notes"
+                  style={{ width: "auto", padding: "0 8px", gap: 4, display: "flex", alignItems: "center", position: "relative", fontSize: 11, fontWeight: 700 }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                    <line x1="9" y1="8" x2="15" y2="8" />
+                    <line x1="9" y1="12" x2="13" y2="12" />
+                  </svg>
+                  Notes
+                  {activeDocId && chNotesHaveContent(state.chapterNotes?.[activeDocId]) && (
+                    <span className="cn-dot" />
+                  )}
+                </button>
               </div>
 
               {/* Find bar */}
@@ -1747,6 +1799,244 @@ export default function MyFiles() {
                   }}
                 />
               </div>
+              </div>{/* /editor-col */}
+
+              {/* ── Chapter Notes Sidebar ── */}
+              {chNotesOpen && activeDoc && (
+                <div className="cn-sidebar">
+                  <div className="cn-header">
+                    <span className="cn-header-title">{activeDoc.name}</span>
+                    <button className="cn-close" onClick={() => setChNotesOpen(false)} title="Close">
+                      <Ico.Close />
+                    </button>
+                  </div>
+
+                  {/* Quick chapter switcher */}
+                  {activeProject && activeProject.docs.length > 1 && (
+                    <div className="cn-switcher">
+                      {activeProject.docs.map((d) => (
+                        <button
+                          key={d.id}
+                          className={`cn-switch-pill${d.id === activeDocId ? " active" : ""}`}
+                          onClick={() => openDoc(activeProject.id, d.id)}
+                        >
+                          {d.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Tabs */}
+                  <div className="cn-tabs">
+                    {(["notes", "todo", "meta"] as const).map((t) => (
+                      <button
+                        key={t}
+                        className={`cn-tab${chNotesTab === t ? " active" : ""}`}
+                        onClick={() => setChNotesTab(t)}
+                      >
+                        {t === "notes" ? "Notes" : t === "todo" ? "To-do" : "Meta"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Tab content */}
+                  <div className="cn-body">
+                    {chNotesTab === "notes" && (
+                      <>
+                        <div className="cn-field">
+                          <label className="cn-label">Chapter summary</label>
+                          <textarea
+                            className="cn-textarea cn-summary"
+                            placeholder="One-line summary…"
+                            value={chNotesDraft.summary}
+                            onChange={(e) => setChNotesDraft((d) => ({ ...d, summary: e.target.value }))}
+                            rows={2}
+                          />
+                        </div>
+                        <div className="cn-field">
+                          <label className="cn-label">Key moments</label>
+                          <textarea
+                            className="cn-textarea"
+                            placeholder="Major beats, turning points…"
+                            value={chNotesDraft.keyMoments}
+                            onChange={(e) => setChNotesDraft((d) => ({ ...d, keyMoments: e.target.value }))}
+                            rows={3}
+                          />
+                        </div>
+                        <div className="cn-field">
+                          <label className="cn-label">Status tags</label>
+                          <div className="cn-tags">
+                            {(["Needs Edit", "First Draft", "Polished", "Cut?", "Foreshadowing", "POV Shift"] as const).map((tag) => (
+                              <button
+                                key={tag}
+                                className={`cn-tag${chNotesDraft.tags.includes(tag) ? " active" : ""}`}
+                                onClick={() =>
+                                  setChNotesDraft((d) => ({
+                                    ...d,
+                                    tags: d.tags.includes(tag)
+                                      ? d.tags.filter((t) => t !== tag)
+                                      : [...d.tags, tag],
+                                  }))
+                                }
+                              >
+                                {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="cn-field">
+                          <label className="cn-label">
+                            Notes
+                            <span className="cn-charcount">{chNotesDraft.notes.length}/2000</span>
+                          </label>
+                          <textarea
+                            className="cn-textarea cn-notes-ta"
+                            placeholder="Freeform notes, ideas, questions…"
+                            value={chNotesDraft.notes}
+                            onChange={(e) => setChNotesDraft((d) => ({ ...d, notes: e.target.value.slice(0, 2000) }))}
+                            rows={5}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {chNotesTab === "todo" && (
+                      <>
+                        <div className="cn-todo-list">
+                          {chNotesDraft.todos.length === 0 && (
+                            <p className="cn-empty">No tasks yet. Add one below.</p>
+                          )}
+                          {chNotesDraft.todos.map((item) => (
+                            <div key={item.id} className="cn-todo-item">
+                              <input
+                                type="checkbox"
+                                checked={item.done}
+                                onChange={() =>
+                                  setChNotesDraft((d) => ({
+                                    ...d,
+                                    todos: d.todos.map((t) =>
+                                      t.id === item.id ? { ...t, done: !t.done } : t
+                                    ),
+                                  }))
+                                }
+                              />
+                              <span className={item.done ? "cn-todo-text done" : "cn-todo-text"}>
+                                {item.text}
+                              </span>
+                              <button
+                                className="cn-todo-del"
+                                onClick={() =>
+                                  setChNotesDraft((d) => ({
+                                    ...d,
+                                    todos: d.todos.filter((t) => t.id !== item.id),
+                                  }))
+                                }
+                                title="Remove"
+                              >×</button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="cn-todo-add">
+                          <input
+                            className="cn-todo-input"
+                            type="text"
+                            placeholder="Add a task…"
+                            value={chNotesTodoInput}
+                            onChange={(e) => setChNotesTodoInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && chNotesTodoInput.trim()) {
+                                setChNotesDraft((d) => ({
+                                  ...d,
+                                  todos: [...d.todos, { id: uid(), text: chNotesTodoInput.trim(), done: false }],
+                                }));
+                                setChNotesTodoInput("");
+                                e.preventDefault();
+                              }
+                            }}
+                          />
+                          <button
+                            className="cn-todo-addbtn"
+                            onClick={() => {
+                              if (!chNotesTodoInput.trim()) return;
+                              setChNotesDraft((d) => ({
+                                ...d,
+                                todos: [...d.todos, { id: uid(), text: chNotesTodoInput.trim(), done: false }],
+                              }));
+                              setChNotesTodoInput("");
+                            }}
+                            title="Add task"
+                          >+</button>
+                        </div>
+                      </>
+                    )}
+
+                    {chNotesTab === "meta" && (
+                      <>
+                        <div className="cn-field">
+                          <label className="cn-label">POV character</label>
+                          <input
+                            className="cn-input"
+                            type="text"
+                            placeholder="Who narrates this chapter?"
+                            value={chNotesDraft.pov}
+                            onChange={(e) => setChNotesDraft((d) => ({ ...d, pov: e.target.value }))}
+                          />
+                        </div>
+                        <div className="cn-field">
+                          <label className="cn-label">Timeline / Time of day</label>
+                          <input
+                            className="cn-input"
+                            type="text"
+                            placeholder="e.g. Day 3, midday"
+                            value={chNotesDraft.timeline}
+                            onChange={(e) => setChNotesDraft((d) => ({ ...d, timeline: e.target.value }))}
+                          />
+                        </div>
+                        <div className="cn-field">
+                          <label className="cn-label">Location</label>
+                          <input
+                            className="cn-input"
+                            type="text"
+                            placeholder="Where does this take place?"
+                            value={chNotesDraft.location}
+                            onChange={(e) => setChNotesDraft((d) => ({ ...d, location: e.target.value }))}
+                          />
+                        </div>
+                        <div className="cn-field">
+                          <label className="cn-label">Characters present</label>
+                          <textarea
+                            className="cn-textarea"
+                            placeholder="List of characters in this chapter…"
+                            value={chNotesDraft.characters}
+                            onChange={(e) => setChNotesDraft((d) => ({ ...d, characters: e.target.value }))}
+                            rows={3}
+                          />
+                        </div>
+                        <div className="cn-field">
+                          <label className="cn-label">Themes / Motifs</label>
+                          <textarea
+                            className="cn-textarea"
+                            placeholder="Themes, symbols, motifs…"
+                            value={chNotesDraft.themes}
+                            onChange={(e) => setChNotesDraft((d) => ({ ...d, themes: e.target.value }))}
+                            rows={3}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="cn-footer">
+                    <button
+                      className="cn-save-btn"
+                      onClick={saveChapterNotes}
+                    >
+                      {chNotesSaved ? "Saved ✓" : "Save notes"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

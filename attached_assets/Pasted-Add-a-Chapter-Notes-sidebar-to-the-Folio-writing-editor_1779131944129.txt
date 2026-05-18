@@ -1,0 +1,17 @@
+Add a Chapter Notes sidebar to the Folio writing editor. Here's exactly what to build:
+1. "Chapter notes" button in the toolbar
+Add a button at the far right end of the formatting toolbar (after all other controls). It should be visually distinct — outlined style, with a notebook icon. When the sidebar has saved content for the current chapter, show a small amber dot indicator on the button. Clicking it toggles the sidebar open/closed.
+2. Sliding sidebar panel
+A fixed-width panel (300px) that slides in from the right edge of the editor area when opened. The editor content shifts left to accommodate it (don't overlay the text). The sidebar has a header showing the current chapter name and a close button.
+3. Three tabs inside the sidebar
+
+Notes tab: Fields for "Chapter summary" (short textarea), "Key moments" (textarea), status tag pills the user can toggle (Needs Edit, First Draft, Polished, Cut?, Foreshadowing, POV Shift), and a freeform notes textarea with a character count.
+To-do tab: A checklist of revision tasks. Each item can be checked off (strikethrough when done). An input at the bottom lets the user add new tasks (submitted with Enter or a + button).
+Meta tab: Text inputs for POV character, timeline/time of day, location, characters present (textarea), and themes/motifs (textarea).
+
+4. Per-chapter data storage
+Every chapter/document has its own independent notes object. When the user switches chapters (via the left nav), the sidebar content updates to show that chapter's notes. Notes should persist in the app's state (and ideally to the database/backend if one exists). A "Save notes" button in the sidebar footer commits the changes, with a brief "Saved ✓" confirmation.
+5. Chapter quick-switcher in the sidebar
+A horizontal row of pill buttons near the top of the sidebar listing all chapters. Clicking one switches the sidebar (and optionally the editor) to that chapter's notes without closing the panel.
+6. Visual style
+The sidebar background should be a slightly warm off-white to distinguish it from the main editor. Use subtle borders, the same font system as the rest of the app, and keep it clean and minimal. Match the existing design language of the toolbar and editor.
