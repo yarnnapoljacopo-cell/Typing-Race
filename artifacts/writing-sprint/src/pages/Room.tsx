@@ -989,7 +989,7 @@ export default function Room() {
   // the current editor content and syncs all state (used from handleInput,
   // handleFormat, handleKeyDown after execCommand).
 
-  const applyText = useCallback((newHtml?: string) => {
+  const applyText = useCallback((newHtml?: string, keepBaseline = false) => {
     const div = textareaRef.current;
     if (!div) return;
 
@@ -1044,7 +1044,9 @@ export default function Room() {
 
     // If the user wiped the editor clean during a sprint, reset the baseline
     // so the car/counter starts from 0 again when they resume typing.
-    if (wc === 0 && roomRef.current?.status === "running") {
+    // keepBaseline=true skips this so "Chapter Finished" clears the box
+    // without resetting the car position.
+    if (wc === 0 && roomRef.current?.status === "running" && !keepBaseline) {
       baselineWordCountRef.current = 0;
       lastCapsuleThresholdRef.current = 0;
     }
@@ -1124,8 +1126,9 @@ export default function Room() {
     const currentNetWc = Math.max(0, wordCount - baselineWordCountRef.current);
     baselineWordCountRef.current = -currentNetWc;
 
-    // Clear the box — applyText updates car, localStorage, and debounced server sync
-    applyText("");
+    // Clear the box — keepBaseline=true prevents the wipe-reset guard from
+    // zeroing the baseline we just set above, so the car position is preserved.
+    applyText("", true);
 
     // Immediately tell the server: empty text but same word count, so a rejoin
     // won't restore the cleared chapter text from the backup
