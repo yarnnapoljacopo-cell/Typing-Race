@@ -1865,7 +1865,7 @@ export default function Room() {
                 </div>
               )}
               {!readMode && (
-                <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: "12px 16px", boxShadow: "0 4px 20px rgba(107,143,212,0.08)", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: "7px 12px", boxShadow: "0 4px 20px rgba(107,143,212,0.08)", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <div className="ws-toolbar-scroll" style={{ flex: 1, minWidth: 0 }}>
                     <WritingToolbar style={writingStyle} onChange={handleStyleChange} onFormat={handleFormat} activeFormats={activeFormats} />
                   </div>

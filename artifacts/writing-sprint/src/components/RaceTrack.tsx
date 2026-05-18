@@ -134,7 +134,7 @@ export const RaceTrack = memo(function RaceTrack({
     return (
       <div style={{ borderRadius: 16, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.22)", marginBottom: 2 }}>
         {/* Sky / header */}
-        <div style={{ background: roadStyle.kartSky, padding: "10px 16px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ background: roadStyle.kartSky, padding: "6px 12px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.12em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80", display: "inline-block", animation: "kartTrackPulse 2s ease-in-out infinite" }} />
             Race Track
@@ -360,7 +360,7 @@ export const RaceTrack = memo(function RaceTrack({
   // ── Regular (non-kart) race track ──────────────────────────────────────
   return (
     <div className="w-full rounded-xl overflow-hidden shadow-sm border" style={{ background: roadStyle.trackBg }}>
-      <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
+      <div className="flex items-center justify-between px-4 py-1 border-b border-white/10">
         <span className="text-white/70 text-xs font-semibold uppercase tracking-widest flex items-center gap-1.5">
           Race Track
           {reaperFraction !== null && (

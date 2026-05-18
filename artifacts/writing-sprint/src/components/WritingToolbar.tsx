@@ -70,7 +70,7 @@ const labelStyle: React.CSSProperties = {
 
 function fontChipStyle(active: boolean): React.CSSProperties {
   return {
-    padding: "5px 10px", borderRadius: 8, fontSize: "0.82rem",
+    padding: "3px 8px", borderRadius: 8, fontSize: "0.82rem",
     cursor: "pointer", border: `1.5px solid ${active ? C.blue : "transparent"}`,
     transition: "all 0.15s", color: active ? "white" : C.muted,
     background: active ? C.blue : "none", fontFamily: "'DM Sans', sans-serif",
@@ -94,7 +94,7 @@ function sizeChipStyle(active: boolean): React.CSSProperties {
 function spacingChipStyle(active: boolean, dark?: boolean): React.CSSProperties {
   const activeBg = dark ? C.ink : C.blue;
   return {
-    padding: "5px 10px", borderRadius: 8, fontSize: "0.75rem", fontWeight: 700,
+    padding: "3px 8px", borderRadius: 8, fontSize: "0.75rem", fontWeight: 700,
     cursor: "pointer", border: `1.5px solid transparent`,
     color: active ? "white" : C.muted,
     letterSpacing: "0.05em", textTransform: "uppercase",
@@ -141,7 +141,7 @@ export const WritingToolbar = memo(function WritingToolbar({
   };
   return (
     <div
-      style={{ display: "flex", flexDirection: "column", gap: 8, fontFamily: "'DM Sans', sans-serif" }}
+      style={{ display: "flex", flexDirection: "column", gap: 4, fontFamily: "'DM Sans', sans-serif" }}
       onMouseDown={swallowButtonMouseDown}
     >
 
