@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 
 export interface WritingStyle {
   fontFamily: string;
@@ -49,8 +49,6 @@ interface WritingToolbarProps {
   style: WritingStyle;
   onChange: (style: Partial<WritingStyle>) => void;
   onFormat: (type: FormatType) => void;
-  /** Which inline formats are currently applied at the caret/selection.
-   * Drives the active visual state on the B/I/U chips. */
   activeFormats?: { bold: boolean; italic: boolean; underline: boolean };
 }
 
@@ -59,13 +57,6 @@ const dividerStyle: React.CSSProperties = {
   background: C.border,
   margin: "0 4px",
   flexShrink: 0,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: "0.72rem", fontWeight: 700, color: C.muted,
-  letterSpacing: "0.06em", textTransform: "uppercase",
-  marginRight: 4, whiteSpace: "nowrap",
-  fontFamily: "'DM Sans', sans-serif",
 };
 
 function fontChipStyle(active: boolean): React.CSSProperties {
@@ -112,8 +103,6 @@ const formatChipBase: React.CSSProperties = {
 };
 
 function formatChipStyle(active: boolean): React.CSSProperties {
-  // Active = applied to current selection. Use the same blue used for the
-  // font/size chips so the toolbar reads consistently.
   return {
     ...formatChipBase,
     background: active ? C.blue : "none",
@@ -132,64 +121,89 @@ export const WritingToolbar = memo(function WritingToolbar({
   const aBold = activeFormats?.bold ?? false;
   const aItalic = activeFormats?.italic ?? false;
   const aUnderline = activeFormats?.underline ?? false;
-  // Prevent toolbar buttons from stealing focus from the editor on mousedown
-  // — otherwise the click handler runs after the selection has already
-  // collapsed and execCommand("bold"|"italic"|...) has nothing to format.
+  const [showFonts, setShowFonts] = useState(false);
+
+  const currentFont = FONTS.find((f) => f.value === style.fontFamily) ?? FONTS[0];
+  const currentSize = SIZES.find((s) => s.value === style.fontSize) ?? SIZES[1];
+  const currentLH = LINE_HEIGHTS.find((lh) => lh.value === style.lineHeight) ?? LINE_HEIGHTS[1];
+
   const swallowButtonMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     const t = e.target as HTMLElement;
     if (t.tagName === "BUTTON" || t.closest("button")) e.preventDefault();
   };
+
   return (
     <div
       style={{ display: "flex", flexDirection: "column", gap: 4, fontFamily: "'DM Sans', sans-serif" }}
       onMouseDown={swallowButtonMouseDown}
     >
+      {/* Expanded font panel — drops in above the main row */}
+      {showFonts && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {FONTS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => onChange({ fontFamily: f.value })}
+              title={f.label}
+              style={fontChipStyle(style.fontFamily === f.value)}
+            >
+              <span style={{ fontFamily: f.value, fontSize: "0.82rem", fontWeight: 700 }}>Ag</span>
+              <small style={{ fontSize: "0.6rem" }}>{f.sublabel}</small>
+            </button>
+          ))}
 
-      {/* Row 1: Font | Size | Line-height */}
+          <div style={dividerStyle} />
+
+          {SIZES.map((s) => (
+            <button
+              key={s.value}
+              onClick={() => onChange({ fontSize: s.value })}
+              style={sizeChipStyle(style.fontSize === s.value)}
+            >
+              {s.label}
+            </button>
+          ))}
+
+          <div style={dividerStyle} />
+
+          {LINE_HEIGHTS.map((lh) => (
+            <button
+              key={lh.value}
+              onClick={() => onChange({ lineHeight: lh.value })}
+              style={spacingChipStyle(style.lineHeight === lh.value)}
+            >
+              {lh.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Always-visible row: font toggle + formatting */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={labelStyle}>T Font</span>
-        {FONTS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => onChange({ fontFamily: f.value })}
-            title={f.label}
-            style={fontChipStyle(style.fontFamily === f.value)}
-          >
-            <span style={{ fontFamily: f.value, fontSize: "0.82rem", fontWeight: 700 }}>Ag</span>
-            <small style={{ fontSize: "0.6rem" }}>{f.sublabel}</small>
-          </button>
-        ))}
+        {/* Font toggle pill — shows current font, click to expand */}
+        <button
+          onClick={() => setShowFonts((v) => !v)}
+          title={showFonts ? "Hide font options" : "Change font, size & spacing"}
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "3px 9px", borderRadius: 8, cursor: "pointer",
+            border: `1.5px solid ${showFonts ? C.blue : C.border}`,
+            background: showFonts ? C.blueLight : "none",
+            color: showFonts ? C.ink : C.muted,
+            fontFamily: "'DM Sans', sans-serif", fontSize: "0.75rem", fontWeight: 700,
+            transition: "all 0.15s", whiteSpace: "nowrap",
+          }}
+        >
+          <span style={{ fontFamily: currentFont.value, fontSize: "0.82rem", fontWeight: 700 }}>Ag</span>
+          <span>{currentFont.sublabel}</span>
+          <span style={{ fontSize: "0.65rem", color: C.muted, fontWeight: 600 }}>{currentSize.label} · {currentLH.label}</span>
+          <span style={{ fontSize: "0.6rem", marginLeft: 1 }}>{showFonts ? "▲" : "▼"}</span>
+        </button>
 
         <div style={dividerStyle} />
 
-        {SIZES.map((s) => (
-          <button
-            key={s.value}
-            onClick={() => onChange({ fontSize: s.value })}
-            style={sizeChipStyle(style.fontSize === s.value)}
-          >
-            {s.label}
-          </button>
-        ))}
-
-        <div style={dividerStyle} />
-
-        {LINE_HEIGHTS.map((lh) => (
-          <button
-            key={lh.value}
-            onClick={() => onChange({ lineHeight: lh.value })}
-            style={spacingChipStyle(style.lineHeight === lh.value)}
-          >
-            {lh.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Row 2: Align icon | Paragraph | Format | TW */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        {/* Align icon — decorative */}
-        <button style={formatChipBase} title="Paragraph settings">≡</button>
-
+        {/* Paragraph mode */}
+        <button style={{ ...formatChipBase, fontSize: "0.85rem" }} title="Paragraph settings">≡</button>
         {PARAGRAPH_MODES.map((m) => (
           <button
             key={m.value}
@@ -202,8 +216,7 @@ export const WritingToolbar = memo(function WritingToolbar({
 
         <div style={dividerStyle} />
 
-        {/* B/I/U use onMouseDown + preventDefault so the editor's
-            selection stays intact when the chip is clicked. */}
+        {/* B / I / U */}
         <button
           onMouseDown={(e) => { e.preventDefault(); onFormat("bold"); }}
           title="Bold"
@@ -245,7 +258,6 @@ export const WritingToolbar = memo(function WritingToolbar({
           TW
         </button>
       </div>
-
     </div>
   );
 });
