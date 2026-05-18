@@ -1699,7 +1699,7 @@ export default function MyFiles() {
                 <button
                   className={`tb-btn${chNotesOpen ? " active" : ""}`}
                   onClick={() => setChNotesOpen((v) => !v)}
-                  title="Chapter notes"
+                  title="Chapter Notes"
                   style={{ width: "auto", padding: "0 8px", gap: 4, display: "flex", alignItems: "center", position: "relative", fontSize: 11, fontWeight: 700 }}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1708,7 +1708,7 @@ export default function MyFiles() {
                     <line x1="9" y1="8" x2="15" y2="8" />
                     <line x1="9" y1="12" x2="13" y2="12" />
                   </svg>
-                  Notes
+                  Chapter Notes
                   {activeDocId && chNotesHaveContent(state.chapterNotes?.[activeDocId]) && (
                     <span className="cn-dot" />
                   )}
