@@ -1243,11 +1243,12 @@ export default function MyFiles() {
               </div>
             ) : (
               visibleProjects.map(({ proj, visibleDocs, isOpen }) => {
-                const projWC = proj.docs.reduce((s, d) => s + wc((d.name || "") + " " + docPlainText(d.content)), 0);
+                const projDocs = proj.docs ?? [];
+                const projWC = projDocs.reduce((s, d) => s + wc((d.name || "") + " " + docPlainText(d.content)), 0);
                 const totalWC = projWC;
-                const lastEdited = proj.docs.reduce((max, d) => Math.max(max, d.updatedAt || 0), 0);
+                const lastEdited = projDocs.reduce((max, d) => Math.max(max, d.updatedAt || 0), 0);
                 const statusCounts = { draft: 0, progress: 0, done: 0, edit: 0 };
-                proj.docs.forEach((d) => statusCounts[(d.status || "draft") as StatusKey]++);
+                projDocs.forEach((d) => statusCounts[(d.status || "draft") as StatusKey]++);
                 const lastStr = lastEdited
                   ? new Date(lastEdited).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
                   : "—";

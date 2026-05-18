@@ -284,6 +284,16 @@ class FolioStore {
     return this._initPromise;
   }
 
+  private static normalizeState(state: FolioState): FolioState {
+    return {
+      ...state,
+      projects: (state.projects ?? []).map((p) => ({
+        ...p,
+        docs: p.docs ?? [],
+      })),
+    };
+  }
+
   private async _doInit(): Promise<void> {
     if (this._initialized) return;
     this._initializing = true;
@@ -294,13 +304,13 @@ class FolioStore {
       const stored = await idbGet<{ state: FolioState; updatedAt: number }>(
         "folio_state",
       );
-      if (stored?.state) localState = stored.state;
+      if (stored?.state) localState = FolioStore.normalizeState(stored.state);
     } catch { /* ignore */ }
 
     if (!localState) {
       const migrated = migrateFromLocalStorage();
       if (migrated) {
-        localState = migrated;
+        localState = FolioStore.normalizeState(migrated);
         await this.persistLocalDirect(localState);
         clearLocalStorageFolioData();
       }
@@ -344,17 +354,17 @@ class FolioStore {
     const projectMap = new Map<string, FolioProject>();
 
     for (const p of server.projects) {
-      projectMap.set(p.id, { ...p, docs: [...p.docs] });
+      projectMap.set(p.id, { ...p, docs: [...(p.docs ?? [])] });
     }
 
     for (const lp of local.projects) {
       const existing = projectMap.get(lp.id);
       if (!existing) {
-        projectMap.set(lp.id, { ...lp, docs: [...lp.docs] });
+        projectMap.set(lp.id, { ...lp, docs: [...(lp.docs ?? [])] });
       } else {
         const docMap = new Map<string, FolioDoc>();
         for (const d of existing.docs) docMap.set(d.id, d);
-        for (const ld of lp.docs) {
+        for (const ld of (lp.docs ?? [])) {
           const ed = docMap.get(ld.id);
           if (!ed || ld.updatedAt > ed.updatedAt) {
             docMap.set(ld.id, ld);

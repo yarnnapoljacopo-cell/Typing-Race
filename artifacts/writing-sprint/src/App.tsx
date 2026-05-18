@@ -90,17 +90,80 @@ const LIVE_URL = "https://app.writingsprint.site";
 
 class ClerkErrorBoundary extends Component<
   { children: ReactNode },
-  { error: Error | null }
+  { error: unknown }
 > {
   constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { error: null };
   }
-  static getDerivedStateFromError(error: Error) {
+  static getDerivedStateFromError(error: unknown) {
     return { error };
   }
+  componentDidCatch(error: unknown, info: { componentStack: string }) {
+    // eslint-disable-next-line no-console
+    console.error("[ClerkErrorBoundary] caught error:", error);
+    // eslint-disable-next-line no-console
+    console.error("[ClerkErrorBoundary] component stack:", info.componentStack);
+    if (error instanceof Error) {
+      // eslint-disable-next-line no-console
+      console.error("[ClerkErrorBoundary] message:", error.message);
+      // eslint-disable-next-line no-console
+      console.error("[ClerkErrorBoundary] stack:", error.stack);
+    }
+  }
   render() {
-    if (this.state.error) {
+    const { error } = this.state;
+    if (error) {
+      const isDomainError =
+        !window.location.hostname.endsWith("writingsprint.site") &&
+        !window.location.hostname.endsWith(".up.railway.app") &&
+        window.location.hostname !== "localhost";
+
+      if (isDomainError) {
+        return (
+          <div
+            style={{
+              minHeight: "100dvh",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "1rem",
+              fontFamily: "Inter, sans-serif",
+              background: "#FAF8F4",
+              color: "#2D3142",
+              padding: "2rem",
+              textAlign: "center",
+            }}
+          >
+            <img src={`${basePath}/logo.svg`} alt="Writing Sprint" style={{ width: 56, height: 56, borderRadius: 14 }} />
+            <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
+              Writing Sprint
+            </h1>
+            <p style={{ margin: 0, color: "#68708A", maxWidth: 380 }}>
+              Authentication is configured for{" "}
+              <strong>app.writingsprint.site</strong>. Please visit the app at
+              its official address:
+            </p>
+            <a
+              href={LIVE_URL}
+              style={{
+                display: "inline-block",
+                marginTop: "0.5rem",
+                padding: "0.6rem 1.4rem",
+                background: "#1A6BC9",
+                color: "#fff",
+                borderRadius: "0.5rem",
+                textDecoration: "none",
+                fontWeight: 600,
+              }}
+            >
+              Open app.writingsprint.site
+            </a>
+          </div>
+        );
+      }
+
       return (
         <div
           style={{
@@ -119,28 +182,43 @@ class ClerkErrorBoundary extends Component<
         >
           <img src={`${basePath}/logo.svg`} alt="Writing Sprint" style={{ width: 56, height: 56, borderRadius: 14 }} />
           <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
-            Writing Sprint
+            Something went wrong
           </h1>
           <p style={{ margin: 0, color: "#68708A", maxWidth: 380 }}>
-            Authentication is configured for{" "}
-            <strong>app.writingsprint.site</strong>. Please visit the app at
-            its official address:
+            An unexpected error occurred. Please reload to try again. If the problem persists, try signing out and back in.
           </p>
-          <a
-            href={LIVE_URL}
-            style={{
-              display: "inline-block",
-              marginTop: "0.5rem",
-              padding: "0.6rem 1.4rem",
-              background: "#1A6BC9",
-              color: "#fff",
-              borderRadius: "0.5rem",
-              textDecoration: "none",
-              fontWeight: 600,
-            }}
-          >
-            Open app.writingsprint.site
-          </a>
+          <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                padding: "0.6rem 1.4rem",
+                background: "#1A6BC9",
+                color: "#fff",
+                borderRadius: "0.5rem",
+                border: "none",
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Reload page
+            </button>
+            <button
+              onClick={() => this.setState({ error: null })}
+              style={{
+                padding: "0.6rem 1.4rem",
+                background: "transparent",
+                color: "#1A6BC9",
+                borderRadius: "0.5rem",
+                border: "1.5px solid #1A6BC9",
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Try again
+            </button>
+          </div>
         </div>
       );
     }
