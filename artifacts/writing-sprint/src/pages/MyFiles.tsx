@@ -1449,9 +1449,6 @@ export default function MyFiles() {
         {/* NOVEL NOTES OVERLAY */}
         {novelNotesOpen && (
           <div className="nn-overlay">
-            <button className="nn-overlay-close" onClick={() => setNovelNotesOpen(false)} title="Close Novel Notes">
-              <Ico.Close />
-            </button>
             <iframe
               src={`${import.meta.env.BASE_URL}novel-notes.html?src=folio`}
               className="nn-overlay-frame"
