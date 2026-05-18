@@ -2038,6 +2038,53 @@ export default function Room() {
                 triggerStyle={{ background: "var(--color-card)", border: "1.5px solid var(--color-border)", borderRadius: 12, padding: "13px 16px", fontFamily: "'DM Sans', sans-serif", fontSize: "0.88rem", fontWeight: 600, color: "var(--color-foreground)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", cursor: "pointer", transition: "all 0.18s" }}
               />
 
+              {/* Save to Folio */}
+              <div style={{ display: "flex", gap: 0 }}>
+                <button
+                  onClick={saveToMyFiles}
+                  style={{
+                    flex: 1,
+                    padding: "13px 14px",
+                    borderRadius: folioTarget ? "12px 0 0 12px" : 12,
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "0.88rem", fontWeight: 600, cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    transition: "all 0.18s",
+                    background: "var(--color-card)",
+                    border: "1.5px solid var(--color-border)",
+                    borderRight: folioTarget ? "none" : "1.5px solid var(--color-border)",
+                    color: savedToMyFiles ? "#16a34a" : "var(--color-foreground)",
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#6B8FD4"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(107,143,212,0.15)"; }}
+                  title={folioTarget ? `Save to ${folioTargetLabel || "the chosen Folio chapter"}` : "Save to Folio"}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {folioTarget ? (savedToMyFiles ? "Saved ✓" : "Save to Folio") : "Save to Folio"}
+                  </span>
+                </button>
+                {folioTarget && (
+                  <button
+                    onClick={changeFolioTarget}
+                    style={{
+                      padding: "13px 10px", borderRadius: "0 12px 12px 0",
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "0.75rem", fontWeight: 600, cursor: "pointer",
+                      display: "flex", alignItems: "center",
+                      transition: "all 0.18s",
+                      background: "var(--color-card)", border: "1.5px solid var(--color-border)", color: "var(--color-muted-foreground)",
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#6B8FD4"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(107,143,212,0.15)"; }}
+                    title="Change save destination"
+                    aria-label="Change Folio save destination"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                )}
+              </div>
+
               {/* Chapter Finished — downloads chapter, clears box, keeps car position */}
               <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, overflow: "hidden", boxShadow: "0 4px 20px rgba(107,143,212,0.08)" }}>
                 <Button
