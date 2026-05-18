@@ -195,7 +195,7 @@ export const RaceTrack = memo(function RaceTrack({
               return (
                 <div key={p.id} style={{
                   display: "flex", alignItems: "center",
-                  padding: "10px 16px",
+                  padding: "6px 16px",
                   gap: 10,
                   position: "relative",
                   borderBottom: "1px solid rgba(255,255,255,0.05)",
@@ -208,7 +208,7 @@ export const RaceTrack = memo(function RaceTrack({
                   </span>
 
                   {/* Lane track */}
-                  <div style={{ flex: 1, height: 48, position: "relative", display: "flex", alignItems: "center" }}>
+                  <div style={{ flex: 1, height: 38, position: "relative", display: "flex", alignItems: "center" }}>
                     {/* Centre dashes */}
                     <div style={{ position: "absolute", top: "50%", left: 0, right: 0, transform: "translateY(-50%)", borderTop: "2px dashed rgba(255,255,255,0.12)" }} />
 
@@ -403,7 +403,7 @@ export const RaceTrack = memo(function RaceTrack({
               const isFirstPlace = firstPlaceId === p.id;
 
               return (
-                <div key={p.id} className="relative" style={{ height: "64px", background: eliminated ? "rgba(239,68,68,0.08)" : finished ? "rgba(255,255,255,0.08)" : laneIndex % 2 === 0 ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.10)", borderBottom: eliminated ? "1px solid rgba(239,68,68,0.18)" : "1px solid rgba(255,255,255,0.06)", opacity: eliminated ? 0.55 : 1, transition: "background 0.4s, opacity 0.4s" }}>
+                <div key={p.id} className="relative" style={{ height: "50px", background: eliminated ? "rgba(239,68,68,0.08)" : finished ? "rgba(255,255,255,0.08)" : laneIndex % 2 === 0 ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.10)", borderBottom: eliminated ? "1px solid rgba(239,68,68,0.18)" : "1px solid rgba(255,255,255,0.06)", opacity: eliminated ? 0.55 : 1, transition: "background 0.4s, opacity 0.4s" }}>
                   <div className="absolute top-1/2 -translate-y-1/2 left-14 right-6 pointer-events-none" style={{ height: "2px", background: "repeating-linear-gradient(90deg, rgba(255,255,255,0.15) 0px, rgba(255,255,255,0.15) 12px, transparent 12px, transparent 24px)" }} />
                   <div className="absolute left-2 top-1/2 -translate-y-1/2 text-white/30 text-xs font-bold font-mono" style={{ width: "20px", textAlign: "center" }}>{laneIndex + 1}</div>
 

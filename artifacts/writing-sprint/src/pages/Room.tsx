@@ -1715,14 +1715,14 @@ export default function Room() {
           />
         </div>
       ) : (
-        <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col"} style={!distractionFree ? { padding: "16px 20px 16px", minHeight: 0 } : undefined}>
+        <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col"} style={!distractionFree ? { padding: "6px 20px 6px", minHeight: 0 } : undefined}>
           {/* Race / boss track + timer — hidden in distraction-free mode */}
           {!distractionFree && (
             <div
-              style={{ maxWidth: 1100, margin: "0 auto", width: "100%", paddingTop: 6, flexShrink: 0 }}
+              style={{ maxWidth: 1100, margin: "0 auto", width: "100%", paddingTop: 2, flexShrink: 0 }}
               onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
             >
-              <div style={{ display: "flex", gap: 12, alignItems: "stretch", paddingBottom: 8 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "stretch", paddingBottom: 4 }}>
                 {/* Race / boss / gladiator track */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {room.mode === "gladiator" ? (
