@@ -1461,18 +1461,16 @@ export default function MyFiles() {
 
         <div className="mf-home-inner">
 
-          {/* Brand */}
-          <div className="mf-home-brand">
-            <div className="mf-brand-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-              </svg>
-            </div>
-            <span className="mf-home-brand-name">Writing Sprint</span>
-          </div>
-
-          {/* Hero */}
+          {/* Hero with logo on top */}
           <div className="mf-home-hero">
+            <div className="mf-home-brand">
+              <div className="mf-brand-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                </svg>
+              </div>
+              <span className="mf-home-brand-name">Writing Sprint</span>
+            </div>
             <h1 className="mf-home-heading">Your creative space.</h1>
             <p className="mf-home-sub">Write. Build worlds. Race.</p>
             {totalWords > 0 && (
