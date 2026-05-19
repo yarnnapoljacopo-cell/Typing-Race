@@ -750,18 +750,56 @@ select.fsv-input{appearance:none;background-image:url("data:image/svg+xml;utf8,<
 .dark .folio-root .home-proj-card{background:var(--surface)}
 
 /* ── My Files App-Picker Home Screen ─────────────────────────────────────── */
-.mf-home{min-height:100dvh;display:flex;align-items:center;justify-content:center;background:#f5f2ee;padding:40px 24px;font-family:'DM Sans',sans-serif}
-.mf-home-inner{width:100%;max-width:860px;display:flex;flex-direction:column;align-items:center;gap:48px}
-.mf-home-brand{display:flex;align-items:center;gap:10px}
-.mf-home-brand-name{font-family:'Lora',serif;font-size:18px;font-weight:600;color:#1a1a2e;letter-spacing:-.01em}
-.mf-home-heading{font-family:'Lora',serif;font-size:34px;font-weight:700;color:#1a1a2e;margin:0;text-align:center;line-height:1.2}
-.mf-home-cards{display:flex;gap:20px;width:100%}
-.mf-card{flex:1;display:flex;flex-direction:column;border-radius:20px;overflow:hidden;cursor:pointer;text-align:left;border:1.5px solid #e8e3dd;background:#fff;transition:transform .2s,box-shadow .2s,border-color .2s;box-shadow:0 2px 12px rgba(0,0,0,.04)}
-.mf-card:hover{transform:translateY(-6px);box-shadow:0 24px 64px rgba(0,0,0,.12);border-color:transparent}
-.mf-card-banner{height:120px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.mf-card-body{padding:24px 24px 28px;flex:1;display:flex;flex-direction:column;gap:8px}
-.mf-card-title{font-family:'Lora',serif;font-size:19px;font-weight:700;color:#1a1a2e}
-.mf-card-desc{font-size:13px;color:#68708a;line-height:1.7;flex:1}
-.mf-card-cta{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:#6B8FD4;margin-top:8px;transition:gap .15s}
-.mf-card:hover .mf-card-cta{gap:9px}
-@media(max-width:640px){.mf-home-cards{flex-direction:column}.mf-home-heading{font-size:26px}}
+.mf-home{min-height:100dvh;overflow-y:auto;background:#f5f2ee;padding:56px 32px 80px;font-family:'DM Sans',sans-serif}
+.mf-home-inner{width:100%;max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:52px}
+.mf-home-brand{display:flex;align-items:center;gap:9px}
+.mf-home-brand-name{font-family:'Lora',serif;font-size:16px;font-weight:600;color:#1a1a2e;letter-spacing:-.01em;opacity:.7}
+.mf-home-hero{text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+.mf-home-heading{font-family:'Lora',serif;font-size:38px;font-weight:700;color:#1a1a2e;margin:0;line-height:1.15;letter-spacing:-.02em}
+.mf-home-subheading{font-size:13.5px;color:#8a8fa8;margin:0}
+
+/* App cards */
+.mf-home-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.mf-card{display:flex;flex-direction:column;border-radius:22px;overflow:hidden;cursor:pointer;text-align:left;border:1.5px solid #e8e3dd;background:#fff;transition:transform .22s cubic-bezier(.2,.8,.3,1),box-shadow .22s,border-color .2s;box-shadow:0 2px 16px rgba(0,0,0,.05);position:relative}
+.mf-card:hover{transform:translateY(-8px);box-shadow:0 32px 72px rgba(0,0,0,.13);border-color:transparent}
+.mf-card-banner{height:140px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;overflow:hidden}
+.mf-card-banner-glow{position:absolute;width:140px;height:140px;border-radius:50%;filter:blur(40px);opacity:0;transition:opacity .3s}
+.mf-card:hover .mf-card-banner-glow{opacity:1}
+.mf-card-body{padding:22px 22px 26px;flex:1;display:flex;flex-direction:column;gap:6px}
+.mf-card-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.85}
+.mf-card-title{font-family:'Lora',serif;font-size:21px;font-weight:700;color:#1a1a2e;margin-top:2px}
+.mf-card-desc{font-size:13px;color:#68708a;line-height:1.75;flex:1;margin-top:2px}
+.mf-card-stat{font-size:11.5px;color:#a0a5b8;margin-top:4px}
+.mf-card-cta{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;margin-top:14px}
+.mf-cta-arrow{transition:transform .18s}
+.mf-card:hover .mf-cta-arrow{transform:translateX(4px)}
+
+/* Projects section */
+.mf-projects{display:flex;flex-direction:column;gap:14px}
+.mf-projects-header{display:flex;align-items:center;justify-content:space-between}
+.mf-projects-title{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#a0a5b8}
+.mf-projects-new{font-size:12.5px;font-weight:600;color:#6B8FD4;background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;padding:0;transition:opacity .15s}
+.mf-projects-new:hover{opacity:.7}
+.mf-projects-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.mf-proj-card{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:1.5px solid #e8e3dd;background:#fff;cursor:pointer;text-align:left;transition:all .18s;box-shadow:0 1px 6px rgba(0,0,0,.04);font-family:'DM Sans',sans-serif}
+.mf-proj-card:hover{border-color:#6B8FD4;background:#f7f9fe;transform:translateY(-2px);box-shadow:0 6px 20px rgba(107,143,212,.12)}
+.mf-proj-icon{width:36px;height:36px;border-radius:10px;background:#eef2fb;display:flex;align-items:center;justify-content:center;color:#6B8FD4;flex-shrink:0;transition:background .18s}
+.mf-proj-card:hover .mf-proj-icon{background:#dce6f7}
+.mf-proj-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.mf-proj-name{font-size:13.5px;font-weight:600;color:#1a1a2e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mf-proj-meta{font-size:11px;color:#a0a5b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mf-proj-arrow{font-size:14px;color:#c0c5d8;flex-shrink:0;transition:color .15s,transform .15s}
+.mf-proj-card:hover .mf-proj-arrow{color:#6B8FD4;transform:translateX(3px)}
+
+/* Recent section */
+.mf-recent{display:flex;flex-direction:column;gap:8px}
+.mf-recent-list{display:flex;flex-direction:column;gap:4px}
+.mf-recent-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:none;border:none;cursor:pointer;text-align:left;font-family:'DM Sans',sans-serif;transition:background .15s;width:100%}
+.mf-recent-row:hover{background:#eeeae4}
+.mf-recent-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.mf-recent-name{font-size:13.5px;font-weight:500;color:#1a1a2e;flex:1}
+.mf-recent-proj{font-size:12px;color:#a0a5b8}
+.mf-recent-arrow{font-size:13px;color:#c0c5d8;margin-left:6px;transition:color .15s,transform .15s}
+.mf-recent-row:hover .mf-recent-arrow{color:#6B8FD4;transform:translateX(3px)}
+
+@media(max-width:700px){.mf-home-cards,.mf-projects-grid{grid-template-columns:1fr}.mf-home-heading{font-size:28px}}
