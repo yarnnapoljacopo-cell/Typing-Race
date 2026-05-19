@@ -2757,11 +2757,11 @@ try {
   if (nnProjects && nnProjects.length) {
     projects = nnProjects;
   } else {
-    // Migrate from old shared key (folio_state) if any Novel Notes projects exist there
+    // Migrate from old shared key — Novel Notes projects have no 'docs' array
     const stored = await idbGet('folio_state');
     const legacy = stored && stored.state && stored.state.projects;
     if (legacy && legacy.length) {
-      const nnStyle = legacy.filter(function(p) { return p._nn; });
+      const nnStyle = legacy.filter(function(p) { return !Array.isArray(p.docs); });
       if (nnStyle.length) {
         projects = nnStyle;
         await idbSet('nn_projects_v1', projects);
