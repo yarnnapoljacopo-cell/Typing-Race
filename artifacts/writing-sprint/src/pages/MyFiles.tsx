@@ -624,8 +624,12 @@ export default function MyFiles() {
   const [projSearch, setProjSearch] = useState<Record<string, string>>({});
   const [projSearchOpen, setProjSearchOpen] = useState<Record<string, boolean>>({});
 
-  // Home / app-picker screen
-  const [homeView, setHomeView] = useState(true);
+  // Home / app-picker screen — skip if coming from Novel Notes "Back to Folio"
+  const [homeView, setHomeView] = useState(() => {
+    const skip = sessionStorage.getItem("mf_skip_home");
+    if (skip) { sessionStorage.removeItem("mf_skip_home"); return false; }
+    return true;
+  });
 
   // Drag-and-drop chapter reordering
   const dragDocRef = useRef<{ docId: string; projectId: string } | null>(null);

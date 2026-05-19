@@ -35,13 +35,16 @@ export default function NovelNotes() {
   }, [isSignedIn, getToken, sendDataToIframe]);
 
   useEffect(() => {
-    const goBack = () => navigate("/my-files");
+    const goHome = () => navigate("/my-files");
+    const goBack = () => { sessionStorage.setItem("mf_skip_home", "1"); navigate("/my-files"); };
     const handler = (e: MessageEvent) => {
       if (!iframeRef.current || e.source !== iframeRef.current.contentWindow) return;
       const msg = e.data as { type: string; data?: unknown };
       if (msg.type === "nn:ready") {
         iframeReadyRef.current = true;
         if (serverDataRef.current !== null) sendDataToIframe();
+      } else if (msg.type === "nn:home") {
+        goHome();
       } else if (msg.type === "nn:back") {
         goBack();
       } else if (msg.type === "nn:save" && isSignedIn) {
@@ -55,10 +58,10 @@ export default function NovelNotes() {
         });
       }
     };
-    window.addEventListener("nn:back", goBack);
+    window.addEventListener("nn:back", goBack as EventListener);
     window.addEventListener("message", handler);
     return () => {
-      window.removeEventListener("nn:back", goBack);
+      window.removeEventListener("nn:back", goBack as EventListener);
       window.removeEventListener("message", handler);
     };
   }, [isSignedIn, getToken, navigate, sendDataToIframe]);
