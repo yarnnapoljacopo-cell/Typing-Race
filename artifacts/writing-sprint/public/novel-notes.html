@@ -2644,10 +2644,7 @@ function deleteProject(pid) {
 }
 
 async function saveProjects() {
-  const stored = await idbGet('folio_state') || {};
-  stored.state = stored.state || {};
-  stored.state.projects = projects;
-  await idbSet('folio_state', stored);
+  await idbSet('nn_projects_v1', projects);
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────
@@ -2756,9 +2753,20 @@ if (_isEmbedded) {
 
 try {
   await loadNN();
-  const stored = await idbGet('folio_state');
-  if (stored && stored.state && stored.state.projects && stored.state.projects.length) {
-    projects = stored.state.projects;
+  const nnProjects = await idbGet('nn_projects_v1');
+  if (nnProjects && nnProjects.length) {
+    projects = nnProjects;
+  } else {
+    // Migrate from old shared key (folio_state) if any Novel Notes projects exist there
+    const stored = await idbGet('folio_state');
+    const legacy = stored && stored.state && stored.state.projects;
+    if (legacy && legacy.length) {
+      const nnStyle = legacy.filter(function(p) { return p._nn; });
+      if (nnStyle.length) {
+        projects = nnStyle;
+        await idbSet('nn_projects_v1', projects);
+      }
+    }
   }
   renderProjectList();
 } catch(e) {

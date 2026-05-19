@@ -289,8 +289,11 @@ function idbFolioGet<T>(key: string): Promise<T | undefined> {
 }
 
 async function readNNProjects(): Promise<{ id: string; name: string }[]> {
+  const direct = await idbFolioGet<{ id: string; name: string }[]>("nn_projects_v1");
+  if (direct && direct.length) return direct;
+  // Fall back to old location for users who haven't migrated yet
   const stored = await idbFolioGet<{ state?: { projects?: { id: string; name: string }[] } }>("folio_state");
-  return stored?.state?.projects ?? [];
+  return (stored?.state?.projects ?? []).filter((p: { id: string; name: string } & { _nn?: unknown }) => p._nn);
 }
 
 interface RecentEntry {
