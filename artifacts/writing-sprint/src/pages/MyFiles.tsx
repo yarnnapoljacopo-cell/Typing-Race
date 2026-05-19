@@ -1454,104 +1454,114 @@ export default function MyFiles() {
 
     return (
       <div className="mf-home">
+        {/* Background orbs */}
+        <div className="mf-orb mf-orb--blue" />
+        <div className="mf-orb mf-orb--purple" />
+        <div className="mf-orb mf-orb--gold" />
+
         <div className="mf-home-inner">
 
           {/* Brand */}
           <div className="mf-home-brand">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B8FD4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-            </svg>
+            <div className="mf-brand-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+            </div>
             <span className="mf-home-brand-name">Writing Sprint</span>
           </div>
 
           {/* Hero */}
           <div className="mf-home-hero">
-            <h1 className="mf-home-heading">Where do you want to go?</h1>
+            <h1 className="mf-home-heading">Your creative space.</h1>
+            <p className="mf-home-sub">Write. Build worlds. Race.</p>
             {totalWords > 0 && (
-              <p className="mf-home-subheading">
-                {state.projects.length} project{state.projects.length !== 1 ? "s" : ""} · {totalChapters} chapter{totalChapters !== 1 ? "s" : ""} · {totalWords.toLocaleString()} words written
-              </p>
+              <div className="mf-home-stats">
+                <span>{state.projects.length} project{state.projects.length !== 1 ? "s" : ""}</span>
+                <span className="mf-stat-dot" />
+                <span>{totalChapters} chapter{totalChapters !== 1 ? "s" : ""}</span>
+                <span className="mf-stat-dot" />
+                <span>{totalWords.toLocaleString()} words</span>
+              </div>
             )}
           </div>
 
-          {/* App cards */}
+          {/* App cards — full-color gradient */}
           <div className="mf-home-cards">
-            <button className="mf-card" onClick={() => setHomeView(false)}>
-              <div className="mf-card-banner" style={{ background: "linear-gradient(145deg,#2d5a8e,#6B8FD4)" }}>
-                <div className="mf-card-banner-glow" style={{ background: "rgba(107,143,212,0.4)" }} />
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.95)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <button className="mf-card mf-card--blue" onClick={() => setHomeView(false)}>
+              <div className="mf-card-shine" />
+              <div className="mf-card-icon-wrap">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
               </div>
-              <div className="mf-card-body">
-                <div className="mf-card-label" style={{ color: "#6B8FD4" }}>Writing Editor</div>
-                <div className="mf-card-title">Folio</div>
-                <div className="mf-card-desc">Organise your writing into projects and chapters. Track word counts, set goals, and stay focused.</div>
-                {state.projects.length > 0 && <div className="mf-card-stat">{state.projects.length} project{state.projects.length !== 1 ? "s" : ""} · {totalChapters} chapter{totalChapters !== 1 ? "s" : ""}</div>}
-                <div className="mf-card-cta">Open Folio <span className="mf-cta-arrow">→</span></div>
+              <div className="mf-card-chip">Writing Editor</div>
+              <div className="mf-card-name">Folio</div>
+              <div className="mf-card-blurb">Projects, chapters &amp; word counts</div>
+              <div className="mf-card-foot">
+                {state.projects.length > 0
+                  ? <span>{state.projects.length} project{state.projects.length !== 1 ? "s" : ""} · {totalChapters} chapter{totalChapters !== 1 ? "s" : ""}</span>
+                  : <span>Start your first project</span>}
+                <span className="mf-card-arr">→</span>
               </div>
             </button>
 
-            <button className="mf-card" onClick={() => setLocation("/novel-notes")}>
-              <div className="mf-card-banner" style={{ background: "linear-gradient(145deg,#3d3070,#7c5cbf)" }}>
-                <div className="mf-card-banner-glow" style={{ background: "rgba(124,92,191,0.4)" }} />
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.95)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <button className="mf-card mf-card--purple" onClick={() => setLocation("/novel-notes")}>
+              <div className="mf-card-shine" />
+              <div className="mf-card-icon-wrap">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
                   <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                   <line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="13" y2="12"/>
                 </svg>
               </div>
-              <div className="mf-card-body">
-                <div className="mf-card-label" style={{ color: "#7c5cbf" }}>World Building</div>
-                <div className="mf-card-title">Novel Notes</div>
-                <div className="mf-card-desc">Build your world with character cards, lore entries, factions, locations, and a power system wiki.</div>
-                <div className="mf-card-cta">Open Novel Notes <span className="mf-cta-arrow">→</span></div>
+              <div className="mf-card-chip">World Building</div>
+              <div className="mf-card-name">Novel Notes</div>
+              <div className="mf-card-blurb">Characters, lore &amp; world cards</div>
+              <div className="mf-card-foot">
+                <span>Build your universe</span>
+                <span className="mf-card-arr">→</span>
               </div>
             </button>
 
-            <button className="mf-card" onClick={() => setLocation("/portal")}>
-              <div className="mf-card-banner" style={{ background: "linear-gradient(145deg,#9a5a08,#e8a838)" }}>
-                <div className="mf-card-banner-glow" style={{ background: "rgba(232,168,56,0.4)" }} />
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.95)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <button className="mf-card mf-card--gold" onClick={() => setLocation("/portal")}>
+              <div className="mf-card-shine" />
+              <div className="mf-card-icon-wrap">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
                 </svg>
               </div>
-              <div className="mf-card-body">
-                <div className="mf-card-label" style={{ color: "#c8880a" }}>Live Racing</div>
-                <div className="mf-card-title">Writing Sprint</div>
-                <div className="mf-card-desc">Race against other writers in real time. Join a room, pick a duration, and see who writes the most.</div>
-                <div className="mf-card-cta">Start Sprinting <span className="mf-cta-arrow">→</span></div>
+              <div className="mf-card-chip">Live Racing</div>
+              <div className="mf-card-name">Writing Sprint</div>
+              <div className="mf-card-blurb">Race other writers in real time</div>
+              <div className="mf-card-foot">
+                <span>Find a room</span>
+                <span className="mf-card-arr">→</span>
               </div>
             </button>
           </div>
 
           {/* Projects */}
           {state.projects.length > 0 && (
-            <div className="mf-projects">
-              <div className="mf-projects-header">
-                <span className="mf-projects-title">Your Folio Projects</span>
-                <button className="mf-projects-new" onClick={() => { setHomeView(false); setTimeout(() => setProjectModal({ open: true, editingId: null, name: "" }), 100); }}>
-                  + New project
+            <div className="mf-section">
+              <div className="mf-section-hd">
+                <span className="mf-section-label">Your Projects</span>
+                <button className="mf-section-btn" onClick={() => { setHomeView(false); setTimeout(() => setProjectModal({ open: true, editingId: null, name: "" }), 100); }}>
+                  + New
                 </button>
               </div>
-              <div className="mf-projects-grid">
+              <div className="mf-proj-grid">
                 {state.projects.map((proj) => {
                   const lastEdited = proj.docs.reduce((max, d) => Math.max(max, d.updatedAt || 0), 0);
                   const lastStr = lastEdited ? new Date(lastEdited).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
                   const projWc = proj.docs.reduce((s, d) => s + wc(docPlainText(d.content)), 0);
                   const mostRecent = [...proj.docs].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+                  const initial = (proj.name[0] || "?").toUpperCase();
                   return (
-                    <button
-                      key={proj.id}
-                      className="mf-proj-card"
-                      onClick={() => { setHomeView(false); if (mostRecent) setTimeout(() => openDoc(proj.id, mostRecent.id), 50); }}
-                    >
-                      <div className="mf-proj-icon">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                        </svg>
-                      </div>
+                    <button key={proj.id} className="mf-proj-tile"
+                      onClick={() => { setHomeView(false); if (mostRecent) setTimeout(() => openDoc(proj.id, mostRecent.id), 50); }}>
+                      <div className="mf-proj-initial">{initial}</div>
                       <div className="mf-proj-info">
                         <span className="mf-proj-name">{proj.name}</span>
                         <span className="mf-proj-meta">
@@ -1560,7 +1570,7 @@ export default function MyFiles() {
                           {lastStr ? ` · ${lastStr}` : ""}
                         </span>
                       </div>
-                      <span className="mf-proj-arrow">→</span>
+                      <span className="mf-proj-go">→</span>
                     </button>
                   );
                 })}
@@ -1570,15 +1580,18 @@ export default function MyFiles() {
 
           {/* Recent */}
           {recentVisible.length > 0 && (
-            <div className="mf-recent">
-              <div className="mf-projects-title" style={{ marginBottom: 10 }}>Recently Opened</div>
-              <div className="mf-recent-list">
+            <div className="mf-section">
+              <div className="mf-section-hd">
+                <span className="mf-section-label">Recently Opened</span>
+              </div>
+              <div className="mf-recent-grid">
                 {recentVisible.map(({ r, proj, doc }) => (
-                  <button key={r.docId} className="mf-recent-row" onClick={() => { setHomeView(false); setTimeout(() => openDoc(r.projectId, r.docId), 50); }}>
+                  <button key={r.docId} className="mf-recent-tile"
+                    onClick={() => { setHomeView(false); setTimeout(() => openDoc(r.projectId, r.docId), 50); }}>
                     <span className="mf-recent-dot" style={{ background: STATUS[(doc.status || "draft") as StatusKey].color }} />
                     <span className="mf-recent-name">{doc.name}</span>
                     <span className="mf-recent-proj">{proj.name}</span>
-                    <span className="mf-recent-arrow">→</span>
+                    <span className="mf-recent-go">→</span>
                   </button>
                 ))}
               </div>
