@@ -27,11 +27,156 @@ interface NNCard {
   trait2?: string;
   trait3?: string;
   bio?: string;
+  img?: string | null;
   // rule-card
   title?: string;
   rules?: string[];
   // rel-card
   entries?: { name: string; desc: string }[];
+  // loc-card
+  type_?: string;
+  climate?: string;
+  notable?: string;
+  // note-card
+  body?: string;
+  // timeline-card (entries reused)
+  // item-card
+  rarity?: string;
+  category?: string;
+  ability?: string;
+  lore?: string;
+  // lore-card
+  era?: string;
+  tags?: string;
+  // faction-card / faction-full
+  alignment?: string;
+  leader?: string;
+  motto?: string;
+  hq?: string;
+  goal?: string;
+}
+
+function NNCardField({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  const isLong = value.length > 60;
+  return (
+    <div className={`nncard-field${isLong ? " nncard-field--block" : ""}`}>
+      <span className="nncard-label">{label}</span>
+      {isLong ? <p className="nncard-text">{value}</p> : <span className="nncard-val">{value}</span>}
+    </div>
+  );
+}
+
+function NNCardPopupBody({ card }: { card: NNCard }) {
+  const isChar = card.type === "char-card" || card.type === "char-card-full";
+  const isFull = card.type === "char-card-full";
+
+  if (isChar) {
+    const traits = [card.trait1, card.trait2, card.trait3].filter(Boolean).join(", ");
+    return (
+      <>
+        <NNCardField label="Role" value={card.role} />
+        <NNCardField label="Age" value={card.age} />
+        {isFull && <NNCardField label="Gender" value={card.gender} />}
+        {isFull && <NNCardField label="Nationality" value={card.nationality} />}
+        {traits && <div className="nncard-field"><span className="nncard-label">Traits</span><span className="nncard-val">{traits}</span></div>}
+        {isFull && <NNCardField label="Motivation" value={card.motivation} />}
+        {isFull && <NNCardField label="Fear" value={card.fear} />}
+        {isFull && <NNCardField label="Appearance" value={card.appearance} />}
+        {isFull && <NNCardField label="Personality" value={card.personality} />}
+        <NNCardField label="Bio" value={card.bio} />
+        {!card.role && !card.age && !card.gender && !card.motivation && !card.fear && !card.appearance && !card.personality && !card.bio && !traits && (
+          <p className="cn-empty">No details added yet.</p>
+        )}
+      </>
+    );
+  }
+
+  if (card.type === "rule-card") {
+    const rules = card.rules ?? [];
+    return rules.length === 0 ? <p className="cn-empty">No rules added yet.</p> : (
+      <>{rules.map((rule, i) => (
+        <div key={i} className="nncard-rule">
+          <span className="nncard-rule-num">{i + 1}</span>
+          <span className="nncard-val">{rule}</span>
+        </div>
+      ))}</>
+    );
+  }
+
+  if (card.type === "rel-card") {
+    const entries = card.entries ?? [];
+    return entries.length === 0 ? <p className="cn-empty">No relationships added yet.</p> : (
+      <>{entries.map((e, i) => (
+        <div key={i} className="nncard-field nncard-field--block">
+          <span className="nncard-label">{e.name}</span>
+          {e.desc && <p className="nncard-text">{e.desc}</p>}
+        </div>
+      ))}</>
+    );
+  }
+
+  if (card.type === "loc-card") return (
+    <>
+      <NNCardField label="Type" value={card.type_} />
+      <NNCardField label="Climate" value={card.climate} />
+      <NNCardField label="Notable" value={card.notable} />
+      {!card.type_ && !card.climate && !card.notable && <p className="cn-empty">No details added yet.</p>}
+    </>
+  );
+
+  if (card.type === "note-card") return card.body
+    ? <p className="nncard-text">{card.body}</p>
+    : <p className="cn-empty">No notes written yet.</p>;
+
+  if (card.type === "item-card") return (
+    <>
+      <NNCardField label="Rarity" value={card.rarity} />
+      <NNCardField label="Category" value={card.category} />
+      <NNCardField label="Ability" value={card.ability} />
+      <NNCardField label="Lore" value={card.lore} />
+      {!card.rarity && !card.category && !card.ability && !card.lore && <p className="cn-empty">No details added yet.</p>}
+    </>
+  );
+
+  if (card.type === "lore-card") return (
+    <>
+      <NNCardField label="Era" value={card.era} />
+      <NNCardField label="Tags" value={card.tags} />
+      <NNCardField label="Body" value={card.body} />
+      {!card.era && !card.body && <p className="cn-empty">No details added yet.</p>}
+    </>
+  );
+
+  if (card.type === "faction-card" || card.type === "faction-full") {
+    const isFactionFull = card.type === "faction-full";
+    return (
+      <>
+        <NNCardField label="Type" value={card.type_} />
+        <NNCardField label="Alignment" value={card.alignment} />
+        <NNCardField label="Leader" value={card.leader} />
+        <NNCardField label="Motto" value={card.motto} />
+        {isFactionFull && <NNCardField label="HQ" value={card.hq} />}
+        {isFactionFull && <NNCardField label="Goal" value={card.goal} />}
+        {isFactionFull && <NNCardField label="Lore" value={card.lore} />}
+        {!card.type_ && !card.alignment && !card.leader && !card.motto && <p className="cn-empty">No details added yet.</p>}
+      </>
+    );
+  }
+
+  if (card.type === "timeline-card") {
+    const entries = card.entries ?? [];
+    return entries.length === 0 ? <p className="cn-empty">No timeline entries yet.</p> : (
+      <>{entries.map((e, i) => (
+        <div key={i} className="nncard-field nncard-field--block">
+          <span className="nncard-label">{e.name}</span>
+          {e.desc && <p className="nncard-text">{e.desc}</p>}
+        </div>
+      ))}</>
+    );
+  }
+
+  return <p className="cn-empty">No details available for this card type.</p>;
 }
 
 const NN_SECTIONS: { id: string; label: string }[] = [
@@ -2242,55 +2387,18 @@ export default function MyFiles() {
                 {selectedCard.type === "char-card" || selectedCard.type === "char-card-full" ? "Character"
                   : selectedCard.type === "rule-card" ? "World Rule"
                   : selectedCard.type === "rel-card" ? "Relationship"
+                  : selectedCard.type === "loc-card" ? "Location"
+                  : selectedCard.type === "note-card" ? "Note"
+                  : selectedCard.type === "item-card" ? "Item"
+                  : selectedCard.type === "lore-card" ? "Lore"
+                  : selectedCard.type === "faction-card" || selectedCard.type === "faction-full" ? "Faction"
+                  : selectedCard.type === "timeline-card" ? "Timeline"
                   : selectedCard.type}
               </span>
               <button className="cn-close" onClick={() => setSelectedCard(null)} title="Close"><Ico.Close /></button>
             </div>
             <div className="nncard-popup-body">
-              {(selectedCard.type === "char-card" || selectedCard.type === "char-card-full") && (
-                <>
-                  {selectedCard.role && <div className="nncard-field"><span className="nncard-label">Role</span><span className="nncard-val">{selectedCard.role}</span></div>}
-                  {selectedCard.age && <div className="nncard-field"><span className="nncard-label">Age</span><span className="nncard-val">{selectedCard.age}</span></div>}
-                  {selectedCard.gender && <div className="nncard-field"><span className="nncard-label">Gender</span><span className="nncard-val">{selectedCard.gender}</span></div>}
-                  {selectedCard.nationality && <div className="nncard-field"><span className="nncard-label">Nationality</span><span className="nncard-val">{selectedCard.nationality}</span></div>}
-                  {(selectedCard.trait1 || selectedCard.trait2 || selectedCard.trait3) && (
-                    <div className="nncard-field">
-                      <span className="nncard-label">Traits</span>
-                      <span className="nncard-val">{[selectedCard.trait1, selectedCard.trait2, selectedCard.trait3].filter(Boolean).join(", ")}</span>
-                    </div>
-                  )}
-                  {selectedCard.motivation && <div className="nncard-field"><span className="nncard-label">Motivation</span><span className="nncard-val">{selectedCard.motivation}</span></div>}
-                  {selectedCard.fear && <div className="nncard-field"><span className="nncard-label">Fear</span><span className="nncard-val">{selectedCard.fear}</span></div>}
-                  {selectedCard.appearance && <div className="nncard-field nncard-field--block"><span className="nncard-label">Appearance</span><p className="nncard-text">{selectedCard.appearance}</p></div>}
-                  {selectedCard.personality && <div className="nncard-field nncard-field--block"><span className="nncard-label">Personality</span><p className="nncard-text">{selectedCard.personality}</p></div>}
-                  {selectedCard.bio && <div className="nncard-field nncard-field--block"><span className="nncard-label">Bio</span><p className="nncard-text">{selectedCard.bio}</p></div>}
-                </>
-              )}
-              {selectedCard.type === "rule-card" && (
-                <>
-                  {(selectedCard.rules ?? []).length === 0 && <p className="cn-empty">No rules added yet.</p>}
-                  {(selectedCard.rules ?? []).map((rule, i) => (
-                    <div key={i} className="nncard-rule">
-                      <span className="nncard-rule-num">{i + 1}</span>
-                      <span className="nncard-val">{rule}</span>
-                    </div>
-                  ))}
-                </>
-              )}
-              {selectedCard.type === "rel-card" && (
-                <>
-                  {(selectedCard.entries ?? []).length === 0 && <p className="cn-empty">No relationships added yet.</p>}
-                  {(selectedCard.entries ?? []).map((entry, i) => (
-                    <div key={i} className="nncard-field nncard-field--block">
-                      <span className="nncard-label">{entry.name}</span>
-                      {entry.desc && <p className="nncard-text">{entry.desc}</p>}
-                    </div>
-                  ))}
-                </>
-              )}
-              {selectedCard.type !== "char-card" && selectedCard.type !== "char-card-full" && selectedCard.type !== "rule-card" && selectedCard.type !== "rel-card" && (
-                <p className="cn-empty">No details available for this card type.</p>
-              )}
+              <NNCardPopupBody card={selectedCard} />
             </div>
           </div>
         </div>
