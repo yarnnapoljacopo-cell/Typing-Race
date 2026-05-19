@@ -679,6 +679,10 @@ export default function MyFiles() {
   const [projSearch, setProjSearch] = useState<Record<string, string>>({});
   const [projSearchOpen, setProjSearchOpen] = useState<Record<string, boolean>>({});
 
+  // Drag-and-drop chapter reordering
+  const dragDocRef = useRef<{ docId: string; projectId: string } | null>(null);
+  const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
+
   // Toast
   const [toastMsg, setToastMsg] = useState("");
   const [toastShow, setToastShow] = useState(false);
@@ -1777,8 +1781,36 @@ export default function MyFiles() {
                         return (
                           <div
                             key={doc.id}
-                            className={`doc-row${doc.id === activeDocId ? " active" : ""}`}
+                            draggable
+                            className={`doc-row${doc.id === activeDocId ? " active" : ""}${dragOverDocId === doc.id ? " drag-over" : ""}`}
                             onClick={() => openDoc(proj.id, doc.id)}
+                            onDragStart={(e) => {
+                              dragDocRef.current = { docId: doc.id, projectId: proj.id };
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragOver={(e) => { e.preventDefault(); setDragOverDocId(doc.id); }}
+                            onDragLeave={() => setDragOverDocId(null)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const src = dragDocRef.current;
+                              if (src && src.docId !== doc.id && src.projectId === proj.id) {
+                                setState((prev) => ({
+                                  projects: prev.projects.map((p) => {
+                                    if (p.id !== proj.id) return p;
+                                    const docs = [...p.docs];
+                                    const fromIdx = docs.findIndex((d) => d.id === src.docId);
+                                    const toIdx = docs.findIndex((d) => d.id === doc.id);
+                                    if (fromIdx === -1 || toIdx === -1) return p;
+                                    const [moved] = docs.splice(fromIdx, 1);
+                                    docs.splice(toIdx, 0, moved);
+                                    return { ...p, docs };
+                                  }),
+                                }));
+                              }
+                              dragDocRef.current = null;
+                              setDragOverDocId(null);
+                            }}
+                            onDragEnd={() => { dragDocRef.current = null; setDragOverDocId(null); }}
                           >
                             <div className="doc-status-dot" style={{ background: STATUS[st].color }} />
                             <span className="doc-name">{doc.name}</span>
@@ -1828,10 +1860,101 @@ export default function MyFiles() {
         {/* MAIN */}
         <div className="folio-main">
           {!activeDoc ? (
-            <div className="welcome-panel">
-              <Ico.FolderBig />
-              <h2>No document open</h2>
-              <p>Create a project in the sidebar, then add chapters or scenes to start writing.</p>
+            <div className="home-view">
+              <div className="home-hero">
+                <h1 className="home-title">Your writing space.</h1>
+                <p className="home-subtitle">Build worlds. Write stories. Track every word.</p>
+              </div>
+
+              <div className="home-tiles">
+                <button className="home-tile home-tile--nn" onClick={() => setNovelNotesOpen(true)}>
+                  <div className="home-tile-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                    </svg>
+                  </div>
+                  <div className="home-tile-text">
+                    <div className="home-tile-title">Novel Notes</div>
+                    <div className="home-tile-desc">Characters, world-building &amp; lore cards</div>
+                  </div>
+                  <span className="home-tile-arrow">→</span>
+                </button>
+                <button className="home-tile home-tile--sprint" onClick={() => setLocation("/portal")}>
+                  <div className="home-tile-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                  </div>
+                  <div className="home-tile-text">
+                    <div className="home-tile-title">Writing Sprint</div>
+                    <div className="home-tile-desc">Race against other writers live</div>
+                  </div>
+                  <span className="home-tile-arrow">→</span>
+                </button>
+              </div>
+
+              <div className="home-section">
+                <div className="home-section-header">
+                  <span className="home-section-title">Projects</span>
+                  <button className="home-new-btn" onClick={() => setProjectModal({ open: true, editingId: null, name: "" })}>
+                    + New project
+                  </button>
+                </div>
+                {state.projects.length === 0 ? (
+                  <div className="home-empty">No projects yet. Create one to get started.</div>
+                ) : (
+                  <div className="home-projects-grid">
+                    {state.projects.map((proj) => {
+                      const lastEdited = proj.docs.reduce((max, d) => Math.max(max, d.updatedAt || 0), 0);
+                      const lastStr = lastEdited ? new Date(lastEdited).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
+                      const totalWc = proj.docs.reduce((s, d) => s + wc(docPlainText(d.content)), 0);
+                      return (
+                        <div key={proj.id} className="home-proj-card">
+                          <div className="home-proj-header" onClick={() => setState((prev) => ({ projects: prev.projects.map((p) => p.id === proj.id ? { ...p, open: !p.open } : p) }))}>
+                            <svg className="home-proj-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                            <div className="home-proj-info">
+                              <span className="home-proj-name">{proj.name}</span>
+                              <span className="home-proj-meta">{proj.docs.length} chapter{proj.docs.length !== 1 ? "s" : ""}{totalWc > 0 ? ` · ${totalWc.toLocaleString()} words` : ""}{lastStr ? ` · ${lastStr}` : ""}</span>
+                            </div>
+                            <svg className={`home-proj-chevron${proj.open ? " open" : ""}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                          </div>
+                          {proj.open && (
+                            <div className="home-proj-docs">
+                              {proj.docs.map((doc) => (
+                                <div key={doc.id} className="home-doc-row" onClick={() => openDoc(proj.id, doc.id)}>
+                                  <span className="home-doc-dot" style={{ background: STATUS[(doc.status || "draft") as StatusKey].color }} />
+                                  <span className="home-doc-name">{doc.name}</span>
+                                  <span className="home-doc-wc">{wc(docPlainText(doc.content)) || ""}</span>
+                                </div>
+                              ))}
+                              <div className="home-doc-add" onClick={() => setDocModal({ open: true, projectId: proj.id, editingId: null, name: "", status: "draft" })}>
+                                + Add chapter
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {recentVisible.length > 0 && (
+                <div className="home-section">
+                  <div className="home-section-header">
+                    <span className="home-section-title">Recent</span>
+                  </div>
+                  <div className="home-recent-list">
+                    {recentVisible.map(({ r, proj, doc }) => (
+                      <div key={r.docId} className="home-recent-row" onClick={() => openDoc(r.projectId, r.docId)}>
+                        <span className="home-doc-dot" style={{ background: STATUS[(doc.status || "draft") as StatusKey].color }} />
+                        <span className="home-recent-name">{doc.name}</span>
+                        <span className="home-recent-proj">{proj.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className={`editor-panel${chNotesOpen ? " notes-open" : ""}${cardsOpen ? " cards-open" : ""}`}>
