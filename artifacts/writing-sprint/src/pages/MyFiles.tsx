@@ -679,6 +679,9 @@ export default function MyFiles() {
   const [projSearch, setProjSearch] = useState<Record<string, string>>({});
   const [projSearchOpen, setProjSearchOpen] = useState<Record<string, boolean>>({});
 
+  // Home / app-picker screen
+  const [homeView, setHomeView] = useState(true);
+
   // Drag-and-drop chapter reordering
   const dragDocRef = useRef<{ docId: string; projectId: string } | null>(null);
   const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
@@ -1500,6 +1503,70 @@ export default function MyFiles() {
   const currentStatus = activeDoc?.status || "draft";
   const statusInfo = STATUS[currentStatus];
 
+  if (homeView) {
+    return (
+      <div className="mf-home">
+        <div className="mf-home-inner">
+          <div className="mf-home-brand">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#6B8FD4" }}>
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+            <span className="mf-home-brand-name">Writing Sprint</span>
+          </div>
+
+          <h1 className="mf-home-heading">Where do you want to go?</h1>
+
+          <div className="mf-home-cards">
+            {/* Folio */}
+            <button className="mf-card" onClick={() => setHomeView(false)}>
+              <div className="mf-card-banner" style={{ background: "linear-gradient(135deg,#2d5a8e,#6B8FD4)" }}>
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </div>
+              <div className="mf-card-body">
+                <div className="mf-card-title">Folio</div>
+                <div className="mf-card-desc">Your writing editor. Organise projects into chapters, track word counts, and write with focus.</div>
+                <div className="mf-card-cta">Open Folio <span>→</span></div>
+              </div>
+            </button>
+
+            {/* Novel Notes */}
+            <button className="mf-card" onClick={() => setLocation("/novel-notes")}>
+              <div className="mf-card-banner" style={{ background: "linear-gradient(135deg,#3d3070,#7c5cbf)" }}>
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                  <line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="13" y2="12"/>
+                </svg>
+              </div>
+              <div className="mf-card-body">
+                <div className="mf-card-title">Novel Notes</div>
+                <div className="mf-card-desc">Your world-building wiki. Create character cards, lore entries, factions, locations and more.</div>
+                <div className="mf-card-cta">Open Novel Notes <span>→</span></div>
+              </div>
+            </button>
+
+            {/* Writing Sprint */}
+            <button className="mf-card" onClick={() => setLocation("/portal")}>
+              <div className="mf-card-banner" style={{ background: "linear-gradient(135deg,#b86e0a,#e8a838)" }}>
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+              </div>
+              <div className="mf-card-body">
+                <div className="mf-card-title">Writing Sprint</div>
+                <div className="mf-card-desc">Race against other writers live. Join a room, set a timer, and see who writes the most words.</div>
+                <div className="mf-card-cta">Start Sprinting <span>→</span></div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`folio-root${focusMode ? " focus-mode" : ""}${typewriterMode ? " typewriter-mode" : ""}`}>
       {/* Focus exit button (visible only in focus mode) */}
@@ -1511,7 +1578,7 @@ export default function MyFiles() {
 
       {/* TOP BAR */}
       <div className="folio-topbar">
-        <FolioLogoMenu onBack={() => setLocation("/portal")} />
+        <FolioLogoMenu onBack={() => setHomeView(true)} />
         <div className="topbar-spacer" />
 
         {dailyGoal > 0 && (

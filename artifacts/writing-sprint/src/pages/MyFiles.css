@@ -748,3 +748,20 @@ select.fsv-input{appearance:none;background-image:url("data:image/svg+xml;utf8,<
 .home-recent-proj{font-size:11.5px;color:var(--text-muted)}
 .dark .folio-root .home-view{background:var(--bg)}
 .dark .folio-root .home-proj-card{background:var(--surface)}
+
+/* ── My Files App-Picker Home Screen ─────────────────────────────────────── */
+.mf-home{min-height:100dvh;display:flex;align-items:center;justify-content:center;background:#f5f2ee;padding:40px 24px;font-family:'DM Sans',sans-serif}
+.mf-home-inner{width:100%;max-width:860px;display:flex;flex-direction:column;align-items:center;gap:48px}
+.mf-home-brand{display:flex;align-items:center;gap:10px}
+.mf-home-brand-name{font-family:'Lora',serif;font-size:18px;font-weight:600;color:#1a1a2e;letter-spacing:-.01em}
+.mf-home-heading{font-family:'Lora',serif;font-size:34px;font-weight:700;color:#1a1a2e;margin:0;text-align:center;line-height:1.2}
+.mf-home-cards{display:flex;gap:20px;width:100%}
+.mf-card{flex:1;display:flex;flex-direction:column;border-radius:20px;overflow:hidden;cursor:pointer;text-align:left;border:1.5px solid #e8e3dd;background:#fff;transition:transform .2s,box-shadow .2s,border-color .2s;box-shadow:0 2px 12px rgba(0,0,0,.04)}
+.mf-card:hover{transform:translateY(-6px);box-shadow:0 24px 64px rgba(0,0,0,.12);border-color:transparent}
+.mf-card-banner{height:120px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mf-card-body{padding:24px 24px 28px;flex:1;display:flex;flex-direction:column;gap:8px}
+.mf-card-title{font-family:'Lora',serif;font-size:19px;font-weight:700;color:#1a1a2e}
+.mf-card-desc{font-size:13px;color:#68708a;line-height:1.7;flex:1}
+.mf-card-cta{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:#6B8FD4;margin-top:8px;transition:gap .15s}
+.mf-card:hover .mf-card-cta{gap:9px}
+@media(max-width:640px){.mf-home-cards{flex-direction:column}.mf-home-heading{font-size:26px}}
