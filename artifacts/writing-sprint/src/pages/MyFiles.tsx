@@ -46,7 +46,7 @@ const NN_SECTIONS: { id: string; label: string }[] = [
   { id: "notes",      label: "Notes" },
 ];
 
-async function readNNProjects(): Promise<{ id: string; name: string }[]> {
+function idbFolioGet<T>(key: string): Promise<T | undefined> {
   return new Promise((resolve) => {
     try {
       const req = indexedDB.open("folio_db", 1);
@@ -54,14 +54,19 @@ async function readNNProjects(): Promise<{ id: string; name: string }[]> {
         const db = req.result;
         try {
           const tx = db.transaction("folio", "readonly");
-          const r = tx.objectStore("folio").get("folio_state");
-          r.onsuccess = () => { resolve((r.result as { state?: { projects?: { id: string; name: string }[] } } | undefined)?.state?.projects ?? []); db.close(); };
-          r.onerror = () => { resolve([]); db.close(); };
-        } catch { resolve([]); db.close(); }
+          const r = tx.objectStore("folio").get(key);
+          r.onsuccess = () => { resolve(r.result as T | undefined); db.close(); };
+          r.onerror = () => { resolve(undefined); db.close(); };
+        } catch { resolve(undefined); db.close(); }
       };
-      req.onerror = () => resolve([]);
-    } catch { resolve([]); }
+      req.onerror = () => resolve(undefined);
+    } catch { resolve(undefined); }
   });
+}
+
+async function readNNProjects(): Promise<{ id: string; name: string }[]> {
+  const stored = await idbFolioGet<{ state?: { projects?: { id: string; name: string }[] } }>("folio_state");
+  return stored?.state?.projects ?? [];
 }
 
 interface RecentEntry {
@@ -302,15 +307,19 @@ export default function MyFiles() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDocId]);
 
-  // Fetch Novel Notes data when the cards sidebar opens
+  // Fetch Novel Notes data when the cards sidebar opens.
+  // Reads from IndexedDB first (always current), falls back to server API.
   useEffect(() => {
     if (!cardsOpen) return;
     setNnLoading(true);
     Promise.all([
-      authedFetch("/api/novel-notes").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      idbFolioGet<Record<string, { cards: Record<string, NNCard[]> }>>("novel_notes_v1"),
       readNNProjects(),
-    ]).then(([apiRes, projects]) => {
-      const rawData: Record<string, { cards: Record<string, NNCard[]> }> = apiRes?.nnData ?? {};
+      authedFetch("/api/novel-notes").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([idbData, projects, apiRes]) => {
+      const rawData = (idbData && Object.keys(idbData).length > 0)
+        ? idbData
+        : (apiRes?.nnData ?? {});
       setNnRawData(rawData);
       setNnProjects(projects);
       const match = projects.find((p: { id: string; name: string }) =>
