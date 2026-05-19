@@ -3,10 +3,66 @@ import { useLocation } from "wouter";
 import SprintPopup from "./SprintPopup";
 import StickyNote from "./StickyNote";
 import { useFolio } from "@/lib/useFolio";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import type { FolioDoc as Doc, FolioProject as Project, FolioState, ChapterNotesData } from "@/lib/folioStore";
 import "./MyFiles.css";
 
 type StatusKey = "draft" | "progress" | "done" | "edit";
+
+// ── Novel Notes card types ────────────────────────────────────────────────────
+interface NNCard {
+  id: string;
+  type: string;
+  // char-card / char-card-full
+  name?: string;
+  role?: string;
+  age?: string;
+  gender?: string;
+  nationality?: string;
+  motivation?: string;
+  appearance?: string;
+  personality?: string;
+  fear?: string;
+  trait1?: string;
+  trait2?: string;
+  trait3?: string;
+  bio?: string;
+  // rule-card
+  title?: string;
+  rules?: string[];
+  // rel-card
+  entries?: { name: string; desc: string }[];
+}
+
+const NN_SECTIONS: { id: string; label: string }[] = [
+  { id: "overview",   label: "Overview" },
+  { id: "world",      label: "World Building" },
+  { id: "characters", label: "Characters" },
+  { id: "powers",     label: "Power System" },
+  { id: "factions",   label: "Factions" },
+  { id: "plot",       label: "Plot & Arcs" },
+  { id: "locations",  label: "Locations" },
+  { id: "items",      label: "Items & Lore" },
+  { id: "notes",      label: "Notes" },
+];
+
+async function readNNProjects(): Promise<{ id: string; name: string }[]> {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open("folio_db", 1);
+      req.onsuccess = () => {
+        const db = req.result;
+        try {
+          const tx = db.transaction("folio", "readonly");
+          const r = tx.objectStore("folio").get("folio_state");
+          r.onsuccess = () => { resolve((r.result as { state?: { projects?: { id: string; name: string }[] } } | undefined)?.state?.projects ?? []); db.close(); };
+          r.onerror = () => { resolve([]); db.close(); };
+        } catch { resolve([]); db.close(); }
+      };
+      req.onerror = () => resolve([]);
+    } catch { resolve([]); }
+  });
+}
 
 interface RecentEntry {
   projectId: string;
@@ -208,9 +264,16 @@ export default function MyFiles() {
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [statusMenuPos, setStatusMenuPos] = useState({ top: 0, left: 0 });
 
+  const authedFetch = useAuthedFetch();
   const [focusMode, setFocusMode] = useState(false);
   const [novelNotesOpen, setNovelNotesOpen] = useState(false);
   const [chNotesOpen, setChNotesOpen] = useState(false);
+  const [cardsOpen, setCardsOpen] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<NNCard | null>(null);
+  const [nnRawData, setNnRawData] = useState<Record<string, { cards: Record<string, NNCard[]> }> | null>(null);
+  const [nnProjects, setNnProjects] = useState<{ id: string; name: string }[]>([]);
+  const [nnSelPid, setNnSelPid] = useState<string | null>(null);
+  const [nnLoading, setNnLoading] = useState(false);
   const [chNotesTab, setChNotesTab] = useState<"notes" | "todo" | "meta">("notes");
   const [chNotesDraft, setChNotesDraft] = useState<ChapterNotesData>(emptyChapterNotes);
   const [chNotesSaved, setChNotesSaved] = useState(false);
@@ -238,6 +301,26 @@ export default function MyFiles() {
   // We intentionally only re-run on doc switch, not every state update
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDocId]);
+
+  // Fetch Novel Notes data when the cards sidebar opens
+  useEffect(() => {
+    if (!cardsOpen) return;
+    setNnLoading(true);
+    Promise.all([
+      authedFetch("/api/novel-notes").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      readNNProjects(),
+    ]).then(([apiRes, projects]) => {
+      const rawData: Record<string, { cards: Record<string, NNCard[]> }> = apiRes?.nnData ?? {};
+      setNnRawData(rawData);
+      setNnProjects(projects);
+      const match = projects.find((p: { id: string; name: string }) =>
+        p.name.toLowerCase() === activeProject?.name?.toLowerCase()
+      );
+      const firstPid = Object.keys(rawData)[0] ?? null;
+      setNnSelPid(match?.id ?? firstPid);
+    }).finally(() => setNnLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardsOpen]);
 
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [paragraphMode, setParagraphMode] = useState<"none" | "indent" | "double">("none");
@@ -1518,7 +1601,7 @@ export default function MyFiles() {
               <p>Create a project in the sidebar, then add chapters or scenes to start writing.</p>
             </div>
           ) : (
-            <div className={`editor-panel${chNotesOpen ? " notes-open" : ""}`}>
+            <div className={`editor-panel${chNotesOpen ? " notes-open" : ""}${cardsOpen ? " cards-open" : ""}`}>
               <div className="editor-col">
               <div className="editor-topbar">
                 <div className="breadcrumb">
@@ -1731,6 +1814,19 @@ export default function MyFiles() {
                   {activeDocId && chNotesHaveContent(state.chapterNotes?.[activeDocId]) && (
                     <span className="cn-dot" />
                   )}
+                </button>
+                <button
+                  className={`tb-btn${cardsOpen ? " active" : ""}`}
+                  onClick={() => { setCardsOpen((v) => !v); if (chNotesOpen) setChNotesOpen(false); }}
+                  title="Novel Notes Cards"
+                  style={{ width: "auto", padding: "0 8px", gap: 4, display: "flex", alignItems: "center", fontSize: 11, fontWeight: 700 }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
+                  </svg>
+                  Cards
                 </button>
               </div>
 
@@ -2056,10 +2152,140 @@ export default function MyFiles() {
                   </div>
                 </div>
               )}
+
+              {/* ── Novel Notes Cards Sidebar ── */}
+              {cardsOpen && (
+                <div className="nncards-sidebar">
+                  <div className="cn-header">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: "var(--accent)" }}>
+                      <rect x="2" y="3" width="20" height="14" rx="2" />
+                      <line x1="8" y1="21" x2="16" y2="21" />
+                      <line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>
+                    <span className="cn-header-title">Novel Notes Cards</span>
+                    <button className="cn-close" onClick={() => setCardsOpen(false)} title="Close"><Ico.Close /></button>
+                  </div>
+
+                  {/* Project selector */}
+                  {nnProjects.length > 1 && (
+                    <div className="nncards-proj-row">
+                      <select
+                        className="nncards-proj-select"
+                        value={nnSelPid ?? ""}
+                        onChange={(e) => setNnSelPid(e.target.value)}
+                      >
+                        {nnProjects.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="cn-body">
+                    {nnLoading && <p className="cn-empty">Loading cards…</p>}
+                    {!nnLoading && !nnSelPid && <p className="cn-empty">No Novel Notes data found.</p>}
+                    {!nnLoading && nnSelPid && (() => {
+                      const projData = nnRawData?.[nnSelPid];
+                      if (!projData) return <p className="cn-empty">No cards in this project yet.</p>;
+                      const cardsMap = projData.cards ?? {};
+                      const sectionsWithCards = NN_SECTIONS.filter((s) => (cardsMap[s.id]?.length ?? 0) > 0);
+                      if (sectionsWithCards.length === 0) return <p className="cn-empty">No cards in this project yet.</p>;
+                      return sectionsWithCards.map((section) => (
+                        <div key={section.id} className="nncards-group">
+                          <div className="nncards-group-label">{section.label}</div>
+                          {cardsMap[section.id].map((card) => {
+                            const displayName = card.name ?? card.title ?? "Untitled";
+                            const typeLabel = card.type === "char-card" || card.type === "char-card-full" ? "Character"
+                              : card.type === "rule-card" ? "World Rule"
+                              : card.type === "rel-card" ? "Relationship"
+                              : card.type ?? "Card";
+                            return (
+                              <button
+                                key={card.id}
+                                className="nncards-item"
+                                onClick={() => setSelectedCard(card)}
+                              >
+                                <span className="nncards-item-name">{displayName}</span>
+                                <span className="nncards-item-type">{typeLabel}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
+
+      {/* ── Novel Notes Card Popup ── */}
+      {selectedCard && (
+        <div className="nncard-popup-overlay" onClick={() => setSelectedCard(null)}>
+          <div className="nncard-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="nncard-popup-header">
+              <span className="nncard-popup-title">
+                {selectedCard.name ?? selectedCard.title ?? "Card"}
+              </span>
+              <span className="nncard-popup-type">
+                {selectedCard.type === "char-card" || selectedCard.type === "char-card-full" ? "Character"
+                  : selectedCard.type === "rule-card" ? "World Rule"
+                  : selectedCard.type === "rel-card" ? "Relationship"
+                  : selectedCard.type}
+              </span>
+              <button className="cn-close" onClick={() => setSelectedCard(null)} title="Close"><Ico.Close /></button>
+            </div>
+            <div className="nncard-popup-body">
+              {(selectedCard.type === "char-card" || selectedCard.type === "char-card-full") && (
+                <>
+                  {selectedCard.role && <div className="nncard-field"><span className="nncard-label">Role</span><span className="nncard-val">{selectedCard.role}</span></div>}
+                  {selectedCard.age && <div className="nncard-field"><span className="nncard-label">Age</span><span className="nncard-val">{selectedCard.age}</span></div>}
+                  {selectedCard.gender && <div className="nncard-field"><span className="nncard-label">Gender</span><span className="nncard-val">{selectedCard.gender}</span></div>}
+                  {selectedCard.nationality && <div className="nncard-field"><span className="nncard-label">Nationality</span><span className="nncard-val">{selectedCard.nationality}</span></div>}
+                  {(selectedCard.trait1 || selectedCard.trait2 || selectedCard.trait3) && (
+                    <div className="nncard-field">
+                      <span className="nncard-label">Traits</span>
+                      <span className="nncard-val">{[selectedCard.trait1, selectedCard.trait2, selectedCard.trait3].filter(Boolean).join(", ")}</span>
+                    </div>
+                  )}
+                  {selectedCard.motivation && <div className="nncard-field"><span className="nncard-label">Motivation</span><span className="nncard-val">{selectedCard.motivation}</span></div>}
+                  {selectedCard.fear && <div className="nncard-field"><span className="nncard-label">Fear</span><span className="nncard-val">{selectedCard.fear}</span></div>}
+                  {selectedCard.appearance && <div className="nncard-field nncard-field--block"><span className="nncard-label">Appearance</span><p className="nncard-text">{selectedCard.appearance}</p></div>}
+                  {selectedCard.personality && <div className="nncard-field nncard-field--block"><span className="nncard-label">Personality</span><p className="nncard-text">{selectedCard.personality}</p></div>}
+                  {selectedCard.bio && <div className="nncard-field nncard-field--block"><span className="nncard-label">Bio</span><p className="nncard-text">{selectedCard.bio}</p></div>}
+                </>
+              )}
+              {selectedCard.type === "rule-card" && (
+                <>
+                  {(selectedCard.rules ?? []).length === 0 && <p className="cn-empty">No rules added yet.</p>}
+                  {(selectedCard.rules ?? []).map((rule, i) => (
+                    <div key={i} className="nncard-rule">
+                      <span className="nncard-rule-num">{i + 1}</span>
+                      <span className="nncard-val">{rule}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+              {selectedCard.type === "rel-card" && (
+                <>
+                  {(selectedCard.entries ?? []).length === 0 && <p className="cn-empty">No relationships added yet.</p>}
+                  {(selectedCard.entries ?? []).map((entry, i) => (
+                    <div key={i} className="nncard-field nncard-field--block">
+                      <span className="nncard-label">{entry.name}</span>
+                      {entry.desc && <p className="nncard-text">{entry.desc}</p>}
+                    </div>
+                  ))}
+                </>
+              )}
+              {selectedCard.type !== "char-card" && selectedCard.type !== "char-card-full" && selectedCard.type !== "rule-card" && selectedCard.type !== "rel-card" && (
+                <p className="cn-empty">No details available for this card type.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* STATUS MENU */}
       <div className={`status-menu${statusMenuOpen ? " open" : ""}`} style={{ top: statusMenuPos.top, left: statusMenuPos.left }}>
