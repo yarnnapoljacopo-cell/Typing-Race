@@ -242,7 +242,7 @@ export default function MyFiles() {
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [paragraphMode, setParagraphMode] = useState<"none" | "indent" | "double">("none");
   const [fontSize, setFontSize] = useState(() => parseInt(localStorage.getItem("folio_font_size") || "16", 10));
-  const [autosaveShown, setAutosaveShown] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
 
   // Daily goal
   const [dailyGoal, setDailyGoal] = useState<number>(() =>
@@ -478,12 +478,13 @@ export default function MyFiles() {
   // Autosave debounce
   const autosaveTimer = useRef<number | null>(null);
   const scheduleAutosave = useCallback(() => {
+    setSaveStatus("unsaved");
     if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current);
     autosaveTimer.current = window.setTimeout(() => {
+      setSaveStatus("saving");
       saveCurrentDoc();
-      setAutosaveShown(true);
-      setTimeout(() => setAutosaveShown(false), 2000);
-    }, 1500);
+      setSaveStatus("saved");
+    }, 800);
   }, [saveCurrentDoc]);
 
   const updateWordCount = useCallback(() => {
@@ -668,7 +669,12 @@ export default function MyFiles() {
 
   // Manual save
   const manualSave = () => {
+    if (autosaveTimer.current) {
+      window.clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
+    }
     saveCurrentDoc();
+    setSaveStatus("saved");
     showToast("Saved");
   };
 
@@ -976,6 +982,19 @@ export default function MyFiles() {
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
   }, []);
+
+  // Flush pending autosave immediately on page unload so no work is lost.
+  useEffect(() => {
+    const onUnload = () => {
+      if (autosaveTimer.current) {
+        window.clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = null;
+      }
+      saveCurrentDoc();
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [saveCurrentDoc]);
 
   // ── Project modal handlers ──────────────────────────────
   const saveProjectModal = () => {
@@ -1520,11 +1539,11 @@ export default function MyFiles() {
                   {statusInfo.label}
                 </button>
                 <div className="editor-topbar-spacer" />
-                {autosaveShown && (
-                  <div className="autosave-indicator show">
-                    <Ico.Check /> Saved
-                  </div>
-                )}
+                <div className={`autosave-indicator autosave-indicator--${saveStatus}`}>
+                  {saveStatus === "unsaved" && <><span className="autosave-dot" /> Unsaved changes…</>}
+                  {saveStatus === "saving" && <><span className="autosave-dot autosave-dot--saving" /> Saving…</>}
+                  {saveStatus === "saved" && <><Ico.Check /> Saved</>}
+                </div>
                 <span className="editor-word-count">
                   {editorWordCount.toLocaleString()} word{editorWordCount === 1 ? "" : "s"}
                 </span>
