@@ -1195,6 +1195,7 @@ export default function MyFiles() {
     applyModeToPMyFiles(newP, paragraphMode);
 
     if (currentP) {
+      applyModeToPMyFiles(currentP, paragraphMode);
       const splitRange = document.createRange();
       splitRange.setStart(range.startContainer, range.startOffset);
       splitRange.setEnd(currentP, currentP.childNodes.length);
@@ -1696,10 +1697,13 @@ export default function MyFiles() {
           </div>
 
           <button className="sidebar-novel-notes-btn" onClick={() => setNovelNotesOpen(true)}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
             Novel Notes
+            <svg className="sidebar-novel-notes-btn-arr" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
           </button>
 
           <div className="sidebar-tree">
@@ -1969,9 +1973,13 @@ export default function MyFiles() {
         <div className="folio-main">
           {!activeDoc ? (
             <div className="welcome-panel">
-              <Ico.FolderBig />
-              <h2>No document open</h2>
-              <p>Select a chapter from the sidebar, or create a new project to start writing.</p>
+              <div className="welcome-panel-icon"><Ico.FolderBig /></div>
+              <h2>Your writing space</h2>
+              <p>Select a chapter from the sidebar to start writing, or create a new project to begin a fresh story.</p>
+              <div className="welcome-panel-hint">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Click <kbd>+</kbd> next to Projects to add one
+              </div>
             </div>
           ) : (
             <div className={`editor-panel${chNotesOpen ? " notes-open" : ""}${cardsOpen ? " cards-open" : ""}`}>
@@ -2103,104 +2111,6 @@ export default function MyFiles() {
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
-                <div className="tb-sep" />
-                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em", textTransform: "uppercase", marginRight: 2 }}>¶</span>
-                {(["none", "indent", "double"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    className={`tb-btn${paragraphMode === mode ? " active" : ""}`}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      const div = contentRef.current;
-                      const saved = savedRangeRef.current;
-                      if (saved && !saved.collapsed && div && div.contains(saved.commonAncestorContainer)) {
-                        div.querySelectorAll("p, div:not([id]):not([class])").forEach((p) => {
-                          if (saved.intersectsNode(p)) {
-                            const el = p as HTMLElement;
-                            if (mode === "double") {
-                              el.style.lineHeight = "1.7";
-                              el.style.marginBottom = "28px";
-                              el.style.marginTop = "0";
-                              el.style.textIndent = "";
-                            } else if (mode === "indent") {
-                              el.style.lineHeight = "1.7";
-                              el.style.marginBottom = "0";
-                              el.style.marginTop = "0";
-                              el.style.textIndent = "2em";
-                            } else {
-                              el.style.lineHeight = "1.4";
-                              el.style.marginBottom = "0";
-                              el.style.marginTop = "0";
-                              el.style.textIndent = "";
-                            }
-                          }
-                        });
-                        scheduleAutosave();
-                      } else {
-                        setParagraphMode(mode);
-                      }
-                    }}
-                    title={mode === "none" ? "Single line break" : mode === "indent" ? "Indent new paragraph" : "Double line break"}
-                    style={{ textTransform: "capitalize", fontSize: 10, padding: "0 6px", marginLeft: 4, marginRight: 4 }}
-                  >
-                    {mode === "none" ? "None" : mode === "indent" ? "Indent" : "Double"}
-                  </button>
-                ))}
-                <div className="tb-sep" />
-                <button
-                  className={`tb-btn${typewriterMode ? " active" : ""}`}
-                  onClick={() => setTypewriterMode((v) => !v)}
-                  title="Typewriter mode"
-                  style={{ fontSize: 11 }}
-                >⌨</button>
-                <button
-                  className={`tb-btn${focusMode ? " active" : ""}`}
-                  onClick={() => setFocusMode((v) => !v)}
-                  title="Focus mode"
-                >⛶</button>
-                <div className="tb-sep" />
-                {ltStatus === "checking" && (
-                  <span className="lt-badge lt-checking">checking…</span>
-                )}
-                {ltStatus !== "idle" && ltStatus !== "checking" && (
-                  <span
-                    className={`lt-badge ${ltStatus === 0 ? "lt-ok" : "lt-warn"}`}
-                    title={ltStatus === 0 ? "No issues found" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"} — hover the underlined text`}
-                  >
-                    {ltStatus === 0 ? "✓ grammar" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"}`}
-                  </span>
-                )}
-                <div className="tb-sep" />
-                <button
-                  className={`tb-btn${chNotesOpen ? " active" : ""}`}
-                  onClick={() => setChNotesOpen((v) => !v)}
-                  title="Chapter Notes"
-                  style={{ width: "auto", padding: "0 8px", gap: 4, display: "flex", alignItems: "center", position: "relative", fontSize: 11, fontWeight: 700 }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                    <line x1="9" y1="8" x2="15" y2="8" />
-                    <line x1="9" y1="12" x2="13" y2="12" />
-                  </svg>
-                  Chapter Notes
-                  {activeDocId && chNotesHaveContent(state.chapterNotes?.[activeDocId]) && (
-                    <span className="cn-dot" />
-                  )}
-                </button>
-                <button
-                  className={`tb-btn${cardsOpen ? " active" : ""}`}
-                  onClick={() => { setCardsOpen((v) => !v); if (chNotesOpen) setChNotesOpen(false); }}
-                  title="Novel Notes Cards"
-                  style={{ width: "auto", padding: "0 8px", gap: 4, display: "flex", alignItems: "center", fontSize: 11, fontWeight: 700 }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="3" width="20" height="14" rx="2" />
-                    <line x1="8" y1="21" x2="16" y2="21" />
-                    <line x1="12" y1="17" x2="12" y2="21" />
-                  </svg>
-                  Cards
-                </button>
               </div>
 
               {/* Find bar */}
@@ -2228,6 +2138,61 @@ export default function MyFiles() {
               )}
 
               <div className="editor-body" id="folio-editor-body">
+
+              {/* Floating controls pill */}
+              <div className="editor-controls-pill">
+                <div className="ecp-seg">
+                  {(["none", "indent", "double"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      className={`ecp-seg-btn${paragraphMode === mode ? " active" : ""}`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        const div = contentRef.current;
+                        const saved = savedRangeRef.current;
+                        if (saved && !saved.collapsed && div && div.contains(saved.commonAncestorContainer)) {
+                          div.querySelectorAll("p, div:not([id]):not([class])").forEach((p) => {
+                            if (saved.intersectsNode(p)) {
+                              const el = p as HTMLElement;
+                              if (mode === "double") { el.style.lineHeight = "1.7"; el.style.marginBottom = "28px"; el.style.marginTop = "0"; el.style.textIndent = ""; }
+                              else if (mode === "indent") { el.style.lineHeight = "1.7"; el.style.marginBottom = "0"; el.style.marginTop = "0"; el.style.textIndent = "2em"; }
+                              else { el.style.lineHeight = "1.4"; el.style.marginBottom = "0"; el.style.marginTop = "0"; el.style.textIndent = ""; }
+                            }
+                          });
+                          scheduleAutosave();
+                        } else { setParagraphMode(mode); }
+                      }}
+                      title={mode === "none" ? "Normal spacing" : mode === "indent" ? "Indent paragraphs" : "Double spacing"}
+                    >
+                      {mode === "none" ? "Normal" : mode === "indent" ? "Indent" : "Double"}
+                    </button>
+                  ))}
+                </div>
+                <div className="ecp-sep" />
+                <button className={`ecp-icon-btn${typewriterMode ? " active" : ""}`} onClick={() => setTypewriterMode((v) => !v)} title="Typewriter mode">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></svg>
+                </button>
+                <button className={`ecp-icon-btn${focusMode ? " active" : ""}`} onClick={() => setFocusMode((v) => !v)} title="Focus mode">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+                </button>
+                {ltStatus !== "idle" && ltStatus !== "checking" && (
+                  <span className={`ecp-badge ${ltStatus === 0 ? "ecp-badge--ok" : "ecp-badge--warn"}`}>
+                    {ltStatus === 0 ? "✓ Clean" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"}`}
+                  </span>
+                )}
+                <div className="ecp-sep" />
+                <button className={`ecp-tab${chNotesOpen ? " active" : ""}`} onClick={() => setChNotesOpen((v) => !v)} title="Chapter Notes">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                  Notes
+                  {activeDocId && chNotesHaveContent(state.chapterNotes?.[activeDocId]) && <span className="cn-dot" style={{ position: "relative", top: 0, right: 0, width: 5, height: 5 }} />}
+                </button>
+                <button className={`ecp-tab${cardsOpen ? " active" : ""}`} onClick={() => { setCardsOpen((v) => !v); if (chNotesOpen) setChNotesOpen(false); }} title="Novel Notes Cards">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  Cards
+                </button>
+              </div>
+
+              <div className="editor-paper">
                 <div className="sprint-trigger-row">
                   <button className="sprint-trigger-btn" onClick={openSprintModal}>
                     <Ico.Clock /> Start Sprint
@@ -2286,6 +2251,7 @@ export default function MyFiles() {
                     scheduleGrammarCheck();
                   }}
                 />
+              </div>{/* /editor-paper */}
               </div>
               </div>{/* /editor-col */}
 
