@@ -2648,7 +2648,9 @@ function deleteProject(pid) {
 
 async function saveProjects() {
   await idbSet('nn_projects_v1', projects);
-  await saveNN(); // keeps project names in sync with server via nnData.__projects
+  // Update the embedded copy in nnData so it's included next time cards are saved to server
+  nnData.__projects = projects;
+  await idbSet(NN_KEY, nnData);
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────
