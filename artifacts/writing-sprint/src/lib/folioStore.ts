@@ -34,6 +34,19 @@ export interface FolioState {
   chapterNotes?: Record<string, ChapterNotesData>;
 }
 
+// --- Conflict / field-meta types ---
+
+interface FieldSnapshot { updatedAt: number; origin: "offline" | "online"; }
+interface DocFieldMeta { content?: FieldSnapshot; }
+
+export interface FolioConflict {
+  docId: string;
+  projectId: string;
+  docName: string;
+  localContent: string;
+  remoteContent: string;
+}
+
 type FetchFn = (url: string, opts?: RequestInit) => Promise<Response>;
 type Listener = () => void;
 
@@ -41,6 +54,7 @@ const DB_NAME = "folio_db";
 const DB_VERSION = 1;
 const STORE_NAME = "folio";
 const SYNC_DEBOUNCE_MS = 3000;
+const META_DEBOUNCE_MS = 1000;
 const BASE = (typeof import.meta !== "undefined" && import.meta.env?.BASE_URL) || "/";
 
 function openIDB(): Promise<IDBDatabase> {
@@ -76,6 +90,18 @@ async function idbSet(key: string, value: unknown): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const tx = d.transaction(STORE_NAME, "readwrite");
       tx.objectStore(STORE_NAME).put(value, key);
+      tx.oncomplete = () => { d.close(); resolve(); };
+      tx.onerror = () => { d.close(); reject(tx.error); };
+    });
+  } catch { /* best-effort */ }
+}
+
+async function idbDelete(key: string): Promise<void> {
+  try {
+    const d = await openIDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = d.transaction(STORE_NAME, "readwrite");
+      tx.objectStore(STORE_NAME).delete(key);
       tx.oncomplete = () => { d.close(); resolve(); };
       tx.onerror = () => { d.close(); reject(tx.error); };
     });
@@ -134,21 +160,28 @@ class FolioStore {
   private _initialized = false;
   private _initializing = false;
   private _syncTimer: ReturnType<typeof setTimeout> | null = null;
+  private _metaTimer: ReturnType<typeof setTimeout> | null = null;
   private _online =
     typeof navigator !== "undefined" ? navigator.onLine : true;
   private _syncing = false;
   private _lastSyncError: string | null = null;
   private _initPromise: Promise<void> | null = null;
 
+  // --- Offline sync state ---
+  private _baseSnapshot: FolioState | null = null;
+  private _fieldMeta: Record<string, DocFieldMeta> = {};
+  private _conflicts: FolioConflict[] = [];
+
   constructor() {
     if (typeof window !== "undefined") {
       window.addEventListener("online", () => {
         this._online = true;
-        this.pushToServer();
+        this._syncOnReconnect();
         this.notify();
       });
       window.addEventListener("offline", () => {
         this._online = false;
+        this._captureBaseSnapshot();
         this.notify();
       });
     }
@@ -168,6 +201,9 @@ class FolioStore {
   }
   get lastSyncError(): string | null {
     return this._lastSyncError;
+  }
+  get conflicts(): FolioConflict[] {
+    return this._conflicts;
   }
 
   configure(fetchFn: FetchFn): void {
@@ -214,8 +250,13 @@ class FolioStore {
   }
 
   setState(updater: FolioState | ((prev: FolioState) => FolioState)): void {
-    const next = typeof updater === "function" ? updater(this._state) : updater;
+    const prev = this._state;
+    const next = typeof updater === "function" ? updater(prev) : updater;
     this._state = { ...this._state, ...next };
+
+    // Stamp content changes for conflict tracking
+    this._diffAndStampContent(prev, this._state);
+
     this.notify();
     this.persistLocal();
     this.schedulePush();
@@ -235,6 +276,42 @@ class FolioStore {
     this.schedulePush();
   }
 
+  resolveConflict(docId: string, choice: "local" | "remote"): void {
+    const conflict = this._conflicts.find((c) => c.docId === docId);
+    if (!conflict) return;
+
+    if (choice === "remote") {
+      // Apply the remote content to our local state
+      this._state = {
+        ...this._state,
+        projects: this._state.projects.map((p) =>
+          p.id === conflict.projectId
+            ? {
+                ...p,
+                docs: p.docs.map((d) =>
+                  d.id === docId
+                    ? { ...d, content: conflict.remoteContent, updatedAt: Date.now() }
+                    : d,
+                ),
+              }
+            : p,
+        ),
+      };
+      this.persistLocal();
+    }
+    // If choice === "local", current state already has the local content — no change needed.
+
+    // Remove from conflicts list
+    this._conflicts = this._conflicts.filter((c) => c.docId !== docId);
+    this.notify();
+
+    // Once all conflicts resolved, push final state and clear base snapshot
+    if (this._conflicts.length === 0) {
+      this._clearBaseSnapshot();
+      this.pushToServer();
+    }
+  }
+
   private async persistLocal(): Promise<void> {
     await idbSet("folio_state", {
       state: this._state,
@@ -252,6 +329,13 @@ class FolioStore {
   private schedulePush(): void {
     if (this._syncTimer) clearTimeout(this._syncTimer);
     this._syncTimer = setTimeout(() => this.pushToServer(), SYNC_DEBOUNCE_MS);
+  }
+
+  private scheduleMetaPersist(): void {
+    if (this._metaTimer) clearTimeout(this._metaTimer);
+    this._metaTimer = setTimeout(() => {
+      idbSet("folio_field_meta", this._fieldMeta);
+    }, META_DEBOUNCE_MS);
   }
 
   async pushToServer(): Promise<void> {
@@ -336,6 +420,16 @@ class FolioStore {
       await this.persistLocal();
     }
 
+    // Restore offline sync metadata
+    try {
+      const [snap, meta] = await Promise.all([
+        idbGet<FolioState>("folio_base_snapshot"),
+        idbGet<Record<string, DocFieldMeta>>("folio_field_meta"),
+      ]);
+      if (snap) this._baseSnapshot = snap;
+      if (meta) this._fieldMeta = meta;
+    } catch { /* ignore */ }
+
     if (this._fetchFn && this._online) {
       try {
         const serverState = await this.pullFromServer();
@@ -356,6 +450,155 @@ class FolioStore {
     this._initialized = true;
     this._initializing = false;
     this.notify();
+  }
+
+  // ── Offline / base-snapshot helpers ─────────────────────────────────────
+
+  private _captureBaseSnapshot(): void {
+    this._baseSnapshot = JSON.parse(JSON.stringify(this._state)) as FolioState;
+    idbSet("folio_base_snapshot", this._baseSnapshot);
+  }
+
+  private _clearBaseSnapshot(): void {
+    this._baseSnapshot = null;
+    this._fieldMeta = {};
+    idbDelete("folio_base_snapshot");
+    idbDelete("folio_field_meta");
+  }
+
+  private _stampContentChange(docId: string): void {
+    const origin = this._online ? "online" : "offline";
+    this._fieldMeta[docId] ??= {};
+    this._fieldMeta[docId].content = { updatedAt: Date.now(), origin };
+    this.scheduleMetaPersist();
+  }
+
+  private _diffAndStampContent(prev: FolioState, next: FolioState): void {
+    for (const proj of next.projects) {
+      for (const doc of proj.docs) {
+        const prevProj = prev.projects.find((p) => p.id === proj.id);
+        const prevDoc = prevProj?.docs.find((d) => d.id === doc.id);
+        if (!prevDoc || prevDoc.content !== doc.content) {
+          this._stampContentChange(doc.id);
+        }
+      }
+    }
+  }
+
+  private async _syncOnReconnect(): Promise<void> {
+    if (!this._fetchFn) {
+      // No auth yet — fall back to plain push once configure() is called
+      this.pushToServer();
+      return;
+    }
+    try {
+      const serverState = await this.pullFromServer();
+      if (!serverState) {
+        // Couldn't reach server — just push what we have
+        await this.pushToServer();
+        return;
+      }
+
+      const { merged, conflicts } = this._threeWayMerge(
+        this._state,
+        serverState,
+        this._baseSnapshot,
+      );
+
+      this._state = merged;
+      this._conflicts = conflicts;
+      this.notify();
+      await this.persistLocal();
+
+      if (conflicts.length === 0) {
+        this._clearBaseSnapshot();
+        await this.pushToServer();
+      }
+      // If there are conflicts, we wait for the user to resolve them before pushing.
+    } catch (err) {
+      console.warn("[folio] syncOnReconnect failed", err);
+      this.pushToServer();
+    }
+  }
+
+  private _threeWayMerge(
+    local: FolioState,
+    server: FolioState,
+    base: FolioState | null,
+  ): { merged: FolioState; conflicts: FolioConflict[] } {
+    const conflicts: FolioConflict[] = [];
+    const projectMap = new Map<string, FolioProject>();
+
+    // Start with server as base
+    for (const p of server.projects) {
+      projectMap.set(p.id, { ...p, docs: [...(p.docs ?? [])] });
+    }
+
+    // Walk local projects
+    for (const lp of local.projects) {
+      const existing = projectMap.get(lp.id);
+      if (!existing) {
+        // Project only exists locally — keep it
+        projectMap.set(lp.id, { ...lp, docs: [...(lp.docs ?? [])] });
+        continue;
+      }
+
+      const docMap = new Map<string, FolioDoc>();
+      for (const d of existing.docs) docMap.set(d.id, d);
+
+      for (const ld of lp.docs ?? []) {
+        const sd = docMap.get(ld.id);
+        const baseDoc = base?.projects
+          .find((p) => p.id === lp.id)
+          ?.docs.find((d) => d.id === ld.id);
+
+        if (!sd) {
+          // Doc only in local — keep local
+          docMap.set(ld.id, ld);
+          continue;
+        }
+
+        const baseContent = baseDoc?.content ?? null;
+        const offlineChanged = baseContent !== null && ld.content !== baseContent;
+        const onlineChanged = baseContent !== null && sd.content !== baseContent;
+
+        if (offlineChanged && onlineChanged) {
+          // Genuine conflict — keep local in merged state; flag for user
+          conflicts.push({
+            docId: ld.id,
+            projectId: lp.id,
+            docName: ld.name,
+            localContent: ld.content,
+            remoteContent: sd.content,
+          });
+          docMap.set(ld.id, ld); // local content held in state; remote offered in conflict UI
+        } else if (onlineChanged && !offlineChanged) {
+          // Only changed online — take server version
+          docMap.set(ld.id, sd);
+        } else {
+          // Changed offline only, or unchanged in both — local wins (existing behaviour)
+          if (ld.updatedAt >= sd.updatedAt) {
+            docMap.set(ld.id, ld);
+          } else {
+            docMap.set(ld.id, sd);
+          }
+        }
+      }
+
+      existing.docs = Array.from(docMap.values());
+      existing.open = lp.open;
+      projectMap.set(lp.id, existing);
+    }
+
+    const mergedNotes = { ...(server.notes ?? {}), ...(local.notes ?? {}) };
+    const mergedChapterNotes = { ...(server.chapterNotes ?? {}), ...(local.chapterNotes ?? {}) };
+    const merged: FolioState = {
+      projects: Array.from(projectMap.values()),
+      notes: mergedNotes,
+      chapterNotes: mergedChapterNotes,
+    };
+
+    return { merged, conflicts };
   }
 
   private merge(

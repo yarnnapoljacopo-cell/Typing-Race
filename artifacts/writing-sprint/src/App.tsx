@@ -117,7 +117,8 @@ class ClerkErrorBoundary extends Component<
       const isDomainError =
         !window.location.hostname.endsWith("writingsprint.site") &&
         !window.location.hostname.endsWith(".up.railway.app") &&
-        window.location.hostname !== "localhost";
+        window.location.hostname !== "localhost" &&
+        window.location.hostname !== "127.0.0.1";
 
       if (isDomainError) {
         return (
@@ -366,9 +367,9 @@ function HomeRedirect() {
 
   if (!isLoaded && !clerkTimedOut) return null;
 
-  // In the desktop app, go straight to offline sprint if there's no connection
+  // In the desktop app, go straight to Folio if there's no connection
   if (!!(window as any).electronAPI && !navigator.onLine) {
-    return <Redirect to="/offline-sprint" />;
+    return <Redirect to="/my-files" />;
   }
 
   if (isSignedIn || guestName) return <Redirect to="/portal" />;
@@ -506,8 +507,9 @@ function MyFilesGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const clerkTimedOut = useDevTimeout();
   const bypass = isPreviewBypassActive();
-  if (!isLoaded && !clerkTimedOut && !bypass) return null;
-  if (isSignedIn || bypass) return <MyFiles />;
+  const isElectronOffline = !!(window as any).electronAPI && !navigator.onLine;
+  if (!isLoaded && !clerkTimedOut && !bypass && !isElectronOffline) return null;
+  if (isSignedIn || bypass || isElectronOffline) return <MyFiles />;
   return <Redirect to="/" />;
 }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@clerk/react";
 import { useAuthedFetch } from "./authedFetch";
-import { folioStore, type FolioState } from "./folioStore";
+import { folioStore, type FolioState, type FolioConflict } from "./folioStore";
 
 export function useFolio() {
   const [, bump] = useState(0);
@@ -25,6 +25,13 @@ export function useFolio() {
     [],
   );
 
+  const resolveConflict = useCallback(
+    (docId: string, choice: "local" | "remote") => {
+      folioStore.resolveConflict(docId, choice);
+    },
+    [],
+  );
+
   return {
     state: folioStore.getState(),
     setState,
@@ -33,5 +40,7 @@ export function useFolio() {
     isInitialized: folioStore.isInitialized,
     lastSyncError: folioStore.lastSyncError,
     syncNow: () => folioStore.pushToServer(),
+    conflicts: folioStore.conflicts as FolioConflict[],
+    resolveConflict,
   };
 }

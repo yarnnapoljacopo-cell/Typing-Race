@@ -432,7 +432,7 @@ function FolioLogoMenu({ onBack }: { onBack: () => void }) {
 
 export default function MyFiles() {
   const [, setLocation] = useLocation();
-  const { state, setState, isOnline, isSyncing } = useFolio();
+  const { state, setState, isOnline, isSyncing, conflicts, resolveConflict } = useFolio();
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentEntry[]>(() => loadRecent());
@@ -2136,6 +2136,38 @@ export default function MyFiles() {
                   <button className="icon-btn" onClick={closeFindBar}><Ico.Close /></button>
                 </div>
               )}
+
+              {/* Conflict resolution banner */}
+              {conflicts.length > 0 && (() => {
+                const conflict = conflicts[0];
+                const idx = 0;
+                const total = conflicts.length;
+                return (
+                  <div className="conflict-banner">
+                    <div className="conflict-banner-icon">⚠</div>
+                    <div className="conflict-banner-body">
+                      <span className="conflict-banner-title">
+                        &ldquo;{conflict.docName}&rdquo; was edited offline and on the server.
+                        {total > 1 && <span className="conflict-banner-count"> ({idx + 1} of {total})</span>}
+                      </span>
+                      <div className="conflict-banner-actions">
+                        <button
+                          className="conflict-btn conflict-btn--local"
+                          onClick={() => resolveConflict(conflict.docId, "local")}
+                        >
+                          Keep my version
+                        </button>
+                        <button
+                          className="conflict-btn conflict-btn--remote"
+                          onClick={() => resolveConflict(conflict.docId, "remote")}
+                        >
+                          Keep server version
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="editor-body" id="folio-editor-body">
 
