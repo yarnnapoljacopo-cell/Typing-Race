@@ -1002,12 +1002,15 @@ let nnData = {};
 
 async function loadNN()   { const s = await idbGet(NN_KEY); if (s) nnData = s; }
 async function saveNN() {
+  // Embed project list so it survives IDB loss (gets synced to server with the card data)
+  nnData.__projects = projects;
   await idbSet(NN_KEY, nnData);
   if (window.parent !== window) {
     window.parent.postMessage({ type: 'nn:save', data: nnData }, '*');
   }
 }
-function ensureProj(pid)  { if (!nnData[pid]) nnData[pid] = { sections:{}, cards:{} }; }
+// Guard against __projects being treated as a card-data entry
+function ensureProj(pid)  { if (pid === '__projects') return; if (!nnData[pid]) nnData[pid] = { sections:{}, cards:{} }; }
 function getCards(pid, sid) {
   ensureProj(pid);
   if (!nnData[pid].cards[sid]) nnData[pid].cards[sid] = [];
@@ -2645,6 +2648,7 @@ function deleteProject(pid) {
 
 async function saveProjects() {
   await idbSet('nn_projects_v1', projects);
+  await saveNN(); // keeps project names in sync with server via nnData.__projects
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────
@@ -2745,6 +2749,11 @@ if (_isEmbedded) {
     if (msg.data && msg.data.nnData && Object.keys(msg.data.nnData).length > 0) {
       nnData = msg.data.nnData;
       idbSet(NN_KEY, nnData);
+      // Recover project list from embedded copy if local is empty
+      if ((!projects || !projects.length) && nnData.__projects && nnData.__projects.length) {
+        projects = nnData.__projects;
+        idbSet('nn_projects_v1', projects);
+      }
     }
     renderProjectList();
     if (activePid) renderWiki();
@@ -2756,6 +2765,10 @@ try {
   const nnProjects = await idbGet('nn_projects_v1');
   if (nnProjects && nnProjects.length) {
     projects = nnProjects;
+  } else if (nnData.__projects && nnData.__projects.length) {
+    // Recover project list from server-synced copy embedded in nnData
+    projects = nnData.__projects;
+    await idbSet('nn_projects_v1', projects);
   } else {
     // Migrate from old shared key — Novel Notes projects have no 'docs' array
     const stored = await idbGet('folio_state');

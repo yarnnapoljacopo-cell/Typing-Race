@@ -288,6 +288,37 @@ function idbFolioGet<T>(key: string): Promise<T | undefined> {
   });
 }
 
+function idbFolioSet(key: string, value: unknown): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open("folio_db", 1);
+      req.onsuccess = () => {
+        const db = req.result;
+        try {
+          const tx = db.transaction("folio", "readwrite");
+          tx.objectStore("folio").put(value, key);
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onerror = () => { db.close(); resolve(); };
+        } catch { db.close(); resolve(); }
+      };
+      req.onerror = () => resolve();
+    } catch { resolve(); }
+  });
+}
+
+type NNProject = { id: string; name: string; _nn?: Record<string, unknown> };
+
+async function syncNNProject(id: string, name: string): Promise<void> {
+  const existing = await idbFolioGet<NNProject[]>("nn_projects_v1") ?? [];
+  const idx = existing.findIndex((p) => p.id === id);
+  if (idx >= 0) {
+    existing[idx] = { ...existing[idx], name };
+  } else {
+    existing.push({ id, name });
+  }
+  await idbFolioSet("nn_projects_v1", existing);
+}
+
 async function readNNProjects(): Promise<{ id: string; name: string }[]> {
   const direct = await idbFolioGet<{ id: string; name: string }[]>("nn_projects_v1");
   if (direct && direct.length) return direct;
@@ -1280,11 +1311,14 @@ export default function MyFiles() {
       setState((prev) => ({
         projects: prev.projects.map((p) => (p.id === projectModal.editingId ? { ...p, name } : p)),
       }));
+      syncNNProject(projectModal.editingId, name);
       showToast("Project renamed");
     } else {
+      const newId = uid();
       setState((prev) => ({
-        projects: [...prev.projects, { id: uid(), name, open: true, docs: [] }],
+        projects: [...prev.projects, { id: newId, name, open: true, docs: [] }],
       }));
+      syncNNProject(newId, name);
       showToast("Project created");
     }
     setProjectModal({ open: false, editingId: null, name: "" });
