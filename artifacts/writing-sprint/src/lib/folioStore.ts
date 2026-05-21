@@ -258,6 +258,9 @@ class FolioStore {
     this._diffAndStampContent(prev, this._state);
 
     this.notify();
+    // Synchronous localStorage backup runs first so beforeunload always has
+    // a current copy even when the async IDB write races with page close.
+    this.persistLocalBackup();
     this.persistLocal();
     this.schedulePush();
   }
@@ -312,11 +315,24 @@ class FolioStore {
     }
   }
 
+  private persistLocalBackup(): void {
+    // Synchronous localStorage backup — guaranteed to complete even during
+    // beforeunload, unlike the async IDB write. Capped at 4 MB to avoid
+    // quota errors on large projects.
+    try {
+      const payload = JSON.stringify({ state: this._state, updatedAt: Date.now() });
+      if (payload.length < 4 * 1024 * 1024) {
+        localStorage.setItem("folio_ls_backup", payload);
+      }
+    } catch { /* quota exceeded — skip */ }
+  }
+
   private async persistLocal(): Promise<void> {
-    await idbSet("folio_state", {
-      state: this._state,
-      updatedAt: Date.now(),
-    });
+    const payload = { state: this._state, updatedAt: Date.now() };
+    await idbSet("folio_state", payload);
+    // Mirror to localStorage synchronously so tab-close saves are not lost
+    // even when the async IDB write doesn't complete in time.
+    this.persistLocalBackup();
   }
 
   private async persistLocalDirect(state: FolioState): Promise<void> {
@@ -412,6 +428,22 @@ class FolioStore {
         await this.persistLocalDirect(localState);
         clearLocalStorageFolioData();
       }
+    }
+
+    // Fallback: if IDB returned nothing, try the synchronous localStorage backup.
+    // This recovers data lost when a tab-close raced the async IDB write.
+    if (!localState) {
+      try {
+        const raw = localStorage.getItem("folio_ls_backup");
+        if (raw) {
+          const parsed = JSON.parse(raw) as { state?: FolioState };
+          if (parsed?.state) {
+            localState = FolioStore.normalizeState(parsed.state);
+            // Write back to IDB so future loads go through the normal path.
+            await this.persistLocalDirect(localState);
+          }
+        }
+      } catch { /* ignore */ }
     }
 
     if (localState) {

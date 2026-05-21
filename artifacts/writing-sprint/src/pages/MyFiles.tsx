@@ -558,9 +558,17 @@ export default function MyFiles() {
   // raw markdown like **text** in the document.
   const titleRef = useRef<HTMLTextAreaElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  // Snapshot of the last-typed HTML + title. Updated on every scheduleAutosave
+  // call so saveCurrentDoc can use it when the DOM refs are null (post-unmount).
+  const editorSnapshotRef = useRef<{ html: string; title: string }>({ html: "", title: "" });
   const [editorWordCount, setEditorWordCount] = useState(0);
 
   // Grammar check state
+  const [ltEnabled, setLtEnabled] = useState<boolean>(() => {
+    const stored = localStorage.getItem("folio_grammar_enabled");
+    return stored === null ? true : stored === "true";
+  });
+
   type LtStatus = "idle" | "checking" | number;
   interface LtMatch {
     message: string;
@@ -715,22 +723,38 @@ export default function MyFiles() {
   const prevWordsRef = useRef(0);
   const saveCurrentDoc = useCallback(() => {
     if (!activeProjectId || !activeDocId) return;
-    const titleVal = titleRef.current?.value || "";
-    // Persist HTML so formatting survives reload; word count uses plain text.
-    // Tag with a sentinel so loadEditorContent can distinguish rich content
-    // from legacy plain text without using a brittle heuristic.
-    // Clone and strip lt-mark spans so grammar highlights are never persisted.
-    const html = (() => {
-      const div = contentRef.current;
-      if (!div) return "";
-      const clone = div.cloneNode(true) as HTMLElement;
-      clone.querySelectorAll(".lt-mark").forEach((mark) => {
+
+    // Prefer live DOM; fall back to editorSnapshotRef when DOM refs are null
+    // (e.g. called from unmount cleanup or visibilitychange after unmount).
+    const titleVal = titleRef.current?.value
+      ?? editorSnapshotRef.current.title
+      ?? "";
+
+    const stripMarks = (el: HTMLElement): string => {
+      el.querySelectorAll(".lt-mark").forEach((mark) => {
         const p = mark.parentNode!;
         while (mark.firstChild) p.insertBefore(mark.firstChild, mark);
         p.removeChild(mark);
       });
-      return clone.innerHTML;
+      return el.innerHTML;
+    };
+
+    const html = (() => {
+      const div = contentRef.current;
+      if (div) {
+        return stripMarks(div.cloneNode(true) as HTMLElement);
+      }
+      // DOM is gone — use the snapshot captured before unmount.
+      const snap = editorSnapshotRef.current.html;
+      if (!snap) return null; // No snapshot → nothing new to save; bail out.
+      const tmp = document.createElement("div");
+      tmp.innerHTML = snap;
+      return stripMarks(tmp);
     })();
+
+    // Guard: never overwrite persisted content with an empty string.
+    if (html === null) return;
+
     const contentVal = html ? RICH_PREFIX + html : "";
     const contentPlain = contentRef.current?.innerText || "";
     const newWC = wc(titleVal + " " + contentPlain);
@@ -781,16 +805,30 @@ export default function MyFiles() {
     setTimeout(() => setChNotesSaved(false), 2000);
   }, [activeDocId, chNotesDraft, setState]);
 
+  // Always-current ref to saveCurrentDoc so effects with stable deps can call
+  // the latest version (avoids stale closure over activeProjectId/activeDocId).
+  const saveCurrentDocRef = useRef<() => void>(() => {});
+
   // Autosave debounce
   const autosaveTimer = useRef<number | null>(null);
   const scheduleAutosave = useCallback(() => {
     setSaveStatus("unsaved");
+    // Keep a synchronous snapshot so unmount / visibility saves work even
+    // after contentRef and titleRef are nullified by React on unmount.
+    if (contentRef.current) editorSnapshotRef.current.html = contentRef.current.innerHTML;
+    if (titleRef.current) editorSnapshotRef.current.title = titleRef.current.value;
     if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current);
     autosaveTimer.current = window.setTimeout(() => {
       setSaveStatus("saving");
       saveCurrentDoc();
       setSaveStatus("saved");
     }, 800);
+  }, [saveCurrentDoc]);
+
+  // Keep saveCurrentDocRef pointing at the latest version so effects with
+  // stable deps (unmount cleanup, visibilitychange) always call fresh code.
+  useEffect(() => {
+    saveCurrentDocRef.current = saveCurrentDoc;
   }, [saveCurrentDoc]);
 
   const updateWordCount = useCallback(() => {
@@ -856,7 +894,20 @@ export default function MyFiles() {
     applyingMarksRef.current = false;
   }, [clearMarks]);
 
+  useEffect(() => {
+    localStorage.setItem("folio_grammar_enabled", String(ltEnabled));
+    if (!ltEnabled) {
+      if (ltTimerRef.current) clearTimeout(ltTimerRef.current);
+      setLtStatus("idle");
+      setLtMatches([]);
+      setLtTooltip(null);
+      clearMarks();
+      ltLastTextRef.current = "";
+    }
+  }, [ltEnabled, clearMarks]);
+
   const scheduleGrammarCheck = useCallback(() => {
+    if (!ltEnabled) return;
     if (ltTimerRef.current) clearTimeout(ltTimerRef.current);
     ltTimerRef.current = setTimeout(async () => {
       const text = contentRef.current?.innerText ?? "";
@@ -883,7 +934,7 @@ export default function MyFiles() {
         if (ltRequestIdRef.current === reqId) setLtStatus("idle");
       }
     }, 1600);
-  }, [clearMarks, applyMarks]);
+  }, [ltEnabled, clearMarks, applyMarks]);
 
   // Replace the marked text with the chosen suggestion, then re-check.
   const applyFixMark = useCallback((offset: number, length: number, replacement: string) => {
@@ -951,6 +1002,9 @@ export default function MyFiles() {
       setLtTooltip(null);
       clearMarks();
       ltLastTextRef.current = "";
+      // Reset snapshot so a stale snapshot from the previous doc can't
+      // accidentally be used in an emergency save for this doc.
+      editorSnapshotRef.current = { html: "", title: doc.name };
     }, 0);
     setFindOpen(false);
   };
@@ -1302,6 +1356,39 @@ export default function MyFiles() {
     window.addEventListener("beforeunload", onUnload);
     return () => window.removeEventListener("beforeunload", onUnload);
   }, [saveCurrentDoc]);
+
+  // Save when the tab is hidden (user switches tabs, minimises, etc.).
+  // Prevents losing in-flight autosave work if the browser discards the tab.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        if (autosaveTimer.current) {
+          window.clearTimeout(autosaveTimer.current);
+          autosaveTimer.current = null;
+        }
+        saveCurrentDocRef.current();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  // Save on component unmount (SPA navigation via sidebar / back button).
+  // beforeunload does NOT fire for in-app route changes, so this is the
+  // only safety net when the user navigates away inside the app.
+  // saveCurrentDocRef always points to the latest saveCurrentDoc so the
+  // correct activeProjectId/activeDocId are captured in the closure.
+  // editorSnapshotRef holds the latest HTML so it works even after
+  // contentRef/titleRef are nullified by React during unmount.
+  useEffect(() => {
+    return () => {
+      if (autosaveTimer.current) {
+        window.clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = null;
+      }
+      saveCurrentDocRef.current();
+    };
+  }, []);
 
   // ── Project modal handlers ──────────────────────────────
   const saveProjectModal = () => {
@@ -2241,7 +2328,15 @@ export default function MyFiles() {
                 <button className={`ecp-icon-btn${focusMode ? " active" : ""}`} onClick={() => setFocusMode((v) => !v)} title="Focus mode">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
                 </button>
-                {ltStatus !== "idle" && ltStatus !== "checking" && (
+                <button
+                  className={`ecp-seg-btn${ltEnabled ? " active" : ""}`}
+                  onClick={() => setLtEnabled((v) => !v)}
+                  title={ltEnabled ? "Grammar check on — click to disable" : "Grammar check off — click to enable"}
+                  style={{ fontSize: 11 }}
+                >
+                  {ltEnabled ? "✓ Grammar" : "Grammar off"}
+                </button>
+                {ltEnabled && ltStatus !== "idle" && ltStatus !== "checking" && (
                   <span className={`ecp-badge ${ltStatus === 0 ? "ecp-badge--ok" : "ecp-badge--warn"}`}>
                     {ltStatus === 0 ? "✓ Clean" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"}`}
                   </span>
