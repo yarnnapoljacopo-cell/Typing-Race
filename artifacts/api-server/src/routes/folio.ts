@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, folioStateTable, folioSnapshotsTable } from "@workspace/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -80,6 +80,51 @@ router.put("/folio", async (req, res): Promise<void> => {
 
   req.log.info({ userId }, "Folio state saved");
   res.json({ ok: true, updatedAt: now.toISOString() });
+});
+
+/** List the most recent snapshots (metadata only, no full state blob). */
+router.get("/folio/snapshots", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const userId = auth?.userId;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rows = await db
+    .select({ id: folioSnapshotsTable.id, savedAt: folioSnapshotsTable.savedAt })
+    .from(folioSnapshotsTable)
+    .where(eq(folioSnapshotsTable.userId, userId))
+    .orderBy(desc(folioSnapshotsTable.savedAt))
+    .limit(MAX_SNAPSHOTS);
+
+  res.json({ snapshots: rows.map((r) => ({ id: r.id, savedAt: r.savedAt.toISOString() })) });
+});
+
+/** Restore a specific snapshot — overwrites the current state. */
+router.post("/folio/snapshots/:id/restore", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const userId = auth?.userId;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid snapshot id" }); return; }
+
+  const [snap] = await db
+    .select()
+    .from(folioSnapshotsTable)
+    .where(and(eq(folioSnapshotsTable.id, id), eq(folioSnapshotsTable.userId, userId)))
+    .limit(1);
+
+  if (!snap) { res.status(404).json({ error: "Snapshot not found" }); return; }
+
+  // Write the snapshot state back as the live state.
+  const now = new Date();
+  await db.insert(folioStateTable)
+    .values({ userId, state: snap.state, updatedAt: now })
+    .onConflictDoUpdate({
+      target: [folioStateTable.userId],
+      set: { state: snap.state, updatedAt: now },
+    });
+
+  res.json({ ok: true, restoredAt: now.toISOString() });
 });
 
 export default router;
