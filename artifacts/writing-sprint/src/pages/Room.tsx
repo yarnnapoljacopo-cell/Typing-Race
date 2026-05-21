@@ -1551,6 +1551,11 @@ export default function Room() {
   const reaperWordCount = isRunning && room.deathModeWpm != null
     ? Math.floor(room.deathModeWpm * Math.max(0, clientElapsedMs / 1000 - reaperHeadstart) / 60)
     : null;
+
+  // Seconds remaining in the headstart window (reaper hasn't started yet)
+  const headstartSecsLeft = isRunning && room.deathModeWpm != null
+    ? Math.max(0, Math.ceil(reaperHeadstart - clientElapsedMs / 1000))
+    : 0;
   const myParticipant = room.participants.find((p) => p.id === participantId);
   const isEliminated = reaperWordCount != null && myParticipant != null
     && myParticipant.wordCount < reaperWordCount
@@ -1790,6 +1795,30 @@ export default function Room() {
                       roomMode={room.mode}
                     />
                   )}
+                  {/* Death Mode: headstart countdown — reaper hasn't stirred yet */}
+                  {headstartSecsLeft > 0 && (
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      borderRadius: 12, padding: "10px 16px",
+                      background: "linear-gradient(135deg, rgba(10,0,0,0.9), rgba(45,0,0,0.85))",
+                      border: "1px solid rgba(180,0,0,0.5)",
+                      boxShadow: "0 0 18px rgba(180,0,0,0.2)",
+                      animation: "reaperPulse 2.4s ease-in-out infinite",
+                    }}>
+                      <span style={{ fontSize: "1.1rem", animation: "reaperFlicker 1.8s ease-in-out infinite" }}>☠️</span>
+                      <span style={{ color: "#fca5a5", fontSize: "0.82rem", fontWeight: 600 }}>
+                        The reaper stirs in
+                      </span>
+                      <span style={{
+                        fontFamily: "monospace", fontWeight: 800, fontSize: "1.3rem",
+                        color: "#ff4444", minWidth: 36, textAlign: "center",
+                        textShadow: "0 0 10px #ff0000, 0 0 20px #ff000055",
+                        animation: headstartSecsLeft <= 3 ? "reaperFlicker 0.4s ease-in-out infinite" : undefined,
+                      }}>
+                        {headstartSecsLeft}s
+                      </span>
+                    </div>
+                  )}
                   {/* Death Mode: grace-period countdown banner */}
                   {graceCountdown !== null && isRunning && (
                     <div className="flex items-center justify-center gap-3 rounded-xl border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm font-bold text-red-700 dark:text-red-300 animate-in fade-in duration-200">
@@ -1815,33 +1844,35 @@ export default function Room() {
                       const ss = String(secs % 60).padStart(2, "0");
                       const isLow = isRunning && secs > 0 && secs <= 60;
                       const isDeathCountdown = isCountdown && room.deathModeWpm != null;
+                      const isHeadstart = headstartSecsLeft > 0;
+                      const headstartAlmostDone = isHeadstart && headstartSecsLeft <= 3;
                       return (
                         <div style={{
                           flex: 1,
-                          background: isDeathCountdown
+                          background: isHeadstart || isDeathCountdown
                             ? "linear-gradient(160deg, rgba(10,0,0,0.95), rgba(50,0,0,0.9))"
                             : isLow ? "rgba(254,226,226,0.95)" : "rgba(255,255,255,0.92)",
                           backdropFilter: "blur(16px)",
                           WebkitBackdropFilter: "blur(16px)",
-                          border: isDeathCountdown
+                          border: isHeadstart || isDeathCountdown
                             ? "1px solid rgba(180,0,0,0.6)"
                             : `1px solid ${isLow ? "rgba(220,38,38,0.25)" : "rgba(255,255,255,0.9)"}`,
                           borderRadius: 14,
-                          boxShadow: isDeathCountdown
+                          boxShadow: isHeadstart || isDeathCountdown
                             ? "0 0 20px rgba(180,0,0,0.3), 0 4px 20px rgba(0,0,0,0.4)"
                             : "0 4px 20px rgba(107,143,212,0.08)",
                           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                           padding: "8px 12px",
-                          animation: isDeathCountdown ? "reaperPulse 2.4s ease-in-out infinite" : undefined,
+                          animation: isHeadstart || isDeathCountdown ? "reaperPulse 2.4s ease-in-out infinite" : undefined,
                         }}>
-                          {isDeathCountdown && (
-                            <div style={{ fontSize: "1.1rem", marginBottom: 2, filter: "drop-shadow(0 0 5px #ff0000)", animation: "reaperFlicker 1.8s ease-in-out infinite" }}>☠️</div>
+                          {(isHeadstart || isDeathCountdown) && (
+                            <div style={{ fontSize: "1.1rem", marginBottom: 2, filter: "drop-shadow(0 0 5px #ff0000)", animation: `reaperFlicker ${headstartAlmostDone ? "0.4s" : "1.8s"} ease-in-out infinite` }}>☠️</div>
                           )}
-                          <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "2.2rem", letterSpacing: "-0.04em", color: isDeathCountdown ? "#ff4444" : isLow ? "#dc2626" : "#1a1a2e", lineHeight: 1, fontVariantNumeric: "tabular-nums", textShadow: isDeathCountdown ? "0 0 12px #ff0000, 0 0 24px #ff000055" : undefined }}>
-                            {mm}:{ss}
+                          <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: isHeadstart ? "2.6rem" : "2.2rem", letterSpacing: "-0.04em", color: isHeadstart || isDeathCountdown ? "#ff4444" : isLow ? "#dc2626" : "#1a1a2e", lineHeight: 1, fontVariantNumeric: "tabular-nums", textShadow: isHeadstart || isDeathCountdown ? "0 0 12px #ff0000, 0 0 24px #ff000055" : undefined }}>
+                            {isHeadstart ? `${headstartSecsLeft}s` : `${mm}:${ss}`}
                           </div>
-                          <div style={{ fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, color: isDeathCountdown ? "#f87171" : isLow ? "#dc2626" : "#7a7a92", marginTop: 4, textAlign: "center", lineHeight: 1.3 }}>
-                            {isDeathCountdown ? "Reaper\nawakens" : isLow ? "⏰ Final minute!" : isCountdown ? "Until start" : "Remaining"}
+                          <div style={{ fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, color: isHeadstart || isDeathCountdown ? "#f87171" : isLow ? "#dc2626" : "#7a7a92", marginTop: 4, textAlign: "center", lineHeight: 1.3 }}>
+                            {isHeadstart ? "Reaper\nstirring" : isDeathCountdown ? "Reaper\nawakens" : isLow ? "⏰ Final minute!" : isCountdown ? "Until start" : "Remaining"}
                           </div>
                         </div>
                       );
