@@ -562,6 +562,10 @@ export default function MyFiles() {
   // Snapshot of the last-typed HTML + title. Updated on every scheduleAutosave
   // call so saveCurrentDoc can use it when the DOM refs are null (post-unmount).
   const editorSnapshotRef = useRef<{ html: string; title: string }>({ html: "", title: "" });
+  // Pending content to load once the editor div is mounted. Set by openDoc,
+  // consumed by the useEffect below — avoids the setTimeout(0) race where
+  // the editor isn't in the DOM yet when the timer fires.
+  const pendingLoadRef = useRef<{ content: string; title: string } | null>(null);
   const [editorWordCount, setEditorWordCount] = useState(0);
 
   // Grammar check state
@@ -856,6 +860,34 @@ export default function MyFiles() {
     saveChapterNotesRef.current = saveChapterNotes;
   }, [saveChapterNotes]);
 
+  // Load content after openDoc sets activeDocId. Using useEffect guarantees
+  // contentRef.current exists because effects run after React commits the DOM.
+  // The old setTimeout(0) approach fired before the editor div was mounted.
+  useEffect(() => {
+    const pending = pendingLoadRef.current;
+    if (!pending) return;
+    pendingLoadRef.current = null;
+
+    const div = contentRef.current;
+    if (!div) return; // editor not yet in DOM (shouldn't happen, but bail safely)
+
+    if (titleRef.current) {
+      titleRef.current.value = pending.title;
+      autoResize(titleRef.current);
+    }
+    loadEditorContent(pending.content);
+    prevWordsRef.current = wc(pending.title + " " + (div.innerText || docPlainText(pending.content)));
+    updateWordCount();
+    div.focus();
+    setLtStatus("idle");
+    setLtMatches([]);
+    setLtTooltip(null);
+    clearMarks();
+    ltLastTextRef.current = "";
+    editorSnapshotRef.current = { html: "", title: pending.title };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDocId, activeProjectId]);
+
   // Auto-save chapter notes 800ms after the user stops editing them.
   // Also flushes synchronously on all emergency-save paths below.
   useEffect(() => {
@@ -1038,26 +1070,9 @@ export default function MyFiles() {
       const filtered = prev.filter((r) => r.docId !== docId);
       return [{ projectId: projId, docId }, ...filtered].slice(0, 6);
     });
-    // Defer: set ref values + word count after render
-    setTimeout(() => {
-      if (titleRef.current) {
-        titleRef.current.value = doc.name;
-        autoResize(titleRef.current);
-      }
-      loadEditorContent(doc.content);
-      prevWordsRef.current = wc(doc.name + " " + (contentRef.current?.innerText || docPlainText(doc.content)));
-      updateWordCount();
-      contentRef.current?.focus();
-      // Reset grammar status for the new doc
-      setLtStatus("idle");
-      setLtMatches([]);
-      setLtTooltip(null);
-      clearMarks();
-      ltLastTextRef.current = "";
-      // Reset snapshot so a stale snapshot from the previous doc can't
-      // accidentally be used in an emergency save for this doc.
-      editorSnapshotRef.current = { html: "", title: doc.name };
-    }, 0);
+    // Store what to load — the useEffect below picks this up after React
+    // has committed the render and the editor div is guaranteed to exist.
+    pendingLoadRef.current = { content: doc.content, title: doc.name };
     setFindOpen(false);
   };
 
