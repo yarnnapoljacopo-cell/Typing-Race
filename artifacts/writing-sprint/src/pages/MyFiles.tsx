@@ -4,6 +4,7 @@ import SprintPopup from "./SprintPopup";
 import StickyNote from "./StickyNote";
 import { useFolio } from "@/lib/useFolio";
 import { useAuthedFetch } from "@/lib/authedFetch";
+import { folioStore } from "@/lib/folioStore";
 import type { FolioDoc as Doc, FolioProject as Project, FolioState, ChapterNotesData } from "@/lib/folioStore";
 import "./MyFiles.css";
 
@@ -1021,7 +1022,11 @@ export default function MyFiles() {
     }
     if (activeDocId) saveCurrentDoc();
     saveChapterNotesRef.current();
-    const proj = state.projects.find((p) => p.id === projId);
+    // Read from the live store after saving — the React `state` closure is
+    // from the previous render and won't reflect content just flushed from
+    // the snapshot (e.g. after back-to-home-and-return).
+    const freshState = folioStore.getState();
+    const proj = freshState.projects.find((p) => p.id === projId);
     const doc = proj?.docs.find((d) => d.id === docId);
     if (!proj || !doc) return;
     setActiveProjectId(projId);
