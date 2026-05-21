@@ -766,10 +766,13 @@ export default function MyFiles() {
       const existingDoc = prev.projects
         .find((p) => p.id === activeProjectId)
         ?.docs.find((d) => d.id === activeDocId);
-      // Never overwrite non-empty persisted content with an empty string.
-      // This guards against the edge case where contentRef and snapshot are
-      // both empty (e.g. snapshot was just reset during a doc switch).
-      if (!contentVal && existingDoc?.content) return prev;
+      // Never overwrite real content with an empty or default-empty value.
+      // The freshly-mounted editor starts as "" and auto-focus injects
+      // "<p><br></p>" before loadEditorContent runs — both must be blocked.
+      const RICH_EMPTY = RICH_PREFIX + "<p><br></p>";
+      const isEffectivelyEmpty = !contentVal || contentVal === RICH_EMPTY;
+      const existingHasContent = !!existingDoc?.content && existingDoc.content !== RICH_EMPTY;
+      if (isEffectivelyEmpty && existingHasContent) return prev;
       return {
         projects: prev.projects.map((p) =>
           p.id !== activeProjectId
