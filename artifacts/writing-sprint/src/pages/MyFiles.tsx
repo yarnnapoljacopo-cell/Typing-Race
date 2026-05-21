@@ -741,11 +741,21 @@ export default function MyFiles() {
 
     const html = (() => {
       const div = contentRef.current;
+      const snap = editorSnapshotRef.current.html;
       if (div) {
-        return stripMarks(div.cloneNode(true) as HTMLElement);
+        const liveHtml = stripMarks(div.cloneNode(true) as HTMLElement);
+        // If the live DOM is empty or just the auto-focus placeholder but
+        // the snapshot has real content, the editor remounted without its
+        // content yet (e.g. back-to-home then return). Use the snapshot so
+        // we don't overwrite the user's work with a blank paragraph.
+        if ((!liveHtml || liveHtml === "<p><br></p>") && snap) {
+          const tmp = document.createElement("div");
+          tmp.innerHTML = snap;
+          return stripMarks(tmp);
+        }
+        return liveHtml;
       }
       // DOM is gone — use the snapshot captured before unmount.
-      const snap = editorSnapshotRef.current.html;
       if (!snap) return null; // No snapshot → nothing new to save; bail out.
       const tmp = document.createElement("div");
       tmp.innerHTML = snap;
