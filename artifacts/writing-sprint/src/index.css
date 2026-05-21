@@ -516,6 +516,18 @@ html.villain h1, html.villain h2 {
   50%     { opacity: 0.4; }
 }
 
+@keyframes reaperPulse {
+  0%,100% { box-shadow: 0 0 18px rgba(180,0,0,0.25), inset 0 0 30px rgba(0,0,0,0.4); border-color: rgba(180,0,0,0.55); }
+  50%     { box-shadow: 0 0 32px rgba(220,0,0,0.5), inset 0 0 40px rgba(0,0,0,0.5); border-color: rgba(220,0,0,0.85); }
+}
+
+@keyframes reaperFlicker {
+  0%,100% { opacity: 0.7; }
+  30%     { opacity: 1; }
+  60%     { opacity: 0.5; }
+  80%     { opacity: 0.9; }
+}
+
 .portal-fade-up  { animation: portalFadeUp 0.7s cubic-bezier(.22,1,.36,1) both; }
 .portal-logo-float { animation: portalLogoFloat 4s ease-in-out infinite; }
 .portal-badge-dot {

@@ -1814,23 +1814,34 @@ export default function Room() {
                       const mm = String(Math.floor(secs / 60)).padStart(2, "0");
                       const ss = String(secs % 60).padStart(2, "0");
                       const isLow = isRunning && secs > 0 && secs <= 60;
+                      const isDeathCountdown = isCountdown && room.deathModeWpm != null;
                       return (
                         <div style={{
                           flex: 1,
-                          background: isLow ? "rgba(254,226,226,0.95)" : "rgba(255,255,255,0.92)",
+                          background: isDeathCountdown
+                            ? "linear-gradient(160deg, rgba(10,0,0,0.95), rgba(50,0,0,0.9))"
+                            : isLow ? "rgba(254,226,226,0.95)" : "rgba(255,255,255,0.92)",
                           backdropFilter: "blur(16px)",
                           WebkitBackdropFilter: "blur(16px)",
-                          border: `1px solid ${isLow ? "rgba(220,38,38,0.25)" : "rgba(255,255,255,0.9)"}`,
+                          border: isDeathCountdown
+                            ? "1px solid rgba(180,0,0,0.6)"
+                            : `1px solid ${isLow ? "rgba(220,38,38,0.25)" : "rgba(255,255,255,0.9)"}`,
                           borderRadius: 14,
-                          boxShadow: "0 4px 20px rgba(107,143,212,0.08)",
+                          boxShadow: isDeathCountdown
+                            ? "0 0 20px rgba(180,0,0,0.3), 0 4px 20px rgba(0,0,0,0.4)"
+                            : "0 4px 20px rgba(107,143,212,0.08)",
                           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                           padding: "8px 12px",
+                          animation: isDeathCountdown ? "reaperPulse 2.4s ease-in-out infinite" : undefined,
                         }}>
-                          <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "2.2rem", letterSpacing: "-0.04em", color: isLow ? "#dc2626" : "#1a1a2e", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+                          {isDeathCountdown && (
+                            <div style={{ fontSize: "1.1rem", marginBottom: 2, filter: "drop-shadow(0 0 5px #ff0000)", animation: "reaperFlicker 1.8s ease-in-out infinite" }}>☠️</div>
+                          )}
+                          <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "2.2rem", letterSpacing: "-0.04em", color: isDeathCountdown ? "#ff4444" : isLow ? "#dc2626" : "#1a1a2e", lineHeight: 1, fontVariantNumeric: "tabular-nums", textShadow: isDeathCountdown ? "0 0 12px #ff0000, 0 0 24px #ff000055" : undefined }}>
                             {mm}:{ss}
                           </div>
-                          <div style={{ fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, color: isLow ? "#dc2626" : "#7a7a92", marginTop: 4 }}>
-                            {isLow ? "⏰ Final minute!" : isCountdown ? "Until start" : "Remaining"}
+                          <div style={{ fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, color: isDeathCountdown ? "#f87171" : isLow ? "#dc2626" : "#7a7a92", marginTop: 4, textAlign: "center", lineHeight: 1.3 }}>
+                            {isDeathCountdown ? "Reaper\nawakens" : isLow ? "⏰ Final minute!" : isCountdown ? "Until start" : "Remaining"}
                           </div>
                         </div>
                       );
@@ -1921,27 +1932,50 @@ export default function Room() {
 
               {/* Warmup / countdown banner — between toolbar and editor */}
               {(isWaiting || isCountdown) && (
-                <div style={{
-                  background: isCountdown
-                    ? "linear-gradient(135deg, rgba(232,168,56,0.1), rgba(232,168,56,0.06))"
-                    : "linear-gradient(135deg, rgba(232,168,56,0.1), rgba(232,168,56,0.06))",
-                  border: `1px solid ${isCountdown ? "rgba(232,168,56,0.25)" : "rgba(232,168,56,0.2)"}`,
-                  borderRadius: 10, padding: "10px 14px",
-                  fontSize: "0.82rem", color: "#1a1a2e",
-                  display: "flex", alignItems: "center", gap: 8,
-                  marginBottom: 8,
-                }}>
-                  {isCountdown ? (
-                    <>
-                      <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "1rem", color: "#a07020" }}>
-                        {formatCountdown(room.countdownTimeLeft ?? 0)}
-                      </span>
-                      <span>until the sprint starts — warm up while you wait!</span>
-                    </>
-                  ) : (
-                    <span>✍️ Write ahead while you wait — words written now <strong>won't count</strong> toward your score.</span>
-                  )}
-                </div>
+                isCountdown && room.deathModeWpm != null ? (
+                  <div style={{
+                    background: "linear-gradient(135deg, rgba(15,0,0,0.92), rgba(60,0,0,0.85))",
+                    border: "1px solid rgba(180,0,0,0.55)",
+                    borderRadius: 10, padding: "10px 16px",
+                    fontSize: "0.82rem", color: "#f87171",
+                    display: "flex", alignItems: "center", gap: 10,
+                    marginBottom: 8,
+                    boxShadow: "0 0 18px rgba(180,0,0,0.25), inset 0 0 30px rgba(0,0,0,0.4)",
+                    animation: "reaperPulse 2.4s ease-in-out infinite",
+                  }}>
+                    <span style={{ fontSize: "1.2rem", filter: "drop-shadow(0 0 6px #ff0000)" }}>☠️</span>
+                    <span style={{ fontFamily: "monospace", fontWeight: 800, fontSize: "1.15rem", color: "#ff4444", letterSpacing: "0.04em", textShadow: "0 0 10px #ff0000, 0 0 20px #ff000055", minWidth: 48 }}>
+                      {formatCountdown(room.countdownTimeLeft ?? 0)}
+                    </span>
+                    <span style={{ color: "#fca5a5", fontWeight: 600, lineHeight: 1.3 }}>
+                      until the Reaper awakens —{" "}
+                      <span style={{ color: "#f87171", fontStyle: "italic" }}>write while you still can</span>
+                    </span>
+                    <span style={{ marginLeft: "auto", fontSize: "1rem", opacity: 0.7, animation: "reaperFlicker 1.8s ease-in-out infinite" }}>🩸</span>
+                  </div>
+                ) : (
+                  <div style={{
+                    background: isCountdown
+                      ? "linear-gradient(135deg, rgba(232,168,56,0.1), rgba(232,168,56,0.06))"
+                      : "linear-gradient(135deg, rgba(232,168,56,0.1), rgba(232,168,56,0.06))",
+                    border: `1px solid ${isCountdown ? "rgba(232,168,56,0.25)" : "rgba(232,168,56,0.2)"}`,
+                    borderRadius: 10, padding: "10px 14px",
+                    fontSize: "0.82rem", color: "#1a1a2e",
+                    display: "flex", alignItems: "center", gap: 8,
+                    marginBottom: 8,
+                  }}>
+                    {isCountdown ? (
+                      <>
+                        <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "1rem", color: "#a07020" }}>
+                          {formatCountdown(room.countdownTimeLeft ?? 0)}
+                        </span>
+                        <span>until the sprint starts — warm up while you wait!</span>
+                      </>
+                    ) : (
+                      <span>✍️ Write ahead while you wait — words written now <strong>won't count</strong> toward your score.</span>
+                    )}
+                  </div>
+                )
               )}
 
               <div
