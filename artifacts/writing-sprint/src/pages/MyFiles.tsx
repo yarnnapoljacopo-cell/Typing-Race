@@ -3,10 +3,329 @@ import { useLocation } from "wouter";
 import SprintPopup from "./SprintPopup";
 import StickyNote from "./StickyNote";
 import { useFolio } from "@/lib/useFolio";
+import { useAuthedFetch } from "@/lib/authedFetch";
 import type { FolioDoc as Doc, FolioProject as Project, FolioState, ChapterNotesData } from "@/lib/folioStore";
 import "./MyFiles.css";
 
 type StatusKey = "draft" | "progress" | "done" | "edit";
+
+// ── Novel Notes card types ────────────────────────────────────────────────────
+interface NNCard {
+  id: string;
+  type: string;
+  // char-card / char-card-full
+  name?: string;
+  role?: string;
+  age?: string;
+  gender?: string;
+  nationality?: string;
+  motivation?: string;
+  appearance?: string;
+  personality?: string;
+  fear?: string;
+  trait1?: string;
+  trait2?: string;
+  trait3?: string;
+  bio?: string;
+  img?: string | null;
+  // rule-card
+  title?: string;
+  rules?: string[];
+  // rel-card
+  entries?: { name: string; desc: string }[];
+  // loc-card
+  type_?: string;
+  climate?: string;
+  notable?: string;
+  // note-card
+  body?: string;
+  // timeline-card (entries reused)
+  // item-card
+  rarity?: string;
+  category?: string;
+  ability?: string;
+  lore?: string;
+  // lore-card
+  era?: string;
+  tags?: string;
+  // faction-card / faction-full
+  alignment?: string;
+  leader?: string;
+  motto?: string;
+  hq?: string;
+  goal?: string;
+}
+
+const NN_CARD_GRADIENTS: Record<string, string> = {
+  "char-card":      "linear-gradient(135deg,#7c5cbf,#5e4a9e)",
+  "char-card-full": "linear-gradient(135deg,#5e4a9e,#3d3070)",
+  "loc-card":       "linear-gradient(135deg,#2e7d5e,#1e5c44)",
+  "note-card":      "linear-gradient(135deg,#3b6ea5,#2d5a8e)",
+  "timeline-card":  "linear-gradient(135deg,#5a6ea0,#3d4f7a)",
+  "rel-card":       "linear-gradient(135deg,#9c5c5c,#7a3d3d)",
+  "rule-card":      "linear-gradient(135deg,#4a7a6e,#2e5c52)",
+  "item-card":      "linear-gradient(135deg,#7a5230,#5a3418)",
+  "lore-card":      "linear-gradient(135deg,#4a6e7a,#2d4e5c)",
+  "faction-card":   "linear-gradient(135deg,#6e4a7a,#4a2d5e)",
+  "faction-full":   "linear-gradient(135deg,#4a2d5e,#2d1a40)",
+};
+
+function NNField({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="nnmodal-field">
+      <span className="nnmodal-label">{label}</span>
+      <span className="nnmodal-val">{value}</span>
+    </div>
+  );
+}
+
+function NNFieldBlock({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="nnmodal-field-block">
+      <span className="nnmodal-label">{label}</span>
+      <p className="nnmodal-text">{value}</p>
+    </div>
+  );
+}
+
+function NNCardModal({ card, onClose }: { card: NNCard; onClose: () => void }) {
+  const grad = NN_CARD_GRADIENTS[card.type] ?? "linear-gradient(135deg,#5a6ea0,#3d4f7a)";
+  const isChar = card.type === "char-card" || card.type === "char-card-full";
+  const isFull = card.type === "char-card-full";
+  const displayName = card.name ?? card.title ?? "Untitled";
+  const traits = [card.trait1, card.trait2, card.trait3].filter(Boolean) as string[];
+
+  const typeLabel: Record<string, string> = {
+    "char-card": "Character", "char-card-full": "Character",
+    "rule-card": "World Rule", "rel-card": "Relationship",
+    "loc-card": "Location", "note-card": "Note",
+    "item-card": "Item", "lore-card": "Lore Entry",
+    "faction-card": "Faction", "faction-full": "Faction",
+    "timeline-card": "Timeline",
+  };
+
+  return (
+    <div className="nncard-popup-overlay" onClick={onClose}>
+      <div className="nnmodal" onClick={(e) => e.stopPropagation()}>
+
+        {/* ── Hero banner ── */}
+        <div className="nnmodal-hero" style={{ background: grad }}>
+          {card.img && <img src={card.img} className="nnmodal-hero-img" alt="" />}
+          <div className="nnmodal-hero-overlay" />
+          <button className="nnmodal-close" onClick={onClose}>×</button>
+          <div className="nnmodal-hero-bottom">
+            {isChar && card.role && <div className="nnmodal-hero-role">{card.role}</div>}
+            <div className="nnmodal-hero-name">{displayName}</div>
+            <div className="nnmodal-hero-type">{typeLabel[card.type] ?? card.type}</div>
+          </div>
+        </div>
+
+        {/* ── Body ── */}
+        <div className="nnmodal-body">
+          {isChar && (
+            <>
+              {isFull ? (
+                <>
+                  <div className="nnmodal-grid">
+                    <NNField label="Gender" value={card.gender} />
+                    <NNField label="Origin" value={card.nationality} />
+                    <NNField label="Age" value={card.age} />
+                    <NNField label="Motivation" value={card.motivation} />
+                  </div>
+                  {traits.length > 0 && (
+                    <div className="nnmodal-field-block">
+                      <span className="nnmodal-label">Traits</span>
+                      <div className="nnmodal-traits">
+                        {traits.map((t, i) => <span key={i} className="nnmodal-trait-chip">{t}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  <NNFieldBlock label="Appearance" value={card.appearance} />
+                  <NNFieldBlock label="Personality" value={card.personality} />
+                  <NNFieldBlock label="Fear / Flaw" value={card.fear} />
+                  <NNFieldBlock label="Bio" value={card.bio} />
+                </>
+              ) : (
+                <>
+                  <NNField label="Age" value={card.age} />
+                  {traits.length > 0 && (
+                    <div className="nnmodal-field-block">
+                      <span className="nnmodal-label">Traits</span>
+                      <div className="nnmodal-traits">
+                        {traits.map((t, i) => <span key={i} className="nnmodal-trait-chip">{t}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  <NNFieldBlock label="Bio" value={card.bio} />
+                </>
+              )}
+              {!card.age && !card.gender && !card.motivation && !card.appearance && !card.personality && !card.fear && !card.bio && traits.length === 0 && (
+                <p className="cn-empty">No details added yet.</p>
+              )}
+            </>
+          )}
+
+          {card.type === "rule-card" && (
+            (card.rules ?? []).length === 0
+              ? <p className="cn-empty">No rules added yet.</p>
+              : (card.rules ?? []).map((r, i) => (
+                <div key={i} className="nnmodal-rule">
+                  <span className="nnmodal-rule-num">{i + 1}</span>
+                  <span className="nnmodal-val">{r}</span>
+                </div>
+              ))
+          )}
+
+          {card.type === "rel-card" && (
+            (card.entries ?? []).length === 0
+              ? <p className="cn-empty">No relationships added yet.</p>
+              : (card.entries ?? []).map((e, i) => (
+                <div key={i} className="nnmodal-field-block">
+                  <span className="nnmodal-label">{e.name}</span>
+                  {e.desc && <p className="nnmodal-text">{e.desc}</p>}
+                </div>
+              ))
+          )}
+
+          {card.type === "loc-card" && (
+            <>
+              <div className="nnmodal-grid">
+                <NNField label="Type" value={card.type_} />
+                <NNField label="Climate" value={card.climate} />
+              </div>
+              <NNFieldBlock label="Notable" value={card.notable} />
+              {!card.type_ && !card.climate && !card.notable && <p className="cn-empty">No details added yet.</p>}
+            </>
+          )}
+
+          {card.type === "note-card" && (
+            card.body ? <p className="nnmodal-text">{card.body}</p> : <p className="cn-empty">No notes written yet.</p>
+          )}
+
+          {card.type === "item-card" && (
+            <>
+              <div className="nnmodal-grid">
+                <NNField label="Rarity" value={card.rarity} />
+                <NNField label="Category" value={card.category} />
+              </div>
+              <NNFieldBlock label="Ability" value={card.ability} />
+              <NNFieldBlock label="Lore" value={card.lore} />
+              {!card.rarity && !card.category && !card.ability && !card.lore && <p className="cn-empty">No details added yet.</p>}
+            </>
+          )}
+
+          {card.type === "lore-card" && (
+            <>
+              <div className="nnmodal-grid">
+                <NNField label="Era" value={card.era} />
+                <NNField label="Tags" value={card.tags} />
+              </div>
+              <NNFieldBlock label="Body" value={card.body} />
+              {!card.era && !card.body && <p className="cn-empty">No details added yet.</p>}
+            </>
+          )}
+
+          {(card.type === "faction-card" || card.type === "faction-full") && (
+            <>
+              <div className="nnmodal-grid">
+                <NNField label="Type" value={card.type_} />
+                <NNField label="Alignment" value={card.alignment} />
+                <NNField label="Leader" value={card.leader} />
+                {card.type === "faction-full" && <NNField label="HQ" value={card.hq} />}
+              </div>
+              <NNFieldBlock label="Motto" value={card.motto} />
+              {card.type === "faction-full" && <NNFieldBlock label="Goal" value={card.goal} />}
+              {card.type === "faction-full" && <NNFieldBlock label="Lore" value={card.lore} />}
+              {!card.type_ && !card.alignment && !card.leader && !card.motto && <p className="cn-empty">No details added yet.</p>}
+            </>
+          )}
+
+          {card.type === "timeline-card" && (
+            (card.entries ?? []).length === 0
+              ? <p className="cn-empty">No entries yet.</p>
+              : (card.entries ?? []).map((e, i) => (
+                <div key={i} className="nnmodal-field-block">
+                  <span className="nnmodal-label">{e.name}</span>
+                  {e.desc && <p className="nnmodal-text">{e.desc}</p>}
+                </div>
+              ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const NN_SECTIONS: { id: string; label: string }[] = [
+  { id: "overview",   label: "Overview" },
+  { id: "world",      label: "World Building" },
+  { id: "characters", label: "Characters" },
+  { id: "powers",     label: "Power System" },
+  { id: "factions",   label: "Factions" },
+  { id: "plot",       label: "Plot & Arcs" },
+  { id: "locations",  label: "Locations" },
+  { id: "items",      label: "Items & Lore" },
+  { id: "notes",      label: "Notes" },
+];
+
+function idbFolioGet<T>(key: string): Promise<T | undefined> {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open("folio_db", 1);
+      req.onsuccess = () => {
+        const db = req.result;
+        try {
+          const tx = db.transaction("folio", "readonly");
+          const r = tx.objectStore("folio").get(key);
+          r.onsuccess = () => { resolve(r.result as T | undefined); db.close(); };
+          r.onerror = () => { resolve(undefined); db.close(); };
+        } catch { resolve(undefined); db.close(); }
+      };
+      req.onerror = () => resolve(undefined);
+    } catch { resolve(undefined); }
+  });
+}
+
+function idbFolioSet(key: string, value: unknown): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open("folio_db", 1);
+      req.onsuccess = () => {
+        const db = req.result;
+        try {
+          const tx = db.transaction("folio", "readwrite");
+          tx.objectStore("folio").put(value, key);
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onerror = () => { db.close(); resolve(); };
+        } catch { db.close(); resolve(); }
+      };
+      req.onerror = () => resolve();
+    } catch { resolve(); }
+  });
+}
+
+type NNProject = { id: string; name: string; _nn?: Record<string, unknown> };
+
+async function syncNNProject(id: string, name: string): Promise<void> {
+  const existing = await idbFolioGet<NNProject[]>("nn_projects_v1") ?? [];
+  const idx = existing.findIndex((p) => p.id === id);
+  if (idx >= 0) {
+    existing[idx] = { ...existing[idx], name };
+  } else {
+    existing.push({ id, name });
+  }
+  await idbFolioSet("nn_projects_v1", existing);
+}
+
+async function readNNProjects(): Promise<{ id: string; name: string }[]> {
+  const direct = await idbFolioGet<{ id: string; name: string }[]>("nn_projects_v1");
+  if (direct && direct.length) return direct;
+  // Fall back to old location for users who haven't migrated yet
+  const stored = await idbFolioGet<{ state?: { projects?: { id: string; name: string }[] } }>("folio_state");
+  return (stored?.state?.projects ?? []).filter((p: { id: string; name: string } & { _nn?: unknown }) => p._nn);
+}
 
 interface RecentEntry {
   projectId: string;
@@ -135,71 +454,16 @@ const Ico = {
 };
 
 function FolioLogoMenu({ onBack }: { onBack: () => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const [, navigate] = useLocation();
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        className="topbar-logo"
-        onClick={() => setOpen((v) => !v)}
-        title="Folio menu"
-        style={{ gap: 6 }}
-      >
-        <Ico.Logo /> Folio
-        <svg
-          width="10" height="10" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          style={{ opacity: 0.5, transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }}
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
-
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 6px)", left: 0,
-          background: "var(--surface)", border: "1px solid var(--border)",
-          borderRadius: 10, boxShadow: "0 8px 28px rgba(0,0,0,.13)",
-          padding: "6px", minWidth: 180, zIndex: 200,
-          animation: "folioMenuIn .13s ease",
-        }}>
-          <button
-            onClick={() => { setOpen(false); onBack(); }}
-            style={{
-              display: "flex", alignItems: "center", gap: 9, width: "100%",
-              padding: "8px 10px", borderRadius: 7, border: "none", background: "none",
-              cursor: "pointer", fontSize: 13, color: "var(--text-secondary)",
-              fontFamily: "inherit", textAlign: "left", transition: "background .12s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-            Writing Sprint
-          </button>
-
-        </div>
-      )}
-    </div>
+    <button className="topbar-logo" onClick={onBack} title="Back to home">
+      <Ico.Logo /> Folio
+    </button>
   );
 }
 
 export default function MyFiles() {
   const [, setLocation] = useLocation();
-  const { state, setState, isOnline, isSyncing } = useFolio();
+  const { state, setState, isOnline, isSyncing, conflicts, resolveConflict } = useFolio();
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentEntry[]>(() => loadRecent());
@@ -208,9 +472,16 @@ export default function MyFiles() {
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [statusMenuPos, setStatusMenuPos] = useState({ top: 0, left: 0 });
 
+  const authedFetch = useAuthedFetch();
   const [focusMode, setFocusMode] = useState(false);
   const [novelNotesOpen, setNovelNotesOpen] = useState(false);
   const [chNotesOpen, setChNotesOpen] = useState(false);
+  const [cardsOpen, setCardsOpen] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<NNCard | null>(null);
+  const [nnRawData, setNnRawData] = useState<Record<string, { cards: Record<string, NNCard[]> }> | null>(null);
+  const [nnProjects, setNnProjects] = useState<{ id: string; name: string }[]>([]);
+  const [nnSelPid, setNnSelPid] = useState<string | null>(null);
+  const [nnLoading, setNnLoading] = useState(false);
   const [chNotesTab, setChNotesTab] = useState<"notes" | "todo" | "meta">("notes");
   const [chNotesDraft, setChNotesDraft] = useState<ChapterNotesData>(emptyChapterNotes);
   const [chNotesSaved, setChNotesSaved] = useState(false);
@@ -239,10 +510,34 @@ export default function MyFiles() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDocId]);
 
+  // Fetch Novel Notes data when the cards sidebar opens.
+  // Reads from IndexedDB first (always current), falls back to server API.
+  useEffect(() => {
+    if (!cardsOpen) return;
+    setNnLoading(true);
+    Promise.all([
+      idbFolioGet<Record<string, { cards: Record<string, NNCard[]> }>>("novel_notes_v1"),
+      readNNProjects(),
+      authedFetch("/api/novel-notes").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([idbData, projects, apiRes]) => {
+      const rawData = (idbData && Object.keys(idbData).length > 0)
+        ? idbData
+        : (apiRes?.nnData ?? {});
+      setNnRawData(rawData);
+      setNnProjects(projects);
+      const match = projects.find((p: { id: string; name: string }) =>
+        p.name.toLowerCase() === activeProject?.name?.toLowerCase()
+      );
+      const firstPid = Object.keys(rawData)[0] ?? null;
+      setNnSelPid(match?.id ?? firstPid);
+    }).finally(() => setNnLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardsOpen]);
+
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [paragraphMode, setParagraphMode] = useState<"none" | "indent" | "double">("none");
   const [fontSize, setFontSize] = useState(() => parseInt(localStorage.getItem("folio_font_size") || "16", 10));
-  const [autosaveShown, setAutosaveShown] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
 
   // Daily goal
   const [dailyGoal, setDailyGoal] = useState<number>(() =>
@@ -263,6 +558,9 @@ export default function MyFiles() {
   // raw markdown like **text** in the document.
   const titleRef = useRef<HTMLTextAreaElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  // Snapshot of the last-typed HTML + title. Updated on every scheduleAutosave
+  // call so saveCurrentDoc can use it when the DOM refs are null (post-unmount).
+  const editorSnapshotRef = useRef<{ html: string; title: string }>({ html: "", title: "" });
   const [editorWordCount, setEditorWordCount] = useState(0);
 
   // Grammar check state
@@ -368,6 +666,17 @@ export default function MyFiles() {
   const [projSearch, setProjSearch] = useState<Record<string, string>>({});
   const [projSearchOpen, setProjSearchOpen] = useState<Record<string, boolean>>({});
 
+  // Home / app-picker screen — skip if coming from Novel Notes "Back to Folio"
+  const [homeView, setHomeView] = useState(() => {
+    const skip = sessionStorage.getItem("mf_skip_home");
+    if (skip) { sessionStorage.removeItem("mf_skip_home"); return false; }
+    return true;
+  });
+
+  // Drag-and-drop chapter reordering
+  const dragDocRef = useRef<{ docId: string; projectId: string } | null>(null);
+  const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
+
   // Toast
   const [toastMsg, setToastMsg] = useState("");
   const [toastShow, setToastShow] = useState(false);
@@ -414,22 +723,38 @@ export default function MyFiles() {
   const prevWordsRef = useRef(0);
   const saveCurrentDoc = useCallback(() => {
     if (!activeProjectId || !activeDocId) return;
-    const titleVal = titleRef.current?.value || "";
-    // Persist HTML so formatting survives reload; word count uses plain text.
-    // Tag with a sentinel so loadEditorContent can distinguish rich content
-    // from legacy plain text without using a brittle heuristic.
-    // Clone and strip lt-mark spans so grammar highlights are never persisted.
-    const html = (() => {
-      const div = contentRef.current;
-      if (!div) return "";
-      const clone = div.cloneNode(true) as HTMLElement;
-      clone.querySelectorAll(".lt-mark").forEach((mark) => {
+
+    // Prefer live DOM; fall back to editorSnapshotRef when DOM refs are null
+    // (e.g. called from unmount cleanup or visibilitychange after unmount).
+    const titleVal = titleRef.current?.value
+      ?? editorSnapshotRef.current.title
+      ?? "";
+
+    const stripMarks = (el: HTMLElement): string => {
+      el.querySelectorAll(".lt-mark").forEach((mark) => {
         const p = mark.parentNode!;
         while (mark.firstChild) p.insertBefore(mark.firstChild, mark);
         p.removeChild(mark);
       });
-      return clone.innerHTML;
+      return el.innerHTML;
+    };
+
+    const html = (() => {
+      const div = contentRef.current;
+      if (div) {
+        return stripMarks(div.cloneNode(true) as HTMLElement);
+      }
+      // DOM is gone — use the snapshot captured before unmount.
+      const snap = editorSnapshotRef.current.html;
+      if (!snap) return null; // No snapshot → nothing new to save; bail out.
+      const tmp = document.createElement("div");
+      tmp.innerHTML = snap;
+      return stripMarks(tmp);
     })();
+
+    // Guard: never overwrite persisted content with an empty string.
+    if (html === null) return;
+
     const contentVal = html ? RICH_PREFIX + html : "";
     const contentPlain = contentRef.current?.innerText || "";
     const newWC = wc(titleVal + " " + contentPlain);
@@ -480,15 +805,30 @@ export default function MyFiles() {
     setTimeout(() => setChNotesSaved(false), 2000);
   }, [activeDocId, chNotesDraft, setState]);
 
+  // Always-current ref to saveCurrentDoc so effects with stable deps can call
+  // the latest version (avoids stale closure over activeProjectId/activeDocId).
+  const saveCurrentDocRef = useRef<() => void>(() => {});
+
   // Autosave debounce
   const autosaveTimer = useRef<number | null>(null);
   const scheduleAutosave = useCallback(() => {
+    setSaveStatus("unsaved");
+    // Keep a synchronous snapshot so unmount / visibility saves work even
+    // after contentRef and titleRef are nullified by React on unmount.
+    if (contentRef.current) editorSnapshotRef.current.html = contentRef.current.innerHTML;
+    if (titleRef.current) editorSnapshotRef.current.title = titleRef.current.value;
     if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current);
     autosaveTimer.current = window.setTimeout(() => {
+      setSaveStatus("saving");
       saveCurrentDoc();
-      setAutosaveShown(true);
-      setTimeout(() => setAutosaveShown(false), 2000);
-    }, 1500);
+      setSaveStatus("saved");
+    }, 800);
+  }, [saveCurrentDoc]);
+
+  // Keep saveCurrentDocRef pointing at the latest version so effects with
+  // stable deps (unmount cleanup, visibilitychange) always call fresh code.
+  useEffect(() => {
+    saveCurrentDocRef.current = saveCurrentDoc;
   }, [saveCurrentDoc]);
 
   const updateWordCount = useCallback(() => {
@@ -662,6 +1002,9 @@ export default function MyFiles() {
       setLtTooltip(null);
       clearMarks();
       ltLastTextRef.current = "";
+      // Reset snapshot so a stale snapshot from the previous doc can't
+      // accidentally be used in an emergency save for this doc.
+      editorSnapshotRef.current = { html: "", title: doc.name };
     }, 0);
     setFindOpen(false);
   };
@@ -686,7 +1029,12 @@ export default function MyFiles() {
 
   // Manual save
   const manualSave = () => {
+    if (autosaveTimer.current) {
+      window.clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
+    }
     saveCurrentDoc();
+    setSaveStatus("saved");
     showToast("Saved");
   };
 
@@ -932,6 +1280,7 @@ export default function MyFiles() {
     applyModeToPMyFiles(newP, paragraphMode);
 
     if (currentP) {
+      applyModeToPMyFiles(currentP, paragraphMode);
       const splitRange = document.createRange();
       splitRange.setStart(range.startContainer, range.startOffset);
       splitRange.setEnd(currentP, currentP.childNodes.length);
@@ -995,6 +1344,52 @@ export default function MyFiles() {
     return () => document.removeEventListener("click", onClick);
   }, []);
 
+  // Flush pending autosave immediately on page unload so no work is lost.
+  useEffect(() => {
+    const onUnload = () => {
+      if (autosaveTimer.current) {
+        window.clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = null;
+      }
+      saveCurrentDoc();
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [saveCurrentDoc]);
+
+  // Save when the tab is hidden (user switches tabs, minimises, etc.).
+  // Prevents losing in-flight autosave work if the browser discards the tab.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        if (autosaveTimer.current) {
+          window.clearTimeout(autosaveTimer.current);
+          autosaveTimer.current = null;
+        }
+        saveCurrentDocRef.current();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  // Save on component unmount (SPA navigation via sidebar / back button).
+  // beforeunload does NOT fire for in-app route changes, so this is the
+  // only safety net when the user navigates away inside the app.
+  // saveCurrentDocRef always points to the latest saveCurrentDoc so the
+  // correct activeProjectId/activeDocId are captured in the closure.
+  // editorSnapshotRef holds the latest HTML so it works even after
+  // contentRef/titleRef are nullified by React during unmount.
+  useEffect(() => {
+    return () => {
+      if (autosaveTimer.current) {
+        window.clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = null;
+      }
+      saveCurrentDocRef.current();
+    };
+  }, []);
+
   // ── Project modal handlers ──────────────────────────────
   const saveProjectModal = () => {
     const name = projectModal.name.trim();
@@ -1003,11 +1398,14 @@ export default function MyFiles() {
       setState((prev) => ({
         projects: prev.projects.map((p) => (p.id === projectModal.editingId ? { ...p, name } : p)),
       }));
+      syncNNProject(projectModal.editingId, name);
       showToast("Project renamed");
     } else {
+      const newId = uid();
       setState((prev) => ({
-        projects: [...prev.projects, { id: uid(), name, open: true, docs: [] }],
+        projects: [...prev.projects, { id: newId, name, open: true, docs: [] }],
       }));
+      syncNNProject(newId, name);
       showToast("Project created");
     }
     setProjectModal({ open: false, editingId: null, name: "" });
@@ -1179,6 +1577,159 @@ export default function MyFiles() {
   const currentStatus = activeDoc?.status || "draft";
   const statusInfo = STATUS[currentStatus];
 
+  if (homeView) {
+    const totalWords = state.projects.reduce((sum, p) => sum + p.docs.reduce((s, d) => s + wc(docPlainText(d.content)), 0), 0);
+    const totalChapters = state.projects.reduce((sum, p) => sum + p.docs.length, 0);
+
+    return (
+      <div className="mf-home">
+        {/* Background orbs */}
+        <div className="mf-orb mf-orb--blue" />
+        <div className="mf-orb mf-orb--purple" />
+        <div className="mf-orb mf-orb--gold" />
+
+        <div className="mf-home-inner">
+
+          {/* Hero with logo on top */}
+          <div className="mf-home-hero">
+            <div className="mf-home-brand">
+              <div className="mf-brand-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                </svg>
+              </div>
+              <span className="mf-home-brand-name">Writing Sprint</span>
+            </div>
+            <h1 className="mf-home-heading">Your creative space.</h1>
+            <p className="mf-home-sub">Write. Build worlds. Race.</p>
+            {totalWords > 0 && (
+              <div className="mf-home-stats">
+                <span>{state.projects.length} project{state.projects.length !== 1 ? "s" : ""}</span>
+                <span className="mf-stat-dot" />
+                <span>{totalChapters} chapter{totalChapters !== 1 ? "s" : ""}</span>
+                <span className="mf-stat-dot" />
+                <span>{totalWords.toLocaleString()} words</span>
+              </div>
+            )}
+          </div>
+
+          {/* App cards — full-color gradient */}
+          <div className="mf-home-cards">
+            <button className="mf-card mf-card--blue" onClick={() => setHomeView(false)}>
+              <div className="mf-card-shine" />
+              <div className="mf-card-icon-wrap">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </div>
+              <div className="mf-card-chip">Writing Editor</div>
+              <div className="mf-card-name">Folio</div>
+              <div className="mf-card-blurb">Projects, chapters &amp; word counts</div>
+              <div className="mf-card-foot">
+                {state.projects.length > 0
+                  ? <span>{state.projects.length} project{state.projects.length !== 1 ? "s" : ""} · {totalChapters} chapter{totalChapters !== 1 ? "s" : ""}</span>
+                  : <span>Start your first project</span>}
+                <span className="mf-card-arr">→</span>
+              </div>
+            </button>
+
+            <button className="mf-card mf-card--purple" onClick={() => setLocation("/novel-notes")}>
+              <div className="mf-card-shine" />
+              <div className="mf-card-icon-wrap">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                  <line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="13" y2="12"/>
+                </svg>
+              </div>
+              <div className="mf-card-chip">World Building</div>
+              <div className="mf-card-name">Novel Notes</div>
+              <div className="mf-card-blurb">Characters, lore &amp; world cards</div>
+              <div className="mf-card-foot">
+                <span>Build your universe</span>
+                <span className="mf-card-arr">→</span>
+              </div>
+            </button>
+
+            <button className="mf-card mf-card--gold" onClick={() => setLocation("/portal")}>
+              <div className="mf-card-shine" />
+              <div className="mf-card-icon-wrap">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+              </div>
+              <div className="mf-card-chip">Live Racing</div>
+              <div className="mf-card-name">Writing Sprint</div>
+              <div className="mf-card-blurb">Race other writers in real time</div>
+              <div className="mf-card-foot">
+                <span>Find a room</span>
+                <span className="mf-card-arr">→</span>
+              </div>
+            </button>
+          </div>
+
+          {/* Projects */}
+          {state.projects.length > 0 && (
+            <div className="mf-section">
+              <div className="mf-section-hd">
+                <span className="mf-section-label">Your Projects</span>
+                <button className="mf-section-btn" onClick={() => { setHomeView(false); setTimeout(() => setProjectModal({ open: true, editingId: null, name: "" }), 100); }}>
+                  + New
+                </button>
+              </div>
+              <div className="mf-proj-grid">
+                {state.projects.map((proj) => {
+                  const lastEdited = proj.docs.reduce((max, d) => Math.max(max, d.updatedAt || 0), 0);
+                  const lastStr = lastEdited ? new Date(lastEdited).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
+                  const projWc = proj.docs.reduce((s, d) => s + wc(docPlainText(d.content)), 0);
+                  const mostRecent = [...proj.docs].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+                  const initial = (proj.name[0] || "?").toUpperCase();
+                  return (
+                    <button key={proj.id} className="mf-proj-tile"
+                      onClick={() => { setHomeView(false); if (mostRecent) setTimeout(() => openDoc(proj.id, mostRecent.id), 50); }}>
+                      <div className="mf-proj-initial">{initial}</div>
+                      <div className="mf-proj-info">
+                        <span className="mf-proj-name">{proj.name}</span>
+                        <span className="mf-proj-meta">
+                          {proj.docs.length} chapter{proj.docs.length !== 1 ? "s" : ""}
+                          {projWc > 0 ? ` · ${projWc.toLocaleString()} words` : ""}
+                          {lastStr ? ` · ${lastStr}` : ""}
+                        </span>
+                      </div>
+                      <span className="mf-proj-go">→</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Recent */}
+          {recentVisible.length > 0 && (
+            <div className="mf-section">
+              <div className="mf-section-hd">
+                <span className="mf-section-label">Recently Opened</span>
+              </div>
+              <div className="mf-recent-grid">
+                {recentVisible.map(({ r, proj, doc }) => (
+                  <button key={r.docId} className="mf-recent-tile"
+                    onClick={() => { setHomeView(false); setTimeout(() => openDoc(r.projectId, r.docId), 50); }}>
+                    <span className="mf-recent-dot" style={{ background: STATUS[(doc.status || "draft") as StatusKey].color }} />
+                    <span className="mf-recent-name">{doc.name}</span>
+                    <span className="mf-recent-proj">{proj.name}</span>
+                    <span className="mf-recent-go">→</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`folio-root${focusMode ? " focus-mode" : ""}${typewriterMode ? " typewriter-mode" : ""}`}>
       {/* Focus exit button (visible only in focus mode) */}
@@ -1190,7 +1741,7 @@ export default function MyFiles() {
 
       {/* TOP BAR */}
       <div className="folio-topbar">
-        <FolioLogoMenu onBack={() => setLocation("/portal")} />
+        <FolioLogoMenu onBack={() => setHomeView(true)} />
         <div className="topbar-spacer" />
 
         {dailyGoal > 0 && (
@@ -1267,10 +1818,13 @@ export default function MyFiles() {
           </div>
 
           <button className="sidebar-novel-notes-btn" onClick={() => setNovelNotesOpen(true)}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
             Novel Notes
+            <svg className="sidebar-novel-notes-btn-arr" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
           </button>
 
           <div className="sidebar-tree">
@@ -1460,8 +2014,36 @@ export default function MyFiles() {
                         return (
                           <div
                             key={doc.id}
-                            className={`doc-row${doc.id === activeDocId ? " active" : ""}`}
+                            draggable
+                            className={`doc-row${doc.id === activeDocId ? " active" : ""}${dragOverDocId === doc.id ? " drag-over" : ""}`}
                             onClick={() => openDoc(proj.id, doc.id)}
+                            onDragStart={(e) => {
+                              dragDocRef.current = { docId: doc.id, projectId: proj.id };
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragOver={(e) => { e.preventDefault(); setDragOverDocId(doc.id); }}
+                            onDragLeave={() => setDragOverDocId(null)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const src = dragDocRef.current;
+                              if (src && src.docId !== doc.id && src.projectId === proj.id) {
+                                setState((prev) => ({
+                                  projects: prev.projects.map((p) => {
+                                    if (p.id !== proj.id) return p;
+                                    const docs = [...p.docs];
+                                    const fromIdx = docs.findIndex((d) => d.id === src.docId);
+                                    const toIdx = docs.findIndex((d) => d.id === doc.id);
+                                    if (fromIdx === -1 || toIdx === -1) return p;
+                                    const [moved] = docs.splice(fromIdx, 1);
+                                    docs.splice(toIdx, 0, moved);
+                                    return { ...p, docs };
+                                  }),
+                                }));
+                              }
+                              dragDocRef.current = null;
+                              setDragOverDocId(null);
+                            }}
+                            onDragEnd={() => { dragDocRef.current = null; setDragOverDocId(null); }}
                           >
                             <div className="doc-status-dot" style={{ background: STATUS[st].color }} />
                             <span className="doc-name">{doc.name}</span>
@@ -1521,7 +2103,7 @@ export default function MyFiles() {
               </div>
             </div>
           ) : (
-            <div className={`editor-panel${chNotesOpen ? " notes-open" : ""}`}>
+            <div className={`editor-panel${chNotesOpen ? " notes-open" : ""}${cardsOpen ? " cards-open" : ""}`}>
               <div className="editor-col">
               <div className="editor-topbar">
                 <div className="breadcrumb">
@@ -1542,11 +2124,11 @@ export default function MyFiles() {
                   {statusInfo.label}
                 </button>
                 <div className="editor-topbar-spacer" />
-                {autosaveShown && (
-                  <div className="autosave-indicator show">
-                    <Ico.Check /> Saved
-                  </div>
-                )}
+                <div className={`autosave-indicator autosave-indicator--${saveStatus}`}>
+                  {saveStatus === "unsaved" && <><span className="autosave-dot" /> Unsaved changes…</>}
+                  {saveStatus === "saving" && <><span className="autosave-dot autosave-dot--saving" /> Saving…</>}
+                  {saveStatus === "saved" && <><Ico.Check /> Saved</>}
+                </div>
                 <span className="editor-word-count">
                   {editorWordCount.toLocaleString()} word{editorWordCount === 1 ? "" : "s"}
                 </span>
@@ -1650,100 +2232,6 @@ export default function MyFiles() {
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
-                <div className="tb-sep" />
-                <div className="tb-para-group">
-                  <span className="tb-para-label">¶</span>
-                  {(["none", "indent", "double"] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      className={`tb-para-pill${paragraphMode === mode ? " active" : ""}`}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        const div = contentRef.current;
-                        const saved = savedRangeRef.current;
-                        if (saved && !saved.collapsed && div && div.contains(saved.commonAncestorContainer)) {
-                          div.querySelectorAll("p, div:not([id]):not([class])").forEach((p) => {
-                            if (saved.intersectsNode(p)) {
-                              const el = p as HTMLElement;
-                              if (mode === "double") {
-                                el.style.lineHeight = "1.7";
-                                el.style.marginBottom = "28px";
-                                el.style.marginTop = "0";
-                                el.style.textIndent = "";
-                              } else if (mode === "indent") {
-                                el.style.lineHeight = "1.7";
-                                el.style.marginBottom = "0";
-                                el.style.marginTop = "0";
-                                el.style.textIndent = "2em";
-                              } else {
-                                el.style.lineHeight = "1.4";
-                                el.style.marginBottom = "0";
-                                el.style.marginTop = "0";
-                                el.style.textIndent = "";
-                              }
-                            }
-                          });
-                          scheduleAutosave();
-                        } else {
-                          setParagraphMode(mode);
-                        }
-                      }}
-                      title={mode === "none" ? "Single line break" : mode === "indent" ? "Indent new paragraph" : "Double line break"}
-                    >
-                      {mode === "none" ? "None" : mode === "indent" ? "Indent" : "Double"}
-                    </button>
-                  ))}
-                </div>
-                <div className="tb-sep" />
-                <button
-                  className={`tb-btn${typewriterMode ? " active" : ""}`}
-                  onClick={() => setTypewriterMode((v) => !v)}
-                  title="Typewriter mode"
-                  style={{ fontSize: 11 }}
-                >⌨</button>
-                <button
-                  className={`tb-btn${focusMode ? " active" : ""}`}
-                  onClick={() => setFocusMode((v) => !v)}
-                  title="Focus mode"
-                >⛶</button>
-                <div className="tb-sep" />
-                <button
-                  className={`tb-btn${ltEnabled ? " active" : ""}`}
-                  onClick={() => setLtEnabled((v) => !v)}
-                  title={ltEnabled ? "Grammar check on — click to disable" : "Grammar check off — click to enable"}
-                  style={{ width: "auto", padding: "0 8px", fontSize: 11, fontWeight: 600 }}
-                >
-                  {ltEnabled ? "✓ grammar" : "grammar off"}
-                </button>
-                {ltEnabled && ltStatus === "checking" && (
-                  <span className="lt-badge lt-checking">checking…</span>
-                )}
-                {ltEnabled && ltStatus !== "idle" && ltStatus !== "checking" && (
-                  <span
-                    className={`lt-badge ${ltStatus === 0 ? "lt-ok" : "lt-warn"}`}
-                    title={ltStatus === 0 ? "No issues found" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"} — hover the underlined text`}
-                  >
-                    {ltStatus === 0 ? "0 issues" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"}`}
-                  </span>
-                )}
-                <div className="tb-sep" />
-                <button
-                  className={`tb-btn${chNotesOpen ? " active" : ""}`}
-                  onClick={() => setChNotesOpen((v) => !v)}
-                  title="Chapter notes"
-                  style={{ width: "auto", padding: "0 8px", gap: 4, display: "flex", alignItems: "center", position: "relative", fontSize: 11, fontWeight: 700 }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                    <line x1="9" y1="8" x2="15" y2="8" />
-                    <line x1="9" y1="12" x2="13" y2="12" />
-                  </svg>
-                  Notes
-                  {activeDocId && chNotesHaveContent(state.chapterNotes?.[activeDocId]) && (
-                    <span className="cn-dot" />
-                  )}
-                </button>
               </div>
 
               {/* Find bar */}
@@ -1770,7 +2258,102 @@ export default function MyFiles() {
                 </div>
               )}
 
+              {/* Conflict resolution banner */}
+              {conflicts.length > 0 && (() => {
+                const conflict = conflicts[0];
+                const idx = 0;
+                const total = conflicts.length;
+                return (
+                  <div className="conflict-banner">
+                    <div className="conflict-banner-icon">⚠</div>
+                    <div className="conflict-banner-body">
+                      <span className="conflict-banner-title">
+                        &ldquo;{conflict.docName}&rdquo; was edited offline and on the server.
+                        {total > 1 && <span className="conflict-banner-count"> ({idx + 1} of {total})</span>}
+                      </span>
+                      <div className="conflict-banner-actions">
+                        <button
+                          className="conflict-btn conflict-btn--local"
+                          onClick={() => resolveConflict(conflict.docId, "local")}
+                        >
+                          Keep my version
+                        </button>
+                        <button
+                          className="conflict-btn conflict-btn--remote"
+                          onClick={() => resolveConflict(conflict.docId, "remote")}
+                        >
+                          Keep server version
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="editor-body" id="folio-editor-body">
+
+              {/* Floating controls pill */}
+              <div className="editor-controls-pill">
+                <div className="ecp-seg">
+                  {(["none", "indent", "double"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      className={`ecp-seg-btn${paragraphMode === mode ? " active" : ""}`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        const div = contentRef.current;
+                        const saved = savedRangeRef.current;
+                        if (saved && !saved.collapsed && div && div.contains(saved.commonAncestorContainer)) {
+                          div.querySelectorAll("p, div:not([id]):not([class])").forEach((p) => {
+                            if (saved.intersectsNode(p)) {
+                              const el = p as HTMLElement;
+                              if (mode === "double") { el.style.lineHeight = "1.7"; el.style.marginBottom = "28px"; el.style.marginTop = "0"; el.style.textIndent = ""; }
+                              else if (mode === "indent") { el.style.lineHeight = "1.7"; el.style.marginBottom = "0"; el.style.marginTop = "0"; el.style.textIndent = "2em"; }
+                              else { el.style.lineHeight = "1.4"; el.style.marginBottom = "0"; el.style.marginTop = "0"; el.style.textIndent = ""; }
+                            }
+                          });
+                          scheduleAutosave();
+                        } else { setParagraphMode(mode); }
+                      }}
+                      title={mode === "none" ? "Normal spacing" : mode === "indent" ? "Indent paragraphs" : "Double spacing"}
+                    >
+                      {mode === "none" ? "Normal" : mode === "indent" ? "Indent" : "Double"}
+                    </button>
+                  ))}
+                </div>
+                <div className="ecp-sep" />
+                <button className={`ecp-icon-btn${typewriterMode ? " active" : ""}`} onClick={() => setTypewriterMode((v) => !v)} title="Typewriter mode">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></svg>
+                </button>
+                <button className={`ecp-icon-btn${focusMode ? " active" : ""}`} onClick={() => setFocusMode((v) => !v)} title="Focus mode">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+                </button>
+                <button
+                  className={`ecp-seg-btn${ltEnabled ? " active" : ""}`}
+                  onClick={() => setLtEnabled((v) => !v)}
+                  title={ltEnabled ? "Grammar check on — click to disable" : "Grammar check off — click to enable"}
+                  style={{ fontSize: 11 }}
+                >
+                  {ltEnabled ? "✓ Grammar" : "Grammar off"}
+                </button>
+                {ltEnabled && ltStatus !== "idle" && ltStatus !== "checking" && (
+                  <span className={`ecp-badge ${ltStatus === 0 ? "ecp-badge--ok" : "ecp-badge--warn"}`}>
+                    {ltStatus === 0 ? "✓ Clean" : `${ltStatus} issue${ltStatus === 1 ? "" : "s"}`}
+                  </span>
+                )}
+                <div className="ecp-sep" />
+                <button className={`ecp-tab${chNotesOpen ? " active" : ""}`} onClick={() => setChNotesOpen((v) => !v)} title="Chapter Notes">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                  Notes
+                  {activeDocId && chNotesHaveContent(state.chapterNotes?.[activeDocId]) && <span className="cn-dot" style={{ position: "relative", top: 0, right: 0, width: 5, height: 5 }} />}
+                </button>
+                <button className={`ecp-tab${cardsOpen ? " active" : ""}`} onClick={() => { setCardsOpen((v) => !v); if (chNotesOpen) setChNotesOpen(false); }} title="Novel Notes Cards">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  Cards
+                </button>
+              </div>
+
+              <div className="editor-paper">
                 <div className="sprint-trigger-row">
                   <button className="sprint-trigger-btn" onClick={openSprintModal}>
                     <Ico.Clock /> Start Sprint
@@ -1829,6 +2412,7 @@ export default function MyFiles() {
                     scheduleGrammarCheck();
                   }}
                 />
+              </div>{/* /editor-paper */}
               </div>
               </div>{/* /editor-col */}
 
@@ -2068,10 +2652,77 @@ export default function MyFiles() {
                   </div>
                 </div>
               )}
+
+              {/* ── Novel Notes Cards Sidebar ── */}
+              {cardsOpen && (
+                <div className="nncards-sidebar">
+                  <div className="cn-header">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: "var(--accent)" }}>
+                      <rect x="2" y="3" width="20" height="14" rx="2" />
+                      <line x1="8" y1="21" x2="16" y2="21" />
+                      <line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>
+                    <span className="cn-header-title">Novel Notes Cards</span>
+                    <button className="cn-close" onClick={() => setCardsOpen(false)} title="Close"><Ico.Close /></button>
+                  </div>
+
+                  {/* Project selector */}
+                  {nnProjects.length > 1 && (
+                    <div className="nncards-proj-row">
+                      <select
+                        className="nncards-proj-select"
+                        value={nnSelPid ?? ""}
+                        onChange={(e) => setNnSelPid(e.target.value)}
+                      >
+                        {nnProjects.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="cn-body">
+                    {nnLoading && <p className="cn-empty">Loading cards…</p>}
+                    {!nnLoading && !nnSelPid && <p className="cn-empty">No Novel Notes data found.</p>}
+                    {!nnLoading && nnSelPid && (() => {
+                      const projData = nnRawData?.[nnSelPid];
+                      if (!projData) return <p className="cn-empty">No cards in this project yet.</p>;
+                      const cardsMap = projData.cards ?? {};
+                      const sectionsWithCards = NN_SECTIONS.filter((s) => (cardsMap[s.id]?.length ?? 0) > 0);
+                      if (sectionsWithCards.length === 0) return <p className="cn-empty">No cards in this project yet.</p>;
+                      return sectionsWithCards.map((section) => (
+                        <div key={section.id} className="nncards-group">
+                          <div className="nncards-group-label">{section.label}</div>
+                          {cardsMap[section.id].map((card) => {
+                            const displayName = card.name ?? card.title ?? "Untitled";
+                            const typeLabel = card.type === "char-card" || card.type === "char-card-full" ? "Character"
+                              : card.type === "rule-card" ? "World Rule"
+                              : card.type === "rel-card" ? "Relationship"
+                              : card.type ?? "Card";
+                            return (
+                              <button
+                                key={card.id}
+                                className="nncards-item"
+                                onClick={() => setSelectedCard(card)}
+                              >
+                                <span className="nncards-item-name">{displayName}</span>
+                                <span className="nncards-item-type">{typeLabel}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
+
+      {/* ── Novel Notes Card Popup ── */}
+      {selectedCard && <NNCardModal card={selectedCard} onClose={() => setSelectedCard(null)} />}
 
       {/* STATUS MENU */}
       <div className={`status-menu${statusMenuOpen ? " open" : ""}`} style={{ top: statusMenuPos.top, left: statusMenuPos.left }}>
