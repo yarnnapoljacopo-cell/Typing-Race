@@ -973,6 +973,13 @@ export default function MyFiles() {
 
   // ── Doc / Project actions ───────────────────────────────
   const openDoc = (projId: string, docId: string) => {
+    // Cancel any pending debounced autosave BEFORE saving — otherwise the
+    // timer fires after the DOM switches to the new doc and writes the new
+    // doc's HTML under the old doc's ID, corrupting the old chapter.
+    if (autosaveTimer.current) {
+      window.clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
+    }
     if (activeDocId) saveCurrentDoc();
     const proj = state.projects.find((p) => p.id === projId);
     const doc = proj?.docs.find((d) => d.id === docId);
