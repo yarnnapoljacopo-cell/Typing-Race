@@ -622,6 +622,33 @@ export default function Room() {
     (room?.participants.find((p) => p.id === participantId)?.role ?? sprintRole);
   const isEditor = myRole === "editor";
 
+  // ── Reaper headstart ────────────────────────────────────────────────────
+  // Seconds of headstart the reaper gives the user before it starts moving.
+  // Persisted in sessionStorage so a page-refresh keeps the chosen value.
+  const [reaperHeadstart, setReaperHeadstart] = useState<number>(() => {
+    const stored = sessionStorage.getItem(`reaper-headstart-${code}`);
+    return stored ? parseInt(stored, 10) : 3;
+  });
+  const [showReaperModal, setShowReaperModal] = useState(false);
+
+  // Show the headstart picker once per sprint entry (reset on "finished").
+  const reaperModalShownRef = useRef(false);
+  useEffect(() => {
+    if (!room) return;
+    if (room.deathModeWpm == null) return; // not a reaper room
+    if (room.status === "finished") {
+      reaperModalShownRef.current = false;
+      sessionStorage.removeItem(`reaper-headstart-shown-${code}`);
+      return;
+    }
+    if (room.status !== "waiting" && room.status !== "countdown") return;
+    const key = `reaper-headstart-shown-${code}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    reaperModalShownRef.current = true;
+    setShowReaperModal(true);
+  }, [code, room?.status, room?.deathModeWpm]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Betting state ────────────────────────────────────────────────────────
   const qcBet = useQueryClient();
   const [showBetModal, setShowBetModal] = useState(false);
@@ -855,9 +882,10 @@ export default function Room() {
   const _myWC = room?.participants.find((p) => p.id === participantId)?.wordCount ?? 0;
   const _wordGoal = room?.wordGoal ?? null;
   const _durMin = room?.durationMinutes ?? 0;
-  // Use smooth client-side elapsed time for reaper position
+  // Use smooth client-side elapsed time for reaper position.
+  // Subtract the chosen headstart so the reaper doesn't move for that many seconds.
   const _reaperEarlyWC = _deathWpm != null && room?.status === "running"
-    ? Math.floor(_deathWpm * (clientElapsedMs / 1000) / 60)
+    ? Math.floor(_deathWpm * Math.max(0, clientElapsedMs / 1000 - reaperHeadstart) / 60)
     : 0;
   const isEliminatedEarly = _reaperEarlyWC > 0 && _myWC < _reaperEarlyWC && _myWC < (_wordGoal ?? _durMin * 200);
   // Ref so interval callback always reads the latest value without stale closure
@@ -1492,7 +1520,7 @@ export default function Room() {
   if (isGameOver) {
     const goWC = room.participants.find((p) => p.id === participantId)?.wordCount ?? 0;
     const goReaper = room.deathModeWpm != null
-      ? Math.floor(room.deathModeWpm * (clientElapsedMs / 1000) / 60)
+      ? Math.floor(room.deathModeWpm * Math.max(0, clientElapsedMs / 1000 - reaperHeadstart) / 60)
       : null;
     return (
       <GameOverScreen
@@ -1519,7 +1547,7 @@ export default function Room() {
 
   // Death Mode: smooth client-side reaper position (updates every 150 ms)
   const reaperWordCount = isRunning && room.deathModeWpm != null
-    ? Math.floor(room.deathModeWpm * (clientElapsedMs / 1000) / 60)
+    ? Math.floor(room.deathModeWpm * Math.max(0, clientElapsedMs / 1000 - reaperHeadstart) / 60)
     : null;
   const myParticipant = room.participants.find((p) => p.id === participantId);
   const isEliminated = reaperWordCount != null && myParticipant != null
@@ -2316,6 +2344,83 @@ export default function Room() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Reaper Headstart Picker ── */}
+      {showReaperModal && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 9000,
+            background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <div style={{
+            background: "var(--surface, #fff)",
+            border: "1px solid var(--border, #e5e7eb)",
+            borderRadius: 18,
+            boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
+            padding: "28px 28px 22px",
+            width: 340,
+            maxWidth: "calc(100vw - 32px)",
+          }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <span style={{ fontSize: 22 }}>💀</span>
+              <span style={{ fontWeight: 700, fontSize: 17, color: "var(--text-primary, #111)" }}>
+                Reaper Mode
+              </span>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--text-secondary, #6b7280)", marginBottom: 20, lineHeight: 1.5 }}>
+              Choose your headstart. The reaper won't move until this time has passed.
+            </p>
+
+            {/* Option grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 22 }}>
+              {[3, 5, 10, 15, 20, 30, 45, 60].map((secs) => (
+                <button
+                  key={secs}
+                  onClick={() => {
+                    setReaperHeadstart(secs);
+                    sessionStorage.setItem(`reaper-headstart-${code}`, String(secs));
+                  }}
+                  style={{
+                    padding: "10px 0",
+                    borderRadius: 10,
+                    border: `2px solid ${reaperHeadstart === secs ? "#ef4444" : "var(--border, #e5e7eb)"}`,
+                    background: reaperHeadstart === secs ? "#fef2f2" : "var(--surface-secondary, #f9fafb)",
+                    color: reaperHeadstart === secs ? "#ef4444" : "var(--text-primary, #111)",
+                    fontWeight: reaperHeadstart === secs ? 700 : 500,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    transition: "border-color .12s, background .12s",
+                  }}
+                >
+                  {secs}s
+                </button>
+              ))}
+            </div>
+
+            {/* Selected summary */}
+            <p style={{ fontSize: 12, color: "var(--text-secondary, #6b7280)", textAlign: "center", marginBottom: 18 }}>
+              {reaperHeadstart === 3
+                ? "Default — 3 seconds to get going."
+                : `The reaper waits ${reaperHeadstart} seconds before chasing you.`}
+            </p>
+
+            <button
+              onClick={() => setShowReaperModal(false)}
+              style={{
+                width: "100%", padding: "11px 0", borderRadius: 10,
+                background: "#ef4444", color: "#fff",
+                border: "none", fontWeight: 700, fontSize: 14,
+                cursor: "pointer", letterSpacing: 0.2,
+              }}
+            >
+              Let's go
+            </button>
+          </div>
+        </div>
+      )}
     </div>
     </>
   );

@@ -400,6 +400,17 @@ export async function ensureSchema(): Promise<void> {
         nn_data     JSONB        NOT NULL DEFAULT '{}'::jsonb,
         updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
       );
+
+      -- Versioned Folio snapshots: one row every ~5 min of active writing.
+      -- Provides a rollback history independent of the hosting-provider backup.
+      CREATE TABLE IF NOT EXISTS folio_snapshots (
+        id        SERIAL       PRIMARY KEY,
+        user_id   VARCHAR(100) NOT NULL,
+        saved_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        state     JSONB        NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS folio_snapshots_user_saved_idx
+        ON folio_snapshots (user_id, saved_at DESC);
     `);
 
     // ── Phase 3: seed static data ─────────────────────────────────────────
