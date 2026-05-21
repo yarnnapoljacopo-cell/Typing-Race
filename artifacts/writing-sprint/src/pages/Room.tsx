@@ -1774,7 +1774,13 @@ export default function Room() {
                 <div style={{ width: 240, flexShrink: 0, display: "flex", alignItems: "stretch" }}>
                   {(() => {
                     if (isRunning || isCountdown) {
-                      const secs = isCountdown ? (room.countdownTimeLeft ?? 0) : (room.timeLeft ?? 0);
+                      // Use client-interpolated time when running so the
+                      // display keeps counting down even if the WebSocket
+                      // misses a beat — server value is the fallback.
+                      const serverSecs = isCountdown ? (room.countdownTimeLeft ?? 0) : (room.timeLeft ?? 0);
+                      const secs = (!isCountdown && clientElapsedMs > 0 && room.durationMinutes)
+                        ? Math.max(0, room.durationMinutes * 60 - Math.floor(clientElapsedMs / 1000))
+                        : serverSecs;
                       const mm = String(Math.floor(secs / 60)).padStart(2, "0");
                       const ss = String(secs % 60).padStart(2, "0");
                       const isLow = isRunning && secs > 0 && secs <= 60;
@@ -1838,9 +1844,14 @@ export default function Room() {
                 <div className="flex items-center justify-between mb-3 px-1">
                   <div className="flex items-center gap-3">
                     <span className="font-mono text-sm font-semibold text-foreground tabular-nums">
-                      {room.timeLeft != null
-                        ? `${Math.floor(room.timeLeft / 60)}:${String(room.timeLeft % 60).padStart(2, "0")}`
-                        : "--:--"}
+                      {(() => {
+                        const tl = (clientElapsedMs > 0 && room.durationMinutes)
+                          ? Math.max(0, room.durationMinutes * 60 - Math.floor(clientElapsedMs / 1000))
+                          : (room.timeLeft ?? null);
+                        return tl != null
+                          ? `${Math.floor(tl / 60)}:${String(tl % 60).padStart(2, "0")}`
+                          : "--:--";
+                      })()}
                     </span>
                     <span className="text-muted-foreground text-xs">|</span>
                     <span className="font-mono text-sm text-foreground">{netWordCount} <span className="text-muted-foreground font-normal text-xs">words</span></span>

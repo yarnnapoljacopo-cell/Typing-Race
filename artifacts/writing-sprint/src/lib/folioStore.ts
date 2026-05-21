@@ -221,12 +221,18 @@ class FolioStore {
   private async syncAfterConfigure(): Promise<void> {
     try {
       const serverState = await this.pullFromServer();
-      if (serverState && serverState.projects.length > 0) {
-        const local = this._state.projects.length > 0 ? this._state : null;
-        const merged = this.merge(local, serverState);
-        this._state = merged;
-        this.notify();
-        await this.persistLocal();
+      if (serverState) {
+        const hasServerContent =
+          serverState.projects.length > 0 ||
+          Object.keys(serverState.notes ?? {}).length > 0 ||
+          Object.keys(serverState.chapterNotes ?? {}).length > 0;
+        if (hasServerContent) {
+          const local = this._state.projects.length > 0 ? this._state : null;
+          const merged = this.merge(local, serverState);
+          this._state = merged;
+          this.notify();
+          await this.persistLocal();
+        }
       }
       if (this._state.projects.length > 0) {
         await this.pushToServer();
@@ -275,6 +281,7 @@ class FolioStore {
       notes: { ...(this._state.notes ?? {}), [key]: content },
     };
     this.notify();
+    this.persistLocalBackup();
     this.persistLocal();
     this.schedulePush();
   }
@@ -306,6 +313,7 @@ class FolioStore {
 
     // Remove from conflicts list
     this._conflicts = this._conflicts.filter((c) => c.docId !== docId);
+    this.persistLocalBackup();
     this.notify();
 
     // Once all conflicts resolved, push final state and clear base snapshot

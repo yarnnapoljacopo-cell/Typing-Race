@@ -591,6 +591,10 @@ function _startRunning(room: Room): void {
 
   broadcastRoomState(room);
 
+  // Always clear any pre-existing interval before creating a new one.
+  // Prevents a double-broadcast loop if _startRunning is somehow called
+  // while a stale interval from a previous countdown or restore is still running.
+  if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = null; }
   room.timerInterval = setInterval(() => {
     const now = Date.now();
     if (!room.endTime || now >= room.endTime) {
