@@ -763,7 +763,14 @@ export default function MyFiles() {
     prevWordsRef.current = newWC;
 
     setState((prev) => {
-      const next = {
+      const existingDoc = prev.projects
+        .find((p) => p.id === activeProjectId)
+        ?.docs.find((d) => d.id === activeDocId);
+      // Never overwrite non-empty persisted content with an empty string.
+      // This guards against the edge case where contentRef and snapshot are
+      // both empty (e.g. snapshot was just reset during a doc switch).
+      if (!contentVal && existingDoc?.content) return prev;
+      return {
         projects: prev.projects.map((p) =>
           p.id !== activeProjectId
             ? p
@@ -782,7 +789,6 @@ export default function MyFiles() {
               },
         ),
       };
-      return next;
     });
     if (gained > 0) {
       setDailyWords((w) => {
@@ -805,9 +811,10 @@ export default function MyFiles() {
     setTimeout(() => setChNotesSaved(false), 2000);
   }, [activeDocId, chNotesDraft, setState]);
 
-  // Always-current ref to saveCurrentDoc so effects with stable deps can call
-  // the latest version (avoids stale closure over activeProjectId/activeDocId).
+  // Always-current refs so effects with stable deps always call fresh code.
   const saveCurrentDocRef = useRef<() => void>(() => {});
+  const saveChapterNotesRef = useRef<() => void>(() => {});
+  const chNotesAutosaveTimer = useRef<number | null>(null);
 
   // Autosave debounce
   const autosaveTimer = useRef<number | null>(null);
@@ -825,11 +832,27 @@ export default function MyFiles() {
     }, 800);
   }, [saveCurrentDoc]);
 
-  // Keep saveCurrentDocRef pointing at the latest version so effects with
-  // stable deps (unmount cleanup, visibilitychange) always call fresh code.
+  // Keep refs pointing at the latest versions so effects with stable deps
+  // (unmount cleanup, visibilitychange) always call fresh code.
   useEffect(() => {
     saveCurrentDocRef.current = saveCurrentDoc;
   }, [saveCurrentDoc]);
+
+  useEffect(() => {
+    saveChapterNotesRef.current = saveChapterNotes;
+  }, [saveChapterNotes]);
+
+  // Auto-save chapter notes 800ms after the user stops editing them.
+  // Also flushes synchronously on all emergency-save paths below.
+  useEffect(() => {
+    if (chNotesAutosaveTimer.current) window.clearTimeout(chNotesAutosaveTimer.current);
+    chNotesAutosaveTimer.current = window.setTimeout(() => {
+      saveChapterNotesRef.current();
+    }, 800);
+    return () => {
+      if (chNotesAutosaveTimer.current) window.clearTimeout(chNotesAutosaveTimer.current);
+    };
+  }, [chNotesDraft, activeDocId]);
 
   const updateWordCount = useCallback(() => {
     const t = (titleRef.current?.value || "") + " " + (contentRef.current?.innerText || "");
@@ -973,14 +996,18 @@ export default function MyFiles() {
 
   // ── Doc / Project actions ───────────────────────────────
   const openDoc = (projId: string, docId: string) => {
-    // Cancel any pending debounced autosave BEFORE saving — otherwise the
-    // timer fires after the DOM switches to the new doc and writes the new
-    // doc's HTML under the old doc's ID, corrupting the old chapter.
+    // Cancel pending debounced saves BEFORE flushing — otherwise timers fire
+    // after the DOM switches to the new doc and corrupt the old chapter.
     if (autosaveTimer.current) {
       window.clearTimeout(autosaveTimer.current);
       autosaveTimer.current = null;
     }
+    if (chNotesAutosaveTimer.current) {
+      window.clearTimeout(chNotesAutosaveTimer.current);
+      chNotesAutosaveTimer.current = null;
+    }
     if (activeDocId) saveCurrentDoc();
+    saveChapterNotesRef.current();
     const proj = state.projects.find((p) => p.id === projId);
     const doc = proj?.docs.find((d) => d.id === docId);
     if (!proj || !doc) return;
@@ -1351,14 +1378,19 @@ export default function MyFiles() {
     return () => document.removeEventListener("click", onClick);
   }, []);
 
-  // Flush pending autosave immediately on page unload so no work is lost.
+  // Flush pending autosaves immediately on page unload so no work is lost.
   useEffect(() => {
     const onUnload = () => {
       if (autosaveTimer.current) {
         window.clearTimeout(autosaveTimer.current);
         autosaveTimer.current = null;
       }
+      if (chNotesAutosaveTimer.current) {
+        window.clearTimeout(chNotesAutosaveTimer.current);
+        chNotesAutosaveTimer.current = null;
+      }
       saveCurrentDoc();
+      saveChapterNotesRef.current();
     };
     window.addEventListener("beforeunload", onUnload);
     return () => window.removeEventListener("beforeunload", onUnload);
@@ -1373,7 +1405,12 @@ export default function MyFiles() {
           window.clearTimeout(autosaveTimer.current);
           autosaveTimer.current = null;
         }
+        if (chNotesAutosaveTimer.current) {
+          window.clearTimeout(chNotesAutosaveTimer.current);
+          chNotesAutosaveTimer.current = null;
+        }
         saveCurrentDocRef.current();
+        saveChapterNotesRef.current();
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -1383,17 +1420,18 @@ export default function MyFiles() {
   // Save on component unmount (SPA navigation via sidebar / back button).
   // beforeunload does NOT fire for in-app route changes, so this is the
   // only safety net when the user navigates away inside the app.
-  // saveCurrentDocRef always points to the latest saveCurrentDoc so the
-  // correct activeProjectId/activeDocId are captured in the closure.
-  // editorSnapshotRef holds the latest HTML so it works even after
-  // contentRef/titleRef are nullified by React during unmount.
   useEffect(() => {
     return () => {
       if (autosaveTimer.current) {
         window.clearTimeout(autosaveTimer.current);
         autosaveTimer.current = null;
       }
+      if (chNotesAutosaveTimer.current) {
+        window.clearTimeout(chNotesAutosaveTimer.current);
+        chNotesAutosaveTimer.current = null;
+      }
       saveCurrentDocRef.current();
+      saveChapterNotesRef.current();
     };
   }, []);
 

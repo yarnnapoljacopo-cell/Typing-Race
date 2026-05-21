@@ -490,6 +490,14 @@ class FolioStore {
     this._initialized = true;
     this._initializing = false;
     this.notify();
+
+    // Heartbeat: push to server every 30 s so a long writing session is always
+    // backed up even if the tab closes before the 3 s debounce fires.
+    setInterval(() => {
+      if (this._online && this._fetchFn && this._initialized) {
+        this.pushToServer();
+      }
+    }, 30_000);
   }
 
   // ── Offline / base-snapshot helpers ─────────────────────────────────────
