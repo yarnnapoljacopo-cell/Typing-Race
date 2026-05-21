@@ -21,8 +21,8 @@ export function GuildBell() {
       return r.json();
     },
     enabled: !!isSignedIn,
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+    refetchInterval: 120_000, // was 60 s — guild invites don't need sub-minute freshness
+    staleTime: 90_000,
   });
 
   const { data: activeSprint } = useQuery({
@@ -33,8 +33,8 @@ export function GuildBell() {
       return r.json() as Promise<{ sprint: { roomCode?: string; durationMinutes?: number; startedBy?: string } | null }>;
     },
     enabled: !!isSignedIn,
-    refetchInterval: 30_000,
-    staleTime: 20_000,
+    refetchInterval: 60_000,  // was 30 s
+    staleTime: 45_000,
   });
 
   if (!isSignedIn) return null;

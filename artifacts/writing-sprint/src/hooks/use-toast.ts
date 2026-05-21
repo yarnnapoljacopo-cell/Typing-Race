@@ -172,6 +172,10 @@ function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
 
   React.useEffect(() => {
+    // Register once on mount and deregister on unmount.
+    // The original dependency was [state] which caused the effect to re-run
+    // (and push a duplicate setState) on every state change, growing the
+    // listeners array unboundedly over the lifetime of the page.
     listeners.push(setState)
     return () => {
       const index = listeners.indexOf(setState)
@@ -179,7 +183,7 @@ function useToast() {
         listeners.splice(index, 1)
       }
     }
-  }, [state])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     ...state,

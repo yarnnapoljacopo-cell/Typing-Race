@@ -34,6 +34,9 @@ function EternalStars() {
 
     function draw() {
       if (!canvas || !ctx) return;
+      // Skip rendering entirely when the tab is hidden — saves GPU/CPU
+      // while the user is on a different tab.
+      if (document.hidden) { animId = requestAnimationFrame(draw); return; }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       for (const s of stars) {
         ctx.beginPath();
@@ -105,6 +108,8 @@ function FinalInkCanvas({ typingSpeed }: { typingSpeed: number }) {
     let spawnTimer = 0;
     function draw(ts: number) {
       if (!canvas || !ctx) return;
+      // Pause when the tab is hidden.
+      if (document.hidden) { animId = requestAnimationFrame(draw); return; }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const intensity = Math.min(speedRef.current / 60, 1);
       if (ts - spawnTimer > Math.max(20, 200 - intensity * 180)) {

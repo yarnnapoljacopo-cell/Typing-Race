@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, ClerkLoading, ClerkLoaded } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, Redirect, useLocation, Router as WouterRouter } from "wouter";
+import { useHashLocation } from "wouter/use-hash-location";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -76,6 +77,14 @@ const queryClient = new QueryClient({
     queries: {
       retry: (failureCount, err) => isTransientError(err) && failureCount < 3,
       retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15_000), // 1s, 2s, 4s …
+      // Disable refetch-on-window-focus globally. Without this, every tab
+      // switch re-fetches every mounted query (staleTime defaults to 0),
+      // causing a stampede of requests and React Query cache churn.
+      // Individual queries that genuinely need focus-refetch opt in explicitly.
+      refetchOnWindowFocus: false,
+      // Keep cached data fresh for 60 s by default so navigating between
+      // pages doesn't re-fetch data that was just loaded.
+      staleTime: 60_000,
     },
     mutations: {
       retry: (failureCount, err) => isTransientError(err) && failureCount < 2,
@@ -229,6 +238,12 @@ class ClerkErrorBoundary extends Component<
 
 const clerkPubKey = (import.meta.env.VITE_CLERK_PK ?? import.meta.env.VITE_CLERK_PUBLISHABLE_KEY) as string | undefined;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+// True when this is the offline Electron bundle (baked in at build time by vite.config.offline.ts,
+// with a file:// protocol fallback for extra safety).
+const isElectronFileBuild =
+  (import.meta.env as Record<string, string>).VITE_OFFLINE_BUILD === "true" ||
+  (typeof window !== "undefined" && window.location.protocol === "file:");
 
 // In development builds (NODE_ENV=development), skip the domain restriction so
 // the dev Railway service works on any domain (e.g. *.up.railway.app or dev.writingsprint.site).
@@ -507,9 +522,9 @@ function MyFilesGuard() {
   const { isSignedIn, isLoaded } = useAuth();
   const clerkTimedOut = useDevTimeout();
   const bypass = isPreviewBypassActive();
-  const isElectronOffline = !!(window as any).electronAPI && !navigator.onLine;
-  if (!isLoaded && !clerkTimedOut && !bypass && !isElectronOffline) return null;
-  if (isSignedIn || bypass || isElectronOffline) return <MyFiles />;
+  const offlineBypass = isElectronFileBuild || (!!(window as any).electronAPI && !navigator.onLine);
+  if (!isLoaded && !clerkTimedOut && !bypass && !offlineBypass) return null;
+  if (isSignedIn || bypass || offlineBypass) return <MyFiles />;
   return <Redirect to="/" />;
 }
 
@@ -912,7 +927,43 @@ function DevPreviewScreen() {
   );
 }
 
+// Offline Electron build: loaded from file:// so no server, no Clerk.
+// Uses hash routing (required for file:// URLs) and renders Folio directly.
+function OfflineElectronRouter() {
+  // Skip the MyFiles home landing page — open straight to the Folio editor.
+  // (The landing page has nav buttons that don't work under hash routing.)
+  sessionStorage.setItem("mf_skip_home", "1");
+
+  return (
+    <ClerkErrorBoundary>
+      <ClerkProvider publishableKey={clerkPubKey ?? "pk_test_offline_placeholder"}>
+        <DarkModeProvider>
+          <SkinProvider>
+            <GuestProvider>
+              <VillainModeProvider>
+                {/* DevTimeoutContext true = all auth guards treat Clerk as timed-out
+                    and fall through to the isElectronFileBuild bypass */}
+                <DevTimeoutContext.Provider value={true}>
+                  <WouterRouter hook={useHashLocation}>
+                    <Suspense fallback={<RouteFallback />}>
+                      <Switch>
+                        <Route path="/my-files" component={MyFiles} />
+                        <Route component={() => <Redirect to="/my-files" />} />
+                      </Switch>
+                    </Suspense>
+                  </WouterRouter>
+                </DevTimeoutContext.Provider>
+              </VillainModeProvider>
+            </GuestProvider>
+          </SkinProvider>
+        </DarkModeProvider>
+      </ClerkProvider>
+    </ClerkErrorBoundary>
+  );
+}
+
 function App() {
+  if (isElectronFileBuild) return <OfflineElectronRouter />;
   if (!onExpectedDomain) return <WrongDomainScreen />;
   // Production Clerk keys reject non-writingsprint.site origins.
   // In dev/preview, skip Clerk to avoid a fatal load error and show a placeholder.

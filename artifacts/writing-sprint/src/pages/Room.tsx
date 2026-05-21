@@ -844,7 +844,9 @@ export default function Room() {
       if (sprintStartedAtRef.current != null) {
         setClientElapsedMs(Date.now() - sprintStartedAtRef.current);
       }
-    }, 150);
+    // 250 ms: still smooth enough for reaper movement and the timer display
+    // (4 updates/sec vs the old 6.7), saves ~7 200 renders over a 30-min sprint.
+    }, 250);
     return () => clearInterval(interval);
   // Re-run when status changes or game-over state changes (to avoid resetting
   // clientElapsedMs while the spectate panel is still active).
