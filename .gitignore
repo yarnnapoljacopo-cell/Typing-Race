@@ -47,3 +47,8 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local dev credentials — never commit
+.env
+.env.local
+artifacts/api-server/.env
