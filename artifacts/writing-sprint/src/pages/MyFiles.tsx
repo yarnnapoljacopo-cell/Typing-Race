@@ -566,6 +566,9 @@ export default function MyFiles() {
   // consumed by the useEffect below — avoids the setTimeout(0) race where
   // the editor isn't in the DOM yet when the timer fires.
   const pendingLoadRef = useRef<{ content: string; title: string } | null>(null);
+  // Incremented on every openDoc call so the load useEffect fires even when
+  // activeDocId doesn't change (e.g. returning to the same chapter).
+  const [openDocSeq, setOpenDocSeq] = useState(0);
   const [editorWordCount, setEditorWordCount] = useState(0);
 
   // Grammar check state
@@ -886,7 +889,7 @@ export default function MyFiles() {
     ltLastTextRef.current = "";
     editorSnapshotRef.current = { html: "", title: pending.title };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeDocId, activeProjectId]);
+  }, [activeDocId, activeProjectId, openDocSeq]);
 
   // Auto-save chapter notes 800ms after the user stops editing them.
   // Also flushes synchronously on all emergency-save paths below.
@@ -1073,6 +1076,7 @@ export default function MyFiles() {
     // Store what to load — the useEffect below picks this up after React
     // has committed the render and the editor div is guaranteed to exist.
     pendingLoadRef.current = { content: doc.content, title: doc.name };
+    setOpenDocSeq((n) => n + 1); // ensures useEffect fires even for same docId
     setFindOpen(false);
   };
 
