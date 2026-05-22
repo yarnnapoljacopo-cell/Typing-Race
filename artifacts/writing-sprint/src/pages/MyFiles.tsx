@@ -1697,7 +1697,14 @@ export default function MyFiles() {
 
           {/* App cards — full-color gradient */}
           <div className="mf-home-cards">
-            <button className="mf-card mf-card--blue" onClick={() => setHomeView(false)}>
+            <button className="mf-card mf-card--blue" onClick={() => {
+              setHomeView(false);
+              // Re-open the previously active chapter so loadEditorContent runs.
+              // Without this, the editor mounts empty and content is never loaded.
+              if (activeProjectId && activeDocId) {
+                setTimeout(() => openDoc(activeProjectId, activeDocId), 50);
+              }
+            }}>
               <div className="mf-card-shine" />
               <div className="mf-card-icon-wrap">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -1823,7 +1830,12 @@ export default function MyFiles() {
 
       {/* TOP BAR */}
       <div className="folio-topbar">
-        <FolioLogoMenu onBack={() => setHomeView(true)} />
+        <FolioLogoMenu onBack={() => {
+          // Flush any pending autosave before leaving the editor
+          if (autosaveTimer.current) { window.clearTimeout(autosaveTimer.current); autosaveTimer.current = null; }
+          saveCurrentDoc();
+          setHomeView(true);
+        }} />
         <div className="topbar-spacer" />
 
         {dailyGoal > 0 && (
