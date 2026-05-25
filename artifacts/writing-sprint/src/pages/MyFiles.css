@@ -242,12 +242,18 @@
 .folio-root.focus-mode .editor-controls-pill{opacity:0;transition:opacity .3s;pointer-events:none}
 .folio-root.focus-mode .editor-controls-pill:hover{opacity:1;pointer-events:auto}
 
-/* Vertical companion pill — appears anchored to the left of the editor once
-   the horizontal pill has scrolled out of view. */
+/* Vertical companion pill — appears anchored just to the left of the
+   editor-paper, vertically centered. The paper is centered in the viewport
+   with max-width 740px, so we anchor the pill's right edge at
+   (50% + 370px + gap) = (half-paper + breathing room). On narrower viewports
+   where the paper hits its width cap, the pill keeps the same offset; if the
+   viewport gets really narrow the pill stays at the left margin. */
 .editor-controls-pill--vertical{
   position:absolute;
-  left:16px;
-  top:96px;
+  /* right anchors the pill to the left side of the centered paper */
+  right:calc(50% + 370px + 14px);
+  top:50%;
+  transform:translateY(-50%);
   flex-direction:column;
   align-items:center;
   gap:6px;
@@ -257,7 +263,7 @@
   animation:ecpVertIn .18s ease;
   /* Same visual treatment as horizontal pill, just stacked. */
 }
-@keyframes ecpVertIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
+@keyframes ecpVertIn{from{opacity:0;transform:translate(-6px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
 .ecp-seg--vertical{flex-direction:column;gap:4px;padding:2px 0}
 .ecp-seg-btn--vertical{
   width:28px;height:24px;padding:0;font-weight:700;
