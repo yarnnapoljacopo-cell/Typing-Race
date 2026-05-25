@@ -49,6 +49,75 @@
 .topbar-search input:focus{border-color:var(--accent);width:260px}
 .topbar-search input::placeholder{color:var(--text-muted)}
 .search-icon{position:absolute;left:9px;color:var(--text-muted);pointer-events:none}
+.search-clear{
+  position:absolute;right:6px;width:18px;height:18px;border:none;background:none;
+  color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;transition:background .12s,color .12s;
+}
+.search-clear:hover{background:var(--surface-hover);color:var(--text-primary)}
+
+/* Global search results dropdown — anchored below the topbar input.
+   Each row shows project › chapter and a snippet with the match marked. */
+.topbar-search-results{
+  position:absolute;top:calc(100% + 6px);right:0;
+  min-width:340px;max-width:440px;max-height:60vh;overflow-y:auto;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 14px 36px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.06);
+  padding:6px;z-index:300;
+  animation:tbSearchIn .14s ease;
+}
+@keyframes tbSearchIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.dark .folio-root .topbar-search-results{background:#1e2030}
+.topbar-search-empty{
+  padding:14px 12px;font-size:12.5px;color:var(--text-muted);text-align:center;font-style:italic;
+}
+.topbar-search-summary{
+  font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--text-muted);padding:6px 10px 8px;
+}
+.topbar-search-hit{
+  display:flex;flex-direction:column;gap:3px;
+  padding:8px 10px;border-radius:7px;border:none;background:transparent;
+  cursor:pointer;text-align:left;width:100%;
+  transition:background .12s;
+}
+.topbar-search-hit:hover{background:var(--accent-light)}
+.topbar-search-hit-crumb{
+  display:flex;align-items:center;gap:5px;
+  font-size:11.5px;font-weight:600;color:var(--text-secondary);
+}
+.topbar-search-hit-proj{color:var(--text-muted)}
+.topbar-search-hit-sep{color:var(--text-muted);opacity:.6}
+.topbar-search-hit-doc{color:var(--text-primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topbar-search-hit-count{
+  flex-shrink:0;font-size:10px;font-weight:700;color:var(--accent);
+  background:var(--accent-light);padding:1px 6px;border-radius:99px;
+}
+.topbar-search-hit-snippet{
+  font-size:12px;color:var(--text-muted);line-height:1.5;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+}
+.topbar-search-hit-snippet mark{background:#fff3a8;color:var(--text-primary);padding:0 2px;border-radius:3px}
+.dark .folio-root .topbar-search-hit-snippet mark{background:#3b3300;color:#fff8c4}
+
+/* In-editor highlight pulse — wraps every match in the loaded chapter after
+   a global-search click, fades out automatically after a few seconds. */
+.editor-content mark.search-flash{
+  background:linear-gradient(transparent 35%,#ffe66a 35% 88%,transparent 88%);
+  color:inherit;padding:0 1px;border-radius:2px;
+  animation:searchFlashPulse 1.4s ease-in-out 0s 3,searchFlashFade .8s ease-out 5.2s forwards;
+}
+@keyframes searchFlashPulse{
+  0%,100%{background:linear-gradient(transparent 35%,#ffe66a 35% 88%,transparent 88%)}
+  50%{background:linear-gradient(transparent 35%,#ffb84d 35% 88%,transparent 88%)}
+}
+@keyframes searchFlashFade{
+  to{background:linear-gradient(transparent 35%,rgba(255,230,106,0) 35% 88%,transparent 88%)}
+}
+.dark .folio-root .editor-content mark.search-flash{
+  background:linear-gradient(transparent 35%,#7a5c00 35% 88%,transparent 88%);
+  color:#fff;
+}
 .daily-goal-wrap{display:flex;align-items:center;gap:8px;padding:5px 10px;cursor:pointer;border-radius:8px;border:1px solid transparent;transition:border-color .15s,background .15s}
 .daily-goal-wrap:hover{border-color:var(--border);background:var(--bg)}
 .daily-goal-label{font-size:12px;color:var(--text-muted);white-space:nowrap;font-weight:500}

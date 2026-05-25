@@ -1209,7 +1209,9 @@ export default function MyFiles() {
       ?? "";
 
     const stripMarks = (el: HTMLElement): string => {
-      el.querySelectorAll(".lt-mark").forEach((mark) => {
+      // Both LanguageTool (.lt-mark) and global-search (mark.search-flash)
+      // wrap text nodes for visual purposes — never persist them on save.
+      el.querySelectorAll(".lt-mark, mark.search-flash").forEach((mark) => {
         const p = mark.parentNode!;
         while (mark.firstChild) p.insertBefore(mark.firstChild, mark);
         p.removeChild(mark);
@@ -1358,6 +1360,21 @@ export default function MyFiles() {
     clearMarks();
     ltLastTextRef.current = "";
     editorSnapshotRef.current = { html: "", title: pending.title };
+
+    // If we arrived here via a global-search result, wrap every occurrence
+    // of the query in <mark class="search-flash"> so the user can see
+    // exactly where the hits are, then scroll the first one into view.
+    // Marks are cleared automatically after a few seconds.
+    const flashQuery = pendingSearchHighlightRef.current;
+    if (flashQuery) {
+      pendingSearchHighlightRef.current = null;
+      const marks = wrapSearchMatches(div, flashQuery);
+      if (marks.length > 0) {
+        marks[0].scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+      if (searchFlashTimerRef.current) clearTimeout(searchFlashTimerRef.current);
+      searchFlashTimerRef.current = setTimeout(() => clearSearchFlash(), 6000);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDocId, activeProjectId, openDocSeq]);
 
@@ -1664,6 +1681,74 @@ export default function MyFiles() {
     findMatchesRef.current = [];
     findCurrentRef.current = -1;
   };
+
+  // ── Search-flash highlight (used by global search results) ──────────────
+  // Wraps every plain-text occurrence of `query` inside `root` with a
+  // <mark class="search-flash"> element. The CSS animates the mark with a
+  // pulsing yellow background. Returns the wrappers so the caller can scroll
+  // the first one into view or clear them on a timeout. Critically, these
+  // marks live ONLY in the live DOM — stripMarks() above filters them out
+  // before saving so they never end up on disk.
+  const wrapSearchMatches = useCallback((root: HTMLElement, query: string) => {
+    const wrappers: HTMLElement[] = [];
+    if (!query) return wrappers;
+    const re = new RegExp(escRe(query), "gi");
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = [];
+    let n: Node | null = walker.nextNode();
+    while (n) {
+      // Skip if already inside a mark (don't double-wrap)
+      const p = (n as Text).parentElement;
+      if (!p?.closest(".lt-mark, mark.search-flash")) nodes.push(n as Text);
+      n = walker.nextNode();
+    }
+    for (const tn of nodes) {
+      const text = tn.nodeValue ?? "";
+      if (!text) continue;
+      re.lastIndex = 0;
+      const hits: { s: number; e: number }[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) {
+        hits.push({ s: m.index, e: m.index + m[0].length });
+        if (m[0].length === 0) re.lastIndex++;
+      }
+      if (!hits.length) continue;
+      const parent = tn.parentNode;
+      if (!parent) continue;
+      const frag = document.createDocumentFragment();
+      let cursor = 0;
+      for (const { s, e } of hits) {
+        if (s > cursor) frag.appendChild(document.createTextNode(text.slice(cursor, s)));
+        const mark = document.createElement("mark");
+        mark.className = "search-flash";
+        mark.textContent = text.slice(s, e);
+        frag.appendChild(mark);
+        wrappers.push(mark);
+        cursor = e;
+      }
+      if (cursor < text.length) frag.appendChild(document.createTextNode(text.slice(cursor)));
+      parent.replaceChild(frag, tn);
+    }
+    return wrappers;
+  }, []);
+
+  const clearSearchFlash = useCallback(() => {
+    const div = contentRef.current;
+    if (!div) return;
+    div.querySelectorAll("mark.search-flash").forEach((mark) => {
+      const p = mark.parentNode;
+      if (!p) return;
+      while (mark.firstChild) p.insertBefore(mark.firstChild, mark);
+      p.removeChild(mark);
+    });
+    div.normalize();
+  }, []);
+
+  // When a global-search result is clicked we queue the query here; the
+  // editor-load effect picks it up after the new doc's content mounts and
+  // runs wrapSearchMatches + scrolls the first hit into view.
+  const pendingSearchHighlightRef = useRef<string | null>(null);
+  const searchFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Toolbar editor helpers ──────────────────────────────
   // The folio editor is a contentEditable div. We use the well-supported
@@ -2101,7 +2186,64 @@ export default function MyFiles() {
   const dailyPct = dailyGoal ? Math.min(100, Math.round((dailyWords / dailyGoal) * 100)) : 0;
 
   // ── Sidebar render data ─────────────────────────────────
-  const ql = globalSearch.toLowerCase();
+  const ql = globalSearch.toLowerCase().trim();
+
+  // ── Global-search results (across every project + chapter) ──────────────
+  // Each hit carries enough context for the dropdown: project name, chapter
+  // name, total match count, and a snippet centred on the first match with
+  // the query highlighted via <mark>. Clicking a hit opens the chapter and
+  // queues an in-editor highlight (pendingSearchHighlightRef).
+  const globalSearchHits = useMemo(() => {
+    if (!ql) return [] as Array<{
+      projectId: string; projectName: string;
+      docId: string; docName: string;
+      total: number; snippet: string; matchStart: number;
+    }>;
+    const out: Array<{
+      projectId: string; projectName: string;
+      docId: string; docName: string;
+      total: number; snippet: string; matchStart: number;
+    }> = [];
+    const re = new RegExp(ql.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&"), "g");
+    for (const p of state.projects) {
+      for (const d of p.docs) {
+        const content = docPlainText(d.content);
+        const lower = content.toLowerCase();
+        const idx = lower.indexOf(ql);
+        const nameHit = d.name.toLowerCase().includes(ql);
+        if (idx === -1 && !nameHit) continue;
+        re.lastIndex = 0;
+        const total = (lower.match(re) || []).length;
+        let snippet = "";
+        if (idx !== -1) {
+          const start = Math.max(0, idx - 40);
+          const end = Math.min(content.length, idx + ql.length + 60);
+          snippet = (start > 0 ? "…" : "") + content.slice(start, end) + (end < content.length ? "…" : "");
+        }
+        out.push({
+          projectId: p.id, projectName: p.name,
+          docId: d.id, docName: d.name,
+          total, snippet, matchStart: idx,
+        });
+      }
+    }
+    return out;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ql, state.projects]);
+  const [globalSearchFocused, setGlobalSearchFocused] = useState(false);
+  const globalSearchResultsOpen = globalSearchFocused && !!ql;
+
+  const openSearchHit = useCallback(
+    (projectId: string, docId: string) => {
+      pendingSearchHighlightRef.current = ql;
+      setGlobalSearchFocused(false);
+      openDoc(projectId, docId);
+    },
+    // openDoc is stable enough for this purpose (it's a closure over latest state)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ql],
+  );
+
   const visibleProjects = state.projects
     .map((proj) => {
       const visibleDocs = ql
@@ -2340,7 +2482,73 @@ export default function MyFiles() {
             placeholder="Search projects…"
             value={globalSearch}
             onChange={(e) => setGlobalSearch(e.target.value)}
+            onFocus={() => setGlobalSearchFocused(true)}
+            // Delay blur so click on a result registers before the dropdown closes
+            onBlur={() => setTimeout(() => setGlobalSearchFocused(false), 150)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") { setGlobalSearch(""); setGlobalSearchFocused(false); }
+              else if (e.key === "Enter" && globalSearchHits.length > 0) {
+                const first = globalSearchHits[0];
+                openSearchHit(first.projectId, first.docId);
+              }
+            }}
           />
+          {globalSearch && (
+            <button
+              className="search-clear"
+              onMouseDown={(e) => { e.preventDefault(); setGlobalSearch(""); }}
+              title="Clear"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          )}
+
+          {/* Results dropdown — chapter rows with project crumb + highlighted snippet */}
+          {globalSearchResultsOpen && (
+            <div className="topbar-search-results" onMouseDown={(e) => e.preventDefault()}>
+              {globalSearchHits.length === 0 ? (
+                <div className="topbar-search-empty">No matches.</div>
+              ) : (
+                <>
+                  <div className="topbar-search-summary">
+                    {globalSearchHits.reduce((s, h) => s + h.total, 0)} match{globalSearchHits.reduce((s, h) => s + h.total, 0) === 1 ? "" : "es"} in {globalSearchHits.length} chapter{globalSearchHits.length === 1 ? "" : "s"}
+                  </div>
+                  {globalSearchHits.slice(0, 30).map((hit) => {
+                    // Render snippet with the query wrapped in <mark>
+                    const lower = hit.snippet.toLowerCase();
+                    const i = lower.indexOf(ql);
+                    const snippetEls = i === -1
+                      ? hit.snippet
+                      : (<>
+                          {hit.snippet.slice(0, i)}
+                          <mark>{hit.snippet.slice(i, i + ql.length)}</mark>
+                          {hit.snippet.slice(i + ql.length)}
+                        </>);
+                    return (
+                      <button
+                        key={`${hit.projectId}-${hit.docId}`}
+                        className="topbar-search-hit"
+                        onClick={() => openSearchHit(hit.projectId, hit.docId)}
+                      >
+                        <div className="topbar-search-hit-crumb">
+                          <span className="topbar-search-hit-proj">{hit.projectName}</span>
+                          <span className="topbar-search-hit-sep">›</span>
+                          <span className="topbar-search-hit-doc">{hit.docName}</span>
+                          {hit.total > 1 && <span className="topbar-search-hit-count">{hit.total}</span>}
+                        </div>
+                        {hit.snippet && (
+                          <div className="topbar-search-hit-snippet">{snippetEls}</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {globalSearchHits.length > 30 && (
+                    <div className="topbar-search-empty">…and {globalSearchHits.length - 30} more. Refine your query.</div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {activeDoc && (
