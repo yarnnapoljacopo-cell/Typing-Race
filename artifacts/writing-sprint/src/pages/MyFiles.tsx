@@ -797,6 +797,62 @@ const Ico = {
   Recent: () => (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="12 8 12 12 14 14" /><path d="M3.05 11a9 9 0 1 0 .5-3" /></svg>
   ),
+
+  // ── Toolbar / writing icons (Feather-style, monoline) ──
+  Bold: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></svg>
+  ),
+  Italic: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>
+  ),
+  Underline: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3v7a6 6 0 0 0 12 0V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg>
+  ),
+  Strike: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4H9a3 3 0 0 0-2.83 4"/><path d="M14 12a4 4 0 0 1 0 8H6"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
+  ),
+  Quote: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/></svg>
+  ),
+  ListBul: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+  ),
+  ListNum: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>
+  ),
+  Hr: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/></svg>
+  ),
+  Pilcrow: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 4v16"/><path d="M17 4v16"/><path d="M19 4H9.5a4.5 4.5 0 0 0 0 9H13"/></svg>
+  ),
+  Checkbox: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><polyline points="9 12 11 14 16 9"/></svg>
+  ),
+  Scene: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+  ),
+  Undo: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
+  ),
+  Redo: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>
+  ),
+  Link: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+  ),
+  ClearFmt: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6V4H9L3 10l6 6h11v-2"/><line x1="12" y1="20" x2="20" y2="20"/><line x1="18" y1="14" x2="22" y2="18"/><line x1="22" y1="14" x2="18" y2="18"/></svg>
+  ),
+  TypeSize: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+  ),
+  Typewriter: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></svg>
+  ),
+  StickyNote: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3v6h6"/><path d="M20 9v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8z"/></svg>
+  ),
   Drag: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="16" y2="6" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="8" y1="18" x2="16" y2="18" /></svg>
   ),
@@ -939,6 +995,14 @@ export default function MyFiles() {
       window.removeEventListener("message", onMessage);
     };
   }, []);
+  // Esc exits focus mode — keeps the keyboard-only path consistent with the
+  // exit chip in the top-right corner.
+  useEffect(() => {
+    if (!focusMode) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFocusMode(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focusMode]);
   // Reset chapter notes draft whenever the active doc changes
   useEffect(() => {
     if (!activeDocId) return;
@@ -1113,12 +1177,63 @@ export default function MyFiles() {
   const [projSearch, setProjSearch] = useState<Record<string, string>>({});
   const [projSearchOpen, setProjSearchOpen] = useState<Record<string, boolean>>({});
 
-  // Home / app-picker screen — skip if coming from Novel Notes "Back to Folio"
+  // Home / app-picker screen — three reasons we DON'T show it:
+  //   1) coming back from Novel Notes "Back to Folio" (sessionStorage flag)
+  //   2) the user was in a chapter last time and just refreshed — we restore
+  //      them straight back into that chapter (localStorage `folio_last_doc`)
+  // Otherwise the home picker is the landing screen.
   const [homeView, setHomeView] = useState(() => {
     const skip = sessionStorage.getItem("mf_skip_home");
     if (skip) { sessionStorage.removeItem("mf_skip_home"); return false; }
+    try {
+      const last = localStorage.getItem("folio_last_doc");
+      if (last) {
+        const parsed = JSON.parse(last) as { projectId?: string; docId?: string };
+        if (parsed.projectId && parsed.docId) return false;
+      }
+    } catch { /* ignore corrupt JSON */ }
     return true;
   });
+
+  // Re-open the user's last chapter once project data has loaded. We can't do
+  // this in the initial render because state.projects starts empty and is
+  // populated asynchronously by useFolio() (from IndexedDB / server). This
+  // effect waits for projects to arrive, then calls openDoc once to restore
+  // the editor. Guarded so it only runs at most once per mount.
+  const restoredLastDocRef = useRef(false);
+  useEffect(() => {
+    if (restoredLastDocRef.current) return;
+    if (homeView) return; // user is on the picker, nothing to restore
+    if (activeDocId) { restoredLastDocRef.current = true; return; }
+    if (!state.projects.length) return; // wait for data
+    try {
+      const last = localStorage.getItem("folio_last_doc");
+      if (!last) { restoredLastDocRef.current = true; return; }
+      const parsed = JSON.parse(last) as { projectId?: string; docId?: string };
+      const proj = state.projects.find((p) => p.id === parsed.projectId);
+      const doc = proj?.docs.find((d) => d.id === parsed.docId);
+      if (proj && doc) {
+        openDoc(proj.id, doc.id);
+      } else {
+        // The saved chapter no longer exists — fall back to the home picker
+        // rather than leaving the editor stuck on a blank state.
+        setHomeView(true);
+      }
+    } catch { /* ignore */ }
+    restoredLastDocRef.current = true;
+  // openDoc is a closure over latest state; safe to omit from deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.projects, homeView, activeDocId]);
+
+  // Persist the active chapter so a refresh keeps the user where they were.
+  // Cleared when they go back to the home picker (handled in the back handler).
+  useEffect(() => {
+    if (activeProjectId && activeDocId) {
+      try {
+        localStorage.setItem("folio_last_doc", JSON.stringify({ projectId: activeProjectId, docId: activeDocId }));
+      } catch { /* ignore quota errors */ }
+    }
+  }, [activeProjectId, activeDocId]);
 
   // Drag-and-drop chapter reordering
   const dragDocRef = useRef<{ docId: string; projectId: string } | null>(null);
@@ -1777,6 +1892,13 @@ export default function MyFiles() {
   // click), runFormat() always has the user's most recent editor selection
   // to restore before calling execCommand.
   const savedRangeRef = useRef<Range | null>(null);
+  // Live readout of which inline formats apply at the current cursor, so the
+  // toolbar buttons can light up (B / I / U / S) and the paragraph dropdown
+  // can reflect the current block.
+  type ActiveFormats = { bold: boolean; italic: boolean; underline: boolean; strike: boolean; block: string };
+  const [activeFormats, setActiveFormats] = useState<ActiveFormats>({
+    bold: false, italic: false, underline: false, strike: false, block: "p",
+  });
   useEffect(() => {
     const onSelectionChange = () => {
       const sel = window.getSelection();
@@ -1784,9 +1906,26 @@ export default function MyFiles() {
       const r = sel.getRangeAt(0);
       const div = contentRef.current;
       if (!div) return;
-      if (div.contains(r.startContainer) && div.contains(r.endContainer)) {
-        savedRangeRef.current = r.cloneRange();
-      }
+      if (!div.contains(r.startContainer) || !div.contains(r.endContainer)) return;
+      savedRangeRef.current = r.cloneRange();
+      // Read live format state from the browser. queryCommandState/Value are
+      // legacy but still the cheapest way to mirror the active inline marks
+      // back into the toolbar without re-implementing the parser.
+      try {
+        /* eslint-disable @typescript-eslint/no-deprecated */
+        const block = (document.queryCommandValue("formatBlock") || "p").toString().toLowerCase();
+        setActiveFormats({
+          bold: document.queryCommandState("bold"),
+          italic: document.queryCommandState("italic"),
+          underline: document.queryCommandState("underline"),
+          strike: document.queryCommandState("strikeThrough"),
+          // queryCommandValue returns things like "h1", "h2", "p", or
+          // sometimes "" for the default — normalize to a known set so the
+          // <select> binding works cleanly.
+          block: /^h[123]$/.test(block) ? block : "p",
+        });
+        /* eslint-enable @typescript-eslint/no-deprecated */
+      } catch { /* ignore */ }
     };
     document.addEventListener("selectionchange", onSelectionChange);
     return () => document.removeEventListener("selectionchange", onSelectionChange);
@@ -1841,7 +1980,13 @@ export default function MyFiles() {
   const applyHeading = (val: string) => {
     restoreSelection();
     const tag = val === "h1" ? "h1" : val === "h2" ? "h2" : val === "h3" ? "h3" : "p";
-    exec("formatBlock", tag);
+    // Firefox requires the angle-bracket form for formatBlock; Chrome
+    // accepts both. The bracket form is the cross-browser safe path and was
+    // the missing piece making the dropdown look like a no-op for some users.
+    exec("formatBlock", `<${tag}>`);
+    // Update the active-format readout immediately so the dropdown reflects
+    // the change without waiting for the next selectionchange tick.
+    setActiveFormats((af) => ({ ...af, block: tag }));
     scheduleAutosave();
   };
 
@@ -2433,10 +2578,15 @@ export default function MyFiles() {
 
   return (
     <div className={`folio-root${focusMode ? " focus-mode" : ""}${typewriterMode ? " typewriter-mode" : ""}`}>
-      {/* Focus exit button (visible only in focus mode) */}
+      {/* Focus exit chip (visible only in focus mode). Fades in on hover so it
+          doesn't intrude on the writing surface; click to drop back into the
+          full editor chrome. Keyboard: Esc also exits via the listener below. */}
       {focusMode && (
-        <button className="btn btn-ghost focus-exit" onClick={() => setFocusMode(false)}>
-          <Ico.Focus /> Exit Focus
+        <button className="focus-exit-chip" onClick={() => setFocusMode(false)} title="Exit focus (Esc)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="m14 10 7-7"/><path d="m3 21 7-7"/>
+          </svg>
+          <span>Exit focus</span>
         </button>
       )}
 
@@ -2446,6 +2596,9 @@ export default function MyFiles() {
           // Flush any pending autosave before leaving the editor
           if (autosaveTimer.current) { window.clearTimeout(autosaveTimer.current); autosaveTimer.current = null; }
           saveCurrentDoc();
+          // Clear the "last doc" marker — explicitly going home means the next
+          // refresh should land on the picker, not back in the editor.
+          try { localStorage.removeItem("folio_last_doc"); } catch { /* ignore */ }
           setHomeView(true);
         }} />
         <div className="topbar-spacer" />
@@ -2880,8 +3033,11 @@ export default function MyFiles() {
               {/* Vertical companion pill — appears when the horizontal one
                   scrolls out of view as the user writes. Keeps the same
                   controls within reach without dominating the writing surface. */}
-              {pillHidden && !focusMode && (
-                <div className="editor-controls-pill editor-controls-pill--vertical" aria-label="Editor controls">
+              {pillHidden && (
+                <div
+                  className={`editor-controls-pill editor-controls-pill--vertical${focusMode ? " editor-controls-pill--right" : ""}`}
+                  aria-label="Editor controls"
+                >
                   <div className="ecp-seg ecp-seg--vertical">
                     {(["none", "indent", "double"] as const).map((mode) => (
                       <button
@@ -2921,54 +3077,77 @@ export default function MyFiles() {
                   </button>
                 </div>
               )}
+              {/* ── Editor topbar — chapter chip · status · session info · actions ── */}
               <div className="editor-topbar">
-                <div className="breadcrumb">
-                  <span className="crumb-project">{activeProject?.name}</span>
-                  <span className="sep">›</span>
-                  <span className="crumb-doc">{activeDoc.name}</span>
-                </div>
                 <button
-                  className="status-pill"
+                  className="crumb-chip"
                   onClick={(e) => {
+                    // Same status menu as before, anchored from the chip.
                     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                     setStatusMenuPos({ top: rect.bottom + 6, left: rect.left });
                     setStatusMenuOpen((v) => !v);
                   }}
-                  style={{ background: statusInfo.color + "22", color: statusInfo.color }}
+                  title="Change status"
                 >
-                  <span className="status-dot-sm" style={{ color: statusInfo.color }} />
-                  {statusInfo.label}
+                  <span className="crumb-chip-dot" style={{ background: statusInfo.color }} />
+                  <span className="crumb-chip-project">{activeProject?.name}</span>
+                  <span className="crumb-chip-sep">›</span>
+                  <span className="crumb-chip-doc">{activeDoc.name}</span>
+                  <span className="crumb-chip-status" style={{ color: statusInfo.color, background: statusInfo.color + "1c" }}>
+                    {statusInfo.label}
+                  </span>
                 </button>
+
                 <div className="editor-topbar-spacer" />
+
+                {/* Live save indicator */}
                 <div className={`autosave-indicator autosave-indicator--${saveStatus}`}>
-                  {saveStatus === "unsaved" && <><span className="autosave-dot" /> Unsaved changes…</>}
-                  {saveStatus === "saving" && <><span className="autosave-dot autosave-dot--saving" /> Saving…</>}
+                  {saveStatus === "unsaved" && <><span className="autosave-dot" /> Unsaved</>}
+                  {saveStatus === "saving" && <><span className="autosave-dot autosave-dot--saving" /> Saving</>}
                   {saveStatus === "saved" && <><Ico.Check /> Saved</>}
                 </div>
-                <span className="editor-word-count">
-                  {editorWordCount.toLocaleString()} word{editorWordCount === 1 ? "" : "s"}
-                </span>
+
+                {/* Session stats — word count + reading time + today's progress.
+                    Today's badge mirrors the daily goal bar in the top bar
+                    so writers know at-a-glance how far into their goal they are. */}
+                <div className="session-stats" title="Total words · estimated reading time">
+                  <span className="session-stat session-stat--words">
+                    <strong>{editorWordCount.toLocaleString()}</strong>
+                    <span className="session-stat-unit">words</span>
+                  </span>
+                  <span className="session-stat-divider" />
+                  <span className="session-stat" title="Estimated reading time at ~230 wpm">
+                    <Ico.Clock />
+                    <span>{editorWordCount < 30 ? "<1 min" : `${Math.max(1, Math.round(editorWordCount / 230))} min`}</span>
+                  </span>
+                </div>
+                {dailyGoal > 0 && (
+                  <span className={`today-badge${dailyPct >= 100 ? " today-badge--done" : ""}`} title={`${dailyWords}/${dailyGoal} words today`}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4"/><path d="m6.4 6.4 2.83 2.83"/><path d="M2 12h4"/><path d="m6.4 17.6 2.83-2.83"/><path d="M12 18v4"/><path d="m14.77 14.77 2.83 2.83"/><path d="M18 12h4"/><path d="m14.77 9.23 2.83-2.83"/></svg>
+                    <span><strong>{dailyWords.toLocaleString()}</strong>/{dailyGoal.toLocaleString()}</span>
+                  </span>
+                )}
+
+                <div className="editor-topbar-spacer-sm" />
+
+                {/* Quick actions */}
                 <button
-                  className="btn btn-ghost"
+                  className={`topbar-icon-btn${typewriterMode ? " active" : ""}`}
                   onClick={() => setTypewriterMode((v) => !v)}
-                  title="Typewriter mode"
-                  style={{ fontSize: 11, padding: "0 8px", background: typewriterMode ? "var(--accent-light)" : undefined, color: typewriterMode ? "var(--accent)" : undefined }}
+                  title="Typewriter mode — keeps the active line centered"
                 >
-                  ⌨ TW
+                  <Ico.Typewriter />
                 </button>
                 <button
-                  className={`sticky-note-toggle${stickyOpen ? " active" : ""}`}
+                  className={`topbar-icon-btn${stickyOpen ? " active" : ""}`}
                   onClick={() => setStickyOpen((v) => !v)}
                   title="Sticky note (outline, ideas)"
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 3v6h6" /><path d="M20 9v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8z" />
-                  </svg>
-                  Notes
+                  <Ico.StickyNote />
                 </button>
               </div>
 
-              {/* Toolbar */}
+              {/* ── Writing toolbar — grouped tile pills, SVG icons throughout ── */}
               <div
                 className="writing-toolbar"
                 // preventDefault on mousedown for the buttons so they don't
@@ -2977,77 +3156,123 @@ export default function MyFiles() {
                 // selectionchange listener) before calling execCommand, so
                 // formatting still applies even if the focus did shift.
                 onMouseDown={(e) => {
+                  // Stop buttons from stealing focus from the editor (so
+                  // execCommand still applies to the user's selection). DON'T
+                  // preventDefault on SELECT — it blocks the dropdown from
+                  // opening, which is what made font-size silently fail.
                   const t = e.target as HTMLElement;
                   if (t.tagName === "BUTTON" || t.closest("button")) e.preventDefault();
                 }}
               >
-                {/*
-                  Toolbar buttons use onMouseDown + preventDefault (the
-                  canonical contentEditable pattern). This prevents the
-                  button from taking focus, so the editor's selection
-                  stays intact and execCommand applies to the user's
-                  selected text. Plain onClick would fire after focus has
-                  already shifted to the button (collapsing the
-                  selection), so bold/italic etc. would silently no-op.
-                */}
-                <select className="tb-select" defaultValue="p" onChange={(e) => { applyHeading(e.target.value); e.target.value = "p"; }} title="Paragraph style">
-                  <option value="p">Paragraph</option>
-                  <option value="h1">Heading 1</option>
-                  <option value="h2">Heading 2</option>
-                  <option value="h3">Heading 3</option>
-                </select>
-                <div className="tb-sep" />
-                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); wrapText("**", "**"); }} title="Bold"><b>B</b></button>
-                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); wrapText("_", "_"); }} title="Italic"><i>I</i></button>
-                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); wrapText("__", "__"); }} title="Underline"><u>U</u></button>
-                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); wrapText("~~", "~~"); }} title="Strikethrough"><s>S</s></button>
-                <div className="tb-sep" />
-                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("> "); }} title="Block quote">❝</button>
-                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtLineStart("- "); }} title="Bullet list">•≡</button>
-                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtLineStart("1. "); }} title="Numbered list">1≡</button>
-                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtLineStart("---\n"); }} title="Divider">—</button>
-                <div className="tb-sep" />
-                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("\n\n"); }} title="Paragraph break">¶</button>
-                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("[ ] "); }} title="Checkbox">☐</button>
-                <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("---\n\n"); }} title="Scene break">···</button>
-                <div className="tb-sep" />
-                <select
-                  className="tb-select"
-                  value={fontSize}
-                  onMouseDown={() => {
-                    const saved = savedRangeRef.current;
-                    if (saved) savedRangeRef.current = saved.cloneRange();
-                  }}
-                  onChange={(e) => {
-                    const size = parseInt(e.target.value, 10);
-                    const saved = savedRangeRef.current;
-                    const div = contentRef.current;
-                    if (saved && !saved.collapsed && div) {
-                      div.focus();
+                {/* Heading style — controlled select reflects the active block,
+                    so the dropdown always shows the right value when the user
+                    moves the cursor between paragraphs/headings. */}
+                <div className="tb-group">
+                  <select
+                    className="tb-select"
+                    value={activeFormats.block}
+                    onChange={(e) => applyHeading(e.target.value)}
+                    title="Paragraph style"
+                  >
+                    <option value="p">Paragraph</option>
+                    <option value="h1">Heading 1</option>
+                    <option value="h2">Heading 2</option>
+                    <option value="h3">Heading 3</option>
+                  </select>
+                </div>
+
+                {/* Inline formatting — buttons light up when the cursor is
+                    inside text with the corresponding mark. */}
+                <div className="tb-group">
+                  <button className={`tb-btn${activeFormats.bold ? " active" : ""}`}      onMouseDown={(e) => { e.preventDefault(); wrapText("**", "**"); }} title="Bold (⌘B)"><Ico.Bold /></button>
+                  <button className={`tb-btn${activeFormats.italic ? " active" : ""}`}    onMouseDown={(e) => { e.preventDefault(); wrapText("_", "_"); }}   title="Italic (⌘I)"><Ico.Italic /></button>
+                  <button className={`tb-btn${activeFormats.underline ? " active" : ""}`} onMouseDown={(e) => { e.preventDefault(); wrapText("__", "__"); }} title="Underline (⌘U)"><Ico.Underline /></button>
+                  <button className={`tb-btn${activeFormats.strike ? " active" : ""}`}    onMouseDown={(e) => { e.preventDefault(); wrapText("~~", "~~"); }} title="Strikethrough"><Ico.Strike /></button>
+                </div>
+
+                {/* Block formatting */}
+                <div className="tb-group">
+                  <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("> "); }} title="Block quote"><Ico.Quote /></button>
+                  <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtLineStart("- "); }} title="Bullet list"><Ico.ListBul /></button>
+                  <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtLineStart("1. "); }} title="Numbered list"><Ico.ListNum /></button>
+                  <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtLineStart("---\n"); }} title="Horizontal rule"><Ico.Hr /></button>
+                </div>
+
+                {/* Inserts */}
+                <div className="tb-group">
+                  <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("\n\n"); }} title="Paragraph break"><Ico.Pilcrow /></button>
+                  <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("[ ] "); }} title="Checkbox"><Ico.Checkbox /></button>
+                  <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); insertAtCursor("---\n\n"); }} title="Scene break"><Ico.Scene /></button>
+                  <button
+                    className="tb-btn"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      restoreSelection();
                       const sel = window.getSelection();
-                      if (sel) { sel.removeAllRanges(); sel.addRange(saved); }
-                      // eslint-disable-next-line @typescript-eslint/no-deprecated
-                      document.execCommand("fontSize", false, "7");
-                      div.querySelectorAll("font[size='7']").forEach((el) => {
-                        const span = document.createElement("span");
-                        span.style.fontSize = `${size}px`;
-                        while (el.firstChild) span.appendChild(el.firstChild);
-                        el.replaceWith(span);
-                      });
-                      scheduleAutosave();
-                      updateWordCount();
-                      localStorage.setItem("folio_font_size", size.toString());
-                    } else {
+                      if (sel && !sel.isCollapsed) {
+                        const href = window.prompt("Link URL:", "https://");
+                        if (href && href !== "https://") runFormat("createLink", href);
+                      }
+                    }}
+                    title="Link"
+                  >
+                    <Ico.Link />
+                  </button>
+                </div>
+
+                {/* History + tidy-up */}
+                <div className="tb-group">
+                  <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); runFormat("undo"); }} title="Undo (⌘Z)"><Ico.Undo /></button>
+                  <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); runFormat("redo"); }} title="Redo (⌘⇧Z)"><Ico.Redo /></button>
+                  <button className="tb-btn" onMouseDown={(e) => { e.preventDefault(); runFormat("removeFormat"); }} title="Clear formatting"><Ico.ClearFmt /></button>
+                </div>
+
+                {/* Font size — always updates the editor-wide default (so
+                    you can see the change immediately), and additionally
+                    wraps any current selection in an inline-styled span. */}
+                <div className="tb-group tb-group--last">
+                  <span className="tb-group-icon" title="Font size"><Ico.TypeSize /></span>
+                  <select
+                    className="tb-select tb-select--compact"
+                    value={fontSize}
+                    onChange={(e) => {
+                      const size = parseInt(e.target.value, 10);
+                      if (Number.isNaN(size)) return;
+
+                      // 1) Always update the default editor font size — this
+                      // is what makes the change visible even when nothing
+                      // is selected. Previously this was the else-branch,
+                      // which meant a stale savedRange would silently fail.
                       setFontSize(size);
                       localStorage.setItem("folio_font_size", size.toString());
-                    }
-                  }}
-                  title="Font size"
-                >
-                  {[12, 14, 15, 16, 18, 20, 22, 24].map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+
+                      // 2) If text was selected (saved range from selectionchange),
+                      // additionally wrap it in a span with the explicit size.
+                      const saved = savedRangeRef.current;
+                      const div = contentRef.current;
+                      if (saved && !saved.collapsed && div) {
+                        div.focus();
+                        const sel = window.getSelection();
+                        if (sel) { sel.removeAllRanges(); sel.addRange(saved); }
+                        // eslint-disable-next-line @typescript-eslint/no-deprecated
+                        document.execCommand("fontSize", false, "7");
+                        div.querySelectorAll("font[size='7']").forEach((el) => {
+                          const span = document.createElement("span");
+                          span.style.fontSize = `${size}px`;
+                          while (el.firstChild) span.appendChild(el.firstChild);
+                          el.replaceWith(span);
+                        });
+                        scheduleAutosave();
+                        updateWordCount();
+                      }
+                    }}
+                    title="Font size"
+                  >
+                    {[12, 14, 15, 16, 18, 20, 22, 24].map((s) => (
+                      <option key={s} value={s}>{s}px</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Find bar */}

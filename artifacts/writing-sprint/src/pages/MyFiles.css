@@ -135,6 +135,23 @@
 .folio-root .btn-danger{background:var(--danger);color:#fff}
 .folio-root .btn-danger:hover{background:#a93226}
 .focus-exit{display:none;position:fixed;top:16px;right:16px;z-index:9999}
+/* Modern focus-exit chip — small, low-contrast, lifts to full visibility on
+   hover so it never competes with the writing surface. */
+.focus-exit-chip{
+  display:none;position:fixed;top:18px;right:20px;z-index:9999;
+  align-items:center;gap:6px;
+  padding:7px 13px;border-radius:99px;
+  background:var(--surface);border:1px solid var(--border);
+  color:var(--text-muted);
+  font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:600;
+  cursor:pointer;opacity:.4;
+  box-shadow:0 4px 14px rgba(0,0,0,.08);
+  transition:opacity .2s,color .15s,border-color .15s,transform .15s;
+}
+.folio-root.focus-mode .focus-exit-chip{display:inline-flex}
+.focus-exit-chip:hover{opacity:1;color:var(--accent);border-color:var(--accent);transform:translateY(-1px)}
+.focus-exit-chip svg{flex-shrink:0}
+.dark .folio-root .focus-exit-chip{background:#1e2030;border-color:rgba(255,255,255,.08);box-shadow:0 4px 18px rgba(0,0,0,.4)}
 
 .app-body{display:flex;flex:1;overflow:hidden}
 .folio-sidebar{width:var(--sidebar-w);background:linear-gradient(180deg,#e8e3dc 0%,#e2ddd6 100%);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;box-shadow:inset -1px 0 0 rgba(0,0,0,.04)}
@@ -259,26 +276,120 @@
 .dark .folio-root .cn-input,.dark .folio-root .cn-textarea{background:var(--surface);color:var(--text-primary);border-color:var(--border)}
 .dark .folio-root .cn-todo-input{background:var(--surface);color:var(--text-primary);border-color:var(--border)}
 .folio-root.focus-mode .cn-sidebar{display:none}
-.editor-topbar{padding:0 20px;height:50px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:10px;flex-shrink:0}
-.breadcrumb{font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:6px;min-width:0}
-.crumb-project{color:var(--accent);font-weight:600;white-space:nowrap}
-.crumb-doc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;color:var(--text-secondary);font-weight:500}
-.sep{opacity:.35;font-size:15px}
+/* ── Editor topbar — clean, flat, white. No heavy pill containers. ──────── */
+.editor-topbar{
+  padding:0 20px;height:50px;
+  border-bottom:1px solid var(--border-light);
+  background:#fff;
+  display:flex;align-items:center;gap:14px;flex-shrink:0;
+}
+.dark .folio-root .editor-topbar{background:var(--surface);border-bottom-color:rgba(255,255,255,.05)}
 .editor-topbar-spacer{flex:1}
-.autosave-indicator{font-size:12px;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:color .3s}
-.autosave-indicator--saved{color:var(--text-muted)}
-.autosave-indicator--unsaved{color:#e8a020}
-.autosave-indicator--saving{color:var(--text-muted)}
-.autosave-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
+.editor-topbar-spacer-sm{width:4px;flex-shrink:0}
+
+/* Breadcrumb — plain text "Project › Chapter · STATUS", clickable to open
+   the status menu. No container pill — it sits flush in the topbar. */
+.crumb-chip{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:6px 4px;background:none;border:none;
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
+  color:var(--text-secondary);cursor:pointer;
+  min-width:0;max-width:60%;border-radius:6px;
+  transition:background .12s;
+}
+.crumb-chip:hover{background:rgba(0,0,0,.035)}
+.dark .folio-root .crumb-chip:hover{background:rgba(255,255,255,.04)}
+.crumb-chip-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.crumb-chip-project{color:var(--text-muted);font-weight:500;white-space:nowrap}
+.crumb-chip-sep{color:var(--text-muted);opacity:.45;font-size:13px;line-height:1}
+.crumb-chip-doc{color:var(--text-primary);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.crumb-chip-status{
+  font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 8px;border-radius:99px;flex-shrink:0;margin-left:4px;
+}
+
+/* Autosave indicator — colored pill so save state is glanceable.
+   Green for saved, amber for unsaved, neutral for saving. */
+.autosave-indicator{
+  font-size:11px;font-weight:600;
+  display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
+  padding:3px 9px;border-radius:99px;
+  border:1px solid transparent;
+  transition:color .3s,background .3s,border-color .3s;
+  letter-spacing:.01em;
+}
+.autosave-indicator--saved{background:rgba(34,197,94,.1);color:#15803d;border-color:rgba(34,197,94,.18)}
+.autosave-indicator--unsaved{background:#fff3d4;color:#b46500;border-color:#f6d68a}
+.autosave-indicator--saving{background:var(--bg);color:var(--text-secondary);border-color:var(--border-light)}
+.dark .folio-root .autosave-indicator--saved{background:rgba(34,197,94,.15);color:#4ade80;border-color:rgba(34,197,94,.3)}
+.dark .folio-root .autosave-indicator--unsaved{background:#3a2a08;color:#fcd34d;border-color:#5a3a08}
+.dark .folio-root .autosave-indicator--saving{background:rgba(255,255,255,.04);color:var(--text-secondary);border-color:rgba(255,255,255,.08)}
+.autosave-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;opacity:.85}
 .autosave-dot--saving{animation:autosave-pulse 0.9s ease-in-out infinite}
 @keyframes autosave-pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.editor-word-count{font-size:12px;color:var(--text-muted);white-space:nowrap;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-weight:500}
 
-.status-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all .15s;letter-spacing:.03em}
-.status-pill:hover{filter:brightness(.93) saturate(1.1)}
-.status-dot-sm{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.85}
+/* Session stats — soft pill grouping words + reading time */
+.session-stats{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:3px 10px;border-radius:99px;
+  background:var(--bg);border:1px solid var(--border-light);
+  font-size:11.5px;color:var(--text-muted);white-space:nowrap;
+}
+.dark .folio-root .session-stats{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.06)}
+.session-stat{display:inline-flex;align-items:center;gap:5px}
+.session-stat strong{color:var(--text-primary);font-weight:700;font-size:12px}
+.session-stat-unit{color:var(--text-muted);font-weight:500}
+.session-stat-divider{display:inline-flex;align-items:center;color:var(--border)}
+.session-stat-divider::before{content:"";width:1px;height:11px;background:var(--border)}
 
-.writing-toolbar{display:flex;align-items:center;gap:1px;padding:4px 20px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,var(--surface) 0%,var(--surface-hover) 100%);flex-shrink:0;flex-wrap:wrap;min-height:36px;row-gap:0}
+/* Today's words — small, low-contrast info chip. Only when a goal is set
+   so it doesn't add noise for users who don't track daily goals. */
+.today-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:99px;
+  background:var(--bg);border:1px solid var(--border-light);
+  color:var(--text-secondary);font-size:11px;font-weight:500;white-space:nowrap;
+}
+.today-badge strong{color:var(--text-primary);font-weight:700}
+.today-badge svg{color:var(--text-muted)}
+.today-badge--done{
+  background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.25);color:#15803d;
+}
+.today-badge--done strong{color:#15803d}
+.today-badge--done svg{color:#15803d}
+.dark .folio-root .today-badge--done{color:#4ade80}
+.dark .folio-root .today-badge--done strong{color:#4ade80}
+.dark .folio-root .today-badge--done svg{color:#4ade80}
+
+/* Topbar icon buttons (typewriter, notes) — flat squares with subtle hover. */
+.topbar-icon-btn{
+  width:30px;height:30px;border-radius:7px;border:none;
+  background:transparent;color:var(--text-muted);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:background .12s,color .12s;flex-shrink:0;
+}
+.topbar-icon-btn:hover{background:rgba(0,0,0,.05);color:var(--text-primary)}
+.topbar-icon-btn.active{background:var(--accent-light);color:var(--accent)}
+.dark .folio-root .topbar-icon-btn:hover{background:rgba(255,255,255,.06)}
+
+/* ── Writing toolbar — clean, flat, white. Groups separated by thin
+   vertical dividers — no pill containers around buttons. ────────────────── */
+.writing-toolbar{
+  display:flex;align-items:center;gap:2px;padding:6px 20px;
+  border-bottom:1px solid var(--border-light);
+  background:#fff;
+  flex-shrink:0;flex-wrap:wrap;min-height:40px;row-gap:6px;
+}
+.dark .folio-root .writing-toolbar{background:var(--surface);border-bottom-color:rgba(255,255,255,.05)}
+.tb-group{
+  display:inline-flex;align-items:center;gap:1px;
+  padding:0 6px;
+  border-right:1px solid var(--border-light);
+}
+.tb-group:last-child{border-right:none;padding-right:0}
+.tb-group:first-child{padding-left:0}
+.dark .folio-root .tb-group{border-right-color:rgba(255,255,255,.06)}
+.tb-group-icon{display:inline-flex;align-items:center;color:var(--text-muted);padding:0 4px 0 0}
 /* Floating controls pill — sits inside editor-body above the paper card */
 .editor-controls-pill{
   display:inline-flex;align-items:center;gap:3px;
@@ -308,8 +419,14 @@
 .dark .folio-root .ecp-seg-btn.active{border-color:var(--accent);background:var(--accent-light);color:var(--accent)}
 .dark .folio-root .ecp-badge--ok{background:#14532d;color:#4ade80}
 .dark .folio-root .ecp-badge--warn{background:#431407;color:#fb923c}
-.folio-root.focus-mode .editor-controls-pill{opacity:0;transition:opacity .3s;pointer-events:none}
-.folio-root.focus-mode .editor-controls-pill:hover{opacity:1;pointer-events:auto}
+/* In focus mode the horizontal pill stays visible (no opacity:0) — it's the
+   one set of always-available controls. The vertical companion takes over
+   once it scrolls off, anchored to the right side of the centered paper. */
+.folio-root.focus-mode .editor-controls-pill{
+  opacity:.6;transition:opacity .25s;
+  background:var(--surface);box-shadow:0 4px 18px rgba(0,0,0,.12),0 0 0 1px rgba(0,0,0,.04);
+}
+.folio-root.focus-mode .editor-controls-pill:hover{opacity:1}
 
 /* Vertical companion pill — appears anchored just to the left of the
    editor-paper, vertically centered. The paper is centered in the viewport
@@ -333,6 +450,14 @@
   /* Same visual treatment as horizontal pill, just stacked. */
 }
 @keyframes ecpVertIn{from{opacity:0;transform:translate(-6px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
+/* Right-anchored variant — used in focus mode so the vertical pill mirrors
+   onto the other side of the centered paper. */
+.editor-controls-pill--vertical.editor-controls-pill--right{
+  right:auto;
+  left:calc(50% + 370px + 14px);
+  animation:ecpVertInRight .18s ease;
+}
+@keyframes ecpVertInRight{from{opacity:0;transform:translate(6px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
 .ecp-seg--vertical{flex-direction:column;gap:4px;padding:2px 0}
 .ecp-seg-btn--vertical{
   width:28px;height:24px;padding:0;font-weight:700;
@@ -347,13 +472,44 @@
 /* The companion pill sits over the paper, so make sure it survives the
    focus-mode fade-out rule above by being absent from the DOM in focus mode
    (handled in MyFiles.tsx). */
-.tb-btn{width:28px;height:26px;display:flex;align-items:center;justify-content:center;border:none;background:none;border-radius:5px;cursor:pointer;color:var(--text-secondary);font-size:13px;font-family:'DM Sans',sans-serif;font-weight:600;transition:background .12s,color .12s;flex-shrink:0}
-.tb-btn:hover{background:rgba(0,0,0,.06);color:var(--text-primary)}
-.tb-btn.active{background:var(--accent-light);color:var(--accent)}
+.tb-btn{
+  width:28px;height:26px;display:inline-flex;align-items:center;justify-content:center;
+  border:none;background:transparent;border-radius:5px;cursor:pointer;
+  color:var(--text-secondary);font-family:'DM Sans',sans-serif;
+  transition:background .12s,color .12s,box-shadow .12s;
+  flex-shrink:0;position:relative;
+}
+.tb-btn:hover{background:rgba(0,0,0,.05);color:var(--text-primary)}
+.dark .folio-root .tb-btn:hover{background:rgba(255,255,255,.06)}
+/* Active state — clearly lit, with a subtle inset glow so the B/I/U/S
+   indicators read at a glance. The bottom-bar underline reinforces it. */
+.tb-btn.active{
+  background:var(--accent-light);color:var(--accent);
+  box-shadow:inset 0 0 0 1px rgba(59,110,165,.25);
+}
+.tb-btn.active::after{
+  content:"";position:absolute;left:4px;right:4px;bottom:1px;height:2px;
+  background:var(--accent);border-radius:2px;
+}
+.dark .folio-root .tb-btn.active{
+  background:rgba(124,147,208,.22);color:#a8c0ff;
+  box-shadow:inset 0 0 0 1px rgba(124,147,208,.35);
+}
+.dark .folio-root .tb-btn.active::after{background:#a8c0ff}
+.tb-btn svg{display:block}
 .tb-sep{width:1px;height:14px;background:var(--border);margin:0 4px;flex-shrink:0}
-.tb-select{height:26px;border:1.5px solid var(--border);border-radius:7px;background:var(--bg);font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-primary);padding:0 8px;outline:none;cursor:pointer;font-weight:500;transition:border-color .15s}
-.tb-select:hover{border-color:var(--text-muted)}
-.tb-select:focus{border-color:var(--accent)}
+.tb-select{
+  height:26px;border:none;border-radius:5px;background:transparent;
+  font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-primary);
+  padding:0 6px;outline:none;cursor:pointer;font-weight:500;
+  transition:background .12s;
+  /* Make the native arrow less imposing */
+  -webkit-appearance:auto;appearance:auto;
+}
+.tb-select:hover{background:rgba(0,0,0,.05)}
+.tb-select:focus{background:rgba(0,0,0,.05)}
+.tb-select--compact{padding:0 4px;min-width:50px}
+.dark .folio-root .tb-select:hover,.dark .folio-root .tb-select:focus{background:rgba(255,255,255,.06)}
 /* Paragraph mode segmented control */
 .tb-seg{display:inline-flex;align-items:center;background:rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.12);border-radius:7px;overflow:hidden;height:23px;padding:2px;gap:1px}
 .tb-seg-btn{height:100%;padding:0 9px;border:none;border-radius:5px;background:transparent;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;color:var(--text-muted);cursor:pointer;transition:all .15s;white-space:nowrap}
