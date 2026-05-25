@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ChestIcon } from "@/components/ChestIcon";
+import { ChestOpenAnimation } from "@/components/ChestOpenAnimation";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -145,6 +146,22 @@ export default function Chests() {
   const [opening, setOpening] = useState(false);
   const [openResult, setOpenResult] = useState<OpenResult | null>(null);
   const [selectedChest, setSelectedChest] = useState<string | null>(null);
+  // Cinematic-overlay state: while `cinematicChest` is set, the full-screen
+  // chest-open animation plays. The result dialog (openResult) only appears
+  // once both the API has returned AND the cinematic has finished playing.
+  const [cinematicChest, setCinematicChest] = useState<string | null>(null);
+  const [pendingResult, setPendingResult] = useState<OpenResult | null>(null);
+  const [cinematicDone, setCinematicDone] = useState(false);
+
+  // Reveal as soon as both prerequisites are met.
+  useEffect(() => {
+    if (cinematicChest && cinematicDone && pendingResult) {
+      setOpenResult(pendingResult);
+      setCinematicChest(null);
+      setPendingResult(null);
+      setCinematicDone(false);
+    }
+  }, [cinematicChest, cinematicDone, pendingResult]);
 
   const fetchChests = useCallback(async () => {
     try {
@@ -169,6 +186,11 @@ export default function Chests() {
   const openChest = async (chestType: string) => {
     setOpening(true);
     setSelectedChest(chestType);
+    // Kick off the full-screen cinematic immediately so the animation runs
+    // in parallel with the API request — no dead air while the network resolves.
+    setCinematicChest(chestType);
+    setCinematicDone(false);
+    setPendingResult(null);
     try {
       const res = await authedFetch(`${basePath}/api/user/chests/open`, {
         method: "POST",
@@ -177,11 +199,15 @@ export default function Chests() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
+        // Bail out of the cinematic on error and surface the toast as before.
+        setCinematicChest(null);
+        setCinematicDone(false);
         toast({ title: "Cannot open chest", description: data.error ?? "Unknown error", variant: "destructive" });
         return;
       }
-      await new Promise(r => setTimeout(r, 700));
-      setOpenResult({
+      // Stash the result — the cinematicDone effect will swap it into the
+      // visible result dialog once the animation finishes.
+      setPendingResult({
         items: data.items as ChestItem[],
         coins_awarded: data.coins_awarded ?? 0,
         new_coin_balance: data.new_coin_balance ?? null,
@@ -189,6 +215,8 @@ export default function Chests() {
       fetchChests();
       void queryClient.invalidateQueries({ queryKey: ["coinBalance"] });
     } catch {
+      setCinematicChest(null);
+      setCinematicDone(false);
       toast({ title: "Error", description: "Failed to open chest", variant: "destructive" });
     } finally {
       setOpening(false);
@@ -342,6 +370,24 @@ export default function Chests() {
           </>
         )}
       </div>
+
+      {/* Full-screen cinematic overlay — plays the chest-open animation */}
+      {cinematicChest && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center"
+          style={{
+            background: "radial-gradient(circle at center, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.95) 100%)",
+            backdropFilter: "blur(8px)",
+            animation: "chestOverlayIn 0.3s ease-out",
+          }}
+        >
+          <ChestOpenAnimation
+            chestType={cinematicChest}
+            onComplete={() => setCinematicDone(true)}
+          />
+          <style>{`@keyframes chestOverlayIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
+        </div>
+      )}
 
       {/* Open Result Dialog */}
       <Dialog open={!!openResult} onOpenChange={(open) => { if (!open) closeResult(); }}>

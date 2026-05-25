@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChestIcon } from "@/components/ChestIcon";
+import { ChestOpenAnimation } from "@/components/ChestOpenAnimation";
 import { ItemIcon } from "@/components/ItemIcon";
 import { useAuthedFetch } from "@/lib/authedFetch";
 
@@ -52,9 +53,25 @@ export function ChestAwardModal({ chestType, onClose }: ChestAwardModalProps) {
 
   const meta = CHEST_META[chestType] ?? { label: `${chestType} Chest`, color: "#888", glow: "rgba(136,136,136,0.4)", tagline: "" };
 
+  // Holds the API response so the cinematic can keep playing while the
+  // network roundtrip happens in parallel. We don't flip to "revealed" until
+  // BOTH (a) we have loot data and (b) the cinematic onComplete has fired —
+  // whichever is later. This keeps the animation watchable even on a fast
+  // network without making slow networks feel laggy.
+  const pendingLootRef = useRef<OpenResult | null>(null);
+  const animDoneRef = useRef(false);
+  const tryReveal = () => {
+    if (animDoneRef.current && pendingLootRef.current) {
+      setLoot(pendingLootRef.current);
+      setPhase("revealed");
+    }
+  };
+
   const handleOpenNow = async () => {
     setPhase("opening");
     setError(null);
+    pendingLootRef.current = null;
+    animDoneRef.current = false;
     try {
       const res = await authedFetch(`${basePath}/api/user/chests/open`, {
         method: "POST",
@@ -67,8 +84,8 @@ export function ChestAwardModal({ chestType, onClose }: ChestAwardModalProps) {
         setPhase("awarded");
         return;
       }
-      setLoot(data);
-      setPhase("revealed");
+      pendingLootRef.current = data;
+      tryReveal();
     } catch {
       setError("Network error. The chest has been saved to your inventory.");
       setPhase("awarded");
@@ -89,7 +106,13 @@ export function ChestAwardModal({ chestType, onClose }: ChestAwardModalProps) {
         }}
       >
         {phase === "awarded" && <AwardedView meta={meta} chestType={chestType} error={error} onOpen={handleOpenNow} onClose={onClose} />}
-        {phase === "opening" && <OpeningView meta={meta} chestType={chestType} />}
+        {phase === "opening" && (
+          <OpeningView
+            meta={meta}
+            chestType={chestType}
+            onAnimationComplete={() => { animDoneRef.current = true; tryReveal(); }}
+          />
+        )}
         {phase === "revealed" && loot && <RevealedView loot={loot} meta={meta} onClose={onClose} />}
       </div>
     </div>
@@ -162,46 +185,22 @@ function AwardedView({
   );
 }
 
-function OpeningView({ meta, chestType }: { meta: typeof CHEST_META[string]; chestType: string }) {
+function OpeningView({
+  meta, chestType, onAnimationComplete,
+}: {
+  meta: typeof CHEST_META[string];
+  chestType: string;
+  onAnimationComplete: () => void;
+}) {
   return (
     <>
       <div className="text-center">
-        <h2 className="text-xl font-black text-white">Opening…</h2>
+        <div className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: meta.color }}>
+          Unsealing
+        </div>
+        <h2 className="text-xl font-black text-white mt-1">{meta.label}</h2>
       </div>
-      <div
-        className="w-36 h-36"
-        style={{
-          filter: `drop-shadow(0 0 28px ${meta.glow})`,
-          animation: "chestShake 0.5s ease-in-out infinite",
-        }}
-      >
-        <ChestIcon type={chestType} className="w-full h-full" />
-      </div>
-      <div className="flex gap-1.5">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="w-2 h-2 rounded-full"
-            style={{
-              background: meta.color,
-              animation: `dotPulse 0.9s ease-in-out ${i * 0.2}s infinite`,
-            }}
-          />
-        ))}
-      </div>
-      <style>{`
-        @keyframes chestShake {
-          0%,100% { transform: rotate(0deg) scale(1); }
-          20%      { transform: rotate(-6deg) scale(1.05); }
-          40%      { transform: rotate(6deg) scale(1.08); }
-          60%      { transform: rotate(-4deg) scale(1.05); }
-          80%      { transform: rotate(4deg) scale(1.03); }
-        }
-        @keyframes dotPulse {
-          0%,80%,100% { opacity: 0.3; transform: scale(0.9); }
-          40%          { opacity: 1;   transform: scale(1.2); }
-        }
-      `}</style>
+      <ChestOpenAnimation chestType={chestType} onComplete={onAnimationComplete} />
     </>
   );
 }
