@@ -135,7 +135,7 @@
 
 .editor-panel{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .editor-panel.notes-open{flex-direction:row}
-.editor-col{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.editor-col{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;position:relative}
 
 /* ── Chapter Notes Sidebar ───────────────────────────────────────────── */
 .cn-sidebar{width:300px;flex-shrink:0;display:flex;flex-direction:column;background:#faf8f5;border-left:1px solid var(--border);overflow:hidden}
@@ -241,6 +241,37 @@
 .dark .folio-root .ecp-badge--warn{background:#431407;color:#fb923c}
 .folio-root.focus-mode .editor-controls-pill{opacity:0;transition:opacity .3s;pointer-events:none}
 .folio-root.focus-mode .editor-controls-pill:hover{opacity:1;pointer-events:auto}
+
+/* Vertical companion pill — appears anchored to the left of the editor once
+   the horizontal pill has scrolled out of view. */
+.editor-controls-pill--vertical{
+  position:absolute;
+  left:16px;
+  top:96px;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  padding:8px 6px;
+  margin-bottom:0;
+  z-index:30;
+  animation:ecpVertIn .18s ease;
+  /* Same visual treatment as horizontal pill, just stacked. */
+}
+@keyframes ecpVertIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
+.ecp-seg--vertical{flex-direction:column;gap:4px;padding:2px 0}
+.ecp-seg-btn--vertical{
+  width:28px;height:24px;padding:0;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+}
+.ecp-sep--vertical{width:18px;height:1px;margin:2px 0}
+.editor-controls-pill--vertical .ecp-icon-btn{position:relative}
+.ecp-vert-dot{
+  position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;
+  background:var(--accent);
+}
+/* The companion pill sits over the paper, so make sure it survives the
+   focus-mode fade-out rule above by being absent from the DOM in focus mode
+   (handled in MyFiles.tsx). */
 .tb-btn{width:28px;height:26px;display:flex;align-items:center;justify-content:center;border:none;background:none;border-radius:5px;cursor:pointer;color:var(--text-secondary);font-size:13px;font-family:'DM Sans',sans-serif;font-weight:600;transition:background .12s,color .12s;flex-shrink:0}
 .tb-btn:hover{background:rgba(0,0,0,.06);color:var(--text-primary)}
 .tb-btn.active{background:var(--accent-light);color:var(--accent)}
@@ -758,6 +789,208 @@ select.fsv-input{appearance:none;background-image:url("data:image/svg+xml;utf8,<
 .nncards-item:hover{border-color:var(--accent);background:var(--accent-light)}
 .nncards-item-name{font-size:12.5px;font-weight:500;color:var(--text-primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nncards-item-type{font-size:10px;color:var(--text-muted);flex-shrink:0;font-style:italic}
+
+/* ── Cards-sidebar header actions ────────────────────────────────────────── */
+.nncards-new-btn{
+  border:1px solid var(--border);background:var(--surface);color:var(--accent);
+  font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;letter-spacing:.02em;
+  padding:3px 9px;border-radius:99px;cursor:pointer;flex-shrink:0;
+  transition:border-color .12s,background .12s,color .12s;
+}
+.nncards-new-btn:hover:not(:disabled){border-color:var(--accent);background:var(--accent-light)}
+.nncards-new-btn:disabled{opacity:.4;cursor:not-allowed}
+.dark .folio-root .nncards-new-btn{background:var(--surface);border-color:var(--border)}
+
+/* ── Type picker popover (shown after +New, before the editor opens) ─────── */
+.nncards-typepicker{
+  padding:10px 12px 12px;border-bottom:1px solid var(--border-light);
+  background:var(--surface);flex-shrink:0;animation:nnCreateIn .14s ease;
+}
+@keyframes nnCreateIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.nncards-typepicker-title{
+  font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-muted);margin-bottom:8px;
+}
+.nncards-typepicker-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.nncards-typepicker-btn{
+  display:flex;align-items:center;gap:7px;padding:7px 9px;
+  border:1px solid var(--border);border-radius:8px;background:var(--bg);
+  font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:600;color:var(--text-secondary);
+  cursor:pointer;transition:all .12s;text-align:left;width:100%;
+}
+.nncards-typepicker-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.nncards-typepicker-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.nncards-typepicker-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Folio card-stage overlay: renders the actual NN card ────────────────── */
+/* The card itself uses the same class names and structure as
+   public/novel-notes.html so the visuals match exactly. The CSS rules below
+   are copied verbatim from NN's stylesheet (cards block) and scoped under
+   .nn-stage-wrap so they only apply to the Folio editor and don't leak into
+   the rest of MyFiles. */
+.nn-stage-overlay{
+  position:fixed;inset:0;z-index:1200;
+  background:rgba(10,8,6,.65);backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;
+  padding:24px;overflow-y:auto;
+  animation:fadeIn .18s ease;
+}
+.nn-stage-wrap{
+  display:flex;justify-content:center;align-items:flex-start;
+  max-width:100%;max-height:100%;
+}
+/* Tiny row-delete button shared by timeline/rel/rule rows in the stage */
+.nn-stage-row-del{
+  width:18px;height:18px;border:none;background:none;color:var(--text-muted);
+  font-size:13px;line-height:1;cursor:pointer;flex-shrink:0;
+  border-radius:50%;transition:all .12s;align-self:center;
+}
+.nn-stage-row-del:hover{background:rgba(192,57,43,.1);color:#c0392b}
+
+/* In the canvas, cards are position:absolute. In the Folio stage we want
+   normal flow so they centre nicely — override only that. */
+.nn-stage-wrap > .card{position:relative;margin:0}
+.nn-stage-wrap > .char-card,
+.nn-stage-wrap > .char-card-full{
+  position:relative;width:auto;height:auto;min-width:280px;max-width:340px;
+}
+/* For char cards we drop a details panel BELOW the portrait — keep them
+   visible together. */
+.char-stage-details{padding:14px 14px 16px;background:var(--surface);border-top:1px solid var(--border-light)}
+.char-collapsed-role-input{
+  width:100%;background:none;border:none;border-bottom:1px dashed rgba(255,255,255,.18);
+  outline:none;color:rgba(255,255,255,.7);
+  font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  padding:2px 0;margin-bottom:5px;
+}
+.char-collapsed-role-input::placeholder{color:rgba(255,255,255,.35)}
+.char-collapsed-name-input{
+  width:100%;background:none;border:none;border-bottom:1px dashed rgba(255,255,255,.18);
+  outline:none;color:#fff;
+  font-family:'Lora',serif;font-size:14px;font-weight:600;line-height:1.25;
+  text-shadow:0 1px 4px rgba(0,0,0,.5);padding:2px 0;
+}
+.char-collapsed-name-input::placeholder{color:rgba(255,255,255,.4)}
+.char-collapsed-traits-row{display:flex;gap:3px;margin-top:6px;flex-wrap:wrap}
+.char-collapsed-trait-input{
+  flex:1;min-width:60px;background:rgba(255,255,255,.16);
+  border:none;border-radius:8px;outline:none;
+  color:rgba(255,255,255,.9);font-size:9px;
+  padding:2px 7px;text-align:center;
+}
+.char-collapsed-trait-input::placeholder{color:rgba(255,255,255,.45)}
+
+/* Location image thumbnail when present */
+.loc-img-thumb{width:100%;height:90px;object-fit:cover;display:block;cursor:pointer;border-bottom:1px solid var(--border)}
+
+/* ── Copied from public/novel-notes.html (cards block) — keep in sync ───── */
+.nn-stage-wrap .card{
+  position:relative;border-radius:12px;overflow:hidden;
+  box-shadow:0 4px 18px rgba(0,0,0,.1),0 1px 4px rgba(0,0,0,.06);
+  background:var(--surface);border:1px solid var(--border);
+  user-select:none;min-width:260px;max-width:520px;
+}
+.nn-stage-wrap .card-header{display:flex;align-items:center;gap:6px;padding:9px 11px;position:relative}
+.nn-stage-wrap .card-title-input{flex:1;background:none;border:none;outline:none;font-family:'Lora',serif;font-size:13px;font-weight:600;color:#fff;min-width:0}
+.nn-stage-wrap .card-title-input::placeholder{color:rgba(255,255,255,.5)}
+.nn-stage-wrap .card-close{
+  background:none;border:none;color:rgba(255,255,255,.7);
+  cursor:pointer;flex-shrink:0;line-height:1;
+  width:22px;height:22px;border-radius:6px;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:color .12s,background .12s;padding:0;
+}
+.nn-stage-wrap .card-close:hover{color:#fff;background:rgba(255,255,255,.12)}
+.nn-stage-wrap .card-close--del:hover{color:#ffb4b4;background:rgba(192,57,43,.25)}
+.nn-stage-wrap .note-card .card-close{color:var(--text-muted)!important}
+.nn-stage-wrap .note-card .card-close:hover{color:var(--text-primary)!important;background:rgba(0,0,0,.05)}
+.nn-stage-wrap .note-card .card-close--del:hover{color:#c0392b!important;background:rgba(192,57,43,.08)}
+.nn-stage-wrap .card-body{padding:10px 12px;background:var(--surface)}
+
+/* Char (portrait) — the portrait is a flex container with the image or
+   gradient as its background. Top controls, a flexible spacer that preserves
+   the image area, and the role/name/traits inputs all live inside it. As
+   inputs grow, the container grows with them, so text never spills out. */
+.nn-stage-wrap .char-card,
+.nn-stage-wrap .char-card-full{position:relative;border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.15),0 1px 4px rgba(0,0,0,.08);display:flex;flex-direction:column}
+.nn-stage-wrap .char-portrait{position:relative;display:flex;flex-direction:column;min-height:280px}
+.nn-stage-wrap .char-portrait-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.nn-stage-wrap .char-portrait-shade{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.82) 0%,rgba(0,0,0,.22) 55%,transparent 100%);pointer-events:none}
+.nn-stage-wrap .char-portrait-spacer{flex:1;min-height:130px;pointer-events:none}
+.nn-stage-wrap .char-collapsed-top{position:relative;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;z-index:2}
+.nn-stage-wrap .char-type-badge{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.7)}
+.nn-stage-wrap .char-collapsed-controls{display:flex;gap:4px;align-items:center}
+.nn-stage-wrap .char-collapsed-btn{
+  width:26px;height:26px;border-radius:50%;border:none;
+  background:rgba(0,0,0,.32);color:rgba(255,255,255,.85);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(4px);transition:background .12s,color .12s;
+  line-height:1;padding:0;
+}
+.nn-stage-wrap .char-collapsed-btn:hover{background:rgba(0,0,0,.55);color:#fff}
+.nn-stage-wrap .char-collapsed-bottom{position:relative;padding:0 14px 16px;z-index:2}
+
+/* Char fields & full-body — same as NN */
+.nn-stage-wrap .char-fields{padding:8px 0;display:flex;flex-direction:column;gap:8px}
+.nn-stage-wrap .char-field{display:flex;flex-direction:column;gap:3px}
+.nn-stage-wrap .char-field label{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+.nn-stage-wrap .char-field input,.nn-stage-wrap .char-field textarea{font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-primary);background:none;border:none;border-bottom:1px solid var(--border-light);outline:none;padding:2px 0 4px;width:100%;resize:none;transition:border-color .15s}
+.nn-stage-wrap .char-field input:focus,.nn-stage-wrap .char-field textarea:focus{border-bottom-color:var(--accent)}
+.nn-stage-wrap .char-full-body{display:flex;flex-direction:column;gap:8px}
+.nn-stage-wrap .char-full-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-bottom:4px}
+.nn-stage-wrap .char-full-field{display:flex;flex-direction:column;gap:3px}
+.nn-stage-wrap .char-full-field label{font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text-muted)}
+.nn-stage-wrap .char-full-field input,.nn-stage-wrap .char-full-field textarea{font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-primary);background:none;border:none;border-bottom:1px solid var(--border-light);outline:none;padding:2px 0 4px;width:100%;resize:none;transition:border-color .15s;line-height:1.5}
+.nn-stage-wrap .char-full-field input:focus,.nn-stage-wrap .char-full-field textarea:focus{border-bottom-color:var(--accent)}
+.nn-stage-wrap .char-full-divider{height:1px;background:linear-gradient(90deg,var(--border),transparent);margin:6px 0}
+
+/* Note card */
+.nn-stage-wrap .note-card{background:var(--surface)!important;border:1px solid var(--border)!important;min-width:280px;max-width:480px}
+.nn-stage-wrap .note-card .card-close{color:var(--text-muted)!important;font-size:16px}
+.nn-stage-wrap .note-card .card-close:hover{color:#c0392b!important}
+.nn-stage-wrap .note-card-inner{display:flex;flex-direction:column;padding:14px 16px 12px;min-height:160px}
+.nn-stage-wrap .note-card-top{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.nn-stage-wrap .note-title-input{flex:1;background:none;border:none;outline:none;font-family:'Lora',serif;font-size:15px;font-weight:600;color:var(--text-primary)}
+.nn-stage-wrap .note-title-input::placeholder{color:var(--text-muted);font-weight:400}
+.nn-stage-wrap .note-divider{height:1px;background:linear-gradient(90deg,var(--border),transparent 80%);margin:0 0 10px}
+.nn-stage-wrap .note-textarea{flex:1;width:100%;min-height:140px;padding:0;background:none;border:none;outline:none;resize:vertical;font-family:'Crimson Pro',serif;font-size:14px;color:var(--text-secondary);line-height:1.8;box-sizing:border-box}
+.nn-stage-wrap .note-textarea::placeholder{color:var(--border)}
+
+/* Location */
+.nn-stage-wrap .loc-card{min-width:280px;max-width:380px}
+.nn-stage-wrap .loc-card .card-body{padding:0}
+.nn-stage-wrap .loc-img{width:100%;height:90px;background:linear-gradient(135deg,#e8f4f0,#d4ece4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;color:#6aab8e;font-size:11px}
+.nn-stage-wrap .loc-img-label{color:#6aab8e}
+
+/* Timeline */
+.nn-stage-wrap .timeline-card{min-width:300px;max-width:420px}
+.nn-stage-wrap .timeline-entry{display:flex;gap:10px;align-items:flex-start;padding:2px 0}
+.nn-stage-wrap .tl-dot-col{display:flex;flex-direction:column;align-items:center;flex-shrink:0;align-self:stretch}
+.nn-stage-wrap .timeline-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);box-shadow:0 0 0 2px var(--accent);margin-top:6px;flex-shrink:0}
+.nn-stage-wrap .tl-line{width:2px;background:linear-gradient(to bottom,var(--accent),var(--border));flex:1;min-height:18px;margin-top:2px}
+.nn-stage-wrap .timeline-entry-content{flex:1;padding-bottom:10px;min-width:0}
+.nn-stage-wrap .tl-date{width:100%;background:none;border:none;border-bottom:1px dashed var(--border);outline:none;font-family:'DM Sans',sans-serif;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);padding-bottom:2px;margin-bottom:3px}
+.nn-stage-wrap .tl-text{width:100%;background:none;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-secondary)}
+
+/* Relationship */
+.nn-stage-wrap .rel-card{min-width:300px;max-width:420px}
+.nn-stage-wrap .rel-entry{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.nn-stage-wrap .rel-avatar{width:28px;height:28px;border-radius:50%;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:'Lora',serif;color:var(--text-secondary)}
+.nn-stage-wrap .rel-info{flex:1;min-width:0}
+.nn-stage-wrap .rel-strength{display:flex;gap:2px}
+.nn-stage-wrap .rel-heart{font-size:13px;color:var(--border);cursor:pointer;user-select:none}
+.nn-stage-wrap .rel-heart:hover{color:#d97a8a}
+.nn-stage-wrap .rel-heart.filled{color:#c0392b}
+
+/* Rules */
+.nn-stage-wrap .rule-card{min-width:280px;max-width:420px}
+.nn-stage-wrap .rule-item{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
+.nn-stage-wrap .rule-num{width:20px;height:20px;border-radius:50%;background:var(--accent-light);color:var(--accent);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.nn-stage-wrap .rule-text{font-size:12px;color:var(--text-secondary);flex:1;background:none;border:none;outline:none;font-family:'DM Sans',sans-serif;resize:vertical;border-bottom:1px dashed var(--border);padding-bottom:2px;width:100%;min-height:24px}
+
+/* Add-row pill */
+.nn-stage-wrap .add-row-btn{background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;padding:4px 0;font-family:'DM Sans',sans-serif;display:block;margin-top:4px}
+.nn-stage-wrap .add-row-btn:hover{color:var(--accent)}
 
 /* ── Novel Notes Card Modal ──────────────────────────────────────────────── */
 .nncard-popup-overlay{position:fixed;inset:0;background:rgba(10,8,6,.65);backdrop-filter:blur(6px);z-index:1200;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .18s ease}
