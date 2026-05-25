@@ -487,14 +487,21 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         if (room.mode === "kart" && room.status === "running" && participant.role !== "editor") {
           const { position, total } = getParticipantPosition(room, participantId);
 
+          // Award one item per 250-word threshold, BUT only advance the
+          // threshold when an item is actually granted. Previously the
+          // threshold advanced even when the inventory was full (3 items),
+          // which silently dropped every "earned" item until the inventory
+          // had been used down AND the player had written another full
+          // 250 words. The fix: if the inventory is full, hold the threshold
+          // — as soon as the player uses an item, the next text_update will
+          // fire the loop and the held item is awarded immediately.
           while (participant.wordCount >= participant.kartNextItemAt) {
+            if (participant.kartItems.length >= 3) break;
             participant.kartNextItemAt += 250;
-            if (participant.kartItems.length < 3) {
-              const item = rollItem(position, total, !room.goldenPenUsed);
-              if (item === "golden_pen") room.goldenPenUsed = true;
-              participant.kartItems.push(item);
-              ws.send(JSON.stringify({ type: "item_earned", item, emoji: ITEM_EMOJIS[item] }));
-            }
+            const item = rollItem(position, total, !room.goldenPenUsed);
+            if (item === "golden_pen") room.goldenPenUsed = true;
+            participant.kartItems.push(item);
+            ws.send(JSON.stringify({ type: "item_earned", item, emoji: ITEM_EMOJIS[item] }));
           }
 
           room.bananaTraps = room.bananaTraps.filter((trap) => {
