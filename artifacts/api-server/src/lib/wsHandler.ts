@@ -271,7 +271,12 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             kartItems: [],
             kartBonusWords: 0,
             kartCarOffset: 0,
-            kartNextItemAt: 250,
+            // Anchor the next-item threshold to where the player ACTUALLY is
+            // already — so disconnecting + rejoining (or a full server restart
+            // re-creating the participant from scratch) doesn't retroactively
+            // grant items they previously earned. Formula: the next 250-multi
+            // strictly above their current word count.
+            kartNextItemAt: Math.floor(restoredWordCount / 250) * 250 + 250,
             gladiatorHp: 1000,
             gladiatorBuffs: [],
             gladiatorFrenzyStartWc: restoredWordCount,
@@ -414,9 +419,18 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
 
         // Anti-cheat: cap implausibly large word jumps. A sustained 250 WPM is
         // already world-class; we allow up to 400 WPM in any one update plus a
-        // small burst tolerance for paste-of-pre-typed-buffer scenarios.
+        // burst tolerance that's GENEROUS for paste-of-pre-typed-buffer
+        // scenarios.
+        //
+        // Previously BURST_TOLERANCE was 30, which meant pasting a paragraph
+        // (or even just typing a fast 50-word stretch in a single 100ms text
+        // update) got the wordCount silently clamped — and kart-mode item
+        // grants are gated on `participant.wordCount >= kartNextItemAt`, so
+        // the user wrote past 250 words but the server only credited ~230 and
+        // no item appeared. Bumped to 1500 so pasting a normal chapter/scene
+        // sails through; sustained cheating still capped by MAX_WPM.
         const MAX_WPM = 400;
-        const BURST_TOLERANCE = 30;
+        const BURST_TOLERANCE = 1500;
         let netWordCount = rawNetWordCount;
         if (room.status === "running") {
           const elapsedMin = Math.max(

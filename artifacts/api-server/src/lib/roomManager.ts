@@ -880,7 +880,10 @@ export function reconnectParticipant(
       kartItems: [],
       kartBonusWords: 0,
       kartCarOffset: 0,
-      kartNextItemAt: 250,
+      // Anchor to current progress so a reconnect after the grace-period
+      // eviction can't re-earn items the user already collected before the
+      // disconnect. Floor-to-250 + 250 = the NEXT threshold past their count.
+      kartNextItemAt: Math.floor(wordCount / 250) * 250 + 250,
       gladiatorHp: 1000,
       gladiatorBuffs: [],
       gladiatorFrenzyStartWc: wordCount,
