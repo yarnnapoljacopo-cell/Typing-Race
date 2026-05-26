@@ -30,6 +30,8 @@ const Quests = lazy(() => import("@/pages/Quests"));
 const Streak = lazy(() => import("@/pages/Streak"));
 const Stats = lazy(() => import("@/pages/Stats"));
 const NovelNotes = lazy(() => import("@/pages/NovelNotes"));
+const CoWriting = lazy(() => import("@/pages/CoWriting"));
+const CoWritingRoom = lazy(() => import("@/pages/CoWritingRoom"));
 
 function RouteFallback() {
   return (
@@ -667,6 +669,9 @@ function FolioSync() {
 function SidebarWithRoute() {
   const [path] = useLocation();
   if (path.startsWith("/novel-notes")) return null;
+  // Co-writing rooms have their own chrome (back button + invite chip), so
+  // suppress the global sidebar to free up screen real estate.
+  if (path.startsWith("/co-writing")) return null;
   return <Sidebar />;
 }
 
@@ -790,6 +795,8 @@ function ClerkProviderWithRoutes() {
                 <Route path="/crafting" component={Crafting} />
                 <Route path="/quests" component={Quests} />
                 <Route path="/novel-notes" component={NovelNotes} />
+                <Route path="/co-writing" component={CoWriting} />
+                <Route path="/co-writing/:id" component={CoWritingRoom} />
                 <Route path="/sign-in/*?" component={SignInPage} />
                 <Route path="/sign-up/*?" component={SignUpPage} />
                 <Route component={NotFound} />

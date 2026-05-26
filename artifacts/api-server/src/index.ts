@@ -22,6 +22,7 @@ import { createServer } from "http";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { setupWebSocketServer } from "./lib/wsHandler";
+import { setupCoWritingWsServer } from "./lib/coWritingWs";
 import { restoreRoomsFromDB } from "./lib/roomManager";
 import { ensureSchema } from "./lib/ensureSchema";
 import { seedItems } from "./lib/seedItems";
@@ -58,6 +59,9 @@ console.log("[startup-debug] NODE_ENV:", process.env.NODE_ENV, "| CLERK_SECRET_K
 
 const server = createServer(app);
 const wss = setupWebSocketServer(server);
+// Separate WS server for co-writing (Yjs sync) — handles its own /ws/cowriting
+// upgrade path so it doesn't interfere with the sprint-room WSS at /ws.
+setupCoWritingWsServer(server);
 
 // Start listening immediately so Railway's healthcheck passes right away.
 // Room restore runs in the background — a slow DB cold-start won't delay

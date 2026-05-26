@@ -15,6 +15,7 @@ import streakRouter from "./streak";
 import skinsRouter from "./skins";
 import folioRouter from "./folio";
 import novelNotesRouter from "./novelNotes";
+import coWritingRouter from "./coWriting";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(streakRouter);
 router.use(skinsRouter);
 router.use(folioRouter);
 router.use(novelNotesRouter);
+router.use(coWritingRouter);
 
 export default router;

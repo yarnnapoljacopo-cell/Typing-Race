@@ -1,0 +1,289 @@
+/* ─── Co-writing palette ────────────────────────────────────────────────── */
+/* The Folio palette tokens (--bg, --surface, --accent etc.) are scoped under
+   .folio-root in MyFiles.css. CoWriting lives outside that scope, so without
+   re-declaring them here every `var(--accent)` falls back to the unrelated
+   shadcn HSL components (e.g. "40 15% 92%") and `background: var(--accent)`
+   resolves to invalid CSS — making primary buttons invisible (white text
+   on a transparent background). We mirror the same tokens here. */
+.cw-list-root, .cw-room-root {
+  --bg:#f5f2ee;--surface:#fff;--surface-hover:#f9f7f5;
+  --border:#e8e3dd;--border-light:#f0ece7;
+  --text-primary:#1a1714;--text-secondary:#6b6560;--text-muted:#a09890;
+  --accent:#3b6ea5;--accent-light:#eef3f9;--accent-hover:#2d5a8e;
+  --danger:#c0392b;
+  color:var(--text-primary);
+  font-family:'DM Sans',sans-serif;
+}
+.dark .cw-list-root, .dark .cw-room-root {
+  --bg:#13141b;--surface:#1e2030;--surface-hover:#262839;
+  --border:#2a2d3f;--border-light:#1f2230;
+  --text-primary:#e8e6e3;--text-secondary:#b3b0ab;--text-muted:#787570;
+  --accent:#7c93d0;--accent-light:rgba(124,147,208,.14);--accent-hover:#a8c0ff;
+}
+
+/* ─── Co-writing list page ───────────────────────────────────────────────── */
+.cw-list-root{min-height:100vh;background:var(--bg);display:flex;flex-direction:column}
+.cw-list-topbar{
+  height:54px;padding:0 22px;border-bottom:1px solid var(--border-light);
+  background:#fff;display:flex;align-items:center;gap:14px;flex-shrink:0;
+}
+.dark .cw-list-topbar{background:var(--surface);border-bottom-color:rgba(255,255,255,.06)}
+.cw-back-btn{
+  width:30px;height:30px;border-radius:7px;border:none;background:transparent;
+  color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  transition:background .12s,color .12s;
+}
+.cw-back-btn:hover{background:rgba(0,0,0,.05);color:var(--text-primary)}
+.cw-list-title{
+  display:flex;align-items:center;gap:8px;
+  font-family:'Lora',serif;font-size:17px;font-weight:600;color:var(--text-primary);
+}
+.cw-list-title svg{color:var(--accent)}
+.cw-list-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+.cw-btn{
+  display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;
+  border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;
+  cursor:pointer;border:1px solid transparent;transition:all .13s;
+}
+.cw-btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.cw-btn-primary:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}
+.cw-btn-ghost{background:transparent;color:var(--text-secondary);border-color:var(--border)}
+.cw-btn-ghost:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.cw-btn:disabled{opacity:.5;cursor:not-allowed}
+
+.cw-list-body{flex:1;overflow-y:auto;padding:32px 22px}
+.cw-empty{text-align:center;color:var(--text-muted);font-size:13px;padding:32px 0}
+.cw-error{color:#c0392b}
+.cw-empty--hero{
+  max-width:480px;margin:80px auto 0;display:flex;flex-direction:column;align-items:center;gap:16px;
+  padding:36px;border-radius:18px;background:var(--surface);border:1px solid var(--border-light);
+}
+.cw-empty-art{color:var(--accent);opacity:.55;margin-bottom:6px}
+.cw-empty--hero h2{font-family:'Lora',serif;font-size:24px;font-weight:600;color:var(--text-primary);margin:0}
+.cw-empty--hero p{font-size:13.5px;line-height:1.6;color:var(--text-muted);margin:0;max-width:340px}
+.cw-empty-cta{display:flex;gap:10px;margin-top:10px}
+
+.cw-room-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.cw-room-card{
+  text-align:left;display:flex;flex-direction:column;gap:10px;
+  padding:18px;border-radius:12px;background:var(--surface);
+  border:1px solid var(--border);cursor:pointer;
+  transition:transform .14s,border-color .14s,box-shadow .14s;
+  font-family:inherit;
+}
+.cw-room-card:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:0 8px 22px rgba(59,110,165,.12)}
+.cw-room-card-top{display:flex;align-items:center;gap:8px}
+.cw-room-card-name{
+  font-family:'Lora',serif;font-size:16px;font-weight:600;color:var(--text-primary);
+  flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.cw-room-card-badge{
+  font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 8px;border-radius:99px;background:var(--accent-light);color:var(--accent);flex-shrink:0;
+}
+.cw-room-card-meta{display:flex;align-items:center;gap:12px;font-size:11.5px;color:var(--text-muted)}
+.cw-room-card-meta span{display:inline-flex;align-items:center;gap:5px}
+.cw-room-card-meta code{font-family:'JetBrains Mono','SF Mono',monospace;font-size:11px;color:var(--accent);background:var(--accent-light);padding:1px 6px;border-radius:4px;letter-spacing:.05em}
+.cw-room-card-foot{font-size:11px;color:var(--text-muted);font-style:italic}
+
+/* ── Modals (shared between list page and room) ──────────────────────────── */
+.cw-modal-overlay{
+  position:fixed;inset:0;z-index:300;
+  background:rgba(0,0,0,.4);backdrop-filter:blur(3px);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+  animation:cwFadeIn .16s ease;
+}
+@keyframes cwFadeIn{from{opacity:0}to{opacity:1}}
+.cw-modal{
+  background:var(--surface);border-radius:14px;width:100%;max-width:380px;
+  padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.22);
+  animation:cwSlideUp .18s ease;
+}
+@keyframes cwSlideUp{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.cw-modal-title{font-family:'Lora',serif;font-size:17px;font-weight:600;color:var(--text-primary);margin-bottom:14px}
+.cw-input{
+  width:100%;height:38px;padding:0 12px;font-family:'DM Sans',sans-serif;font-size:13.5px;
+  border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text-primary);
+  outline:none;transition:border-color .14s;box-sizing:border-box;
+}
+.cw-input:focus{border-color:var(--accent)}
+.cw-input-code{
+  font-family:'JetBrains Mono','SF Mono',monospace;font-size:18px;letter-spacing:.18em;
+  text-align:center;text-transform:uppercase;font-weight:700;color:var(--accent);
+}
+.cw-join-preview{
+  margin-top:12px;padding:10px 12px;border-radius:8px;
+  background:var(--accent-light);border:1px solid rgba(59,110,165,.2);
+  display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--text-primary);
+}
+.cw-join-preview strong{font-family:'Lora',serif;font-size:14px;font-weight:600}
+.cw-join-preview span{color:var(--text-secondary);font-size:11.5px}
+.cw-join-preview-tag{
+  align-self:flex-start;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:2px 7px;border-radius:99px;background:var(--accent);color:#fff;margin-top:3px;
+}
+.cw-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.cw-error-banner{
+  margin-top:12px;padding:10px 12px;border-radius:8px;
+  background:#fdf2f1;border:1px solid #f5c6c2;color:#c0392b;
+  font-size:12px;line-height:1.45;
+}
+.dark .cw-error-banner{background:#3a1414;border-color:#5a1f1f;color:#fca5a5}
+
+/* ─── Co-writing room (collaborative editor) ─────────────────────────────── */
+.cw-room-root{height:100vh;background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+.cw-room-topbar{
+  height:52px;padding:0 18px;border-bottom:1px solid var(--border-light);
+  background:#fff;display:flex;align-items:center;gap:12px;flex-shrink:0;
+}
+.dark .cw-room-topbar{background:var(--surface);border-bottom-color:rgba(255,255,255,.06)}
+.cw-room-title{
+  display:flex;align-items:center;gap:8px;min-width:0;
+  font-family:'Lora',serif;font-size:15px;font-weight:600;color:var(--text-primary);
+}
+.cw-room-title-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cw-room-invite{
+  font-family:'JetBrains Mono','SF Mono',monospace;font-size:11px;letter-spacing:.08em;
+  color:var(--accent);background:var(--accent-light);padding:3px 9px;border-radius:99px;
+  cursor:pointer;border:none;transition:filter .12s;font-weight:600;
+}
+.cw-room-invite:hover{filter:brightness(.95)}
+.cw-room-conn{
+  display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);
+  padding:3px 9px;border-radius:99px;background:var(--bg);border:1px solid var(--border-light);
+}
+.cw-conn-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.cw-conn-dot--online{background:#15803d;box-shadow:0 0 8px rgba(34,197,94,.5)}
+.cw-conn-dot--offline{background:#9ca3af}
+.cw-conn-dot--connecting{background:#d97706;animation:cwBlink 1.2s ease-in-out infinite}
+@keyframes cwBlink{0%,100%{opacity:1}50%{opacity:.3}}
+
+.cw-room-body{flex:1;display:flex;overflow:hidden;min-height:0}
+/* Chapter list (left) */
+.cw-doc-list{
+  width:230px;flex-shrink:0;background:var(--surface);
+  border-right:1px solid var(--border-light);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.cw-doc-list-header{
+  padding:12px 14px 8px;display:flex;align-items:center;justify-content:space-between;
+  font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);
+}
+.cw-doc-list-new{
+  width:22px;height:22px;border-radius:6px;border:none;background:transparent;
+  color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .12s,color .12s;
+}
+.cw-doc-list-new:hover{background:rgba(0,0,0,.05);color:var(--accent)}
+.cw-doc-list-body{flex:1;overflow-y:auto;padding:0 6px 12px;display:flex;flex-direction:column;gap:2px}
+.cw-doc-item{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;
+  font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-secondary);
+  cursor:pointer;border:none;background:transparent;width:100%;text-align:left;
+  transition:background .12s,color .12s;
+}
+.cw-doc-item:hover{background:rgba(0,0,0,.04);color:var(--text-primary)}
+.cw-doc-item.active{background:var(--accent-light);color:var(--accent);font-weight:600}
+.cw-doc-item-dot{width:6px;height:6px;border-radius:50%;background:var(--border);flex-shrink:0}
+.cw-doc-item.active .cw-doc-item-dot{background:var(--accent)}
+.cw-doc-item-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cw-doc-list-empty{padding:14px;color:var(--text-muted);font-size:12px;font-style:italic;text-align:center}
+
+/* Editor (center) */
+.cw-editor-wrap{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;position:relative}
+.cw-editor-scroll{flex:1;overflow-y:auto;padding:32px 40px 80px;display:flex;flex-direction:column;align-items:center}
+.cw-paper{
+  width:100%;max-width:740px;background:var(--surface);border-radius:12px;
+  box-shadow:0 2px 12px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.04);
+  padding:42px 56px 60px;
+  position:relative;
+}
+.dark .cw-paper{box-shadow:0 2px 16px rgba(0,0,0,.3),0 0 0 1px rgba(255,255,255,.04)}
+.cw-doc-title-input{
+  font-family:'Lora',serif;font-size:26px;font-weight:600;color:var(--text-primary);
+  border:none;outline:none;background:transparent;width:100%;margin-bottom:24px;line-height:1.3;
+}
+.cw-doc-title-input::placeholder{color:var(--text-muted)}
+/* Editor body — a textarea (Y.Text auto-syncs the value). Plain text only
+   for MVP; real-time CRDT merging works on character-level. */
+.cw-editor-body{
+  width:100%;min-height:60vh;font-family:'Lora',serif;font-size:15px;line-height:1.9;
+  color:var(--text-primary);border:none;outline:none;background:transparent;
+  resize:none;white-space:pre-wrap;word-wrap:break-word;
+  position:relative;
+}
+.cw-editor-body::placeholder{color:var(--text-muted)}
+
+.cw-empty-doc{
+  margin:80px auto;max-width:380px;text-align:center;color:var(--text-muted);
+  display:flex;flex-direction:column;align-items:center;gap:12px;
+}
+.cw-empty-doc h3{font-family:'Lora',serif;font-size:20px;font-weight:600;color:var(--text-primary);margin:0}
+.cw-empty-doc p{font-size:13.5px;line-height:1.55;margin:0}
+
+/* Members panel (right) */
+.cw-members-panel{
+  width:240px;flex-shrink:0;background:var(--surface);
+  border-left:1px solid var(--border-light);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.cw-members-header{
+  padding:14px 16px 8px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text-muted);
+}
+.cw-members-list{flex:1;overflow-y:auto;padding:0 8px 12px;display:flex;flex-direction:column;gap:2px}
+.cw-member-row{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;
+  font-family:'DM Sans',sans-serif;font-size:12.5px;color:var(--text-secondary);
+  transition:background .12s;position:relative;
+}
+.cw-member-row:hover{background:rgba(0,0,0,.04)}
+.cw-member-avatar{
+  width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'Lora',serif;font-size:13px;font-weight:600;color:#fff;flex-shrink:0;
+  position:relative;
+}
+.cw-member-presence{
+  position:absolute;bottom:-1px;right:-1px;
+  width:10px;height:10px;border-radius:50%;
+  border:2px solid var(--surface);
+}
+.cw-member-presence--online{background:#22c55e}
+.cw-member-presence--offline{background:#9ca3af}
+.cw-member-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.cw-member-name{
+  font-size:12.5px;font-weight:600;color:var(--text-primary);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.cw-member-status{font-size:10px;color:var(--text-muted)}
+.cw-member-role-tag{
+  font-size:8.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--accent);background:var(--accent-light);padding:1px 6px;border-radius:99px;
+}
+
+/* ── Remote cursor overlay inside the editor ────────────────────────────── */
+/* A cursor is a thin colored caret with a name label that fades after a couple
+   seconds, similar to Google Docs / Notion. The selection range (if any) is
+   rendered as a translucent highlight in the same color. */
+.cw-remote-cursor-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.cw-remote-cursor{
+  position:absolute;width:2px;height:21px;
+  pointer-events:none;
+  transition:left .12s linear,top .12s linear;
+}
+.cw-remote-cursor::after{
+  content:attr(data-name);
+  position:absolute;left:0;top:-19px;
+  font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;
+  color:#fff;padding:2px 6px;border-radius:4px 4px 4px 0;
+  background:inherit;white-space:nowrap;
+  transition:opacity .25s;
+  letter-spacing:.02em;
+}
+.cw-remote-cursor.idle::after{opacity:0}
+.cw-remote-selection{
+  position:absolute;height:21px;
+  pointer-events:none;
+  opacity:.22;border-radius:2px;
+  transition:left .12s linear,top .12s linear,width .12s linear;
+}

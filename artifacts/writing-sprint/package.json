@@ -76,6 +76,9 @@
   },
   "dependencies": {
     "@clerk/react": "6.6.3",
-    "@clerk/themes": "^2.4.57"
+    "@clerk/themes": "^2.4.57",
+    "y-protocols": "^1.0.7",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.30"
   }
 }

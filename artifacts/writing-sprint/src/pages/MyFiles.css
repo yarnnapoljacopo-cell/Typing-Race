@@ -1341,6 +1341,8 @@ select.fsv-input{appearance:none;background-image:url("data:image/svg+xml;utf8,<
 .mf-card--blue{background:linear-gradient(145deg,rgba(18,50,108,.95) 0%,rgba(40,80,145,.8) 50%,rgba(60,100,175,.55) 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
 .mf-card--purple{background:linear-gradient(145deg,rgba(42,16,96,.95) 0%,rgba(80,45,150,.8) 50%,rgba(108,68,185,.55) 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
 .mf-card--gold{background:linear-gradient(145deg,rgba(80,44,4,.95) 0%,rgba(145,90,8,.8) 50%,rgba(190,130,14,.55) 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.mf-card--green{background:linear-gradient(145deg,rgba(12,60,42,.95) 0%,rgba(28,100,75,.8) 50%,rgba(56,142,108,.55) 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.mf-card--green:hover{box-shadow:0 32px 80px rgba(34,140,90,.32),inset 0 1px 0 rgba(255,255,255,.1)}
 .mf-card:hover{transform:translateY(-9px) scale(1.018);border-color:rgba(255,255,255,.22)}
 .mf-card--blue:hover{box-shadow:0 32px 80px rgba(40,90,200,.35),inset 0 1px 0 rgba(255,255,255,.1)}
 .mf-card--purple:hover{box-shadow:0 32px 80px rgba(90,50,200,.35),inset 0 1px 0 rgba(255,255,255,.1)}

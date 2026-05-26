@@ -411,6 +411,54 @@ export async function ensureSchema(): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS folio_snapshots_user_saved_idx
         ON folio_snapshots (user_id, saved_at DESC);
+
+      -- ── Co-writing: shared collaborative projects with Yjs sync ──────────
+      CREATE TABLE IF NOT EXISTS co_writing_rooms (
+        id            SERIAL       PRIMARY KEY,
+        name          VARCHAR(120) NOT NULL,
+        owner_user_id VARCHAR(100) NOT NULL,
+        invite_code   VARCHAR(12)  NOT NULL UNIQUE,
+        created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS co_writing_rooms_owner_idx
+        ON co_writing_rooms (owner_user_id);
+
+      CREATE TABLE IF NOT EXISTS co_writing_members (
+        id           SERIAL       PRIMARY KEY,
+        room_id      INTEGER      NOT NULL REFERENCES co_writing_rooms(id) ON DELETE CASCADE,
+        user_id      VARCHAR(100) NOT NULL,
+        display_name VARCHAR(80)  NOT NULL,
+        color        VARCHAR(16)  NOT NULL,
+        role         VARCHAR(16)  NOT NULL DEFAULT 'editor',
+        joined_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        last_seen_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS co_writing_members_room_idx
+        ON co_writing_members (room_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS co_writing_members_room_user_uq
+        ON co_writing_members (room_id, user_id);
+
+      CREATE TABLE IF NOT EXISTS co_writing_docs (
+        id          SERIAL       PRIMARY KEY,
+        room_id     INTEGER      NOT NULL REFERENCES co_writing_rooms(id) ON DELETE CASCADE,
+        name        VARCHAR(200) NOT NULL,
+        order_index INTEGER      NOT NULL DEFAULT 0,
+        created_by  VARCHAR(100) NOT NULL,
+        created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS co_writing_docs_room_idx
+        ON co_writing_docs (room_id);
+
+      -- Yjs binary state per doc. Kept in a sister table so the docs list
+      -- can be queried cheaply without hauling the binary state around.
+      CREATE TABLE IF NOT EXISTS co_writing_doc_state (
+        doc_id       INTEGER     PRIMARY KEY REFERENCES co_writing_docs(id) ON DELETE CASCADE,
+        state        BYTEA,
+        text_preview TEXT        NOT NULL DEFAULT '',
+        updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
     `);
 
     // ── Phase 3: seed static data ─────────────────────────────────────────

@@ -2498,6 +2498,23 @@ export default function MyFiles() {
               </div>
             </button>
 
+            <button className="mf-card mf-card--green" onClick={() => setLocation("/co-writing")}>
+              <div className="mf-card-shine" />
+              <div className="mf-card-icon-wrap">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+              </div>
+              <div className="mf-card-chip">Collaboration</div>
+              <div className="mf-card-name">Co-writing</div>
+              <div className="mf-card-blurb">Write together in real time</div>
+              <div className="mf-card-foot">
+                <span>Invite collaborators</span>
+                <span className="mf-card-arr">→</span>
+              </div>
+            </button>
+
             <button className="mf-card mf-card--gold" onClick={() => setLocation("/portal")}>
               <div className="mf-card-shine" />
               <div className="mf-card-icon-wrap">

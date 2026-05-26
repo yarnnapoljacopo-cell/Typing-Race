@@ -7,3 +7,4 @@ export * from "./guilds";
 export * from "./bets";
 export * from "./folio";
 export * from "./novelNotes";
+export * from "./coWriting";
