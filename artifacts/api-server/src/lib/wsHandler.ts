@@ -578,6 +578,10 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             const pool = active.filter((p) => !isStarActive(room, p.id) && p.ws.readyState === WebSocket.OPEN);
             if (pool.length === 0) break;
             const targetP = pool[Math.floor(Math.random() * pool.length)];
+            // Persist the offset on the server so it survives the next
+            // room_state re-sync — otherwise the client's local -100 gets
+            // wiped within ~1s.
+            targetP.kartCarOffset -= 100;
             broadcastToRoom(room, {
               type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
               sourceId: participantId, sourceName: participant.name,

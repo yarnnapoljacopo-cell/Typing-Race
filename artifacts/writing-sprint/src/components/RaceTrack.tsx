@@ -324,13 +324,15 @@ export const RaceTrack = memo(function RaceTrack({
                         return boxes;
                       })()}
 
-                      {/* Kart with motion */}
+                      {/* Kart with motion — centered horizontally on its fraction so the
+                          car's middle aligns with the item-box center (boxes use marginLeft:-11
+                          to do the same). */}
                       <motion.div
                         style={{ position: "absolute", top: "50%", willChange: "left", zIndex: 3 }}
                         animate={{ left: `${fraction * 100}%` }}
                         transition={{ type: "tween", ease: "easeOut", duration: 0.6 }}
                       >
-                        <div style={{ transform: "translateY(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                        <div style={{ transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
                           {/* Crown for 1st place */}
                           {isFirstPlace && !finished && (
                             <div style={{ fontSize: "0.875rem", lineHeight: 1, pointerEvents: "none", textShadow: "0 0 6px #fbbf24" }}>
