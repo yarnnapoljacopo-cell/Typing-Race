@@ -495,6 +495,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           // 250 words. The fix: if the inventory is full, hold the threshold
           // — as soon as the player uses an item, the next text_update will
           // fire the loop and the held item is awarded immediately.
+          let kartChanged = false;
           while (participant.wordCount >= participant.kartNextItemAt) {
             if (participant.kartItems.length >= 3) break;
             participant.kartNextItemAt += 250;
@@ -502,6 +503,18 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             if (item === "golden_pen") room.goldenPenUsed = true;
             participant.kartItems.push(item);
             ws.send(JSON.stringify({ type: "item_earned", item, emoji: ITEM_EMOJIS[item] }));
+            kartChanged = true;
+          }
+          // Authoritative inventory resync — defends against a dropped
+          // `item_earned` message silently desyncing the client. With this
+          // sync, even if 1+ item_earned messages are lost in transit, the
+          // next sync (sent on every grant) brings the client back to the
+          // server's truth and items reappear in the slot bar.
+          if (kartChanged) {
+            ws.send(JSON.stringify({
+              type: "kart_inventory",
+              items: participant.kartItems.slice(),
+            }));
           }
 
           room.bananaTraps = room.bananaTraps.filter((trap) => {
@@ -701,6 +714,27 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
               effect: "bonus_words", amount: 400,
             });
             break;
+          }
+        }
+        // Authoritative inventory resync after every use_item — covers all
+        // cases (mystery_box additions, boo steals, regular uses). Same
+        // rationale as the kart-grant sync: never let a dropped message
+        // leave the client stuck with a stale items array.
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: "kart_inventory",
+            items: participant.kartItems.slice(),
+          }));
+        }
+        // Also resync the player whose item was stolen (boo) so their slot
+        // empties on the next render.
+        if (item === "boo") {
+          const ahead = senderIdx > 0 ? sorted[senderIdx - 1] : null;
+          if (ahead && ahead.ws.readyState === WebSocket.OPEN) {
+            ahead.ws.send(JSON.stringify({
+              type: "kart_inventory",
+              items: ahead.kartItems.slice(),
+            }));
           }
         }
         return;

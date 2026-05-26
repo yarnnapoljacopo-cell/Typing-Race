@@ -123,31 +123,60 @@ function LaneEffect({
 /* ──────────────────────────────────────────────────────────────────────── */
 
 function LightningStrike({ fraction }: { fraction: number }) {
+  // Anchor everything around the kart's vertical centre so the bolt lands
+  // squarely on the kart instead of clipping below the lane.
   return (
     <div
       style={{
         position: "absolute",
         left: `${fraction * 100}%`,
-        top: 0,
-        bottom: 0,
+        top: "50%",
         width: 0,
         zIndex: 50,
         pointerEvents: "none",
       }}
     >
-      {/* Falling bolt */}
+      {/* Pre-strike ionisation streak — a thin vertical glow that pre-flashes
+          to telegraph the bolt before it actually lands. */}
+      <motion.div
+        initial={{ opacity: 0, scaleY: 0.3 }}
+        animate={{ opacity: [0, 0.85, 0], scaleY: [0.3, 1, 1] }}
+        transition={{ duration: 0.5, ease: "easeOut", times: [0, 0.5, 1] }}
+        style={{
+          position: "absolute",
+          left: -2,
+          top: -240,
+          width: 4,
+          height: 240,
+          background: "linear-gradient(to bottom, transparent 0%, rgba(255,253,210,0.95) 80%, #fde047 100%)",
+          transformOrigin: "bottom center",
+          filter: "blur(1.4px)",
+          mixBlendMode: "screen",
+        }}
+      />
+
+      {/* Falling bolt — slightly longer fall, anticipation pause, then SLAM */}
       <motion.svg
-        initial={{ y: -240, opacity: 0, scale: 0.5 }}
-        animate={{ y: 0, opacity: [0, 1, 1, 0], scale: [0.7, 1.2, 1, 1] }}
-        transition={{ duration: 0.55, ease: "easeIn", times: [0, 0.25, 0.7, 1] }}
+        initial={{ y: -280, opacity: 0, scale: 0.45, rotate: -8 }}
+        animate={{
+          y: [-280, -8, -2, -2],
+          opacity: [0, 1, 1, 0],
+          scale: [0.55, 1.35, 1.15, 1],
+          rotate: [-8, 4, -2, 0],
+        }}
+        transition={{
+          duration: 0.85,
+          ease: [0.55, 0.05, 0.85, 0.45], // sharp easeIn into impact
+          times: [0, 0.6, 0.75, 1],
+        }}
         width="44"
         height="80"
         viewBox="0 0 44 80"
         style={{
           position: "absolute",
           left: -22,
-          top: -32,
-          filter: "drop-shadow(0 0 12px #fde047)",
+          top: -64,
+          filter: "drop-shadow(0 0 14px #fde047) drop-shadow(0 0 28px rgba(253,224,71,0.6))",
         }}
       >
         <defs>
@@ -168,43 +197,83 @@ function LightningStrike({ fraction }: { fraction: number }) {
           points="26,8 14,38 22,38"
           fill="none"
           stroke="#fffbe6"
-          strokeOpacity="0.9"
-          strokeWidth="1.4"
+          strokeOpacity="0.95"
+          strokeWidth="1.6"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
       </motion.svg>
 
-      {/* Ground shockwave ring */}
+      {/* Bright impact flash — fires AT THE INSTANT the bolt lands */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.2 }}
-        animate={{ opacity: [0, 0.9, 0], scale: [0.2, 2.4, 3.4] }}
-        transition={{ duration: 0.9, ease: "easeOut", delay: 0.35 }}
+        initial={{ opacity: 0, scale: 0.1 }}
+        animate={{ opacity: [0, 1, 0.6, 0], scale: [0.4, 2.6, 3.4, 4.2] }}
+        transition={{ duration: 0.7, delay: 0.55, ease: "easeOut", times: [0, 0.15, 0.55, 1] }}
         style={{
           position: "absolute",
-          left: -28, top: 4,
-          width: 56, height: 18,
+          left: -22, top: -22,
+          width: 44, height: 44,
           borderRadius: "50%",
-          border: "3px solid rgba(253,224,71,0.85)",
-          boxShadow: "0 0 14px rgba(253,224,71,0.55)",
+          background: "radial-gradient(circle, #ffffff 0%, #fffbe6 30%, #fde047 60%, transparent 80%)",
+          filter: "blur(2px)",
+          mixBlendMode: "screen",
         }}
       />
 
-      {/* Bright flash dot */}
+      {/* Ground shockwave ring — expands outward from the impact site */}
       <motion.div
-        initial={{ opacity: 0, scale: 0 }}
-        animate={{ opacity: [0, 1, 0], scale: [0.5, 2, 3] }}
-        transition={{ duration: 0.45, delay: 0.32, ease: "easeOut" }}
+        initial={{ opacity: 0, scale: 0.15 }}
+        animate={{ opacity: [0, 1, 0], scale: [0.15, 3.2, 5] }}
+        transition={{ duration: 1.1, ease: "easeOut", delay: 0.58 }}
         style={{
           position: "absolute",
-          left: -16, top: -4,
-          width: 32, height: 32,
+          left: -32, top: -6,
+          width: 64, height: 22,
           borderRadius: "50%",
-          background:
-            "radial-gradient(circle, #ffffff 0%, #fde047 40%, transparent 70%)",
-          filter: "blur(2px)",
+          border: "3px solid rgba(253,224,71,0.95)",
+          boxShadow: "0 0 18px rgba(253,224,71,0.7), inset 0 0 12px rgba(253,224,71,0.4)",
         }}
       />
+
+      {/* Secondary, slightly delayed shockwave for a satisfying double-thud */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.15 }}
+        animate={{ opacity: [0, 0.6, 0], scale: [0.15, 2.2, 3.6] }}
+        transition={{ duration: 1.0, ease: "easeOut", delay: 0.75 }}
+        style={{
+          position: "absolute",
+          left: -24, top: -2,
+          width: 48, height: 16,
+          borderRadius: "50%",
+          border: "2px solid rgba(255,255,255,0.85)",
+        }}
+      />
+
+      {/* Radial spark bursts at impact */}
+      {Array.from({ length: 8 }).map((_, i) => {
+        const angle = (i / 8) * Math.PI * 2;
+        return (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, x: 0, y: 0 }}
+            animate={{
+              opacity: [0, 1, 0],
+              x: Math.cos(angle) * 36,
+              y: Math.sin(angle) * 18,
+              scale: [0.4, 1.2, 0.4],
+            }}
+            transition={{ duration: 0.7, delay: 0.58, ease: "easeOut" }}
+            style={{
+              position: "absolute",
+              left: -2, top: -2,
+              width: 4, height: 4,
+              borderRadius: "50%",
+              background: "#fde047",
+              boxShadow: "0 0 8px #fffbe6, 0 0 14px #fde047",
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -215,26 +284,42 @@ function BlueShellCrash({ fraction }: { fraction: number }) {
       style={{
         position: "absolute",
         left: `${fraction * 100}%`,
-        top: 0, bottom: 0, width: 0,
+        top: "50%", width: 0,
         zIndex: 51, pointerEvents: "none",
       }}
     >
+      {/* Telegraphing shadow that grows as the shell falls — sells the
+          incoming danger and gives the eye something to track. */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.3 }}
+        animate={{ opacity: [0, 0.45, 0.7, 0], scale: [0.3, 0.9, 1.4, 1.8] }}
+        transition={{ duration: 1.1, ease: "easeIn", times: [0, 0.5, 0.75, 1] }}
+        style={{
+          position: "absolute",
+          left: -28, top: 4,
+          width: 56, height: 14,
+          borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.1) 70%, transparent 100%)",
+          filter: "blur(3px)",
+        }}
+      />
+
       {/* Falling blue shell */}
       <motion.svg
-        initial={{ y: -260, opacity: 0, rotate: -45 }}
+        initial={{ y: -300, opacity: 0, rotate: -45 }}
         animate={{
-          y: [-260, 0, -4, 0],
+          y: [-300, -10, -4, -4],
           opacity: [0, 1, 1, 1],
-          rotate: [-45, 0, 12, 0],
-          scale: [0.5, 1.2, 1.05, 1],
+          rotate: [-45, 0, 14, 0],
+          scale: [0.45, 1.3, 1.1, 1],
         }}
-        transition={{ duration: 1.1, times: [0, 0.6, 0.78, 1], ease: "easeIn" }}
+        transition={{ duration: 1.2, times: [0, 0.7, 0.85, 1], ease: [0.6, 0.05, 0.85, 0.4] }}
         width="48" height="36" viewBox="0 0 48 36"
         style={{
           position: "absolute",
-          left: -24, top: -8,
+          left: -24, top: -22,
           filter:
-            "drop-shadow(0 0 14px rgba(59,130,246,0.75)) drop-shadow(0 0 4px rgba(255,255,255,0.6))",
+            "drop-shadow(0 0 18px rgba(59,130,246,0.85)) drop-shadow(0 0 6px rgba(255,255,255,0.7))",
         }}
       >
         <defs>
@@ -254,54 +339,49 @@ function BlueShellCrash({ fraction }: { fraction: number }) {
         <circle cx="24" cy="20" r="3" fill="#dbeafe" stroke="#0f172a" strokeWidth="0.8" />
       </motion.svg>
 
-      {/* Impact rings */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.2 }}
-        animate={{ opacity: [0, 1, 0], scale: [0.2, 3, 4.5] }}
-        transition={{ duration: 0.9, delay: 0.62, ease: "easeOut" }}
-        style={{
-          position: "absolute",
-          left: -36, top: 2,
-          width: 72, height: 24,
-          borderRadius: "50%",
-          border: "3px solid rgba(96,165,250,0.95)",
-          boxShadow: "0 0 22px rgba(59,130,246,0.85)",
-        }}
-      />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.2 }}
-        animate={{ opacity: [0, 0.9, 0], scale: [0.2, 2, 3.4] }}
-        transition={{ duration: 0.8, delay: 0.72, ease: "easeOut" }}
-        style={{
-          position: "absolute",
-          left: -28, top: 4,
-          width: 56, height: 18,
-          borderRadius: "50%",
-          border: "2px solid rgba(255,255,255,0.85)",
-        }}
-      />
+      {/* Triple impact rings — staggered + alpha-fading outward */}
+      {[
+        { delay: 0.85, dur: 1.1, w: 88, h: 30, border: "rgba(96,165,250,0.95)", glow: "0 0 26px rgba(59,130,246,0.9)" },
+        { delay: 0.95, dur: 1.0, w: 64, h: 22, border: "rgba(147,197,253,0.9)", glow: "0 0 14px rgba(96,165,250,0.6)" },
+        { delay: 1.05, dur: 0.9, w: 44, h: 16, border: "rgba(255,255,255,0.85)", glow: "0 0 8px rgba(255,255,255,0.5)" },
+      ].map((r, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 0, scale: 0.15 }}
+          animate={{ opacity: [0, 1, 0], scale: [0.15, 3.2, 4.6] }}
+          transition={{ duration: r.dur, delay: r.delay, ease: "easeOut" }}
+          style={{
+            position: "absolute",
+            left: -r.w / 2, top: -r.h / 2 + 2,
+            width: r.w, height: r.h,
+            borderRadius: "50%",
+            border: `${i === 0 ? 3 : 2}px solid ${r.border}`,
+            boxShadow: r.glow,
+          }}
+        />
+      ))}
 
-      {/* Crash sparks */}
-      {Array.from({ length: 8 }).map((_, i) => {
-        const angle = (i / 8) * Math.PI * 2;
+      {/* Crash sparks — more, bigger, fanning out further */}
+      {Array.from({ length: 12 }).map((_, i) => {
+        const angle = (i / 12) * Math.PI * 2;
         return (
           <motion.div
             key={i}
             initial={{ opacity: 0, x: 0, y: 0 }}
             animate={{
               opacity: [0, 1, 0],
-              x: Math.cos(angle) * 34,
-              y: Math.sin(angle) * 18 + 4,
-              scale: [0.4, 1.2, 0.5],
+              x: Math.cos(angle) * 48,
+              y: Math.sin(angle) * 24,
+              scale: [0.3, 1.4, 0.4],
             }}
-            transition={{ duration: 0.7, delay: 0.62, ease: "easeOut" }}
+            transition={{ duration: 0.9, delay: 0.85, ease: "easeOut" }}
             style={{
               position: "absolute",
-              left: -2, top: -2,
-              width: 4, height: 4,
+              left: -3, top: -3,
+              width: 6, height: 6,
               borderRadius: "50%",
               background: "#dbeafe",
-              boxShadow: "0 0 6px #60a5fa",
+              boxShadow: "0 0 10px #60a5fa, 0 0 16px #3b82f6",
             }}
           />
         );
@@ -481,50 +561,81 @@ function StarBurst({ fraction }: { fraction: number }) {
 }
 
 function MushroomBoost({ fraction }: { fraction: number }) {
+  // Six staggered flame puffs receding behind the kart give a much stronger
+  // sense of acceleration than the original three. Each puff also fades
+  // through its own color stop so the trail looks chromatic instead of flat.
+  const puffColors = ["#fff7ed", "#fed7aa", "#fb923c", "#f97316", "#dc2626", "#7c2d12"];
   return (
     <>
-      {/* Trailing flame puffs behind the kart */}
-      {[0, 1, 2].map((i) => (
+      {/* Burst plume right at the kart's rear — "fire ignition" frame */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.4 }}
+        animate={{ opacity: [0, 1, 0.6, 0], scale: [0.4, 1.6, 1.9, 2.2] }}
+        transition={{ duration: 0.7, ease: "easeOut" }}
+        style={{
+          position: "absolute",
+          left: `${fraction * 100}%`,
+          top: "50%",
+          marginLeft: -14, marginTop: -10,
+          width: 28, height: 20,
+          borderRadius: "50%",
+          background: "radial-gradient(circle, #ffffff 0%, #fff7ed 30%, #fb923c 60%, transparent 80%)",
+          mixBlendMode: "screen",
+          filter: "blur(1.2px)",
+          zIndex: 48,
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Trailing flame puffs */}
+      {puffColors.map((c, i) => (
         <motion.div
           key={i}
-          initial={{ opacity: 0, scale: 0.6, x: 0 }}
-          animate={{ opacity: [0, 0.9, 0], scale: [0.6, 1.4, 1.6], x: -28 - i * 14 }}
-          transition={{ duration: 0.85, delay: i * 0.08, ease: "easeOut" }}
+          initial={{ opacity: 0, scale: 0.5, x: 0 }}
+          animate={{ opacity: [0, 0.95, 0], scale: [0.5, 1.4, 1.7], x: -34 - i * 12 }}
+          transition={{ duration: 1.0, delay: i * 0.07, ease: "easeOut" }}
           style={{
             position: "absolute",
             left: `${fraction * 100}%`,
             top: "50%",
-            marginLeft: -8 - i * 4,
-            marginTop: -6,
-            width: 16, height: 12,
+            marginLeft: -10 - i * 2,
+            marginTop: -7,
+            width: 18, height: 14,
             borderRadius: "50%",
-            background:
-              "radial-gradient(circle, #fff7ed 0%, #fb923c 50%, transparent 80%)",
+            background: `radial-gradient(circle, ${c} 0%, ${c}99 50%, transparent 80%)`,
             zIndex: 47,
             pointerEvents: "none",
-            filter: "blur(0.5px)",
+            filter: "blur(0.6px)",
+            mixBlendMode: "screen",
           }}
         />
       ))}
-      {/* Speed lines */}
-      {Array.from({ length: 5 }).map((_, i) => (
-        <motion.div
-          key={i}
-          initial={{ opacity: 0, x: 0 }}
-          animate={{ opacity: [0, 0.85, 0], x: -50 }}
-          transition={{ duration: 0.55, delay: i * 0.08, ease: "easeOut" }}
-          style={{
-            position: "absolute",
-            left: `${fraction * 100}%`,
-            top: `${30 + i * 8}%`,
-            marginLeft: -8,
-            width: 24, height: 2,
-            background: "linear-gradient(to left, rgba(251,191,36,0.95), transparent)",
-            zIndex: 46,
-            pointerEvents: "none",
-          }}
-        />
-      ))}
+
+      {/* Speed lines — 7 streaks, longer reach, slight vertical jitter so
+          they don't look like a perfect ruled grid. */}
+      {Array.from({ length: 7 }).map((_, i) => {
+        const y = 22 + i * 9 + ((i % 2) * 2);
+        return (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, x: 0, scaleX: 0.6 }}
+            animate={{ opacity: [0, 0.9, 0], x: -78, scaleX: [0.6, 1.2, 0.4] }}
+            transition={{ duration: 0.7, delay: i * 0.06, ease: "easeOut" }}
+            style={{
+              position: "absolute",
+              left: `${fraction * 100}%`,
+              top: `${y}%`,
+              marginLeft: -10,
+              width: 36, height: 2,
+              background: "linear-gradient(to left, rgba(251,191,36,0.95) 0%, rgba(251,146,60,0.7) 50%, transparent 100%)",
+              transformOrigin: "right center",
+              zIndex: 46,
+              pointerEvents: "none",
+              filter: "blur(0.4px)",
+            }}
+          />
+        );
+      })}
     </>
   );
 }

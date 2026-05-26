@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { ChestIcon } from "@/components/ChestIcon";
 import { ChestOpenAnimation } from "@/components/ChestOpenAnimation";
+import { ItemIcon } from "@/components/ItemIcon";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -204,6 +205,39 @@ function useCountUp(target: number, durationMs = 900, delayMs = 0): number {
 }
 
 /**
+ * Single visual avatar for an item — uses the bag's custom SVG (ItemIcon) when
+ * we have one for this name, otherwise falls back to the server-supplied
+ * emoji. Keeps the chest-reveal and bag visuals in lock-step.
+ */
+function ItemAvatar({ name, fallbackEmoji, size }: { name: string; fallbackEmoji: string; size: number }) {
+  // ItemIcon returns null when the name isn't in its ICONS map. We probe
+  // by attempting to render and checking for `null` via React.isValidElement
+  // would be expensive — simpler: always render ItemIcon, and parallel-render
+  // the emoji absolutely positioned behind it as a guaranteed fallback so a
+  // missing icon never shows nothing.
+  const iconNode = <ItemIcon name={name} size={size} />;
+  // ItemIcon returns `null` when name has no entry, in which case React just
+  // renders nothing and the emoji shows through.
+  return (
+    <span
+      className="relative inline-flex items-center justify-center"
+      style={{ width: size, height: size }}
+    >
+      <span
+        aria-hidden
+        className="absolute inset-0 flex items-center justify-center select-none"
+        style={{ fontSize: Math.round(size * 0.85), lineHeight: 1 }}
+      >
+        {fallbackEmoji}
+      </span>
+      <span className="relative inline-flex items-center justify-center">
+        {iconNode}
+      </span>
+    </span>
+  );
+}
+
+/**
  * Coin reward chip — the gold pill below the item with the rolling number
  * counter, flipping coin, and a glow ring.
  */
@@ -353,10 +387,13 @@ function CinematicRewardCard({
               ease: "easeInOut",
               repeat: Infinity,
             }}
-            className="text-[88px] leading-none select-none"
-            style={{ textShadow: `0 0 24px ${rs.glow}` }}
+            className="inline-flex items-center justify-center select-none"
+            style={{ filter: `drop-shadow(0 0 18px ${rs.glow})` }}
           >
-            {item.icon}
+            {/* Render the canonical bag SVG when we have a custom illustration
+                for this item; fall back to the server-supplied emoji otherwise
+                so we never end up with a blank tile for newer items. */}
+            <ItemAvatar name={item.name} fallbackEmoji={item.icon} size={104} />
           </motion.div>
 
           {/* Shimmer sweep across the icon (epic+) */}

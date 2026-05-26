@@ -413,6 +413,17 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
             break;
           }
 
+          case "kart_inventory": {
+            // Authoritative inventory snapshot from the server — replaces the
+            // local items array. Defends against dropped `item_earned` /
+            // `item_used` messages that would otherwise leave the slot bar
+            // out of sync with the server and silently swallow new grants
+            // because the SERVER thought the inventory was already full.
+            const items = Array.isArray(data.items) ? (data.items as string[]) : [];
+            setKartState((prev) => ({ ...prev, items: items.slice(0, 3) }));
+            break;
+          }
+
           case "item_used": {
             const effect = data.effect as string;
             const amount = (data.amount as number) ?? 0;
@@ -441,19 +452,22 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
               ts: Date.now(),
             };
             // Effect lifetimes — long enough to play the whole animation.
+            // Bumped lifetimes — give each effect long enough to play out
+            // its entrance / impact / settle phases (the previous values were
+            // ending mid-shockwave, so the user only saw a flash).
             const EFFECT_DURATIONS: Record<string, number> = {
-              lightning: 2200,
-              blue_shell: 2200,
-              red_shell: 1800,
-              green_shell: 1800,
-              banana: 1400,
-              star: 2200,
-              mushroom: 1600,
-              boo: 2000,
-              golden_pen: 2400,
-              mystery_box: 1800,
+              lightning: 2800,
+              blue_shell: 2800,
+              red_shell: 2200,
+              green_shell: 2200,
+              banana: 1800,
+              star: 2600,
+              mushroom: 2000,
+              boo: 2400,
+              golden_pen: 2800,
+              mystery_box: 2200,
             };
-            const lifeMs = EFFECT_DURATIONS[itemKey] ?? 1800;
+            const lifeMs = EFFECT_DURATIONS[itemKey] ?? 2000;
             setKartState((prev) => ({ ...prev, effects: [...prev.effects, newEffect] }));
             setTimeout(() => {
               setKartState((prev) => ({
