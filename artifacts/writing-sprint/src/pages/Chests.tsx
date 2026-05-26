@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, Package, Gift, FlaskConical, Loader2 } from "lucide-react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -125,14 +125,312 @@ const BONUS_CHANCES: Record<string, [number, number]> = {
   immortal: [1.0, 0.45],
 };
 
-const RARITY_COLORS: Record<string, string> = {
-  common: "border-gray-400/50 bg-gray-900/60 text-gray-200",
-  uncommon: "border-green-500/50 bg-green-900/40 text-green-200",
-  rare: "border-blue-400/50 bg-blue-900/40 text-blue-200",
-  epic: "border-purple-400/50 bg-purple-900/40 text-purple-200",
-  mythic: "border-rose-400/50 bg-rose-900/40 text-rose-200",
-  legendary: "border-amber-400/60 bg-amber-900/30 text-amber-200 shadow-amber-500/30 shadow-md",
+/**
+ * Cinematic per-rarity palette for the reveal animation. Tuned to look
+ * vibrant over both light and dark dialog backgrounds — the gradient stops
+ * include alpha so the underlying surface still shows through.
+ */
+interface RarityCinematic {
+  hex: string;         // canonical accent
+  glow: string;        // rgba glow color
+  rayStops: string;    // two colors for the rotating-rays conic gradient
+  gradient: string;    // background gradient for the card
+  border: string;      // border color
+  particles: number;   // floating sparkle count
+  raysOpacity: number; // 0..1 — visibility of the ray fan
+}
+const RARITY_CINEMATIC: Record<string, RarityCinematic> = {
+  common: {
+    hex: "#9ca3af", glow: "rgba(156,163,175,0.55)",
+    rayStops: "rgba(156,163,175,0.55) 0deg, transparent 18deg",
+    gradient: "linear-gradient(160deg, rgba(156,163,175,0.22) 0%, rgba(75,85,99,0.45) 100%)",
+    border: "rgba(156,163,175,0.7)", particles: 8, raysOpacity: 0.45,
+  },
+  uncommon: {
+    hex: "#22c55e", glow: "rgba(34,197,94,0.65)",
+    rayStops: "rgba(34,197,94,0.65) 0deg, transparent 16deg",
+    gradient: "linear-gradient(160deg, rgba(34,197,94,0.28) 0%, rgba(21,80,55,0.5) 100%)",
+    border: "rgba(34,197,94,0.7)", particles: 12, raysOpacity: 0.6,
+  },
+  rare: {
+    hex: "#3b82f6", glow: "rgba(59,130,246,0.75)",
+    rayStops: "rgba(96,165,250,0.7) 0deg, transparent 14deg",
+    gradient: "linear-gradient(160deg, rgba(59,130,246,0.3) 0%, rgba(29,40,90,0.55) 100%)",
+    border: "rgba(96,165,250,0.75)", particles: 16, raysOpacity: 0.75,
+  },
+  epic: {
+    hex: "#a855f7", glow: "rgba(168,85,247,0.82)",
+    rayStops: "rgba(192,132,252,0.78) 0deg, transparent 12deg",
+    gradient: "linear-gradient(160deg, rgba(168,85,247,0.32) 0%, rgba(60,25,100,0.6) 100%)",
+    border: "rgba(192,132,252,0.8)", particles: 20, raysOpacity: 0.85,
+  },
+  mythic: {
+    hex: "#f43f5e", glow: "rgba(244,63,94,0.85)",
+    rayStops: "rgba(251,113,133,0.85) 0deg, transparent 10deg",
+    gradient: "linear-gradient(160deg, rgba(244,63,94,0.34) 0%, rgba(90,15,40,0.65) 100%)",
+    border: "rgba(251,113,133,0.85)", particles: 24, raysOpacity: 0.95,
+  },
+  legendary: {
+    hex: "#f59e0b", glow: "rgba(251,191,36,0.95)",
+    rayStops: "rgba(253,224,71,0.9) 0deg, transparent 8deg",
+    gradient: "linear-gradient(160deg, rgba(251,191,36,0.42) 0%, rgba(100,55,5,0.7) 100%)",
+    border: "rgba(251,191,36,0.95)", particles: 30, raysOpacity: 1,
+  },
 };
+
+/**
+ * Smoothly counts from 0 to `target` using rAF + easeOutCubic. The coins
+ * reward chip uses this so the number "rolls up" instead of pop-snapping.
+ */
+function useCountUp(target: number, durationMs = 900, delayMs = 0): number {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (target <= 0) { setValue(0); return; }
+    let raf = 0;
+    let startedAt: number | null = null;
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+    const timeout = setTimeout(() => {
+      const step = (ts: number) => {
+        if (startedAt == null) startedAt = ts;
+        const t = Math.min(1, (ts - startedAt) / durationMs);
+        setValue(Math.round(target * ease(t)));
+        if (t < 1) raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+    }, delayMs);
+    return () => { clearTimeout(timeout); cancelAnimationFrame(raf); };
+  }, [target, durationMs, delayMs]);
+  return value;
+}
+
+/**
+ * Coin reward chip — the gold pill below the item with the rolling number
+ * counter, flipping coin, and a glow ring.
+ */
+function CoinRewardChip({ awarded, total }: { awarded: number; total: number | null }) {
+  const display = useCountUp(awarded, 950, 700);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16, scale: 0.85 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: 0.55, type: "spring", stiffness: 320, damping: 18 }}
+      className="mt-3 mx-auto flex items-center justify-center gap-2.5 py-2 px-4 rounded-full"
+      style={{
+        background: "linear-gradient(95deg, rgba(251,191,36,0.18) 0%, rgba(212,168,32,0.1) 100%)",
+        border: "1px solid rgba(251,191,36,0.55)",
+        boxShadow: "0 0 20px rgba(251,191,36,0.22), inset 0 0 14px rgba(251,191,36,0.06)",
+      }}
+    >
+      <motion.span
+        className="text-xl inline-block"
+        animate={{ rotateY: [0, 720], scale: [1, 1.18, 1] }}
+        transition={{ duration: 1.3, times: [0, 0.7, 1], delay: 0.6, ease: "easeOut" }}
+      >🪙</motion.span>
+      <span className="font-bold text-sm" style={{ color: "#f59e0b", fontVariantNumeric: "tabular-nums" }}>
+        +{display.toLocaleString()} Spirit Coins
+      </span>
+      {total !== null && (
+        <span className="text-[11px] ml-0.5" style={{ color: "rgba(180,120,20,0.7)", fontVariantNumeric: "tabular-nums" }}>
+          ({total.toLocaleString()} total)
+        </span>
+      )}
+    </motion.div>
+  );
+}
+
+/**
+ * One reward card, fully cinematic:
+ *   - Per-rarity gradient surface + ray fan + halo + sparkles
+ *   - Item icon (emoji from item.icon) springs in oversized, then floats
+ *   - Rarity badge pulses (epic+) with a shimmer sweep
+ *   - Staggered entrance so multi-item rewards reveal in sequence
+ */
+function CinematicRewardCard({
+  item, index, single,
+}: {
+  item: ChestItem;
+  index: number;
+  single: boolean;
+}) {
+  const rs = RARITY_CINEMATIC[item.rarity] ?? RARITY_CINEMATIC.common;
+  const baseDelay = 0.18 + index * 0.12;
+  const isHighTier = item.rarity === "epic" || item.rarity === "mythic" || item.rarity === "legendary";
+
+  // Pre-roll sparkle trajectories once per mount so each card has its own
+  // unique constellation of drifting particles.
+  const sparkles = useRef<Array<{ dx: number; dy: number; delay: number; size: number }>>(
+    Array.from({ length: rs.particles }).map(() => {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 60 + Math.random() * 90;
+      return {
+        dx: Math.cos(angle) * dist,
+        dy: Math.sin(angle) * dist,
+        delay: Math.random() * 0.9,
+        size: 3 + Math.random() * 5,
+      };
+    }),
+  );
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24, scale: 0.85 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: baseDelay, type: "spring", stiffness: 240, damping: 22 }}
+      className={`relative overflow-hidden rounded-2xl ${single ? "w-full" : "flex-1 min-w-[160px]"}`}
+      style={{
+        background: rs.gradient,
+        border: `1.5px solid ${rs.border}`,
+        boxShadow: `0 0 36px ${rs.glow}, inset 0 0 28px ${rs.hex}22, 0 8px 22px rgba(0,0,0,0.18)`,
+      }}
+    >
+      {/* Rotating ray fan */}
+      <div aria-hidden className="absolute inset-0 pointer-events-none" style={{ opacity: rs.raysOpacity }}>
+        <div
+          className="absolute left-1/2 top-1/2"
+          style={{
+            width: 380, height: 380,
+            transform: "translate(-50%, -50%)",
+            background: `repeating-conic-gradient(${rs.rayStops}, transparent 30deg)`,
+            animation: "chestRaysSpin 14s linear infinite",
+            mixBlendMode: "screen",
+            filter: "blur(0.5px)",
+            opacity: 0.9,
+          }}
+        />
+      </div>
+
+      {/* Radial halo behind the icon */}
+      <div
+        aria-hidden
+        className="absolute left-1/2 pointer-events-none"
+        style={{
+          top: "44%",
+          width: 200, height: 200,
+          transform: "translate(-50%, -50%)",
+          background: `radial-gradient(circle, ${rs.hex}66 0%, ${rs.hex}22 38%, transparent 72%)`,
+          animation: "chestHaloPulse 2.4s ease-in-out infinite",
+          filter: "blur(2px)",
+        }}
+      />
+
+      {/* Drifting sparkle particles */}
+      {sparkles.current.map((s, i) => (
+        <span
+          key={i}
+          aria-hidden
+          className="absolute left-1/2 rounded-full pointer-events-none"
+          style={{
+            top: "44%",
+            width: s.size, height: s.size,
+            background: rs.hex,
+            boxShadow: `0 0 ${s.size * 1.8}px ${rs.hex}, 0 0 ${s.size * 0.9}px #fff`,
+            ['--dx' as string]: `${s.dx}px`,
+            ['--dy' as string]: `${s.dy}px`,
+            animation: `chestSparkleFlt 1.8s ease-out ${baseDelay + s.delay}s both`,
+            transform: "translate(-50%, -50%)",
+          }}
+        />
+      ))}
+
+      {/* Content */}
+      <div className="relative flex flex-col items-center gap-3 py-8 px-5 z-10">
+        {/* Big bouncing item icon */}
+        <motion.div
+          initial={{ scale: 0.15, rotate: -28, opacity: 0 }}
+          animate={{ scale: [0.15, 1.25, 1], rotate: [-28, 8, 0], opacity: 1 }}
+          transition={{ delay: baseDelay + 0.18, duration: 0.75, times: [0, 0.6, 1], ease: "easeOut" }}
+          className="relative"
+          style={{ filter: `drop-shadow(0 8px 22px ${rs.glow})` }}
+        >
+          <motion.div
+            animate={isHighTier
+              ? { y: [0, -4, 0], rotate: [0, 3, -3, 0] }
+              : { y: [0, -3, 0] }
+            }
+            transition={{
+              delay: baseDelay + 0.95,
+              duration: isHighTier ? 2.4 : 2.6,
+              ease: "easeInOut",
+              repeat: Infinity,
+            }}
+            className="text-[88px] leading-none select-none"
+            style={{ textShadow: `0 0 24px ${rs.glow}` }}
+          >
+            {item.icon}
+          </motion.div>
+
+          {/* Shimmer sweep across the icon (epic+) */}
+          {isHighTier && (
+            <motion.span
+              aria-hidden
+              initial={{ x: "-150%", opacity: 0 }}
+              animate={{ x: ["-150%", "200%"], opacity: [0, 0.85, 0] }}
+              transition={{ delay: baseDelay + 1.0, duration: 1.4, ease: "easeOut", repeat: Infinity, repeatDelay: 2.4 }}
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background: "linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%)",
+                mixBlendMode: "screen",
+                width: "60%",
+              }}
+            />
+          )}
+        </motion.div>
+
+        {/* Name */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: baseDelay + 0.45, duration: 0.35 }}
+          className="text-xl font-black leading-tight text-center"
+          style={{
+            color: "#fff",
+            textShadow: `0 1px 4px rgba(0,0,0,0.6), 0 0 18px ${rs.hex}80`,
+            letterSpacing: "-0.005em",
+          }}
+        >
+          {item.name}
+        </motion.div>
+
+        {/* Rarity badge with glow pulse + shimmer */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: baseDelay + 0.6, type: "spring", stiffness: 380, damping: 18 }}
+        >
+          <motion.span
+            className="relative inline-flex items-center gap-1 text-[10.5px] font-black uppercase tracking-[0.18em] px-3 py-1.5 rounded-full overflow-hidden"
+            style={{
+              color: "#fff",
+              background: `linear-gradient(90deg, ${rs.hex} 0%, ${rs.hex}cc 100%)`,
+              border: `1px solid ${rs.hex}`,
+              boxShadow: `0 0 16px ${rs.glow}, inset 0 1px 0 rgba(255,255,255,0.25)`,
+            }}
+            animate={isHighTier
+              ? { boxShadow: [`0 0 16px ${rs.glow}`, `0 0 32px ${rs.glow}`, `0 0 16px ${rs.glow}`] }
+              : undefined
+            }
+            transition={isHighTier ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" } : undefined}
+          >
+            <motion.span
+              aria-hidden
+              initial={{ x: "-130%" }}
+              animate={{ x: ["-130%", "230%"] }}
+              transition={{ delay: baseDelay + 1.1, duration: 1.5, ease: "easeOut", repeat: Infinity, repeatDelay: 2.2 }}
+              className="absolute inset-0"
+              style={{
+                background: "linear-gradient(100deg, transparent 0%, rgba(255,255,255,0.7) 50%, transparent 100%)",
+                width: "60%",
+                mixBlendMode: "screen",
+                pointerEvents: "none",
+              }}
+            />
+            <span className="relative">{item.rarity}</span>
+          </motion.span>
+        </motion.div>
+      </div>
+    </motion.div>
+  );
+}
 
 export default function Chests() {
   const [, setLocation] = useLocation();
@@ -403,33 +701,29 @@ export default function Chests() {
             </DialogDescription>
           </DialogHeader>
 
+          {/* Keyframes for the cinematic card — defined once per dialog mount. */}
+          <style>{`
+            @keyframes chestRaysSpin   { from { transform: rotate(0deg); }   to { transform: rotate(360deg); } }
+            @keyframes chestHaloPulse  { 0%,100% { transform: translate(-50%, -50%) scale(1);    opacity: 0.6; } 50% { transform: translate(-50%, -50%) scale(1.14); opacity: 0.95; } }
+            @keyframes chestSparkleFlt { 0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; } 18% { opacity: 1; } 100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.15); opacity: 0; } }
+          `}</style>
+
           <div className={`flex gap-3 mt-2 ${openResult && openResult.items.length > 1 ? "flex-row justify-center flex-wrap" : "flex-col items-center"}`}>
             {openResult?.items.map((item, idx) => (
-              <div
-                key={idx}
-                className={`flex flex-col items-center gap-2 p-4 rounded-xl border ${openResult.items.length > 1 ? "flex-1 min-w-[120px]" : "w-full"} ${RARITY_COLORS[item.rarity] ?? "border-border"}`}
-              >
-                <span className="text-5xl leading-none">{item.icon}</span>
-                <div className="text-center">
-                  <div className="font-bold text-base text-foreground">{item.name}</div>
-                  <Badge className="mt-1 capitalize text-xs">{item.rarity}</Badge>
-                </div>
-              </div>
+              <CinematicRewardCard
+                key={`${item.id}-${idx}`}
+                item={item}
+                index={idx}
+                single={openResult.items.length === 1}
+              />
             ))}
           </div>
 
           {openResult && openResult.coins_awarded > 0 && (
-            <div className="mt-3 flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-yellow-900/20 border border-yellow-500/30">
-              <span className="text-xl">🪙</span>
-              <span className="text-yellow-300 font-semibold text-sm">
-                +{openResult.coins_awarded} Spirit Coins
-              </span>
-              {openResult.new_coin_balance !== null && (
-                <span className="text-yellow-400/50 text-xs ml-1">
-                  ({openResult.new_coin_balance.toLocaleString()} total)
-                </span>
-              )}
-            </div>
+            <CoinRewardChip
+              awarded={openResult.coins_awarded}
+              total={openResult.new_coin_balance}
+            />
           )}
 
           {openResult && openResult.coins_awarded === 0 && (
