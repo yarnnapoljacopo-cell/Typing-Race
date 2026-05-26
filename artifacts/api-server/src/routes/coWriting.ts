@@ -327,6 +327,40 @@ router.post("/co-writing/rooms/:id/leave", wrap(async (req, res): Promise<void> 
 }));
 
 /**
+ * HTTP-only load path. The primary load path is the y-websocket sync
+ * handshake — but if the WebSocket can't establish for ANY reason (proxy
+ * not forwarding upgrades, server restart, mobile network blip, etc.)
+ * the client is stuck staring at an empty editor even though the content
+ * is safely in the DB. This route lets the client pull the saved HTML
+ * straight from `co_writing_doc_state.text_preview` via plain HTTP, so
+ * "Connecting…" no longer means "your work is gone."
+ */
+router.get("/co-writing/rooms/:id/docs/:docId/snapshot", wrap(async (req, res): Promise<void> => {
+  const userId = getAuth(req)?.userId;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const roomId = parseInt(String(req.params.id), 10);
+  const docId = parseInt(String(req.params.docId), 10);
+  if (!Number.isFinite(roomId) || !Number.isFinite(docId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!(await isMember(roomId, userId))) { res.status(403).json({ error: "Not a member" }); return; }
+
+  const [doc] = await db.select({ id: coWritingDocsTable.id })
+    .from(coWritingDocsTable)
+    .where(and(eq(coWritingDocsTable.id, docId), eq(coWritingDocsTable.roomId, roomId)));
+  if (!doc) { res.status(404).json({ error: "Doc not found in this room" }); return; }
+
+  const [row] = await db.select({
+    textPreview: coWritingDocStateTable.textPreview,
+    updatedAt: coWritingDocStateTable.updatedAt,
+  }).from(coWritingDocStateTable).where(eq(coWritingDocStateTable.docId, docId));
+
+  res.json({
+    html: row?.textPreview ?? "",
+    updatedAt: row?.updatedAt ? row.updatedAt.toISOString() : null,
+  });
+}));
+
+/**
  * Belt-and-suspenders save: clients push the current editor HTML here
  * periodically (and on beforeunload via sendBeacon) so content is durable
  * even when the WebSocket sync path is unavailable for some reason

@@ -272,6 +272,33 @@ export default function CoWritingRoom() {
     });
     providerRef.current = provider;
 
+    // ── HTTP-only load fallback ────────────────────────────────────────────
+    // If the WebSocket sync handshake can't complete (proxy not forwarding
+    // upgrades, server not redeployed with the path-prefix fix, mobile
+    // network blip on cold start, …) the user used to see an empty editor
+    // forever. Now we ALSO fetch the latest snapshot via plain HTTP and
+    // seed the Y.Text with it whenever the doc is still empty by the time
+    // the response arrives. If WS happens to win the race and populates
+    // ytext first, we leave it alone.
+    let cancelled = false;
+    authedFetch(`${basePath}/api/co-writing/rooms/${roomIdNum}/docs/${activeDocId}/snapshot`)
+      .then(async (r) => {
+        if (cancelled || !r.ok) return;
+        const data = await r.json() as { html?: string };
+        const html = (data.html ?? "").trim();
+        if (!html) return;
+        const ytext = ydoc.getText("body");
+        // Only seed when the Y.Doc is still empty. If WS already synced
+        // content, that content is authoritative — don't double-insert.
+        if (ytext.toString().length === 0) {
+          ydoc.transact(() => { ytext.insert(0, html); }, "http-snapshot-load");
+          // Remember what we loaded so the auto-save's "html unchanged"
+          // guard doesn't immediately push the same content back.
+          lastSnapshotHtmlRef.current = html;
+        }
+      })
+      .catch(() => { /* network error — WS path or next retry handles it */ });
+
     const myMember = details.members.find((m) => m.userId === userId);
     const myDisplay = myMember?.displayName ?? (user?.firstName ?? user?.username ?? "Writer");
     const myColor = myMember?.color ?? "#3b6ea5";
@@ -298,6 +325,7 @@ export default function CoWritingRoom() {
     provider.on("status", handleStatus);
 
     return () => {
+      cancelled = true;
       provider.awareness.off("change", handleAwarenessChange);
       provider.off("status", handleStatus);
       provider.destroy();
