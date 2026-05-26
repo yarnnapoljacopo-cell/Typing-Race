@@ -1788,6 +1788,7 @@ export default function Room() {
                       reaperWordCount={reaperWordCount}
                       carOffsets={room.mode === "kart" ? kartState.carOffsets : undefined}
                       starActiveIds={room.mode === "kart" ? kartState.starActiveIds : undefined}
+                      kartEffects={room.mode === "kart" ? kartState.effects : undefined}
                       isKartMode={room.mode === "kart"}
                       localWordCount={isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : undefined}
                       hostCarSkin={room.hostCarSkin}

@@ -1,7 +1,8 @@
 import { memo, useRef, type ReactNode } from "react";
-import { Participant } from "@/hooks/useSprintRoom";
+import { Participant, type KartEffect } from "@/hooks/useSprintRoom";
 import { motion, AnimatePresence } from "framer-motion";
 import { SkinnedCar, SkinnedKart, getRoadStyle, shouldApplySkins } from "@/lib/skinCatalog";
+import { KartEffectsLayer, KartLaneEffects } from "@/components/KartEffects";
 
 const ITEM_BOX_INTERVAL = 250;
 
@@ -18,6 +19,7 @@ interface RaceTrackProps {
   hostCarSkin?: string | null;
   hostRoadSkin?: string | null;
   roomMode?: string | null;
+  kartEffects?: KartEffect[];
 }
 
 const LANE_COLORS: { car: string; shade: string; light: string }[] = [
@@ -97,6 +99,7 @@ export const RaceTrack = memo(function RaceTrack({
   hostCarSkin,
   hostRoadSkin,
   roomMode,
+  kartEffects,
 }: RaceTrackProps) {
   // Editors are visible non-racers — they appear in the writers list with
   // a badge but don't get a car on the track.
@@ -130,9 +133,34 @@ export const RaceTrack = memo(function RaceTrack({
     ? Math.min(reaperWordCount / target, 1)
     : null;
 
+  // Pre-compute every participant's current track fraction so per-lane effects
+  // can use it (e.g. source position for shell projectiles).
+  const participantFractions = new Map<string, number>();
+  if (isKartMode) {
+    participants.forEach((p) => {
+      const isMe = p.id === currentParticipantId;
+      const display = isMe && localWordCount !== undefined ? Math.max(p.wordCount, localWordCount) : p.wordCount;
+      const eff = Math.max(0, display + (carOffsets?.[p.id] ?? 0));
+      participantFractions.set(p.id, Math.min(eff / target, 1));
+    });
+  }
+  const activeEffects = kartEffects ?? [];
+  const hasLightning = activeEffects.some((e) => e.item === "lightning");
+  const hasBlueShell = activeEffects.some((e) => e.item === "blue_shell");
+
   if (isKartMode) {
     return (
-      <div style={{ borderRadius: 16, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.22)", marginBottom: 2 }}>
+      <motion.div
+        animate={
+          hasLightning
+            ? { x: [0, -6, 6, -4, 4, -2, 2, 0], y: [0, 2, -2, 1, -1, 0] }
+            : hasBlueShell
+              ? { x: [0, -3, 3, -2, 2, 0] }
+              : { x: 0, y: 0 }
+        }
+        transition={{ duration: hasLightning ? 0.6 : 0.5, ease: "easeOut" }}
+        style={{ borderRadius: 16, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.22)", marginBottom: 2 }}
+      >
         {/* Sky / header */}
         <div style={{ background: roadStyle.kartSky, padding: "6px 12px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.12em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
@@ -191,6 +219,12 @@ export const RaceTrack = memo(function RaceTrack({
               const eliminated = reaperWordCount != null && displayWordCount < reaperWordCount && !finished;
               const hasStarActive = starActiveIds?.includes(p.id) ?? false;
               const isFirstPlace = firstPlaceId === p.id;
+              const isBeingHit = activeEffects.some(
+                (e) =>
+                  e.targetIds.includes(p.id) &&
+                  (e.effect === "car_subtract" || e.effect === "bold_text" || e.effect === "blur_counter"),
+              );
+              const lastHitId = activeEffects.find((e) => e.targetIds.includes(p.id) && (e.effect === "car_subtract" || e.effect === "bold_text" || e.effect === "blur_counter"))?.id;
 
               return (
                 <div key={p.id} style={{
@@ -221,33 +255,70 @@ export const RaceTrack = memo(function RaceTrack({
 
                     {/* Track area for positioning */}
                     <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 16 }}>
-                      {/* Item boxes */}
+                      {/* Item boxes — fill the entire track at 250-word intervals; popped after being passed */}
                       {!eliminated && !finished && (() => {
-                        const nextBox = (Math.floor(displayWordCount / ITEM_BOX_INTERVAL) + 1) * ITEM_BOX_INTERVAL;
                         const boxes: ReactNode[] = [];
-                        for (let box = nextBox; box < target && boxes.length < 3; box += ITEM_BOX_INTERVAL) {
+                        const justCollectedBox = Math.floor(displayWordCount / ITEM_BOX_INTERVAL) * ITEM_BOX_INTERVAL;
+                        const nextBox = justCollectedBox + ITEM_BOX_INTERVAL;
+                        // Future, un-collected boxes — render them all the way to the finish
+                        for (let box = nextBox; box < target; box += ITEM_BOX_INTERVAL) {
                           const boxFraction = Math.min(box / target, 1);
                           boxes.push(
-                            <div
-                              key={box}
+                            <motion.div
+                              key={`box-${box}`}
+                              initial={false}
+                              animate={{ y: [0, -2, 0] }}
+                              transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut", delay: (box / 250) * 0.07 }}
                               style={{
                                 position: "absolute",
                                 left: `${boxFraction * 100}%`,
                                 top: "50%",
-                                transform: "translate(-50%, -50%)",
+                                marginTop: -11,
+                                marginLeft: -11,
                                 width: 22, height: 22,
-                                borderRadius: 4,
-                                background: "linear-gradient(135deg, #f6c90e 0%, #e8a500 100%)",
-                                border: "2px solid rgba(255,255,255,0.6)",
+                                borderRadius: 5,
+                                background:
+                                  "linear-gradient(135deg, #fde047 0%, #f6c90e 45%, #b45309 100%)",
+                                border: "2px solid rgba(255,255,255,0.7)",
                                 display: "flex", alignItems: "center", justifyContent: "center",
-                                fontSize: "0.7rem", fontWeight: 900, color: "rgba(255,255,255,0.9)",
-                                boxShadow: "0 0 10px rgba(246,201,14,0.6), 0 2px 6px rgba(0,0,0,0.3)",
+                                fontSize: "0.7rem", fontWeight: 900, color: "rgba(255,255,255,0.95)",
+                                textShadow: "0 1px 1px rgba(0,0,0,0.45)",
+                                boxShadow:
+                                  "0 0 8px rgba(253,224,71,0.6), 0 0 18px rgba(246,201,14,0.35), 0 2px 6px rgba(0,0,0,0.35), inset 0 0 6px rgba(255,255,255,0.25)",
                                 zIndex: 2,
                                 pointerEvents: "none",
                               }}
                             >
                               ?
-                            </div>
+                            </motion.div>
+                          );
+                        }
+                        // Pop animation on the most-recently-collected box (plays once when justCollectedBox crosses)
+                        if (justCollectedBox >= ITEM_BOX_INTERVAL && justCollectedBox < target) {
+                          const collectedFraction = Math.min(justCollectedBox / target, 1);
+                          boxes.push(
+                            <motion.div
+                              key={`pop-${p.id}-${justCollectedBox}`}
+                              initial={{ opacity: 1, scale: 1, rotate: 0 }}
+                              animate={{ opacity: 0, scale: 2.4, rotate: 35 }}
+                              transition={{ duration: 0.55, ease: "easeOut" }}
+                              style={{
+                                position: "absolute",
+                                left: `${collectedFraction * 100}%`,
+                                top: "50%",
+                                marginTop: -13,
+                                marginLeft: -13,
+                                width: 26, height: 26,
+                                borderRadius: 6,
+                                background:
+                                  "radial-gradient(circle, #fffbeb 0%, #fde047 50%, #f59e0b 100%)",
+                                border: "2px solid #fffbeb",
+                                boxShadow:
+                                  "0 0 20px rgba(253,224,71,0.95), 0 0 40px rgba(245,158,11,0.6)",
+                                pointerEvents: "none",
+                                zIndex: 4,
+                              }}
+                            />
                           );
                         }
                         return boxes;
@@ -284,21 +355,28 @@ export const RaceTrack = memo(function RaceTrack({
                             </span>
                           </div>
 
-                          {/* Kart SVG */}
+                          {/* Kart SVG — shakes hard when this car is hit by an item */}
                           <motion.div
-                            animate={finished
-                              ? { scale: [1, 1.08, 1] }
-                              : { y: [0, -1.5, 0, 1, 0] }
+                            key={isBeingHit ? `hit-${lastHitId}` : "idle"}
+                            animate={
+                              isBeingHit
+                                ? { x: [0, -5, 5, -4, 4, -3, 3, 0], rotate: [0, -6, 6, -4, 4, -2, 2, 0] }
+                                : finished
+                                  ? { scale: [1, 1.08, 1] }
+                                  : { y: [0, -1.5, 0, 1, 0] }
                             }
-                            transition={finished
-                              ? { repeat: Infinity, duration: 1.4, ease: "easeInOut" }
-                              : { repeat: Infinity, duration: 1.4, ease: "easeInOut" }
+                            transition={
+                              isBeingHit
+                                ? { duration: 0.6, ease: "easeOut" }
+                                : { repeat: Infinity, duration: 1.4, ease: "easeInOut" }
                             }
                             style={{
                               opacity: eliminated ? 0.4 : 1,
                               filter: hasStarActive
                                 ? "drop-shadow(0 0 6px #fbbf24) drop-shadow(0 0 10px #fde047)"
-                                : undefined,
+                                : isBeingHit
+                                  ? "drop-shadow(0 0 8px #ef4444) drop-shadow(0 0 16px rgba(239,68,68,0.55))"
+                                  : undefined,
                             }}
                           >
                             {activeCarSkin ? (
@@ -320,6 +398,14 @@ export const RaceTrack = memo(function RaceTrack({
                           </motion.div>
                         </div>
                       </motion.div>
+
+                      {/* Per-lane item-use animations (shells, lightning bolt, mushroom trail, etc.) */}
+                      <KartLaneEffects
+                        effects={activeEffects}
+                        participantId={p.id}
+                        targetFraction={fraction}
+                        participantFractions={participantFractions}
+                      />
                     </div>
 
                     {/* Finish line */}
@@ -352,8 +438,11 @@ export const RaceTrack = memo(function RaceTrack({
 
           {/* Bottom kerb */}
           <div style={{ height: 6, background: roadStyle.bottomKerb, opacity: 0.85 }} />
+
+          {/* Track-wide effect overlays (lightning flash, blue-shell red alert) */}
+          <KartEffectsLayer effects={activeEffects} />
         </div>
-      </div>
+      </motion.div>
     );
   }
 

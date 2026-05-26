@@ -69,6 +69,22 @@ export interface KartHitNotification {
   item: string;
 }
 
+export interface KartEffect {
+  /** Unique render id (so React keys stay stable per effect instance) */
+  id: string;
+  /** Item key — e.g. "lightning", "red_shell" */
+  item: string;
+  emoji: string;
+  sourceId: string | null;
+  sourceName: string | null;
+  targetIds: string[];
+  /** Server-reported `effect` field — e.g. "car_subtract", "star", "boo" */
+  effect: string | null;
+  /** Amount, if relevant (subtract/add/bonus_words) */
+  amount: number;
+  ts: number;
+}
+
 export interface KartState {
   items: string[];
   bonusWords: number;
@@ -79,6 +95,8 @@ export interface KartState {
   starActiveIds: string[];
   flashEvent: KartFlashEvent | null;
   hitNotification: KartHitNotification | null;
+  /** Live, animated effects driven by `item_used` broadcasts. */
+  effects: KartEffect[];
 }
 
 export interface ParticipantText {
@@ -168,6 +186,7 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
     starActiveIds: [],
     flashEvent: null,
     hitNotification: null,
+    effects: [],
   });
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const boldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -399,6 +418,49 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
             const amount = (data.amount as number) ?? 0;
             const targetId = data.targetId as string | undefined;
             const targetIds = data.targetIds as string[] | undefined;
+            const sourceId = (data.sourceId as string | undefined) ?? null;
+            const sourceNameRaw = (data.sourceName as string | undefined) ?? null;
+            const itemKey = (data.item as string) ?? "unknown";
+            const eEmoji = (data.emoji as string) ?? "🎮";
+
+            // Push a live effect for the track overlay to animate.
+            const effectTargets: string[] = targetIds
+              ? [...targetIds]
+              : targetId
+                ? [targetId]
+                : [];
+            const newEffect: KartEffect = {
+              id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+              item: itemKey,
+              emoji: eEmoji,
+              sourceId,
+              sourceName: sourceNameRaw,
+              targetIds: effectTargets,
+              effect: effect ?? null,
+              amount,
+              ts: Date.now(),
+            };
+            // Effect lifetimes — long enough to play the whole animation.
+            const EFFECT_DURATIONS: Record<string, number> = {
+              lightning: 2200,
+              blue_shell: 2200,
+              red_shell: 1800,
+              green_shell: 1800,
+              banana: 1400,
+              star: 2200,
+              mushroom: 1600,
+              boo: 2000,
+              golden_pen: 2400,
+              mystery_box: 1800,
+            };
+            const lifeMs = EFFECT_DURATIONS[itemKey] ?? 1800;
+            setKartState((prev) => ({ ...prev, effects: [...prev.effects, newEffect] }));
+            setTimeout(() => {
+              setKartState((prev) => ({
+                ...prev,
+                effects: prev.effects.filter((x) => x.id !== newEffect.id),
+              }));
+            }, lifeMs);
 
             if (effect === "car_subtract") {
               setKartState((prev) => {

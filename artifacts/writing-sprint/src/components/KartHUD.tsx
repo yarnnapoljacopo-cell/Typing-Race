@@ -33,6 +33,41 @@ export function KartHUD({
   const [hovered, setHovered] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const helpRef = useRef<HTMLDivElement>(null);
+  const helpButtonRef = useRef<HTMLButtonElement>(null);
+  const [helpPos, setHelpPos] = useState<{ top: number; left: number; maxHeight: number; placeAbove: boolean }>({
+    top: 0, left: 0, maxHeight: 400, placeAbove: false,
+  });
+
+  // Position the fixed help panel so it never spills off-screen.
+  useEffect(() => {
+    if (!showHelp) return;
+    function place() {
+      const btn = helpButtonRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const width = Math.min(440, vw - 32);
+      const gap = 10;
+      const spaceBelow = vh - rect.bottom - gap;
+      const spaceAbove = rect.top - gap;
+      const placeAbove = spaceBelow < 280 && spaceAbove > spaceBelow;
+      const maxHeight = Math.max(220, Math.min(480, placeAbove ? spaceAbove - 8 : spaceBelow - 8));
+      // Prefer left-aligned with the HUD, but clamp to the viewport.
+      let left = rect.left;
+      if (left + width > vw - 16) left = Math.max(16, vw - 16 - width);
+      if (left < 16) left = 16;
+      const top = placeAbove ? Math.max(16, rect.top - gap) : rect.bottom + gap;
+      setHelpPos({ top, left, maxHeight, placeAbove });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [showHelp]);
 
   useEffect(() => {
     if (!showHelp) return;
@@ -40,7 +75,8 @@ export function KartHUD({
       if (e.key === "Escape") setShowHelp(false);
     }
     function onClickOutside(e: MouseEvent) {
-      if (helpRef.current && !helpRef.current.contains(e.target as Node)) {
+      const t = e.target as Node;
+      if (helpRef.current && !helpRef.current.contains(t) && helpButtonRef.current && !helpButtonRef.current.contains(t)) {
         setShowHelp(false);
       }
     }
@@ -108,6 +144,7 @@ export function KartHUD({
           <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">Items</span>
           {/* Help button */}
           <button
+            ref={helpButtonRef}
             type="button"
             onClick={() => setShowHelp((v) => !v)}
             className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold border transition-all duration-150 hover:scale-110"
@@ -259,15 +296,17 @@ export function KartHUD({
         </div>
       </div>
 
-      {/* Items guide panel — opens downward so it never clips off the top */}
+      {/* Items guide panel — fixed, viewport-aware so it never leaves the screen */}
       {showHelp && (
         <div
           ref={helpRef}
-          className="absolute z-50 rounded-xl shadow-2xl overflow-hidden"
+          className="fixed z-[100] rounded-xl shadow-2xl overflow-hidden flex flex-col"
           style={{
-            top: "calc(100% + 8px)",
-            left: 0,
+            top: helpPos.placeAbove ? undefined : helpPos.top,
+            bottom: helpPos.placeAbove ? Math.max(8, window.innerHeight - helpPos.top) : undefined,
+            left: helpPos.left,
             width: "min(440px, calc(100vw - 32px))",
+            maxHeight: helpPos.maxHeight,
             background: "#0f0f1a",
             border: "1px solid rgba(139,92,246,0.4)",
           }}
@@ -295,7 +334,7 @@ export function KartHUD({
           </div>
 
           {/* Item list */}
-          <div className="px-3 pb-3 pt-2 grid grid-cols-1 gap-1.5 overflow-y-auto" style={{ maxHeight: "300px" }}>
+          <div className="px-3 pb-3 pt-2 grid grid-cols-1 gap-1.5 overflow-y-auto flex-1 min-h-0">
             {ITEM_KEYS.map((key) => {
               const def = ITEMS[key];
               const tier = TIER_STYLES[def.tier];
