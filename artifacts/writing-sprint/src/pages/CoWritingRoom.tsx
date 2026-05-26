@@ -5,7 +5,12 @@ import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { WritingToolbar, type WritingStyle, type FormatType } from "@/components/WritingToolbar";
+import { CoWritingCardsPanel } from "@/components/CoWritingCardsPanel";
+import { CoWritingNotesPanel } from "@/components/CoWritingNotesPanel";
 import "./CoWriting.css";
+// MyFiles.css owns all the .nncards-*, .cn-*, .card.* styles we need to make
+// the Folio Cards panel look identical inside the co-writing room.
+import "./MyFiles.css";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -113,7 +118,7 @@ export default function CoWritingRoom() {
   const [, setLocation] = useLocation();
   const params = useParams<{ id: string }>();
   const roomIdNum = parseInt(params.id ?? "", 10);
-  const { isLoaded, isSignedIn, userId, getToken } = useAuth();
+  const { isLoaded, isSignedIn, userId } = useAuth();
   const { user } = useUser();
   const authedFetch = useAuthedFetch();
 
@@ -143,12 +148,13 @@ export default function CoWritingRoom() {
   const editorRef = useRef<HTMLDivElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
 
-  // Notes/Cards panel toggle — opens the novel-notes iframe in a slide-out
-  // panel so writers can pull cards/notes from their own personal collection
-  // while collaborating. The iframe is the same one as /novel-notes — every
-  // user sees ONLY their own notes (membership-scoped via API).
-  const [notesOpen, setNotesOpen] = useState(false);
-  const notesIframeRef = useRef<HTMLIFrameElement | null>(null);
+  // Notes and Cards are TWO SEPARATE features (per user feedback):
+  //   - Cards: the user's Novel Notes cards database (shared with Folio +
+  //     /novel-notes.html — same data, same editor).
+  //   - Notes: a private per-doc scratchpad (summary, key moments, to-dos,
+  //     meta) scoped to (room, doc, user). Not shared with the room.
+  // Only one of the two panels is visible at a time on the right side.
+  const [sidePanel, setSidePanel] = useState<"none" | "cards" | "notes">("none");
 
   // Bootstrap room details on mount + when the route changes
   useEffect(() => {
@@ -490,58 +496,6 @@ export default function CoWritingRoom() {
     };
   }, [writingStyle.typewriterMode, activeDocId]);
 
-  // ── Novel-notes iframe wiring ──────────────────────────────────────────
-  // The /novel-notes.html iframe expects an `nn:init` postMessage with the
-  // user's saved nnData (loaded from /api/novel-notes), and emits `nn:save`
-  // messages when the user edits. We forward them straight back to the API.
-  const nnDataRef = useRef<unknown>(null);
-  const nnIframeReadyRef = useRef(false);
-  const sendNnInit = useCallback(() => {
-    notesIframeRef.current?.contentWindow?.postMessage(
-      { type: "nn:init", data: { nnData: nnDataRef.current } }, "*",
-    );
-  }, []);
-  // Fetch this user's notes once when the notes panel is first opened.
-  useEffect(() => {
-    if (!notesOpen || !isSignedIn) return;
-    if (nnDataRef.current !== null) return; // already loaded
-    getToken().then((token) => {
-      if (!token) return;
-      fetch(`${basePath}/api/novel-notes`, { headers: { Authorization: `Bearer ${token}` } })
-        .then((r) => r.json())
-        .then((d) => {
-          nnDataRef.current = d.nnData ?? null;
-          if (nnIframeReadyRef.current) sendNnInit();
-        })
-        .catch(() => {});
-    });
-  }, [notesOpen, isSignedIn, getToken, sendNnInit]);
-  // Handle nn:save messages from the iframe and persist to the API.
-  useEffect(() => {
-    if (!isSignedIn) return;
-    const handler = (e: MessageEvent) => {
-      if (!notesIframeRef.current || e.source !== notesIframeRef.current.contentWindow) return;
-      const msg = e.data as { type: string; data?: unknown };
-      if (msg.type === "nn:ready") {
-        nnIframeReadyRef.current = true;
-        if (nnDataRef.current !== null) sendNnInit();
-      } else if (msg.type === "nn:save") {
-        getToken().then((token) => {
-          if (!token) return;
-          fetch(`${basePath}/api/novel-notes`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ nnData: msg.data }),
-          }).catch(() => {});
-        });
-      } else if (msg.type === "nn:home" || msg.type === "nn:back") {
-        setNotesOpen(false);
-      }
-    };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [isSignedIn, getToken, sendNnInit]);
-
   // ── Render ─────────────────────────────────────────────────────────────
   if (loading) return <div className="cw-room-root"><div className="cw-empty">Loading room…</div></div>;
   if (error)   return <div className="cw-room-root"><div className="cw-empty cw-error">{error} <button className="cw-btn cw-btn-ghost" style={{ marginLeft: 12 }} onClick={() => setLocation("/co-writing")}>Back</button></div></div>;
@@ -577,10 +531,12 @@ export default function CoWritingRoom() {
           {details.room.inviteCode}
         </button>
         <div className="editor-topbar-spacer" style={{ flex: 1 }} />
+        {/* Two separate toggles — Notes and Cards are distinct features. */}
         <button
-          className={`cw-notes-toggle${notesOpen ? " active" : ""}`}
-          onClick={() => setNotesOpen((v) => !v)}
-          title="Open your novel notes & cards"
+          className={`cw-notes-toggle${sidePanel === "notes" ? " active" : ""}`}
+          onClick={() => setSidePanel((v) => (v === "notes" ? "none" : "notes"))}
+          title="Your private notes for this chapter"
+          disabled={!activeDocId}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -588,7 +544,19 @@ export default function CoWritingRoom() {
             <line x1="9" y1="13" x2="15" y2="13"/>
             <line x1="9" y1="17" x2="13" y2="17"/>
           </svg>
-          <span>Notes & Cards</span>
+          <span>Notes</span>
+        </button>
+        <button
+          className={`cw-notes-toggle${sidePanel === "cards" ? " active" : ""}`}
+          onClick={() => setSidePanel((v) => (v === "cards" ? "none" : "cards"))}
+          title="Your novel notes cards — characters, factions, locations, etc."
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+            <line x1="12" y1="17" x2="12" y2="21" />
+          </svg>
+          <span>Cards</span>
         </button>
         <div className="cw-room-conn">
           <span className={`cw-conn-dot cw-conn-dot--${connState}`} />
@@ -722,26 +690,28 @@ export default function CoWritingRoom() {
           </div>
         </aside>
 
-        {/* Slide-out novel-notes panel — each user's OWN private notes/cards.
-            We embed the same /novel-notes.html iframe used by the Novel Notes
-            page so behaviour and data are identical. */}
-        {notesOpen && (
-          <aside className="cw-notes-panel">
-            <div className="cw-notes-panel-header">
-              <span className="cw-notes-panel-title">Your Notes & Cards</span>
-              <button className="cw-notes-panel-close" onClick={() => setNotesOpen(false)} title="Close">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </div>
-            <iframe
-              ref={notesIframeRef}
-              src="/novel-notes.html"
-              className="cw-notes-iframe"
-              title="Novel Notes & Cards"
-            />
-          </aside>
+        {/* Cards panel — Folio-identical "Novel Notes Cards" surface.
+            Reads/writes the user's nnData from /api/novel-notes, so every
+            card created here also appears on the Novel Notes canvas and
+            in Folio. Other writers in the room cannot see these cards. */}
+        {sidePanel === "cards" && (
+          <CoWritingCardsPanel
+            onClose={() => setSidePanel("none")}
+            authedFetch={authedFetch}
+          />
+        )}
+
+        {/* Notes panel — per-user, per-doc private scratchpad. Distinct
+            feature from Cards; stored in localStorage so each writer's
+            chapter notes are theirs alone. */}
+        {sidePanel === "notes" && activeDoc && userId && (
+          <CoWritingNotesPanel
+            roomId={roomIdNum}
+            docId={activeDoc.id}
+            docName={activeDoc.name || "Untitled"}
+            userId={userId}
+            onClose={() => setSidePanel("none")}
+          />
         )}
       </div>
     </div>

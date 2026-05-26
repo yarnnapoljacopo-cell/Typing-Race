@@ -254,24 +254,30 @@ export function setupCoWritingWsServer(server: Server): WebSocketServer {
       sd.conns.delete(ws);
       sd.ydoc.off("update", onDocUpdate);
       sd.awareness.off("update", onAwarenessChange);
-      // Awareness state for this conn naturally times out via the awareness
-      // library's built-in heartbeat (~30s). For a snappier UX we could
-      // track which clientID belongs to which conn and remove proactively,
-      // but the timeout is fine for the MVP.
 
-      // If this was the last connection AND we have no pending save, drop
-      // the shared doc from memory after a grace period. Pending updates
-      // will be flushed by the save timer first.
+      // Belt-and-suspenders: if this was the last connection AND there are
+      // pending edits, flush them to DB right away — don't wait the 2s
+      // debounce or the 30s eviction window. Losing unsaved work because
+      // the client closed before the timer fired was the user-visible bug
+      // ("everything inside deletes and doesn't save").
+      if (sd.conns.size === 0 && sd.dirty) {
+        if (sd.saveTimer) { clearTimeout(sd.saveTimer); sd.saveTimer = null; }
+        void persistDoc(roomId, docId, sd);
+      }
+
+      // Keep the in-memory doc around for a short grace window so quick
+      // reloads stay snappy (no DB round-trip) without holding state forever.
       if (sd.conns.size === 0) {
         setTimeout(() => {
           const key = shKey(roomId, docId);
           const current = shared.get(key);
           if (current && current.conns.size === 0) {
-            // Flush any final pending state to DB before evicting.
             if (current.saveTimer) {
               clearTimeout(current.saveTimer);
               current.saveTimer = null;
             }
+            // One more chance to flush — covers updates that arrived between
+            // the immediate flush above and this grace-window expiry.
             if (current.dirty) void persistDoc(roomId, docId, current);
             shared.delete(key);
           }

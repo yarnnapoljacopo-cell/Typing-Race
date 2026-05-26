@@ -246,27 +246,23 @@
 .dark .cw-notes-toggle{background:rgba(255,255,255,.05)}
 .dark .cw-notes-toggle:hover{background:rgba(255,255,255,.09)}
 
-/* Right-side novel notes / cards panel */
-.cw-notes-panel{
-  width:380px;flex-shrink:0;background:var(--surface);
-  border-left:1px solid var(--border-light);
-  display:flex;flex-direction:column;overflow:hidden;
+/* Side-panel host for the Folio-style Cards + Notes panels. The panels own
+   their own widths/colours via MyFiles.css (.nncards-sidebar / .cn-sidebar),
+   so we only need this section for the small "Private" badge that's unique
+   to the co-writing notes panel. */
+.cn-private-badge{
+  display:inline-flex;align-items:center;
+  height:18px;padding:0 7px;border-radius:99px;
+  font-family:'DM Sans',sans-serif;font-size:9px;font-weight:700;
+  letter-spacing:.07em;text-transform:uppercase;
+  color:var(--accent);background:var(--accent-light);
+  margin-left:6px;flex-shrink:0;
 }
-.cw-notes-panel-header{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:10px 14px;border-bottom:1px solid var(--border-light);
+.cw-notes-sidebar .cn-footer{
+  padding:8px 14px;border-top:1px solid var(--border-light);
+  font-size:11px;color:var(--text-muted);
 }
-.cw-notes-panel-title{
-  font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;
-  letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);
-}
-.cw-notes-panel-close{
-  width:24px;height:24px;border:none;border-radius:6px;background:transparent;
-  color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;
-  transition:background .12s,color .12s;
-}
-.cw-notes-panel-close:hover{background:rgba(0,0,0,.05);color:var(--text-primary)}
-.cw-notes-iframe{flex:1;width:100%;border:none;background:transparent}
+.cw-notes-sidebar .cn-save-hint{font-style:italic}
 
 .cw-empty-doc{
   margin:80px auto;max-width:380px;text-align:center;color:var(--text-muted);
