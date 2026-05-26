@@ -246,6 +246,19 @@
 .dark .cw-notes-toggle{background:rgba(255,255,255,.05)}
 .dark .cw-notes-toggle:hover{background:rgba(255,255,255,.09)}
 
+/* Live word-count chip in the room topbar. */
+.cw-wordcount{
+  display:inline-flex;align-items:center;gap:6px;
+  height:28px;padding:0 11px;border-radius:99px;
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;
+  color:var(--text-secondary);
+  background:rgba(0,0,0,.035);border:1px solid var(--border-light);
+}
+.cw-wordcount svg{color:var(--text-muted)}
+.cw-wordcount strong{font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.cw-wordcount-unit{color:var(--text-muted);font-size:11px}
+.dark .cw-wordcount{background:rgba(255,255,255,.04)}
+
 /* Side-panel host for the Folio-style Cards + Notes panels. The panels own
    their own widths/colours via MyFiles.css (.nncards-sidebar / .cn-sidebar),
    so we only need this section for the small "Private" badge that's unique

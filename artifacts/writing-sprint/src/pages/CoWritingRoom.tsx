@@ -148,6 +148,79 @@ export default function CoWritingRoom() {
   const editorRef = useRef<HTMLDivElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
 
+  // Live word count of the active chapter (computed from the editor's plain
+  // text on every input). Stored in React state so the header updates as the
+  // user types.
+  const [wordCount, setWordCount] = useState(0);
+  const countWords = useCallback((text: string): number => {
+    const trimmed = text.trim();
+    return trimmed.length === 0 ? 0 : trimmed.split(/\s+/).length;
+  }, []);
+
+  // ── Bulletproof HTTP fallback save ─────────────────────────────────────
+  // The WebSocket sync path is the primary save mechanism, but if it fails
+  // for any reason (proxy issues, deploy hiccups, lost connection, …) the
+  // user's words MUST not disappear. We push the current editor HTML to a
+  // server endpoint on a debounce + on every "I'm about to lose this" hook:
+  // beforeunload (sendBeacon, survives page close), visibilitychange→hidden
+  // (tab switch / mobile background), and just before switching docs.
+  const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSnapshotHtmlRef = useRef<string>("");
+  const pushSnapshot = useCallback(async (html: string, options?: { beacon?: boolean }): Promise<void> => {
+    if (!activeDocId || !userId) return;
+    if (html === lastSnapshotHtmlRef.current) return;
+    lastSnapshotHtmlRef.current = html;
+    const url = `${basePath}/api/co-writing/rooms/${roomIdNum}/docs/${activeDocId}/snapshot`;
+    const body = JSON.stringify({ html, userId });
+    if (options?.beacon && navigator.sendBeacon) {
+      // sendBeacon can't carry the Clerk Authorization header — that's why
+      // the route also accepts userId in the body as a fallback identity.
+      const blob = new Blob([body], { type: "application/json" });
+      navigator.sendBeacon(url, blob);
+      return;
+    }
+    try {
+      await authedFetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+    } catch { /* network error — next debounce retries */ }
+  }, [activeDocId, userId, roomIdNum, authedFetch]);
+
+  // Re-arm the debounced snapshot save whenever the editor content changes.
+  const scheduleSnapshot = useCallback(() => {
+    if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current);
+    snapshotTimerRef.current = setTimeout(() => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      void pushSnapshot(editor.innerHTML);
+    }, 1500);
+  }, [pushSnapshot]);
+
+  // Save on tab close / refresh — sendBeacon is THE reliable transport for
+  // this; fetch with keepalive is best-effort and fetch alone gets cancelled.
+  useEffect(() => {
+    function flush() {
+      const editor = editorRef.current;
+      if (!editor) return;
+      // Force-bypass the "html unchanged" early-out by clearing the cache so
+      // the beacon definitely fires with the latest content.
+      lastSnapshotHtmlRef.current = "";
+      void pushSnapshot(editor.innerHTML, { beacon: true });
+    }
+    const onBeforeUnload = () => flush();
+    const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("pagehide", onBeforeUnload);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("pagehide", onBeforeUnload);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [pushSnapshot]);
+
   // Notes and Cards are TWO SEPARATE features (per user feedback):
   //   - Cards: the user's Novel Notes cards database (shared with Folio +
   //     /novel-notes.html — same data, same editor).
@@ -177,6 +250,15 @@ export default function CoWritingRoom() {
   // ── Yjs provider lifecycle — re-create whenever the active doc changes ──
   useEffect(() => {
     if (!activeDocId || !userId || !details) return;
+
+    // Before discarding the previous Y.Doc, flush an HTTP snapshot of the
+    // editor's current content so nothing is lost when switching chapters.
+    const prevEditor = editorRef.current;
+    if (prevEditor && lastSnapshotHtmlRef.current !== prevEditor.innerHTML) {
+      void pushSnapshot(prevEditor.innerHTML);
+    }
+    // Reset the snapshot dedupe cache so the next doc's saves fire fresh.
+    lastSnapshotHtmlRef.current = "";
 
     providerRef.current?.destroy();
     ydocRef.current?.destroy();
@@ -279,7 +361,13 @@ export default function CoWritingRoom() {
       if (applyingRemote) return;
       const next = editor.innerHTML;
       const prev = ytext.toString();
-      if (next === prev) return;
+      if (next === prev) {
+        // Update the word count even when the HTML didn't change (e.g. on
+        // initial paint or after the remote-update path), so the counter
+        // stays accurate.
+        setWordCount(countWords(editor.innerText ?? ""));
+        return;
+      }
       // Find common prefix + suffix to produce the smallest delete/insert.
       let start = 0;
       const maxStart = Math.min(prev.length, next.length);
@@ -293,8 +381,13 @@ export default function CoWritingRoom() {
         if (endPrev > start) ytext.delete(start, endPrev - start);
         if (endNext > start) ytext.insert(start, next.slice(start, endNext));
       }, "local");
+      // Live counters + HTTP fallback save.
+      setWordCount(countWords(editor.innerText ?? ""));
+      scheduleSnapshot();
     };
     editor.addEventListener("input", onInput);
+    // Initial word count once the editor first paints.
+    setWordCount(countWords(editor.innerText ?? ""));
 
     // Cursor sync — broadcast our caret position in plaintext-offset terms.
     const onSel = () => {
@@ -531,6 +624,18 @@ export default function CoWritingRoom() {
           {details.room.inviteCode}
         </button>
         <div className="editor-topbar-spacer" style={{ flex: 1 }} />
+        {/* Live word count of the active chapter. */}
+        {activeDocId && (
+          <span className="cw-wordcount" title="Words in this chapter">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="4" y1="6" x2="20" y2="6"/>
+              <line x1="4" y1="12" x2="20" y2="12"/>
+              <line x1="4" y1="18" x2="14" y2="18"/>
+            </svg>
+            <strong>{wordCount.toLocaleString()}</strong>
+            <span className="cw-wordcount-unit">{wordCount === 1 ? "word" : "words"}</span>
+          </span>
+        )}
         {/* Two separate toggles — Notes and Cards are distinct features. */}
         <button
           className={`cw-notes-toggle${sidePanel === "notes" ? " active" : ""}`}

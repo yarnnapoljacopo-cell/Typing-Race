@@ -45,16 +45,23 @@ const shared = new Map<string, SharedDoc>();
 
 function shKey(roomId: number, docId: number) { return `${roomId}:${docId}`; }
 
-async function loadOrCreateDoc(roomId: number, docId: number): Promise<SharedDoc> {
+export async function loadOrCreateDoc(roomId: number, docId: number): Promise<SharedDoc> {
   const key = shKey(roomId, docId);
   const existing = shared.get(key);
   if (existing) return existing;
 
   const ydoc = new Y.Doc();
-  // Hydrate from persisted state if any.
+  // Hydrate from persisted state if any. If the binary Y.Doc state is missing
+  // but the plain-text snapshot has content (the HTTP fallback save path —
+  // see snapshotDoc + the /snapshot route), seed the Y.Text with that HTML
+  // so the user's content reappears even when the WS-based save never ran.
   try {
     const [row] = await db.select().from(coWritingDocStateTable).where(eq(coWritingDocStateTable.docId, docId));
-    if (row?.state) Y.applyUpdate(ydoc, new Uint8Array(row.state));
+    if (row?.state && row.state.length > 0) {
+      Y.applyUpdate(ydoc, new Uint8Array(row.state));
+    } else if (row?.textPreview && row.textPreview.length > 0) {
+      ydoc.getText("body").insert(0, row.textPreview);
+    }
   } catch (e) {
     logger.warn({ err: e, roomId, docId }, "co-writing: failed to hydrate Y.Doc from DB");
   }
@@ -82,16 +89,18 @@ async function persistDoc(roomId: number, docId: number, sd: SharedDoc): Promise
   sd.dirty = false;
   try {
     const state = Buffer.from(Y.encodeStateAsUpdate(sd.ydoc));
-    // Preview: read the body Y.Text the client agreed to use as the doc body.
+    // Persist the FULL body text (was sliced to 500 chars previously — useless
+    // for restoration). This is the resilient fallback used by loadOrCreateDoc
+    // if the binary Y.Doc state ever ends up missing or corrupt.
     const ytext = sd.ydoc.getText("body");
-    const preview = ytext.toString().slice(0, 500);
+    const fullText = ytext.toString();
     const now = new Date();
     // Upsert state row.
     await db.insert(coWritingDocStateTable)
-      .values({ docId, state, textPreview: preview, updatedAt: now })
+      .values({ docId, state, textPreview: fullText, updatedAt: now })
       .onConflictDoUpdate({
         target: [coWritingDocStateTable.docId],
-        set: { state, textPreview: preview, updatedAt: now },
+        set: { state, textPreview: fullText, updatedAt: now },
       });
     // Bump doc.updated_at so room listings see freshness.
     await db.update(coWritingDocsTable).set({ updatedAt: now }).where(eq(coWritingDocsTable.id, docId));
@@ -99,6 +108,61 @@ async function persistDoc(roomId: number, docId: number, sd: SharedDoc): Promise
     logger.error({ err: e, roomId, docId }, "co-writing: failed to persist Y.Doc state");
     // Re-arm so we retry on the next update.
     sd.dirty = true;
+  }
+}
+
+/**
+ * HTTP-fallback save path: writes the client's current HTML to BOTH the
+ * `text_preview` column (always — used by loadOrCreateDoc if Y state is
+ * missing) AND the Y.Doc binary state (so subsequent reloads pick it up
+ * via the normal state path).
+ *
+ * If a SharedDoc is currently in memory for this (room, doc) — i.e. there
+ * are connected WS clients — we ALSO splice the new HTML into the live
+ * Y.Text so everyone converges. We do this idempotently: if the body
+ * already matches, no Yjs ops are emitted.
+ */
+export async function snapshotDoc(
+  roomId: number, docId: number, html: string,
+): Promise<void> {
+  const trimmed = html.length > 200_000 ? html.slice(0, 200_000) : html;
+  const now = new Date();
+
+  // Update the live in-memory doc (if any) so connected clients see the
+  // update too. This keeps the snapshot path and the WS path consistent.
+  const key = shKey(roomId, docId);
+  const live = shared.get(key);
+  if (live) {
+    const ytext = live.ydoc.getText("body");
+    if (ytext.toString() !== trimmed) {
+      live.ydoc.transact(() => {
+        ytext.delete(0, ytext.length);
+        if (trimmed.length > 0) ytext.insert(0, trimmed);
+      }, "snapshot");
+    }
+    // The transaction above triggers ydoc.on("update") which already
+    // schedules a debounced persistDoc — but we also write directly below
+    // so we don't depend on that timer firing.
+  }
+
+  // Build a Y.Doc state encoding of just this HTML so the next load via
+  // loadOrCreateDoc gets it back via the fast Y.Doc state path (skipping
+  // the text-only fallback branch).
+  const tempDoc = new Y.Doc();
+  if (trimmed.length > 0) tempDoc.getText("body").insert(0, trimmed);
+  const state = Buffer.from(Y.encodeStateAsUpdate(tempDoc));
+
+  try {
+    await db.insert(coWritingDocStateTable)
+      .values({ docId, state, textPreview: trimmed, updatedAt: now })
+      .onConflictDoUpdate({
+        target: [coWritingDocStateTable.docId],
+        set: { state, textPreview: trimmed, updatedAt: now },
+      });
+    await db.update(coWritingDocsTable).set({ updatedAt: now }).where(eq(coWritingDocsTable.id, docId));
+  } catch (e) {
+    logger.error({ err: e, roomId, docId }, "co-writing: snapshot save failed");
+    throw e;
   }
 }
 

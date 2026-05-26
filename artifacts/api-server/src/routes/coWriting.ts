@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { snapshotDoc } from "../lib/coWritingWs";
 
 const router: IRouter = Router();
 
@@ -322,6 +323,41 @@ router.post("/co-writing/rooms/:id/leave", wrap(async (req, res): Promise<void> 
 
   await db.delete(coWritingMembersTable)
     .where(and(eq(coWritingMembersTable.roomId, roomId), eq(coWritingMembersTable.userId, userId)));
+  res.json({ ok: true });
+}));
+
+/**
+ * Belt-and-suspenders save: clients push the current editor HTML here
+ * periodically (and on beforeunload via sendBeacon) so content is durable
+ * even when the WebSocket sync path is unavailable for some reason
+ * (proxies, deploys, flaky connections, …).
+ *
+ * Auth: regular Clerk + membership check. Note that we ALSO accept a
+ * fallback `userId` field in the body so sendBeacon paths still work when
+ * Clerk hasn't injected the auth header (sendBeacon strips custom headers).
+ * Membership check still runs against whichever userId is established.
+ */
+router.put("/co-writing/rooms/:id/docs/:docId/snapshot", wrap(async (req, res): Promise<void> => {
+  let userId = getAuth(req)?.userId ?? null;
+  // sendBeacon can't set Authorization, so allow body.userId as a fallback
+  // — but ONLY when it matches a real member of the room (verified below).
+  if (!userId && typeof req.body?.userId === "string") userId = req.body.userId;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const roomId = parseInt(String(req.params.id), 10);
+  const docId = parseInt(String(req.params.docId), 10);
+  if (!Number.isFinite(roomId) || !Number.isFinite(docId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!(await isMember(roomId, userId))) { res.status(403).json({ error: "Not a member" }); return; }
+
+  // Make sure the doc actually belongs to this room — prevents a member
+  // of room A from writing into room B's doc.
+  const [doc] = await db.select({ id: coWritingDocsTable.id })
+    .from(coWritingDocsTable)
+    .where(and(eq(coWritingDocsTable.id, docId), eq(coWritingDocsTable.roomId, roomId)));
+  if (!doc) { res.status(404).json({ error: "Doc not found in this room" }); return; }
+
+  const html = typeof req.body?.html === "string" ? req.body.html : "";
+  await snapshotDoc(roomId, docId, html);
   res.json({ ok: true });
 }));
 
