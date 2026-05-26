@@ -4,6 +4,7 @@ import { useAuth, useUser } from "@clerk/react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { useAuthedFetch } from "@/lib/authedFetch";
+import { WritingToolbar, type WritingStyle, type FormatType } from "@/components/WritingToolbar";
 import "./CoWriting.css";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -40,19 +41,79 @@ interface AwarenessState {
   cursor?: { anchor: number; head: number } | null;
 }
 
-/** Build the y-websocket URL targeting our server. We can't use the standard
- *  ws:// prefix here — y-websocket appends `/<roomName>` itself, so we feed it
- *  the base URL up to the query string and pass auth via query params. */
+/** Build the y-websocket URL targeting our server. y-websocket appends the
+ *  room name to the URL, and our server reads `room`/`doc`/`user` from the
+ *  query string. */
 function buildWsUrl(): string {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${proto}//${window.location.host}/ws/cowriting`;
+}
+
+const DEFAULT_STYLE: WritingStyle = {
+  fontFamily: "'Lora', Georgia, serif",
+  fontSize: 18,
+  lineHeight: 1.75,
+  paragraphMode: "none",
+  typewriterMode: false,
+};
+
+// localStorage key for the per-user writing style (so it survives reloads).
+const STYLE_LS_KEY = "cowriting:writing-style:v1";
+
+function loadStyle(): WritingStyle {
+  try {
+    const raw = localStorage.getItem(STYLE_LS_KEY);
+    if (!raw) return DEFAULT_STYLE;
+    const parsed = JSON.parse(raw) as Partial<WritingStyle>;
+    return { ...DEFAULT_STYLE, ...parsed };
+  } catch {
+    return DEFAULT_STYLE;
+  }
+}
+
+/** Walk text nodes inside `root` and return the {node, offset} that
+ *  corresponds to `targetOffset` characters from the start of root.innerText. */
+function locateOffset(root: Node, targetOffset: number): { node: Node; offset: number } | null {
+  let remaining = targetOffset;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let last: Text | null = null;
+  while (walker.nextNode()) {
+    const t = walker.currentNode as Text;
+    const len = t.data.length;
+    if (remaining <= len) return { node: t, offset: Math.max(0, remaining) };
+    remaining -= len;
+    last = t;
+  }
+  if (last) return { node: last, offset: last.data.length };
+  return { node: root, offset: 0 };
+}
+
+/** Convert the current selection inside `root` to a {anchor, head} pair of
+ *  character offsets relative to root's plain text. */
+function selectionToOffsets(root: HTMLElement): { anchor: number; head: number } | null {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
+
+  const computeOffset = (container: Node, offset: number) => {
+    const r = document.createRange();
+    r.setStart(root, 0);
+    r.setEnd(container, offset);
+    return r.toString().length;
+  };
+  const start = computeOffset(range.startContainer, range.startOffset);
+  const end = computeOffset(range.endContainer, range.endOffset);
+  const backwards =
+    sel.anchorNode === range.endContainer && sel.anchorOffset === range.endOffset;
+  return backwards ? { anchor: end, head: start } : { anchor: start, head: end };
 }
 
 export default function CoWritingRoom() {
   const [, setLocation] = useLocation();
   const params = useParams<{ id: string }>();
   const roomIdNum = parseInt(params.id ?? "", 10);
-  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const { user } = useUser();
   const authedFetch = useAuthedFetch();
 
@@ -61,18 +122,33 @@ export default function CoWritingRoom() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Per-user writing style (font, size, line-height, paragraph mode, typewriter).
+  // NOT synced with other writers — every user gets to choose their own display
+  // preferences. Same component as Folio sprints.
+  const [writingStyle, setWritingStyle] = useState<WritingStyle>(() => loadStyle());
+  useEffect(() => {
+    try { localStorage.setItem(STYLE_LS_KEY, JSON.stringify(writingStyle)); } catch { /* ignore quota errors */ }
+  }, [writingStyle]);
+  const [activeFormats, setActiveFormats] = useState<{ bold: boolean; italic: boolean; underline: boolean }>({
+    bold: false, italic: false, underline: false,
+  });
+
   // Yjs state — one Y.Doc per active document. When user switches docs we
   // tear down the previous provider and stand up a fresh one.
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
   const [connState, setConnState] = useState<"connecting" | "online" | "offline">("connecting");
-  // Map of clientID → awareness state (other users). We mirror it into React
-  // state so the members panel + cursor overlay can render reactively.
   const [remoteStates, setRemoteStates] = useState<Map<number, AwarenessState>>(new Map());
 
-  // Refs used by the editor binding + cursor renderer
-  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
+
+  // Notes/Cards panel toggle — opens the novel-notes iframe in a slide-out
+  // panel so writers can pull cards/notes from their own personal collection
+  // while collaborating. The iframe is the same one as /novel-notes — every
+  // user sees ONLY their own notes (membership-scoped via API).
+  const [notesOpen, setNotesOpen] = useState(false);
+  const notesIframeRef = useRef<HTMLIFrameElement | null>(null);
 
   // Bootstrap room details on mount + when the route changes
   useEffect(() => {
@@ -86,7 +162,6 @@ export default function CoWritingRoom() {
         if (!r.ok) throw new Error("Failed to load room");
         const data = await r.json() as RoomDetails;
         setDetails(data);
-        // Auto-select first doc
         if (data.docs.length > 0) setActiveDocId(data.docs[0].id);
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load room"))
@@ -97,23 +172,18 @@ export default function CoWritingRoom() {
   useEffect(() => {
     if (!activeDocId || !userId || !details) return;
 
-    // Tear down previous provider before bringing up a new one.
     providerRef.current?.destroy();
     ydocRef.current?.destroy();
 
     const ydoc = new Y.Doc();
     ydocRef.current = ydoc;
 
-    // y-websocket convention: roomName is appended to the URL by the provider.
-    // Our server reads `room`/`doc`/`user` from the query string. Pass those
-    // by setting `params` on the provider (it appends them to the URL).
     const provider = new WebsocketProvider(buildWsUrl(), `${roomIdNum}-${activeDocId}`, ydoc, {
       params: { room: String(roomIdNum), doc: String(activeDocId), user: userId },
       connect: true,
     });
     providerRef.current = provider;
 
-    // Seed our own awareness state so other clients see us.
     const myMember = details.members.find((m) => m.userId === userId);
     const myDisplay = myMember?.displayName ?? (user?.firstName ?? user?.username ?? "Writer");
     const myColor = myMember?.color ?? "#3b6ea5";
@@ -121,11 +191,10 @@ export default function CoWritingRoom() {
       userId, name: myDisplay, color: myColor,
     } satisfies AwarenessUser);
 
-    // Mirror remote awareness into React state.
     const handleAwarenessChange = () => {
       const map = new Map<number, AwarenessState>();
       provider.awareness.getStates().forEach((state, clientID) => {
-        if (clientID === provider.awareness.clientID) return; // skip self
+        if (clientID === provider.awareness.clientID) return;
         if (state && (state as AwarenessState).user) map.set(clientID, state as AwarenessState);
       });
       setRemoteStates(map);
@@ -152,50 +221,60 @@ export default function CoWritingRoom() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDocId, roomIdNum, userId, details?.room.id]);
 
-  // ── Bind Y.Text to the textarea ─────────────────────────────────────────
-  // Plain-text MVP: the Y.Text "body" map is the single source of truth.
-  // Local input → applies diff to Y.Text. Y.Text observe → writes value into
-  // textarea while preserving the caret.
+  // ── Bind Y.Text<HTML> to the contentEditable div ───────────────────────
+  // Y.Text holds the editor's HTML as a single string. Local input → diff
+  // against ytext and apply minimal delete/insert. Remote change → restore
+  // innerHTML and try to preserve the caret by tracking the text-offset.
   useEffect(() => {
     const ydoc = ydocRef.current;
     const editor = editorRef.current;
     if (!ydoc || !editor) return;
     const ytext = ydoc.getText("body");
 
-    // Initial paint
-    editor.value = ytext.toString();
-
     let applyingRemote = false;
 
-    const observer = () => {
-      // Remote update → rewrite textarea while keeping cursor near where the
-      // user was. Simple approach: remember anchor offsets relative to the
-      // text end, then restore. Good enough for plain text.
-      if (document.activeElement !== editor) {
-        editor.value = ytext.toString();
-        return;
+    const setEditorHtml = (html: string) => {
+      // Preserve the caret position (as a plaintext offset) across the
+      // wholesale innerHTML replacement.
+      const focused = document.activeElement === editor;
+      let savedOffset: number | null = null;
+      if (focused) {
+        const off = selectionToOffsets(editor);
+        if (off) savedOffset = off.head;
       }
-      const oldLen = editor.value.length;
-      const selStart = editor.selectionStart;
-      const selEnd = editor.selectionEnd;
-      const fromEndStart = oldLen - selStart;
-      const fromEndEnd = oldLen - selEnd;
       applyingRemote = true;
-      editor.value = ytext.toString();
-      const newLen = editor.value.length;
-      editor.selectionStart = Math.max(0, newLen - fromEndStart);
-      editor.selectionEnd = Math.max(0, newLen - fromEndEnd);
+      editor.innerHTML = html;
       applyingRemote = false;
+      if (focused && savedOffset !== null) {
+        const target = locateOffset(editor, savedOffset);
+        if (target) {
+          const sel = window.getSelection();
+          const range = document.createRange();
+          range.setStart(target.node, target.offset);
+          range.collapse(true);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+      }
+    };
+
+    // Initial paint — render whatever the server already had (could be the
+    // empty string for a brand-new doc).
+    setEditorHtml(ytext.toString());
+
+    const observer = () => {
+      const incoming = ytext.toString();
+      if (incoming === editor.innerHTML) return;
+      setEditorHtml(incoming);
     };
     ytext.observe(observer);
 
-    // Local input → diff against ytext and apply the smallest change.
     const onInput = () => {
       if (applyingRemote) return;
-      const next = editor.value;
+      const next = editor.innerHTML;
       const prev = ytext.toString();
       if (next === prev) return;
-      // Find common prefix + suffix to produce a minimal delete/insert.
+      // Find common prefix + suffix to produce the smallest delete/insert.
       let start = 0;
       const maxStart = Math.min(prev.length, next.length);
       while (start < maxStart && prev[start] === next[start]) start++;
@@ -211,26 +290,33 @@ export default function CoWritingRoom() {
     };
     editor.addEventListener("input", onInput);
 
-    // Local selection → write into awareness so other clients can render
-    // our cursor + selection.
+    // Cursor sync — broadcast our caret position in plaintext-offset terms.
     const onSel = () => {
       const provider = providerRef.current;
       if (!provider) return;
-      provider.awareness.setLocalStateField("cursor", {
-        anchor: editor.selectionStart,
-        head: editor.selectionEnd,
-      });
+      const off = selectionToOffsets(editor);
+      if (!off) return;
+      provider.awareness.setLocalStateField("cursor", off);
     };
-    editor.addEventListener("select", onSel);
-    editor.addEventListener("click", onSel);
-    editor.addEventListener("keyup", onSel);
+    document.addEventListener("selectionchange", onSel);
+
+    // B / I / U pressed-state — recompute whenever the caret moves.
+    const updateFormats = () => {
+      try {
+        setActiveFormats({
+          bold: document.queryCommandState("bold"),
+          italic: document.queryCommandState("italic"),
+          underline: document.queryCommandState("underline"),
+        });
+      } catch { /* ignore in unsupported browsers */ }
+    };
+    document.addEventListener("selectionchange", updateFormats);
 
     return () => {
       ytext.unobserve(observer);
       editor.removeEventListener("input", onInput);
-      editor.removeEventListener("select", onSel);
-      editor.removeEventListener("click", onSel);
-      editor.removeEventListener("keyup", onSel);
+      document.removeEventListener("selectionchange", onSel);
+      document.removeEventListener("selectionchange", updateFormats);
     };
   }, [activeDocId]);
 
@@ -238,75 +324,65 @@ export default function CoWritingRoom() {
   const onlineUserIds = useMemo(() => {
     const set = new Set<string>();
     remoteStates.forEach((s) => { if (s.user?.userId) set.add(s.user.userId); });
-    if (userId) set.add(userId); // we count ourselves as online when connected
+    if (userId) set.add(userId);
     return set;
   }, [remoteStates, userId]);
 
-  // ── Cursor overlay positioning ──────────────────────────────────────────
-  // Build a hidden div mirror of the textarea content, measure character
-  // offsets there, then position the cursor + selection divs accordingly.
-  // This is the same trick most "cursor overlay" implementations use.
-  const mirrorRef = useRef<HTMLDivElement | null>(null);
+  // ── Cursor overlay positioning (contentEditable variant) ───────────────
+  // Walk the editor's actual DOM to find the caret position, then position
+  // a thin colored caret div + an optional selection highlight.
   const [cursorRects, setCursorRects] = useState<Array<{
     clientID: number; name: string; color: string;
-    caret: { left: number; top: number } | null;
-    selection: { left: number; top: number; width: number } | null;
+    caret: { left: number; top: number; height: number } | null;
+    selection: { left: number; top: number; width: number; height: number } | null;
   }>>([]);
 
   useEffect(() => {
     const editor = editorRef.current;
-    const mirror = mirrorRef.current;
-    if (!editor || !mirror) return;
+    if (!editor) return;
 
     function recompute() {
-      if (!editor || !mirror) return;
-      const text = editor.value;
+      if (!editor) return;
       const rects: typeof cursorRects = [];
+      const editorRect = editor.getBoundingClientRect();
       remoteStates.forEach((state, clientID) => {
         const cursor = state.cursor;
         const user = state.user;
         if (!cursor || !user) return;
-        const anchor = Math.max(0, Math.min(text.length, cursor.anchor));
-        const head = Math.max(0, Math.min(text.length, cursor.head));
-        const caretOff = head;
-        // Build mirror content with a span at the caret position.
-        mirror.innerHTML = "";
-        const before = document.createTextNode(text.slice(0, caretOff));
-        const span = document.createElement("span");
-        span.textContent = "​"; // zero-width space so it has a layout box
-        const after = document.createTextNode(text.slice(caretOff));
-        mirror.appendChild(before);
-        mirror.appendChild(span);
-        mirror.appendChild(after);
-        const spanRect = span.getBoundingClientRect();
-        const editorRect = editor.getBoundingClientRect();
+        const caretPos = locateOffset(editor, cursor.head);
+        if (!caretPos) return;
+        const caretRange = document.createRange();
+        try {
+          caretRange.setStart(caretPos.node, caretPos.offset);
+          caretRange.collapse(true);
+        } catch { return; }
+        const cRect = caretRange.getBoundingClientRect();
         const caret = {
-          left: spanRect.left - editorRect.left + editor.scrollLeft,
-          top:  spanRect.top  - editorRect.top  + editor.scrollTop,
+          left: cRect.left - editorRect.left + editor.scrollLeft,
+          top:  cRect.top  - editorRect.top  + editor.scrollTop,
+          height: cRect.height || 20,
         };
-        // Selection rect — only if non-collapsed AND on the same line.
-        let selection: { left: number; top: number; width: number } | null = null;
-        if (anchor !== head) {
-          const start = Math.min(anchor, head);
-          const end = Math.max(anchor, head);
-          mirror.innerHTML = "";
-          const beforeSel = document.createTextNode(text.slice(0, start));
-          const selSpan = document.createElement("span");
-          selSpan.textContent = text.slice(start, end) || "​";
-          const afterSel = document.createTextNode(text.slice(end));
-          mirror.appendChild(beforeSel);
-          mirror.appendChild(selSpan);
-          mirror.appendChild(afterSel);
-          const selRect = selSpan.getBoundingClientRect();
-          // Only render the highlight if it's on the same visual line as the
-          // caret (multi-line selection drawing is intentionally skipped to
-          // keep the overlay simple).
-          if (Math.abs(selRect.top - spanRect.top) < 4) {
-            selection = {
-              left: selRect.left - editorRect.left + editor.scrollLeft,
-              top:  selRect.top  - editorRect.top  + editor.scrollTop,
-              width: selRect.width,
-            };
+
+        let selection: { left: number; top: number; width: number; height: number } | null = null;
+        if (cursor.anchor !== cursor.head) {
+          const anchorPos = locateOffset(editor, cursor.anchor);
+          if (anchorPos) {
+            const start = cursor.head < cursor.anchor ? caretPos : anchorPos;
+            const end = cursor.head < cursor.anchor ? anchorPos : caretPos;
+            const selRange = document.createRange();
+            try {
+              selRange.setStart(start.node, start.offset);
+              selRange.setEnd(end.node, end.offset);
+            } catch { return; }
+            const selRect = selRange.getBoundingClientRect();
+            if (Math.abs(selRect.top - cRect.top) < 4) {
+              selection = {
+                left: selRect.left - editorRect.left + editor.scrollLeft,
+                top:  selRect.top  - editorRect.top  + editor.scrollTop,
+                width: selRect.width,
+                height: selRect.height || 20,
+              };
+            }
           }
         }
         rects.push({ clientID, name: user.name, color: user.color, caret, selection });
@@ -314,7 +390,6 @@ export default function CoWritingRoom() {
       setCursorRects(rects);
     }
     recompute();
-    // Re-measure on textarea scroll/resize so cursors track the visible content.
     const ro = new ResizeObserver(recompute);
     ro.observe(editor);
     editor.addEventListener("scroll", recompute);
@@ -322,15 +397,10 @@ export default function CoWritingRoom() {
       ro.disconnect();
       editor.removeEventListener("scroll", recompute);
     };
-  // Re-run whenever remote cursors change OR doc body changes (we use the
-  // textarea value via the value-change observer wired earlier).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remoteStates, activeDocId]);
+  }, [remoteStates, activeDocId, writingStyle.fontSize, writingStyle.lineHeight]);
 
-  // ── Doc title sync ─────────────────────────────────────────────────────
-  // Title isn't part of Y.Text (it's a server-side field). We sync changes
-  // via a debounced PATCH. Keeping this simple — co-titles can race; last
-  // writer wins.
+  // ── Doc title sync (server-side, last writer wins) ─────────────────────
   const titleSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleTitleChange = useCallback((val: string) => {
     if (!details || !activeDocId) return;
@@ -369,12 +439,126 @@ export default function CoWritingRoom() {
     navigator.clipboard?.writeText(details.room.inviteCode).catch(() => {});
   }, [details]);
 
+  // ── WritingToolbar handlers ────────────────────────────────────────────
+  const handleStyleChange = useCallback((partial: Partial<WritingStyle>) => {
+    setWritingStyle((prev) => ({ ...prev, ...partial }));
+  }, []);
+  const handleFormat = useCallback((type: FormatType) => {
+    // execCommand is deprecated but still works in all browsers and is the
+    // simplest way to toggle B/I/U on a contentEditable selection. Yjs will
+    // pick up the resulting innerHTML change via the `input` listener.
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    document.execCommand(type, false);
+    try {
+      setActiveFormats({
+        bold: document.queryCommandState("bold"),
+        italic: document.queryCommandState("italic"),
+        underline: document.queryCommandState("underline"),
+      });
+    } catch { /* ignore */ }
+    // execCommand mutates the DOM directly — fire an input event manually so
+    // our onInput listener picks it up and syncs to Y.Text.
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+  }, []);
+
+  // ── Typewriter mode — scroll the caret into the visual centre. ─────────
+  useEffect(() => {
+    if (!writingStyle.typewriterMode) return;
+    const editor = editorRef.current;
+    if (!editor) return;
+    const scroller = editor.closest(".cw-editor-scroll") as HTMLElement | null;
+    if (!scroller) return;
+    const handler = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const r = sel.getRangeAt(0).cloneRange();
+      r.collapse(true);
+      const rect = r.getBoundingClientRect();
+      if (rect.height === 0 && rect.top === 0) return;
+      const scrollerRect = scroller.getBoundingClientRect();
+      const desired = scrollerRect.top + scrollerRect.height / 2;
+      const delta = rect.top - desired;
+      if (Math.abs(delta) > 4) scroller.scrollTop += delta;
+    };
+    editor.addEventListener("keyup", handler);
+    editor.addEventListener("click", handler);
+    return () => {
+      editor.removeEventListener("keyup", handler);
+      editor.removeEventListener("click", handler);
+    };
+  }, [writingStyle.typewriterMode, activeDocId]);
+
+  // ── Novel-notes iframe wiring ──────────────────────────────────────────
+  // The /novel-notes.html iframe expects an `nn:init` postMessage with the
+  // user's saved nnData (loaded from /api/novel-notes), and emits `nn:save`
+  // messages when the user edits. We forward them straight back to the API.
+  const nnDataRef = useRef<unknown>(null);
+  const nnIframeReadyRef = useRef(false);
+  const sendNnInit = useCallback(() => {
+    notesIframeRef.current?.contentWindow?.postMessage(
+      { type: "nn:init", data: { nnData: nnDataRef.current } }, "*",
+    );
+  }, []);
+  // Fetch this user's notes once when the notes panel is first opened.
+  useEffect(() => {
+    if (!notesOpen || !isSignedIn) return;
+    if (nnDataRef.current !== null) return; // already loaded
+    getToken().then((token) => {
+      if (!token) return;
+      fetch(`${basePath}/api/novel-notes`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((d) => {
+          nnDataRef.current = d.nnData ?? null;
+          if (nnIframeReadyRef.current) sendNnInit();
+        })
+        .catch(() => {});
+    });
+  }, [notesOpen, isSignedIn, getToken, sendNnInit]);
+  // Handle nn:save messages from the iframe and persist to the API.
+  useEffect(() => {
+    if (!isSignedIn) return;
+    const handler = (e: MessageEvent) => {
+      if (!notesIframeRef.current || e.source !== notesIframeRef.current.contentWindow) return;
+      const msg = e.data as { type: string; data?: unknown };
+      if (msg.type === "nn:ready") {
+        nnIframeReadyRef.current = true;
+        if (nnDataRef.current !== null) sendNnInit();
+      } else if (msg.type === "nn:save") {
+        getToken().then((token) => {
+          if (!token) return;
+          fetch(`${basePath}/api/novel-notes`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ nnData: msg.data }),
+          }).catch(() => {});
+        });
+      } else if (msg.type === "nn:home" || msg.type === "nn:back") {
+        setNotesOpen(false);
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [isSignedIn, getToken, sendNnInit]);
+
   // ── Render ─────────────────────────────────────────────────────────────
   if (loading) return <div className="cw-room-root"><div className="cw-empty">Loading room…</div></div>;
   if (error)   return <div className="cw-room-root"><div className="cw-empty cw-error">{error} <button className="cw-btn cw-btn-ghost" style={{ marginLeft: 12 }} onClick={() => setLocation("/co-writing")}>Back</button></div></div>;
   if (!details) return null;
 
   const activeDoc = details.docs.find((d) => d.id === activeDocId) ?? null;
+
+  const editorTextStyle: React.CSSProperties = {
+    fontFamily: writingStyle.fontFamily,
+    fontSize: writingStyle.fontSize,
+    lineHeight: writingStyle.lineHeight,
+  };
+
+  // Class hooks so paragraph mode styles can target the editor's first-level
+  // <p>/<div> children (set on input or via the contentEditable's natural
+  // line-break behaviour).
+  const pMode = writingStyle.paragraphMode;
 
   return (
     <div className="cw-room-root">
@@ -393,6 +577,19 @@ export default function CoWritingRoom() {
           {details.room.inviteCode}
         </button>
         <div className="editor-topbar-spacer" style={{ flex: 1 }} />
+        <button
+          className={`cw-notes-toggle${notesOpen ? " active" : ""}`}
+          onClick={() => setNotesOpen((v) => !v)}
+          title="Open your novel notes & cards"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="9" y1="13" x2="15" y2="13"/>
+            <line x1="9" y1="17" x2="13" y2="17"/>
+          </svg>
+          <span>Notes & Cards</span>
+        </button>
         <div className="cw-room-conn">
           <span className={`cw-conn-dot cw-conn-dot--${connState}`} />
           {connState === "online" ? "Live" : connState === "offline" ? "Offline" : "Connecting…"}
@@ -434,68 +631,70 @@ export default function CoWritingRoom() {
               <button className="cw-btn cw-btn-primary" onClick={createDoc}>Create a chapter</button>
             </div>
           ) : (
-            <div className="cw-editor-scroll">
-              <div className="cw-paper">
-                <input
-                  ref={titleRef}
-                  className="cw-doc-title-input"
-                  value={activeDoc.name}
-                  placeholder="Chapter title…"
-                  onChange={(e) => handleTitleChange(e.target.value)}
+            <>
+              {/* Folio-style writing pill + font bar */}
+              <div className="cw-toolbar-wrap">
+                <WritingToolbar
+                  style={writingStyle}
+                  onChange={handleStyleChange}
+                  onFormat={handleFormat}
+                  activeFormats={activeFormats}
                 />
-                {/* Hidden mirror used to measure caret/selection rects for the
-                    cursor overlay. Mirrors the textarea's font/size/padding. */}
-                <div
-                  ref={mirrorRef}
-                  aria-hidden
-                  style={{
-                    position: "absolute", visibility: "hidden",
-                    whiteSpace: "pre-wrap", wordWrap: "break-word",
-                    font: "inherit", fontFamily: "'Lora',serif", fontSize: 15, lineHeight: 1.9,
-                    padding: 0, margin: 0, border: 0, boxSizing: "border-box",
-                    width: "100%", maxWidth: 740 - 56 * 2,
-                    top: 0, left: 0,
-                  }}
-                />
-                <div style={{ position: "relative" }}>
-                  <textarea
-                    ref={editorRef}
-                    className="cw-editor-body"
-                    placeholder="Start writing together…"
-                    spellCheck
+              </div>
+              <div className="cw-editor-scroll">
+                <div className="cw-paper">
+                  <input
+                    ref={titleRef}
+                    className="cw-doc-title-input"
+                    value={activeDoc.name}
+                    placeholder="Chapter title…"
+                    onChange={(e) => handleTitleChange(e.target.value)}
                   />
-                  {/* Remote cursor + selection overlay */}
-                  <div className="cw-remote-cursor-layer">
-                    {cursorRects.map((c) => (
-                      <div key={c.clientID}>
-                        {c.selection && (
-                          <div
-                            className="cw-remote-selection"
-                            style={{
-                              left: c.selection.left,
-                              top: c.selection.top,
-                              width: c.selection.width,
-                              background: c.color,
-                            }}
-                          />
-                        )}
-                        {c.caret && (
-                          <div
-                            className="cw-remote-cursor"
-                            data-name={c.name}
-                            style={{
-                              left: c.caret.left,
-                              top: c.caret.top,
-                              background: c.color,
-                            }}
-                          />
-                        )}
-                      </div>
-                    ))}
+                  <div style={{ position: "relative" }}>
+                    <div
+                      ref={editorRef}
+                      className={`cw-editor-body cw-editor-body--pmode-${pMode}${writingStyle.typewriterMode ? " cw-editor-body--typewriter" : ""}`}
+                      contentEditable
+                      suppressContentEditableWarning
+                      spellCheck
+                      data-placeholder="Start writing together…"
+                      style={editorTextStyle}
+                    />
+                    {/* Remote cursor + selection overlay */}
+                    <div className="cw-remote-cursor-layer">
+                      {cursorRects.map((c) => (
+                        <div key={c.clientID}>
+                          {c.selection && (
+                            <div
+                              className="cw-remote-selection"
+                              style={{
+                                left: c.selection.left,
+                                top: c.selection.top,
+                                width: c.selection.width,
+                                height: c.selection.height,
+                                background: c.color,
+                              }}
+                            />
+                          )}
+                          {c.caret && (
+                            <div
+                              className="cw-remote-cursor"
+                              data-name={c.name}
+                              style={{
+                                left: c.caret.left,
+                                top: c.caret.top,
+                                height: c.caret.height,
+                                background: c.color,
+                              }}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </>
           )}
         </div>
 
@@ -522,6 +721,28 @@ export default function CoWritingRoom() {
             })}
           </div>
         </aside>
+
+        {/* Slide-out novel-notes panel — each user's OWN private notes/cards.
+            We embed the same /novel-notes.html iframe used by the Novel Notes
+            page so behaviour and data are identical. */}
+        {notesOpen && (
+          <aside className="cw-notes-panel">
+            <div className="cw-notes-panel-header">
+              <span className="cw-notes-panel-title">Your Notes & Cards</span>
+              <button className="cw-notes-panel-close" onClick={() => setNotesOpen(false)} title="Close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <iframe
+              ref={notesIframeRef}
+              src="/novel-notes.html"
+              className="cw-notes-iframe"
+              title="Novel Notes & Cards"
+            />
+          </aside>
+        )}
       </div>
     </div>
   );

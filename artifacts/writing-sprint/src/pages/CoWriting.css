@@ -204,15 +204,69 @@
   border:none;outline:none;background:transparent;width:100%;margin-bottom:24px;line-height:1.3;
 }
 .cw-doc-title-input::placeholder{color:var(--text-muted)}
-/* Editor body — a textarea (Y.Text auto-syncs the value). Plain text only
-   for MVP; real-time CRDT merging works on character-level. */
+/* Editor body — a contentEditable div bound to a Y.Text<HTML>. Allows
+   rich-text formatting (B/I/U) via the WritingToolbar; per-user font/size
+   styling is applied inline. */
 .cw-editor-body{
-  width:100%;min-height:60vh;font-family:'Lora',serif;font-size:15px;line-height:1.9;
+  width:100%;min-height:60vh;
   color:var(--text-primary);border:none;outline:none;background:transparent;
-  resize:none;white-space:pre-wrap;word-wrap:break-word;
+  white-space:pre-wrap;word-wrap:break-word;
   position:relative;
+  caret-color:var(--accent,#3b6ea5);
 }
-.cw-editor-body::placeholder{color:var(--text-muted)}
+/* Native placeholder for contentEditable — visible only when fully empty. */
+.cw-editor-body:empty::before{
+  content:attr(data-placeholder);
+  color:var(--text-muted);pointer-events:none;display:inline-block;
+}
+.cw-editor-body :where(p,div){margin:0}
+.cw-editor-body--pmode-indent :where(p,div)+:where(p,div){text-indent:1.6em}
+.cw-editor-body--pmode-double :where(p,div)+:where(p,div){margin-top:.9em}
+.cw-editor-body--typewriter{padding-bottom:40vh;padding-top:40vh}
+
+/* Folio-style writing pill + font bar — pinned above the paper. */
+.cw-toolbar-wrap{
+  display:flex;justify-content:center;
+  padding:10px 40px 0;
+  position:sticky;top:0;z-index:5;
+  background:linear-gradient(180deg,var(--bg) 60%,transparent 100%);
+}
+
+/* Top-bar Notes & Cards toggle */
+.cw-notes-toggle{
+  display:inline-flex;align-items:center;gap:6px;
+  height:28px;padding:0 12px;border-radius:99px;
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;
+  color:var(--text-secondary);background:rgba(0,0,0,.04);
+  border:1px solid var(--border-light);cursor:pointer;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.cw-notes-toggle:hover{background:rgba(0,0,0,.07);color:var(--text-primary)}
+.cw-notes-toggle.active{background:var(--accent-light);color:var(--accent);border-color:var(--accent)}
+.dark .cw-notes-toggle{background:rgba(255,255,255,.05)}
+.dark .cw-notes-toggle:hover{background:rgba(255,255,255,.09)}
+
+/* Right-side novel notes / cards panel */
+.cw-notes-panel{
+  width:380px;flex-shrink:0;background:var(--surface);
+  border-left:1px solid var(--border-light);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.cw-notes-panel-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;border-bottom:1px solid var(--border-light);
+}
+.cw-notes-panel-title{
+  font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);
+}
+.cw-notes-panel-close{
+  width:24px;height:24px;border:none;border-radius:6px;background:transparent;
+  color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .12s,color .12s;
+}
+.cw-notes-panel-close:hover{background:rgba(0,0,0,.05);color:var(--text-primary)}
+.cw-notes-iframe{flex:1;width:100%;border:none;background:transparent}
 
 .cw-empty-doc{
   margin:80px auto;max-width:380px;text-align:center;color:var(--text-muted);
@@ -282,8 +336,8 @@
 }
 .cw-remote-cursor.idle::after{opacity:0}
 .cw-remote-selection{
-  position:absolute;height:21px;
+  position:absolute;
   pointer-events:none;
   opacity:.22;border-radius:2px;
-  transition:left .12s linear,top .12s linear,width .12s linear;
+  transition:left .12s linear,top .12s linear,width .12s linear,height .12s linear;
 }

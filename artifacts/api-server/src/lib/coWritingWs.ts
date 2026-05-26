@@ -144,7 +144,11 @@ export function setupCoWritingWsServer(server: Server): WebSocketServer {
   server.on("upgrade", (req: IncomingMessage, socket, head) => {
     try {
       const url = new URL(req.url ?? "", "http://localhost");
-      if (url.pathname !== "/ws/cowriting") return;
+      // y-websocket appends the room name to the URL, so the incoming
+      // pathname is `/ws/cowriting/<roomname>`, not exactly `/ws/cowriting`.
+      // Match anything under the prefix and let the per-conn handler read
+      // the room/doc/user from the query string.
+      if (!url.pathname.startsWith("/ws/cowriting")) return;
       wss.handleUpgrade(req, socket, head, (ws) => {
         wss.emit("connection", ws, req);
       });
