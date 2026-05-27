@@ -1493,6 +1493,44 @@ export default function MyFiles() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDocId, activeProjectId, openDocSeq]);
 
+  // ── Refresh-blanking guard ──────────────────────────────────────────────
+  // On a fresh page load, folioStore.init() returns the IDB-cached state
+  // first (which may have stale or empty doc.content for the active chapter)
+  // and the editor renders blank. The async server merge runs AFTER that,
+  // populating state.projects with the real content — but the load effect
+  // above is a one-shot, gated by openDocSeq, so nothing re-fires the editor
+  // load and the user is stuck looking at an empty chapter until they
+  // navigate away and back.
+  //
+  // This effect bridges that gap: whenever state.projects updates and the
+  // active doc's content disagrees with the editor, AND the editor is
+  // currently empty (or nearly empty), we re-load. The empty-editor guard
+  // is the safety net — we never clobber a user who is actually typing.
+  useEffect(() => {
+    if (!activeDocId || !activeProjectId) return;
+    const div = contentRef.current;
+    if (!div) return;
+    const proj = state.projects.find((p) => p.id === activeProjectId);
+    const doc = proj?.docs.find((d) => d.id === activeDocId);
+    if (!doc) return;
+    const storedContent = doc.content ?? "";
+    if (!storedContent) return; // nothing useful to load
+    // Only re-load if the editor is essentially empty. "Essentially empty"
+    // covers the contentEditable default of <br>, <p><br></p>, &nbsp;, etc.
+    const editorText = (div.innerText || "").replace(/​|\s| /g, "");
+    if (editorText.length > 0) return; // user has content — don't touch
+    // Storage has content that we don't currently show — repaint.
+    loadEditorContent(storedContent);
+    if (titleRef.current && !titleRef.current.value) {
+      titleRef.current.value = doc.name;
+      autoResize(titleRef.current);
+    }
+    prevWordsRef.current = wc((doc.name || "") + " " + (div.innerText || docPlainText(storedContent)));
+    updateWordCount();
+    editorSnapshotRef.current = { html: "", title: doc.name };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.projects, activeDocId, activeProjectId]);
+
   // Auto-save chapter notes 800ms after the user stops editing them.
   // Also flushes synchronously on all emergency-save paths below.
   useEffect(() => {
