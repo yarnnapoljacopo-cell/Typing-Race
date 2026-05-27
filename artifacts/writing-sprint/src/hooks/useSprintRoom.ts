@@ -332,11 +332,18 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
               if (!prev) return prev;
               return { ...prev, status: "finished", participants: data.results };
             });
-            // Sprint is over — no reason to keep the connection or reconnect.
-            // Clearing hasJoinedRef before closing prevents the onclose handler
-            // from scheduling any reconnect attempts.
+            // Sprint is over — no reason to keep the connection alive long
+            // term, BUT the server fires per-participant trailing messages
+            // AFTER broadcasting sprint_ended (chest_awarded, bet_settled,
+            // gladiator_execution, …) from an async finalizeSprintData. The
+            // previous `ws.close()` here hung up the socket within microseconds
+            // — those trailing messages then landed on a closed WS and never
+            // surfaced the chest popup. Hold the socket open for a grace
+            // window so they actually arrive.
             hasJoinedRef.current = false;
-            ws.close();
+            setTimeout(() => {
+              try { ws.close(); } catch { /* already closed */ }
+            }, 8000);
             break;
 
           case "chest_awarded":

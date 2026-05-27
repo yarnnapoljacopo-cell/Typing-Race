@@ -785,6 +785,12 @@ export default function Room() {
   useEffect(() => { currentCapsulesRef.current = capsules; }, [capsules]);
 
   // ── Capture baseline when sprint starts ───────────────────────────────
+  // Persist the sprint-start baseline to localStorage so a page refresh
+  // (or full restart of the room from a fresh tab) can RECOVER it. Without
+  // this, the "server lost our count" branch below used to set baseline=0
+  // and credit the ENTIRE editor — including warm-up text — as sprint
+  // words, inflating the player's word count on every refresh.
+  const baselineLsKey = code ? `sprint-baseline-v1-${code}` : "";
   useEffect(() => {
     if (!room) return;
     if (prevStatusRef.current !== "running" && room.status === "running") {
@@ -795,29 +801,64 @@ export default function Room() {
       // Use textContent (plain text) not innerHTML so HTML tags aren't
       // counted as words and the baseline is accurate on retry.
       const currentTotalWords = textareaRef.current ? countWords(editorPlainText(textareaRef.current)) : 0;
+
+      // Try to recover a previously-captured baseline from localStorage.
+      // Lives across page refreshes; cleared on sprint-end (see effect below).
+      let storedBaseline: number | null = null;
+      if (baselineLsKey) {
+        try {
+          const raw = localStorage.getItem(baselineLsKey);
+          if (raw !== null) {
+            const parsed = parseInt(raw, 10);
+            if (Number.isFinite(parsed) && parsed >= 0) storedBaseline = parsed;
+          }
+        } catch { /* localStorage disabled — fall through */ }
+      }
+
       if (prevStatusRef.current === null && restored > 0) {
         // Page-refresh reconnect: server knows our net word count.
         // Set baseline so the display resumes from the correct value.
         // e.g. totalWords=500, restored=500 → baseline=0 → net=500 ✓
         //      totalWords=600, restored=500 → baseline=100 → net=500 ✓
         baselineWordCountRef.current = Math.max(0, currentTotalWords - restored);
-        // Do NOT send net-0 — server already has the correct count.
+      } else if (prevStatusRef.current === null && storedBaseline !== null) {
+        // Page-refresh reconnect AND we have a previously-captured baseline.
+        // This is the warm-up-survives-refresh path: the baseline tells us
+        // how much of the current editor was warm-up vs sprint, so net = 0
+        // until they start typing again (instead of crediting all 100+
+        // warm-up words as sprint output).
+        baselineWordCountRef.current = Math.min(currentTotalWords, storedBaseline);
+        const net = Math.max(0, currentTotalWords - baselineWordCountRef.current);
+        sendTextUpdate(currentTextRef.current, net);
       } else if (prevStatusRef.current === null && currentTotalWords > 0) {
-        // Page-refresh reconnect: server lost our count (e.g. 5 s server-save
-        // hadn't fired yet, or a prior refresh zeroed it via the else branch).
-        // Keep baseline=0 so net = totalWords, and re-announce our count to
-        // the server so the DB is corrected for future refreshes.
-        baselineWordCountRef.current = 0;
-        sendTextUpdate(currentTextRef.current, currentTotalWords);
+        // No server record AND no stored baseline — be SAFE and treat
+        // everything in the editor as warm-up. The user might lose some
+        // legitimate sprint words written before a localStorage-wiping
+        // refresh, but the previous behaviour (credit all as sprint) let
+        // someone's warm-up draft suddenly inflate their friend's car
+        // when they reconnected mid-sprint. Safety > convenience here.
+        baselineWordCountRef.current = currentTotalWords;
+        if (baselineLsKey) {
+          try { localStorage.setItem(baselineLsKey, String(currentTotalWords)); } catch { /* ignore */ }
+        }
+        sendTextUpdate(currentTextRef.current, 0);
       } else {
         // Genuine sprint start (or late join with no prior text).
         // Snapshot current words so any pre-sprint text doesn't count.
         baselineWordCountRef.current = currentTotalWords;
+        if (baselineLsKey) {
+          try { localStorage.setItem(baselineLsKey, String(currentTotalWords)); } catch { /* ignore */ }
+        }
         sendTextUpdate(currentTextRef.current, 0);
       }
     }
+    // Clear the stored baseline once the sprint actually finishes so a future
+    // sprint in the same browser doesn't pick up a stale value.
+    if (prevStatusRef.current === "running" && room.status === "finished" && baselineLsKey) {
+      try { localStorage.removeItem(baselineLsKey); } catch { /* ignore */ }
+    }
     prevStatusRef.current = room.status;
-  }, [room?.status, sendTextUpdate]);
+  }, [room?.status, sendTextUpdate, baselineLsKey]);
 
   // ── Client-side elapsed clock for smooth reaper movement ─────────────
   // The server sends timeLeft roughly every second; interpolating client-side

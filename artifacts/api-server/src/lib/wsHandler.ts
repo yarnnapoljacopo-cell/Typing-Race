@@ -849,12 +849,17 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
       if (!room) return;
 
       // Apply a grace period so a network blip or quick refresh doesn't evict
-      // the participant. We cover ALL room states, including "waiting", because
-      // a brief disconnect in the lobby would otherwise immediately remove the
-      // participant (with no chance to rejoin seamlessly). 30 s for active
-      // sprints; 10 s in the lobby (shorter so abandoned lobby slots clear faster).
+      // the participant. We cover ALL room states, including "waiting".
+      //
+      // The previous 30 s active-sprint grace was too short — users on flaky
+      // mobile connections or behind aggressive proxies would routinely cross
+      // the threshold, and once a participant is removed from `room.participants`
+      // the very next `broadcastRoomState` makes their car DISAPPEAR for every
+      // other writer until they reconnect. Bumped to 5 minutes so true short
+      // outages no longer flicker the field. Permanent leavers still get
+      // collected for end-of-sprint chest grants while the room is alive.
       const hasGracePeriod = true;
-      const gracePeriodMs = room.status === "waiting" ? 10_000 : 30_000;
+      const gracePeriodMs = room.status === "waiting" ? 30_000 : 5 * 60_000;
 
       if (hasGracePeriod) {
         const p = room.participants.get(participantId);
