@@ -329,6 +329,29 @@ export async function ensureSchema(): Promise<void> {
       ALTER TABLE crafting_recipes
         ADD COLUMN IF NOT EXISTS recipe_type VARCHAR(20) NOT NULL DEFAULT 'alchemy';
 
+      -- ── Shop expansion: 3 merchants, item/recipe/mystery listings ──
+      -- merchant: which stall hosts this listing ('mortal' | 'earth' | 'heaven')
+      -- listing_type: what the buy action grants ('chest' | 'item' | 'recipe' | 'mystery_crate')
+      -- result_item_id: items_master FK for listing_type='item'
+      -- result_recipe_id: crafting_recipes FK for listing_type='recipe'
+      -- featured_eligible: include in the daily-featured rotation
+      ALTER TABLE shop_listings
+        ADD COLUMN IF NOT EXISTS merchant          VARCHAR(20) NOT NULL DEFAULT 'mortal',
+        ADD COLUMN IF NOT EXISTS listing_type      VARCHAR(20) NOT NULL DEFAULT 'chest',
+        ADD COLUMN IF NOT EXISTS result_item_id    INTEGER REFERENCES items_master(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS result_recipe_id  INTEGER REFERENCES crafting_recipes(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS featured_eligible BOOLEAN NOT NULL DEFAULT TRUE;
+      CREATE INDEX IF NOT EXISTS shop_listings_merchant_idx
+        ON shop_listings (merchant, display_order);
+
+      -- One pinned wishlist target per user. PRIMARY KEY (user_id) enforces
+      -- the "one pin at a time" rule — re-pinning replaces.
+      CREATE TABLE IF NOT EXISTS shop_wishlist (
+        user_id    VARCHAR(100) PRIMARY KEY,
+        listing_id INTEGER      NOT NULL REFERENCES shop_listings(id) ON DELETE CASCADE,
+        pinned_at  TIMESTAMP    NOT NULL DEFAULT NOW()
+      );
+
       -- ── Guild system tables ───────────────────────────────────────────
       CREATE TABLE IF NOT EXISTS guilds (
         id           SERIAL       PRIMARY KEY,
@@ -462,17 +485,107 @@ export async function ensureSchema(): Promise<void> {
     `);
 
     // ── Phase 3: seed static data ─────────────────────────────────────────
+    // Mortal Merchant — "Old Liang" — chests + the Mystery Crate gamble.
+    // display_order 1..99 reserved for Mortal so future additions stay grouped.
     await client.query(`
       INSERT INTO shop_listings
-        (name, description, item_type, quantity, price, icon, is_available, display_order, daily_purchase_limit)
+        (name, description, item_type, quantity, price, icon, is_available, display_order, daily_purchase_limit, merchant, listing_type, featured_eligible)
       VALUES
-        ('Mortal Chest',    'A basic chest of common cultivation resources.',       'mortal_chest',   1, 50,   '📦', TRUE, 1, 999999),
-        ('Iron Chest',      'Improved rewards with higher rarity drops.',           'iron_chest',     1, 300,  '🗃️', TRUE, 2, 999999),
-        ('Iron Chest ×3',   'Three Iron Chests for a bulk discount.',               'iron_chest',     3, 800,  '🗃️', TRUE, 3, 999999),
-        ('Crystal Chest',   'Crystalline chest with rare cultivation treasures.',   'crystal_chest',  1, 800,  '💎', TRUE, 4, 999999),
-        ('Inferno Chest',   'Forged in heavenly flames. Exceptional rewards.',      'inferno_chest',  1, 2500, '🔥', TRUE, 5, 999999),
-        ('Immortal Chest',  'The pinnacle chest. Mythic power within.',             'immortal_chest', 1, 7000, '👑', TRUE, 6, 999999)
-      ON CONFLICT (display_order) DO NOTHING
+        ('Mortal Chest',    'A basic chest of common cultivation resources.',         'mortal_chest',   1, 50,   '📦', TRUE, 1, 999999, 'mortal', 'chest', TRUE),
+        ('Iron Chest',      'Improved rewards with higher rarity drops.',             'iron_chest',     1, 300,  '🗃️', TRUE, 2, 999999, 'mortal', 'chest', TRUE),
+        ('Iron Chest ×3',   'Three Iron Chests for a bulk discount.',                 'iron_chest',     3, 800,  '🗃️', TRUE, 3, 999999, 'mortal', 'chest', TRUE),
+        ('Crystal Chest',   'Crystalline chest with rare cultivation treasures.',     'crystal_chest',  1, 800,  '💎', TRUE, 4, 999999, 'mortal', 'chest', TRUE),
+        ('Inferno Chest',   'Forged in heavenly flames. Exceptional rewards.',        'inferno_chest',  1, 2500, '🔥', TRUE, 5, 999999, 'mortal', 'chest', TRUE),
+        ('Immortal Chest',  'The pinnacle chest. Mythic power within.',               'immortal_chest', 1, 7000, '👑', TRUE, 6, 999999, 'mortal', 'chest', TRUE),
+        ('Mystery Crate',   'A sealed box. Roll the heavens for a random chest tier — Common to Immortal.', 'mystery_crate', 1, 500, '🎁', TRUE, 7, 999999, 'mortal', 'mystery_crate', FALSE)
+      ON CONFLICT (display_order) DO UPDATE SET
+        merchant          = EXCLUDED.merchant,
+        listing_type      = EXCLUDED.listing_type,
+        featured_eligible = EXCLUDED.featured_eligible
+    `);
+
+    // Earth Merchant — "The Veiled Apothecary" — sells consumable items
+    // and crafting recipes. display_order 100..199.
+    // Listings reference items_master by name (resolved on insert) so the
+    // seed survives id-renumbering of items_master across environments.
+    // Recipe listings reference crafting_recipes by result item name.
+    await client.query(`
+      WITH item_lookup AS (SELECT id, name FROM items_master)
+      INSERT INTO shop_listings
+        (name, description, item_type, quantity, price, icon, is_available, display_order, daily_purchase_limit, merchant, listing_type, result_item_id, featured_eligible)
+      SELECT v.name, v.description, 'item', v.quantity, v.price, v.icon, TRUE, v.display_order, 999999, 'earth', 'item', i.id, TRUE
+      FROM (VALUES
+        ('Body Tempering Pill ×3',     'Three uncommon pills, +150 XP each.',                                              'Body Tempering Pill',           3, 120,  '💊', 100),
+        ('Meridian Clearing Pill',     'Doubles XP from your next sprint. The Apothecary swears by it.',                   'Meridian Clearing Pill',        1, 220,  '💊', 101),
+        ('Heaven Qi Pill ×2',          'Condensed heavenly Qi — two doses, +150 XP each.',                                 'Heaven Qi Pill',                2, 240,  '💊', 102),
+        ('Luck Enhancing Pill',        'Bends fortune over your next 3 chests.',                                           'Luck Enhancing Pill',           1, 180,  '🍀', 103),
+        ('Foundation Pill',            'Solidifies your foundation — a single dose grants 400 XP.',                        'Foundation Pill',               1, 360,  '💊', 104),
+        ('Time Acceleration Elixir',   'Doubles XP for 60 minutes of active sprint writing.',                              'Time Acceleration Elixir',      1, 700,  '⏳', 105),
+        ('Fortune Reversal Pill',      'If your next chest yields Common, it is automatically rerolled once.',             'Fortune Reversal Pill',         1, 450,  '🎲', 106)
+      ) AS v(name, description, item_name, quantity, price, icon, display_order)
+      JOIN item_lookup i ON i.name = v.item_name
+      ON CONFLICT (display_order) DO UPDATE SET
+        merchant       = EXCLUDED.merchant,
+        listing_type   = EXCLUDED.listing_type,
+        result_item_id = EXCLUDED.result_item_id
+    `);
+
+    // Earth Merchant — recipes. Lookup recipes by result_item name so the
+    // seed is idempotent regardless of crafting_recipes.id changes.
+    await client.query(`
+      WITH recipe_lookup AS (
+        SELECT r.id, im.name AS result_name
+        FROM crafting_recipes r
+        JOIN items_master im ON im.id = r.result_item_id
+      )
+      INSERT INTO shop_listings
+        (name, description, item_type, quantity, price, icon, is_available, display_order, daily_purchase_limit, merchant, listing_type, result_recipe_id, featured_eligible)
+      SELECT v.name, v.description, 'recipe', 1, v.price, v.icon, TRUE, v.display_order, 999999, 'earth', 'recipe', r.id, TRUE
+      FROM (VALUES
+        ('Recipe: Yin-Yang Harmony Pill',           'Adds the Yin-Yang Harmony Pill recipe to your Crafting tome.',           'Yin-Yang Harmony Pill',           1200, '📜', 120),
+        ('Recipe: Foundation Pill',                  'Adds the Foundation Pill recipe to your Crafting tome.',                 'Foundation Pill',                 1500, '📜', 121),
+        ('Recipe: Lightning Tribulation Remnant',    'Adds the Lightning Tribulation Remnant Pill recipe.',                    'Lightning Tribulation Remnant Pill', 1800, '📜', 122),
+        ('Recipe: Dragon Bloodline Fragment Pill',   'Adds the Dragon Bloodline Fragment Pill recipe to your Crafting tome.',  'Dragon Bloodline Fragment Pill',  2200, '📜', 123)
+      ) AS v(name, description, result_name, price, icon, display_order)
+      JOIN recipe_lookup r ON r.result_name = v.result_name
+      ON CONFLICT (display_order) DO UPDATE SET
+        merchant         = EXCLUDED.merchant,
+        listing_type     = EXCLUDED.listing_type,
+        result_recipe_id = EXCLUDED.result_recipe_id
+    `);
+
+    // Heaven Merchant — "The Hermit" — premium chests at bulk rates plus
+    // ultra-rare items that don't appear anywhere else. display_order 200..299.
+    await client.query(`
+      WITH item_lookup AS (SELECT id, name FROM items_master)
+      INSERT INTO shop_listings
+        (name, description, item_type, quantity, price, icon, is_available, display_order, daily_purchase_limit, merchant, listing_type, result_item_id, featured_eligible)
+      SELECT v.name, v.description, 'item', v.quantity, v.price, v.icon, TRUE, v.display_order, 999999, 'heaven', 'item', i.id, TRUE
+      FROM (VALUES
+        ('Triple XP Pill',             'The Hermit''s rarest stock. Triples XP from your next 3 sprints.',          'Triple XP Pill',                  1, 3200, '✨', 200),
+        ('Fate Altering Pill',         'Rewrites destiny — rerolls the rarity tier of the next chest you open.',   'Fate Altering Pill',              1, 2400, '🎲', 201),
+        ('Karma Pill',                  'Recovers all XP lost through crafting failures (capped at 10,000).',       'Karma Pill',                      1, 5000, '☯️', 202),
+        ('Taiji Pill',                  'Primordial balance condensed — instant 1,500 XP.',                          'Taiji Pill',                      1, 2200, '☯️', 203),
+        ('Core Pill',                   'Forms a true core of condensed Qi. +1,000 XP, immediately.',                'Core Pill',                       1, 1600, '💠', 204)
+      ) AS v(name, description, item_name, quantity, price, icon, display_order)
+      JOIN item_lookup i ON i.name = v.item_name
+      ON CONFLICT (display_order) DO UPDATE SET
+        merchant       = EXCLUDED.merchant,
+        listing_type   = EXCLUDED.listing_type,
+        result_item_id = EXCLUDED.result_item_id
+    `);
+
+    // Heaven Merchant — premium chest bundles. Cheaper-per-chest than the
+    // Mortal Merchant for the same chest type.
+    await client.query(`
+      INSERT INTO shop_listings
+        (name, description, item_type, quantity, price, icon, is_available, display_order, daily_purchase_limit, merchant, listing_type, featured_eligible)
+      VALUES
+        ('Inferno Chest ×2',  'Two Infernos at a discount only the Hermit will offer.',  'inferno_chest',  2, 4500,  '🔥', 220, 999999, 'heaven', 'chest', TRUE),
+        ('Immortal Chest ×2', 'Two Immortal Chests — the Hermit''s benevolence.',         'immortal_chest', 2, 12000, '👑', 221, 999999, 'heaven', 'chest', TRUE)
+      ON CONFLICT (display_order) DO UPDATE SET
+        merchant     = EXCLUDED.merchant,
+        listing_type = EXCLUDED.listing_type
     `);
 
     logger.info("DB schema ensured (tables created + missing columns added)");
