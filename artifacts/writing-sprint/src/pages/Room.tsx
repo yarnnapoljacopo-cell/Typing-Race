@@ -653,6 +653,13 @@ export default function Room() {
   const qcBet = useQueryClient();
   const [showBetModal, setShowBetModal] = useState(false);
 
+  // ── Chest reward inline-card state ───────────────────────────────────────
+  // chestAwarded comes in from the server the moment the sprint ends, but we
+  // no longer auto-pop the chest modal on top of the results screen — instead
+  // the results screen renders an inline card with Open Now / Save buttons,
+  // and we only mount the cinematic modal once the user picks Open Now.
+  const [chestOpenRequested, setChestOpenRequested] = useState(false);
+
   // Show modal once per *sprint instance*. Reset the flag when the room
   // transitions into "finished" so a restart re-prompts.
   const lastStatusRef = useRef<string | null>(null);
@@ -1643,9 +1650,19 @@ export default function Room() {
       : "w-full flex flex-col gap-4"
     } style={!distractionFree ? { position: "relative", zIndex: 1, height: "100dvh", overflow: "hidden", overflowX: "hidden" } : undefined}>
 
-      {/* Chest award modal — shown when timer ends naturally */}
-      {chestAwarded && (
-        <ChestAwardModal chestType={chestAwarded} onClose={() => setChestAwarded(null)} />
+      {/* Chest award modal — only mounted once the user clicks "Open Now" on
+          the inline chest card embedded in the results screen. autoOpen=true
+          skips the redundant "Chest Earned!" preview screen since the inline
+          card already served that role. */}
+      {chestAwarded && chestOpenRequested && (
+        <ChestAwardModal
+          chestType={chestAwarded}
+          autoOpen
+          onClose={() => {
+            setChestAwarded(null);
+            setChestOpenRequested(false);
+          }}
+        />
       )}
 
       {/* Bet modal — shown once on entry while sprint is still in waiting/countdown */}
@@ -1788,6 +1805,9 @@ export default function Room() {
             isBossMode={room.mode === "boss"}
             isKartMode={room.mode === "kart"}
             betOutcome={derivedBetOutcome}
+            chestAwarded={chestAwarded}
+            onOpenChest={() => setChestOpenRequested(true)}
+            onSaveChest={() => setChestAwarded(null)}
           />
         </div>
       ) : (

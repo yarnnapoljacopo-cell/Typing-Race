@@ -1,9 +1,10 @@
 import { Participant } from "@/hooks/useSprintRoom";
 import { Button } from "@/components/ui/button";
-import { Trophy, Medal, Award, RotateCcw, Home, Zap, Coins } from "lucide-react";
+import { Trophy, Medal, Award, RotateCcw, Home, Zap, Coins, Package } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
+import { ChestIcon } from "@/components/ChestIcon";
 
 interface ResultsScreenProps {
   participants: Participant[];
@@ -16,7 +17,29 @@ interface ResultsScreenProps {
   isBossMode?: boolean;
   isKartMode?: boolean;
   betOutcome?: { outcome: "won" | "lost" | "refunded"; stake: number; payout: number } | null;
+  /** Server-awarded chest for finishing the sprint. When non-null we show
+   *  an inline Open Now / Save for Later card right here on the results. */
+  chestAwarded?: string | null;
+  /** Called when the user clicks Open Now — caller mounts the cinematic
+   *  ChestAwardModal in autoOpen mode. */
+  onOpenChest?: () => void;
+  /** Called when the user clicks Save for Later — caller clears the
+   *  chestAwarded state; chest stays safely in their bag. */
+  onSaveChest?: () => void;
 }
+
+/**
+ * Per-chest-type accent palette for the inline reward card on the
+ * results screen. Mirrors CHEST_META in ChestAwardModal so the same chest
+ * looks consistent across both surfaces.
+ */
+const CHEST_RESULTS_META: Record<string, { label: string; color: string; glow: string; tagline: string }> = {
+  mortal:   { label: "Mortal Chest",   color: "#B8844C", glow: "rgba(184,132,76,0.55)",  tagline: "The first step on your cultivation journey." },
+  iron:     { label: "Iron Chest",     color: "#7A8A9A", glow: "rgba(122,138,154,0.55)", tagline: "Forged in discipline and steady effort." },
+  crystal:  { label: "Crystal Chest",  color: "#4090C8", glow: "rgba(64,144,200,0.6)",   tagline: "Clarity and precision sharpened to a point." },
+  inferno:  { label: "Inferno Chest",  color: "#C04010", glow: "rgba(192,64,16,0.6)",    tagline: "Born from the flames of relentless writing." },
+  immortal: { label: "Immortal Chest", color: "#D4A820", glow: "rgba(212,168,32,0.65)",  tagline: "A treasure beyond mortal comprehension." },
+};
 
 export function ResultsScreen({
   participants,
@@ -29,6 +52,9 @@ export function ResultsScreen({
   isBossMode = false,
   isKartMode = false,
   betOutcome = null,
+  chestAwarded = null,
+  onOpenChest,
+  onSaveChest,
 }: ResultsScreenProps) {
   const [, setLocation] = useLocation();
   const sorted = [...participants].sort((a, b) => {
@@ -183,6 +209,115 @@ export function ResultsScreen({
             </div>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* Inline chest reward — landed straight on the results screen so the
+          finisher chooses to Open Now (cinematic) or Save for Later (stays
+          in their bag) without a separate popup interrupting the flow. */}
+      <AnimatePresence>
+        {chestAwarded && (() => {
+          const meta = CHEST_RESULTS_META[chestAwarded] ?? {
+            label: `${chestAwarded.charAt(0).toUpperCase()}${chestAwarded.slice(1)} Chest`,
+            color: "#888",
+            glow: "rgba(136,136,136,0.5)",
+            tagline: "",
+          };
+          return (
+            <motion.div
+              key="chest-award"
+              initial={{ opacity: 0, scale: 0.9, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -10 }}
+              transition={{ delay: 0.5, type: "spring", stiffness: 280, damping: 22 }}
+              className="relative overflow-hidden rounded-xl border-2 px-5 py-5"
+              style={{
+                borderColor: meta.color,
+                background: `linear-gradient(135deg, ${meta.color}18, ${meta.color}06)`,
+                boxShadow: `0 0 32px ${meta.glow}, 0 6px 20px rgba(0,0,0,0.12)`,
+              }}
+            >
+              {/* Subtle rotating ray fan behind the chest */}
+              <div
+                aria-hidden
+                className="absolute left-1/2 top-1/2 pointer-events-none"
+                style={{
+                  width: 260, height: 260,
+                  transform: "translate(-50%, -50%)",
+                  background: `repeating-conic-gradient(${meta.color}55 0deg, transparent 16deg, transparent 30deg)`,
+                  opacity: 0.35,
+                  filter: "blur(0.5px)",
+                  animation: "chestResultsRays 14s linear infinite",
+                  mixBlendMode: "screen",
+                }}
+              />
+              <style>{`
+                @keyframes chestResultsRays { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
+                @keyframes chestResultsBob { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-4px) rotate(2deg); } }
+              `}</style>
+
+              <div className="relative flex items-center gap-4">
+                {/* Chest icon */}
+                <div
+                  className="shrink-0 w-20 h-20 flex items-center justify-center"
+                  style={{
+                    filter: `drop-shadow(0 6px 18px ${meta.glow})`,
+                    animation: "chestResultsBob 2.6s ease-in-out infinite",
+                  }}
+                >
+                  <ChestIcon type={chestAwarded} className="w-full h-full" />
+                </div>
+
+                {/* Copy */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span
+                      className="text-[10px] font-bold uppercase tracking-[0.18em]"
+                      style={{ color: meta.color }}
+                    >
+                      Sprint Reward
+                    </span>
+                  </div>
+                  <div className="text-xl font-black text-foreground leading-tight">
+                    {meta.label}
+                  </div>
+                  {meta.tagline && (
+                    <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      {meta.tagline}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="relative mt-4 flex flex-col sm:flex-row items-stretch gap-2">
+                <Button
+                  onClick={() => onOpenChest?.()}
+                  className="flex-1 gap-2 font-bold uppercase tracking-wider"
+                  style={{
+                    background: `linear-gradient(180deg, ${meta.color}, ${meta.color}cc)`,
+                    color: "#fff",
+                    boxShadow: `0 4px 14px ${meta.glow}`,
+                    border: "none",
+                  }}
+                >
+                  <Zap className="w-4 h-4" />
+                  Open Now
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => onSaveChest?.()}
+                  className="flex-1 gap-2"
+                >
+                  <Package className="w-4 h-4" />
+                  Save for Later
+                </Button>
+              </div>
+              <div className="relative text-[11px] text-muted-foreground mt-2 text-center">
+                Either way, it's safely added to your bag.
+              </div>
+            </motion.div>
+          );
+        })()}
       </AnimatePresence>
 
       <div className="bg-card border rounded-lg shadow-sm overflow-hidden">

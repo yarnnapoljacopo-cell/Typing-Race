@@ -100,13 +100,20 @@ interface OpenResult {
 interface ChestAwardModalProps {
   chestType: string;
   onClose: () => void;
+  /**
+   * Skip the "Chest Earned!" preview and go straight to the opening
+   * cinematic + reveal. The Results screen now shows its own inline chest
+   * card with Open / Save buttons; when the user clicks Open, we don't
+   * want to make them confirm a second time.
+   */
+  autoOpen?: boolean;
 }
 
 type Phase = "awarded" | "opening" | "revealed";
 
-export function ChestAwardModal({ chestType, onClose }: ChestAwardModalProps) {
+export function ChestAwardModal({ chestType, onClose, autoOpen = false }: ChestAwardModalProps) {
   const authedFetch = useAuthedFetch();
-  const [phase, setPhase] = useState<Phase>("awarded");
+  const [phase, setPhase] = useState<Phase>(autoOpen ? "opening" : "awarded");
   const [loot, setLoot] = useState<OpenResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -150,6 +157,18 @@ export function ChestAwardModal({ chestType, onClose }: ChestAwardModalProps) {
       setPhase("awarded");
     }
   };
+
+  // autoOpen path: caller already showed an inline "you earned a chest"
+  // preview and got the user's consent — fire the open request right away
+  // so we land on the cinematic instead of the duplicate confirmation step.
+  const autoOpenFiredRef = useRef(false);
+  useEffect(() => {
+    if (!autoOpen || autoOpenFiredRef.current) return;
+    autoOpenFiredRef.current = true;
+    void handleOpenNow();
+  // handleOpenNow is stable for this purpose (one-shot per mount)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen]);
 
   return (
     <div
