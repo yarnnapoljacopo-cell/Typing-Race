@@ -496,6 +496,105 @@ export default function Shop() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Scoped keyframes — signature shop animations, kept local so they
+          don't leak into other pages. */}
+      <style>{`
+        /* Banner outer gold-glow pulse — the whole featured frame breathes. */
+        @keyframes shopBannerGlow {
+          0%,100% {
+            box-shadow:
+              0 0 0 1px rgba(212,160,23,0.45) inset,
+              0 0 22px rgba(212,160,23,0.35),
+              0 12px 32px rgba(0,0,0,0.4);
+          }
+          50% {
+            box-shadow:
+              0 0 0 1px rgba(245,200,66,0.7) inset,
+              0 0 38px rgba(245,200,66,0.65),
+              0 14px 38px rgba(0,0,0,0.5);
+          }
+        }
+
+        /* Sweeping gold shine for the Buy button. */
+        @keyframes shopShimmer {
+          0%   { transform: translateX(-160%) skewX(-22deg); opacity: 0; }
+          15%  { opacity: .7; }
+          85%  { opacity: .7; }
+          100% { transform: translateX(220%)  skewX(-22deg); opacity: 0; }
+        }
+
+        /* Gentle chest float in the featured banner. */
+        @keyframes shopChestFloat {
+          0%,100% { transform: translateY(0); }
+          50%     { transform: translateY(-4px); }
+        }
+
+        /* Dashed rune ring orbiting the featured chest, like the crafting cauldron. */
+        @keyframes shopRuneSpin   { from { transform: translate(-50%,-50%) rotate(0deg);   } to { transform: translate(-50%,-50%) rotate(360deg);   } }
+        @keyframes shopRuneSpinR  { from { transform: translate(-50%,-50%) rotate(360deg); } to { transform: translate(-50%,-50%) rotate(0deg);     } }
+
+        /* Rising gold sparks inside the banner. */
+        @keyframes shopDustRise {
+          0%   { transform: translateY(0)   scale(1);   opacity: 0;   }
+          15%  { opacity: .9; }
+          100% { transform: translateY(-58px) scale(.5); opacity: 0;  }
+        }
+
+        /* Corner brackets fade in on banner mount. */
+        @keyframes shopBracketIn {
+          from { opacity: 0; transform: scale(0.5); }
+          to   { opacity: 1; transform: scale(1);   }
+        }
+
+        /* Subtle entrance for listing cards — fade + lift. */
+        @keyframes shopCardIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0);   }
+        }
+
+        /* Coin pile glint in the top-right balance pill. */
+        @keyframes shopCoinShine {
+          0%,80%,100% { transform: rotate(0); }
+          85%         { transform: rotate(-12deg); }
+          90%         { transform: rotate(0); }
+          95%         { transform: rotate(12deg); }
+        }
+
+        /* Active merchant underline shimmer. */
+        @keyframes shopUnderlinePulse {
+          0%,100% { opacity: .55; }
+          50%     { opacity: 1; }
+        }
+
+        /* Reusable helper classes */
+        .shop-buy-shimmer { position: relative; overflow: hidden; }
+        .shop-buy-shimmer::after {
+          content: "";
+          position: absolute; inset: 0; pointer-events: none;
+          background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.85) 50%, transparent 100%);
+          width: 40%; height: 100%;
+          transform: translateX(-160%) skewX(-22deg);
+          animation: shopShimmer 3.2s ease-in-out infinite;
+        }
+        .shop-buy-shimmer:hover::after { animation-duration: 1.1s; }
+
+        .shop-listing-card { animation: shopCardIn .45s ease-out both; }
+        .shop-listing-card:nth-child(1) { animation-delay: .03s; }
+        .shop-listing-card:nth-child(2) { animation-delay: .08s; }
+        .shop-listing-card:nth-child(3) { animation-delay: .13s; }
+        .shop-listing-card:nth-child(4) { animation-delay: .18s; }
+        .shop-listing-card:nth-child(5) { animation-delay: .23s; }
+        .shop-listing-card:nth-child(6) { animation-delay: .28s; }
+        .shop-listing-card:nth-child(7) { animation-delay: .33s; }
+        .shop-listing-card:nth-child(8) { animation-delay: .38s; }
+
+        .shop-tab-active-bar {
+          height: 2px;
+          background: linear-gradient(90deg, transparent 0%, currentColor 50%, transparent 100%);
+          animation: shopUnderlinePulse 2.4s ease-in-out infinite;
+        }
+      `}</style>
+
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
@@ -558,62 +657,251 @@ export default function Shop() {
           )}
         </AnimatePresence>
 
-        {/* Daily Featured banner */}
-        {featuredListing && shopData?.featured && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="rounded-2xl border-2 border-amber-300 dark:border-amber-700 bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 dark:from-amber-950/40 dark:via-yellow-950/30 dark:to-orange-950/30 p-4 relative overflow-hidden"
-          >
-            {/* Background sparkle */}
-            <div className="absolute -right-4 -top-4 opacity-30 dark:opacity-20 pointer-events-none">
-              <Sparkles size={80} className="text-amber-400" />
-            </div>
-            <div className="relative flex items-start gap-4">
-              <div className="shrink-0 w-14 h-14 rounded-xl bg-amber-200/70 dark:bg-amber-800/50 flex items-center justify-center">
-                {featuredListing.listing_type === "chest" || featuredListing.listing_type === "mystery_crate" ? (
-                  <ChestIcon type={featuredListing.item_type} />
-                ) : (
-                  <span className="text-2xl">{featuredListing.icon}</span>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
-                    <Flame size={11} /> Today's Featured
-                  </span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-bold tabular-nums">
-                    -{shopData.featured.discount_pct}%
-                  </span>
-                </div>
-                <div className="font-bold text-base leading-tight">{featuredListing.name}</div>
-                <div className="text-xs text-muted-foreground line-clamp-1">{featuredListing.description}</div>
-                <div className="flex items-center gap-3 mt-1.5">
-                  <span className="text-lg font-black tabular-nums text-amber-700 dark:text-amber-300">
-                    🪙 {Math.max(1, Math.floor(featuredListing.price * (100 - shopData.featured.discount_pct) / 100)).toLocaleString()}
-                  </span>
-                  <span className="text-xs text-muted-foreground line-through tabular-nums">
-                    🪙 {featuredListing.price.toLocaleString()}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground ml-auto">
-                    <Clock size={11} /> {countdown}
-                  </span>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                disabled={shopData.balance < Math.floor(featuredListing.price * (100 - shopData.featured.discount_pct) / 100)}
-                onClick={() => {
-                  setActiveMerchant(featuredListing.merchant);
-                  setConfirmListing(featuredListing);
+        {/* ── Daily Featured banner — dark parchment with golden ornamentation ── */}
+        {featuredListing && shopData?.featured && (() => {
+          const featuredEff = Math.max(1, Math.floor(featuredListing.price * (100 - shopData.featured.discount_pct) / 100));
+          const canBuyFeatured = shopData.balance >= featuredEff;
+          // Featured Buy button colour-shifts subtly to the chest's rarity so it
+          // doesn't feel jarring against the gold backdrop.
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className="relative rounded-2xl overflow-hidden"
+              style={{
+                // Dark parchment — deep wood/leather brown with a soft inner vignette
+                // so the gold ornaments pop instead of getting lost in cream.
+                background:
+                  "radial-gradient(ellipse at 30% 0%, #3a2511 0%, #261707 55%, #1a0e03 100%)",
+                animation: "shopBannerGlow 3.6s ease-in-out infinite",
+                border: "1px solid rgba(212,160,23,0.55)",
+              }}
+            >
+              {/* Faux engraved inner border line */}
+              <div
+                className="absolute pointer-events-none rounded-xl"
+                style={{
+                  inset: 8,
+                  border: "1px solid rgba(212,160,23,0.25)",
                 }}
-                className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white"
-              >
-                Buy
-              </Button>
-            </div>
-          </motion.div>
-        )}
+              />
+
+              {/* Four golden ornamental corner brackets — SVG, animated in. */}
+              {(["tl", "tr", "bl", "br"] as const).map((pos, i) => (
+                <svg
+                  key={pos}
+                  width="34" height="34" viewBox="0 0 34 34"
+                  className="absolute pointer-events-none"
+                  style={{
+                    top: pos.startsWith("t") ? 6 : "auto",
+                    bottom: pos.startsWith("b") ? 6 : "auto",
+                    left: pos.endsWith("l") ? 6 : "auto",
+                    right: pos.endsWith("r") ? 6 : "auto",
+                    transform: pos === "tr" ? "scaleX(-1)" : pos === "bl" ? "scaleY(-1)" : pos === "br" ? "scale(-1,-1)" : undefined,
+                    animation: `shopBracketIn .55s ease-out ${0.15 + i * 0.06}s both`,
+                  }}
+                  fill="none"
+                >
+                  <defs>
+                    <linearGradient id={`shop-bracket-${pos}`} x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stopColor="#f5c842" />
+                      <stop offset="0.5" stopColor="#d4a017" />
+                      <stop offset="1" stopColor="#8a5d1e" />
+                    </linearGradient>
+                  </defs>
+                  {/* Outer L-stroke */}
+                  <path d="M2 14 L2 2 L14 2" stroke={`url(#shop-bracket-${pos})`} strokeWidth="2" strokeLinecap="round" />
+                  {/* Inner echo */}
+                  <path d="M7 12 L7 7 L12 7" stroke="#f5c842" strokeWidth="1.1" strokeLinecap="round" opacity="0.75" />
+                  {/* Corner dot */}
+                  <circle cx="2" cy="2" r="2" fill="#f5c842" />
+                  {/* Decorative diagonal flourish into the field */}
+                  <path d="M16 4 Q22 8 18 14" stroke="#f5c842" strokeWidth="1" strokeLinecap="round" opacity="0.55" fill="none" />
+                  <circle cx="22" cy="7" r="1.2" fill="#f5c842" opacity="0.85" />
+                </svg>
+              ))}
+
+              {/* Rising gold sparks inside the banner — 6 anchored to the chest column */}
+              {Array.from({ length: 6 }).map((_, i) => (
+                <span
+                  key={i}
+                  className="absolute rounded-full pointer-events-none"
+                  style={{
+                    left: `${24 + (i * 11)}px`,
+                    bottom: 8,
+                    width: 3 + (i % 3),
+                    height: 3 + (i % 3),
+                    background: "#f5c842",
+                    boxShadow: "0 0 6px #f5c842cc, 0 0 12px #d4a01777",
+                    animation: `shopDustRise ${3.2 + (i % 4) * 0.7}s linear ${-i * 0.6}s infinite`,
+                  }}
+                />
+              ))}
+
+              {/* Soft golden mist behind the chest icon */}
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  top: "50%", left: 80,
+                  width: 220, height: 220,
+                  transform: "translate(-50%, -50%)",
+                  background: "radial-gradient(circle, rgba(245,200,66,0.35) 0%, rgba(212,160,23,0.12) 40%, transparent 75%)",
+                }}
+              />
+
+              <div className="relative flex items-center gap-5 px-6 py-5">
+                {/* Chest column — floating chest with rune orbit */}
+                <div className="shrink-0 relative w-24 h-24">
+                  {/* Dashed rune orbit (outer) */}
+                  <div
+                    className="absolute pointer-events-none"
+                    style={{
+                      top: "50%", left: "50%",
+                      width: 110, height: 110,
+                      border: "1px dashed rgba(245,200,66,0.55)",
+                      borderRadius: "50%",
+                      animation: "shopRuneSpin 14s linear infinite",
+                    }}
+                  >
+                    {/* Three orbiting gold studs spaced around the ring */}
+                    {[0, 120, 240].map((deg) => (
+                      <span
+                        key={deg}
+                        className="absolute rounded-full"
+                        style={{
+                          top: "50%", left: "50%",
+                          width: 6, height: 6,
+                          background: "radial-gradient(circle, #fff7d6, #d4a017)",
+                          boxShadow: "0 0 6px #f5c842cc",
+                          transform: `translate(-50%, -50%) rotate(${deg}deg) translateY(-55px)`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {/* Inner orbit ring — reverse direction, smaller */}
+                  <div
+                    className="absolute pointer-events-none"
+                    style={{
+                      top: "50%", left: "50%",
+                      width: 78, height: 78,
+                      border: "1px dashed rgba(245,200,66,0.3)",
+                      borderRadius: "50%",
+                      animation: "shopRuneSpinR 9s linear infinite",
+                    }}
+                  />
+                  {/* The chest itself — gentle float */}
+                  <div
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{ animation: "shopChestFloat 3s ease-in-out infinite" }}
+                  >
+                    {featuredListing.listing_type === "chest" || featuredListing.listing_type === "mystery_crate" ? (
+                      <div className="w-16 h-16">
+                        <ChestIcon type={featuredListing.item_type} />
+                      </div>
+                    ) : featuredListing.listing_type === "recipe" ? (
+                      <ScrollText size={52} className="text-amber-300" />
+                    ) : (
+                      <div className="w-14 h-14 flex items-center justify-center">
+                        <ItemIcon name={featuredListing.name.replace(/ ×\d+$/, "").trim()} size={56} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Copy block */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.2em]"
+                      style={{ color: "#f5c842", textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}
+                    >
+                      <Flame size={12} style={{ filter: "drop-shadow(0 0 6px #f5c84299)" }} />
+                      Today's Featured Treasure
+                    </span>
+                    {/* Bouncing + rotating discount pill */}
+                    <span
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-black tabular-nums"
+                      style={{
+                        background: "linear-gradient(180deg, #f87171 0%, #b91c1c 100%)",
+                        color: "#fff",
+                        border: "1px solid #f5c842",
+                        boxShadow: "0 0 12px rgba(248,113,113,0.55), 0 1px 0 rgba(255,255,255,0.45) inset",
+                      }}
+                    >
+                      −{shopData.featured.discount_pct}%
+                    </span>
+                  </div>
+                  <h3
+                    className="text-xl sm:text-2xl font-bold leading-tight"
+                    style={{
+                      fontFamily: "'Lora', Georgia, serif",
+                      color: "#fff7d6",
+                      textShadow: "0 1px 6px rgba(0,0,0,0.6), 0 0 18px rgba(245,200,66,0.25)",
+                    }}
+                  >
+                    {featuredListing.name}
+                  </h3>
+                  <p className="text-xs italic line-clamp-1 mt-0.5" style={{ color: "rgba(255,236,170,0.7)" }}>
+                    {featuredListing.description}
+                  </p>
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                    <span
+                      className="text-2xl font-black tabular-nums"
+                      style={{
+                        color: "#f5c842",
+                        fontFamily: "'Lora', Georgia, serif",
+                        textShadow: "0 1px 0 rgba(0,0,0,0.55), 0 0 12px rgba(245,200,66,0.45)",
+                      }}
+                    >
+                      🪙 {featuredEff.toLocaleString()}
+                    </span>
+                    <span className="text-xs line-through tabular-nums" style={{ color: "rgba(255,236,170,0.45)" }}>
+                      🪙 {featuredListing.price.toLocaleString()}
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold ml-auto px-2.5 py-1 rounded-full"
+                      style={{
+                        background: "rgba(0,0,0,0.35)",
+                        border: "1px solid rgba(245,200,66,0.35)",
+                        color: "#f5c842",
+                        backdropFilter: "blur(2px)",
+                      }}
+                    >
+                      <Clock size={11} /> {countdown}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Premium Buy button — gold with shimmer sweep */}
+                <button
+                  disabled={!canBuyFeatured}
+                  onClick={() => {
+                    setActiveMerchant(featuredListing.merchant);
+                    setConfirmListing(featuredListing);
+                  }}
+                  className="shop-buy-shimmer shrink-0 px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-wider transition-transform"
+                  style={{
+                    background: canBuyFeatured
+                      ? "linear-gradient(180deg, #fde17a 0%, #d4a017 55%, #8a5d1e 100%)"
+                      : "linear-gradient(180deg, #555 0%, #333 100%)",
+                    color: canBuyFeatured ? "#2a1a05" : "#bbb",
+                    border: `1px solid ${canBuyFeatured ? "#8a5d1e" : "#222"}`,
+                    boxShadow: canBuyFeatured
+                      ? "0 1px 0 rgba(255,255,255,0.55) inset, 0 -2px 5px rgba(0,0,0,0.25) inset, 0 6px 18px rgba(212,160,23,0.55)"
+                      : "0 1px 0 rgba(255,255,255,0.1) inset",
+                    cursor: canBuyFeatured ? "pointer" : "not-allowed",
+                  }}
+                  onMouseDown={(e) => { if (canBuyFeatured) (e.currentTarget as HTMLButtonElement).style.transform = "translateY(2px)"; }}
+                  onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
+                >
+                  {canBuyFeatured ? "Acquire" : "Insufficient"}
+                </button>
+              </div>
+            </motion.div>
+          );
+        })()}
 
         {/* Merchant tabs */}
         <div className="grid grid-cols-3 gap-2">
@@ -624,28 +912,37 @@ export default function Shop() {
               <button
                 key={m}
                 onClick={() => setActiveMerchant(m)}
-                className={`rounded-xl border-2 px-3 py-2.5 text-left transition-all flex items-center gap-2.5 ${
+                className={`relative rounded-xl border-2 px-3 py-2.5 text-left transition-all flex flex-col gap-2 ${
                   active
                     ? "border-foreground/50 bg-foreground/[0.06] shadow-md"
                     : "border-border bg-card hover:border-foreground/30"
                 }`}
                 style={active ? { background: meta.background, borderColor: `${meta.accent}aa` } : undefined}
               >
-                <span
-                  className="shrink-0 flex items-center justify-center w-9 h-9 rounded-lg"
-                  style={{
-                    background: active ? `${meta.accent}1f` : "transparent",
-                    filter: active ? `drop-shadow(0 2px 6px ${meta.accent}55)` : undefined,
-                  }}
-                >
-                  <MerchantIcon merchant={m} size={28} color={meta.accent} />
-                </span>
-                <div className="min-w-0">
-                  <div className="text-[10px] font-bold uppercase tracking-wider opacity-60">{meta.title}</div>
-                  <div className="text-sm font-bold truncate" style={active ? { color: meta.accent } : undefined}>
-                    {meta.name}
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className="shrink-0 flex items-center justify-center w-9 h-9 rounded-lg"
+                    style={{
+                      background: active ? `${meta.accent}1f` : "transparent",
+                      filter: active ? `drop-shadow(0 2px 6px ${meta.accent}55)` : undefined,
+                    }}
+                  >
+                    <MerchantIcon merchant={m} size={28} color={meta.accent} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold uppercase tracking-wider opacity-60">{meta.title}</div>
+                    <div className="text-sm font-bold truncate" style={active ? { color: meta.accent } : undefined}>
+                      {meta.name}
+                    </div>
                   </div>
                 </div>
+                {/* Animated underline — only shown on the active tab */}
+                {active && (
+                  <div
+                    className="shop-tab-active-bar w-full rounded-full"
+                    style={{ color: meta.accent }}
+                  />
+                )}
               </button>
             );
           })}
@@ -674,24 +971,25 @@ export default function Shop() {
           <p className="text-center text-destructive py-8">Failed to load shop. Please try again.</p>
         )}
         {shopData && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div key={activeMerchant /* re-trigger stagger on merchant change */} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {merchantListings.map((listing) => (
-              <ListingCard
-                key={listing.id}
-                listing={listing}
-                balance={shopData.balance}
-                isPinned={shopData.wishlist?.listing_id === listing.id}
-                isFeatured={shopData.featured?.listing_id === listing.id}
-                featuredDiscountPct={shopData.featured?.discount_pct ?? 0}
-                onBuy={() => setConfirmListing(listing)}
-                onPin={() =>
-                  wishlistMutation.mutate(
-                    shopData.wishlist?.listing_id === listing.id
-                      ? { action: "clear" }
-                      : { action: "pin", listingId: listing.id },
-                  )
-                }
-              />
+              <div key={listing.id} className="shop-listing-card">
+                <ListingCard
+                  listing={listing}
+                  balance={shopData.balance}
+                  isPinned={shopData.wishlist?.listing_id === listing.id}
+                  isFeatured={shopData.featured?.listing_id === listing.id}
+                  featuredDiscountPct={shopData.featured?.discount_pct ?? 0}
+                  onBuy={() => setConfirmListing(listing)}
+                  onPin={() =>
+                    wishlistMutation.mutate(
+                      shopData.wishlist?.listing_id === listing.id
+                        ? { action: "clear" }
+                        : { action: "pin", listingId: listing.id },
+                    )
+                  }
+                />
+              </div>
             ))}
             {merchantListings.length === 0 && (
               <div className="col-span-full text-center text-muted-foreground py-8 text-sm italic">

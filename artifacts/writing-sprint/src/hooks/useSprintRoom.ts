@@ -157,11 +157,20 @@ const MAX_RECONNECT_ATTEMPTS = 10;
 const ROOM_NOT_FOUND_RETRY_MS = 90_000;
 
 export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSprintRoomProps) {
+  // Keep mutable refs for values that shouldn't change connect's identity but
+  // must always be fresh on reconnect (avoid stale-closure bugs).
+  const passwordRef = useRef(password);
+  const clerkUserIdRef = useRef(clerkUserId);
+  const roleRef = useRef(role);
+  useEffect(() => { passwordRef.current = password; }, [password]);
+  useEffect(() => { clerkUserIdRef.current = clerkUserId; }, [clerkUserId]);
+  useEffect(() => { roleRef.current = role; }, [role]);
   const [room, setRoom] = useState<RoomState | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [disconnectReason, setDisconnectReason] = useState<"server_restart" | "network" | null>(null);
   const [restoredWordCount, setRestoredWordCount] = useState<number | null>(null);
   const [chestAwarded, setChestAwarded] = useState<string | null>(null);
   const [betOutcome, setBetOutcome] = useState<{
@@ -236,12 +245,13 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
       if (unmountedRef.current) { ws.close(); return; }
       setIsConnected(true);
       setIsReconnecting(false);
+      setDisconnectReason(null);
       setError(null);
       reconnectAttemptRef.current = 0;
       const joinMsg: Record<string, unknown> = { type: "join_room", code, name };
-      if (password) joinMsg.password = password;
-      if (clerkUserId) joinMsg.clerkUserId = clerkUserId;
-      if (role === "editor") joinMsg.role = "editor";
+      if (passwordRef.current) joinMsg.password = passwordRef.current;
+      if (clerkUserIdRef.current) joinMsg.clerkUserId = clerkUserIdRef.current;
+      if (roleRef.current === "editor") joinMsg.role = "editor";
       ws.send(JSON.stringify(joinMsg));
     };
 
@@ -631,6 +641,7 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
           disconnectedAtRef.current = Date.now();
         }
         setIsReconnecting(true);
+        setDisconnectReason(event.code === 1012 ? "server_restart" : "network");
         // 1012 = Service Restart: the server intentionally closed all connections
         // for a deployment handoff. Reset backoff so we reconnect instantly.
         if (event.code === 1012) reconnectAttemptRef.current = 0;
@@ -673,7 +684,11 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
 
       lastPingSentAtRef.current = Date.now();
       ws.send(JSON.stringify({ type: "ping" }));
-    }, 15000);
+    // 10 s — stays well under Railway's Nginx proxy read timeout (~17 s),
+    // which was killing idle lobby connections before the first ping arrived.
+    // The zombie detector still works: if the pong doesn't arrive before the
+    // next 10 s tick, we force-close and the backoff-reconnect kicks in.
+    }, 10_000);
 
     return () => {
       unmountedRef.current = true;
@@ -754,6 +769,7 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
     participantId,
     isConnected,
     isReconnecting,
+    disconnectReason,
     error,
     participantTexts,
     restoredWordCount,

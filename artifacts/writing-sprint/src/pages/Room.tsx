@@ -595,6 +595,7 @@ export default function Room() {
     participantId,
     isConnected,
     isReconnecting,
+    disconnectReason,
     error,
     participantTexts,
     restoredWordCount,
@@ -615,6 +616,18 @@ export default function Room() {
     setBetOutcome,
     betsSettledTick,
   } = useSprintRoom({ code, name, isCreator: isCreatorParams, password: roomPassword, clerkUserId: userId ?? null, role: sprintRole });
+
+  // ── Reconnect banner — debounced so sub-2-second blips are invisible ──────
+  // Brief network hiccups (Railway proxy resets, mobile handoffs, etc.) resolve
+  // faster than 2 s; showing the banner for those would startle writers for no
+  // reason. The banner only appears if disconnected for more than 2 seconds.
+  const [showReconnectBanner, setShowReconnectBanner] = useState(false);
+  useEffect(() => {
+    const disconnected = !isConnected || isReconnecting;
+    if (!disconnected) { setShowReconnectBanner(false); return; }
+    const t = setTimeout(() => setShowReconnectBanner(true), 2000);
+    return () => clearTimeout(t);
+  }, [isConnected, isReconnecting]);
 
   // Find self in the participants list to know what role the server assigned
   // (server may downgrade editor → writer in gladiator mode, etc.).
@@ -1675,16 +1688,18 @@ export default function Room() {
         <GladiatorResults result={gladiatorState.executionResult} participantId={participantId} />
       )}
 
-      {/* Reconnecting banner */}
-      {(!isConnected || isReconnecting) && (
-        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2 text-sm font-medium">
+      {/* Reconnecting banner — fixed overlay so it never shifts the writing
+          area. Only shown after a 2-second grace period so brief blips are
+          invisible to the writer. */}
+      {showReconnectBanner && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-full shadow-lg px-4 py-2 text-sm font-medium pointer-events-none">
           <WifiOff className="w-4 h-4 shrink-0" />
           <span>
-            {isReconnecting
-              ? "Server restarted — reconnecting… your room and writing are being restored."
-              : "Connection lost — reconnecting… your writing is safe."}
+            {disconnectReason === "server_restart"
+              ? "Server restarted — reconnecting…"
+              : "Reconnecting… your writing is safe."}
           </span>
-          <Loader2 className="w-3.5 h-3.5 animate-spin ml-auto shrink-0" />
+          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
         </div>
       )}
 
