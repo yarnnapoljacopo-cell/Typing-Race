@@ -71,6 +71,20 @@ const SWEEP_INTERVAL_MS = 5_000;
 // Threshold is set high (8 out of max=10) to avoid false-positives during
 // normal startup bursts where a few connections are transiently pre-acquire.
 // Only exits after 2 consecutive minutes in this state.
+//
+// IMPORTANT — the arm condition ALSO requires waiting > 0 (see usage below):
+//   `active = totalCount - idleCount` over-counts. With keepAlive=true a
+//   connection that just finished a query is not idle yet but is perfectly
+//   healthy, and `tracked === 0` is the NORMAL state in the gap between short
+//   requests. After a burst (e.g. a sprint ends and every client refetches
+//   profile/coins/quests at once) `active` legitimately spikes to 8 while
+//   `tracked` is correctly 0 — even though the pool is serving traffic fine.
+//   A production log showed exactly this: waiting=0 on every sweep, requests
+//   returning 200 throughout, yet the watchdog still fired after 120 s and
+//   killed a healthy server (mass client disconnect). The fix: only arm when
+//   acquires are ACTUALLY starved (waitingCount > 0). A genuine zombie
+//   exhaustion still queues acquires (waiting > 0), so real failures are
+//   still caught; a healthy-but-busy pool (waiting === 0) never is.
 const WATCHDOG_ACTIVE_THRESHOLD = 8;
 const WATCHDOG_STUCK_MS = 120_000;
 let _watchdogStuckSince: number | null = null;
@@ -164,14 +178,16 @@ function getPool(): pg.Pool {
       }
 
       // Watchdog: if nearly all connections are in zombie state (active near
-      // max but tracked=0), the pool cannot recover on its own. Exit so
-      // Railway restarts with a clean pool. Threshold is set high to avoid
-      // firing on normal startup bursts.
-      if (active >= WATCHDOG_ACTIVE_THRESHOLD && tracked === 0) {
+      // max but tracked=0) AND acquires are actually being starved (waiting>0),
+      // the pool cannot recover on its own. Exit so Railway restarts with a
+      // clean pool. The waiting>0 guard is essential: without it the watchdog
+      // false-fires on a healthy-but-busy pool (see WATCHDOG_ACTIVE_THRESHOLD
+      // comment above). A truly stuck pool always has queued acquires.
+      if (active >= WATCHDOG_ACTIVE_THRESHOLD && tracked === 0 && waiting > 0) {
         if (_watchdogStuckSince === null) {
           _watchdogStuckSince = now;
           console.error(
-            `[db-pool] WATCHDOG armed: active=${active} tracked=0 — will exit in ${WATCHDOG_STUCK_MS / 1000}s if unresolved`,
+            `[db-pool] WATCHDOG armed: active=${active} tracked=0 waiting=${waiting} — will exit in ${WATCHDOG_STUCK_MS / 1000}s if unresolved`,
           );
         } else {
           const stuckMs = now - _watchdogStuckSince;
