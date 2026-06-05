@@ -950,7 +950,25 @@ export default function Room() {
   const _reaperEarlyWC = _deathWpm != null && room?.status === "running"
     ? Math.floor(_deathWpm * Math.max(0, clientElapsedMs / 1000 - reaperHeadstart) / 60)
     : 0;
-  const isEliminatedEarly = _reaperEarlyWC > 0 && _myWC < _reaperEarlyWC && _myWC < (_wordGoal ?? _durMin * 200);
+  // Schmitt-trigger so sitting exactly on the reaper line doesn't strobe the
+  // warning. You're "caught" the moment you fall behind, but the warning only
+  // clears once you pull REAPER_ESCAPE_MARGIN words clear — not the instant you
+  // tie. Without this, myWC and the reaper's word count cross back and forth
+  // every keystroke right at the line, flickering the banner on and off.
+  const REAPER_ESCAPE_MARGIN = 5;
+  const reaperCaughtRef = useRef(false);
+  const _reachedGoal = _myWC >= (_wordGoal ?? _durMin * 200);
+  let isEliminatedEarly: boolean;
+  if (_reaperEarlyWC <= 0 || _reachedGoal) {
+    isEliminatedEarly = false;
+  } else if (reaperCaughtRef.current) {
+    // Already caught — stay caught until clearly ahead of the reaper.
+    isEliminatedEarly = _myWC < _reaperEarlyWC + REAPER_ESCAPE_MARGIN;
+  } else {
+    // Not yet caught — trip the moment the reaper draws level.
+    isEliminatedEarly = _myWC < _reaperEarlyWC;
+  }
+  reaperCaughtRef.current = isEliminatedEarly;
   // Ref so interval callback always reads the latest value without stale closure
   const isEliminatedRef = useRef(false);
   isEliminatedRef.current = isEliminatedEarly;
@@ -1872,36 +1890,42 @@ export default function Room() {
                       roomMode={room.mode}
                     />
                   )}
-                  {/* Death Mode: headstart countdown — reaper hasn't stirred yet */}
-                  {headstartSecsLeft > 0 && (
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      borderRadius: 12, padding: "10px 16px",
-                      background: "linear-gradient(135deg, rgba(10,0,0,0.9), rgba(45,0,0,0.85))",
-                      border: "1px solid rgba(180,0,0,0.5)",
-                      boxShadow: "0 0 18px rgba(180,0,0,0.2)",
-                      animation: "reaperPulse 2.4s ease-in-out infinite",
-                    }}>
-                      <span style={{ fontSize: "1.1rem", animation: "reaperFlicker 1.8s ease-in-out infinite" }}>☠️</span>
-                      <span style={{ color: "#fca5a5", fontSize: "0.82rem", fontWeight: 600 }}>
-                        The reaper stirs in
-                      </span>
-                      <span style={{
-                        fontFamily: "monospace", fontWeight: 800, fontSize: "1.3rem",
-                        color: "#ff4444", minWidth: 36, textAlign: "center",
-                        textShadow: "0 0 10px #ff0000, 0 0 20px #ff000055",
-                        animation: headstartSecsLeft <= 3 ? "reaperFlicker 0.4s ease-in-out infinite" : undefined,
-                      }}>
-                        {headstartSecsLeft}s
-                      </span>
-                    </div>
-                  )}
-                  {/* Death Mode: grace-period countdown banner */}
-                  {graceCountdown !== null && isRunning && (
-                    <div className="flex items-center justify-center gap-3 rounded-xl border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm font-bold text-red-700 dark:text-red-300 animate-in fade-in duration-200">
-                      <span className="text-xl tabular-nums">{graceCountdown}</span>
-                      <span>The reaper caught you — keep typing or you're out!</span>
-                      <span className="text-xl">💀</span>
+                  {/* Death Mode banner slot — fixed height so showing/hiding the
+                      warning never shifts the editor. Previously these banners
+                      lived in normal flow, so toggling them while hovering on
+                      the reaper line shoved the whole page up and down, making
+                      it impossible to focus. The slot reserves the space once. */}
+                  {room.deathModeWpm != null && isRunning && (
+                    <div style={{ minHeight: 52, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {headstartSecsLeft > 0 ? (
+                        <div style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          borderRadius: 12, padding: "10px 16px",
+                          background: "linear-gradient(135deg, rgba(10,0,0,0.9), rgba(45,0,0,0.85))",
+                          border: "1px solid rgba(180,0,0,0.5)",
+                          boxShadow: "0 0 18px rgba(180,0,0,0.2)",
+                          animation: "reaperPulse 2.4s ease-in-out infinite",
+                        }}>
+                          <span style={{ fontSize: "1.1rem", animation: "reaperFlicker 1.8s ease-in-out infinite" }}>☠️</span>
+                          <span style={{ color: "#fca5a5", fontSize: "0.82rem", fontWeight: 600 }}>
+                            The reaper stirs in
+                          </span>
+                          <span style={{
+                            fontFamily: "monospace", fontWeight: 800, fontSize: "1.3rem",
+                            color: "#ff4444", minWidth: 36, textAlign: "center",
+                            textShadow: "0 0 10px #ff0000, 0 0 20px #ff000055",
+                            animation: headstartSecsLeft <= 3 ? "reaperFlicker 0.4s ease-in-out infinite" : undefined,
+                          }}>
+                            {headstartSecsLeft}s
+                          </span>
+                        </div>
+                      ) : graceCountdown !== null ? (
+                        <div className="flex items-center justify-center gap-3 rounded-xl border-2 border-red-500/70 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm font-bold text-red-700 dark:text-red-300">
+                          <span className="text-xl tabular-nums">{graceCountdown}</span>
+                          <span>The reaper caught you — keep typing or you're out!</span>
+                          <span className="text-xl">💀</span>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>
