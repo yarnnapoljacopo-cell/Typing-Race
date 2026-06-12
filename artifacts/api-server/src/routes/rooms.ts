@@ -194,7 +194,7 @@ router.get("/rooms/:code", async (req, res): Promise<void> => {
   });
 });
 
-router.put("/rooms/:code/writing", async (req, res): Promise<void> => {
+router.put("/rooms/:code/writing", mutationLimiter, async (req, res): Promise<void> => {
   const code = req.params.code?.toUpperCase();
   if (!code) { res.status(400).json({ error: "Missing code" }); return; }
 
@@ -203,13 +203,34 @@ router.put("/rooms/:code/writing", async (req, res): Promise<void> => {
     res.status(400).json({ error: "participantName required" }); return;
   }
   if (typeof text !== "string") { res.status(400).json({ error: "text required" }); return; }
+  const name = participantName.trim();
   const wc = typeof wordCount === "number" ? Math.max(0, Math.floor(wordCount)) : 0;
 
   const auth = getAuth(req);
   const clerkUserId = auth?.userId ?? null;
 
+  // ── Ownership guard ─────────────────────────────────────────────────────────
+  // This is the periodic HTTP backup of in-progress writing. Without a check,
+  // anyone who knows a room code + a player's name could overwrite that player's
+  // saved sprint text (griefing / data loss). If a row already exists for
+  // (code, name) and it's claimed by a DIFFERENT signed-in user, refuse the
+  // write. Guest rows (clerkUserId null) stay writable, matching the WS path
+  // where guests aren't strongly identified.
+  const existing = await db
+    .select({ owner: sprintWritingTable.clerkUserId })
+    .from(sprintWritingTable)
+    .where(and(
+      eq(sprintWritingTable.roomCode, code),
+      eq(sprintWritingTable.participantName, name),
+    ))
+    .limit(1);
+  if (existing[0]?.owner && existing[0].owner !== clerkUserId) {
+    res.status(403).json({ error: "This writing belongs to another writer" });
+    return;
+  }
+
   const room = getRoom(code);
-  await saveWriting(code, participantName.trim(), text, wc, clerkUserId, room?.mode ?? null, room?.wordGoal ?? null);
+  await saveWriting(code, name, text, wc, clerkUserId, room?.mode ?? null, room?.wordGoal ?? null);
   res.json({ ok: true });
 });
 

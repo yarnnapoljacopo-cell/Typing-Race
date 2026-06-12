@@ -14,6 +14,24 @@ const app: Express = express();
 // so Express sees the correct client IP and protocol.
 app.set("trust proxy", true);
 
+// Don't advertise the framework — removes the "X-Powered-By: Express" header
+// so we leak slightly less about the stack to opportunistic scanners.
+app.disable("x-powered-by");
+
+// ── Security response headers ───────────────────────────────────────────────
+// Set manually (rather than pulling in helmet) so there's no extra dependency.
+// No CSP here on purpose: the app uses inline styles/keyframes and a strict
+// policy would need careful per-page nonce work — these headers are the safe,
+// high-value subset that can't break rendering.
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");      // no MIME sniffing
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");          // anti-clickjacking
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  next();
+});
+
 app.use(
   pinoHttp({
     logger,
@@ -48,7 +66,42 @@ app.get("/api/healthz/deep", async (_req, res) => {
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.use(cors({ credentials: true, origin: true }));
+// ── CORS allowlist ──────────────────────────────────────────────────────────
+// Previously `origin: true` reflected ANY requesting origin while also allowing
+// credentials — meaning any website could make credentialed (cookie-bearing)
+// requests against a logged-in user and read the response. Since the SPA is
+// served from the SAME origin as this API in production, the web app needs no
+// cross-origin allowance at all. We allow:
+//   - requests with no Origin header (same-origin fetches, native apps, curl)
+//   - an explicit allowlist (prod domains + localhost dev), extendable via the
+//     ALLOWED_ORIGINS env var (comma-separated) for the desktop build or staging.
+// Unknown origins simply don't get CORS headers, so the browser blocks the
+// cross-origin read — same-origin traffic is unaffected.
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://app.writingsprint.site",
+  "https://writingsprint.site",
+  "http://localhost:3000",
+  "http://localhost:5173",
+];
+const envAllowed = (process.env.ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+const ALLOWED_ORIGINS = new Set([...DEFAULT_ALLOWED_ORIGINS, ...envAllowed]);
+
+app.use(
+  cors({
+    credentials: true,
+    origin(origin, callback) {
+      // No Origin header → same-origin / non-browser client → allow.
+      if (!origin) { callback(null, true); return; }
+      if (ALLOWED_ORIGINS.has(origin)) { callback(null, true); return; }
+      // Unknown origin: respond WITHOUT CORS headers (don't throw — throwing
+      // turns into a 500; we just decline the cross-origin grant).
+      callback(null, false);
+    },
+  }),
+);
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true }));
 

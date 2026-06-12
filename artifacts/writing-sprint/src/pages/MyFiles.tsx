@@ -701,6 +701,28 @@ const uid = () =>
   Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const wc = (t: string) =>
   t.trim() ? t.trim().split(/\s+/).length : 0;
+
+// Deterministic accent gradient per project, derived from the name so the
+// same project always gets the same colour and the project grid is easy to
+// scan at a glance. Returns a CSS gradient string for the initial badge.
+const PROJECT_ACCENTS: Array<[string, string]> = [
+  ["#2a5590", "#5c80cc"], // blue
+  ["#6e3a8e", "#a06bd0"], // purple
+  ["#1f7a5a", "#46b88a"], // green
+  ["#9a5a1e", "#d49a48"], // amber
+  ["#a33a5a", "#d46b8a"], // rose
+  ["#1f6e7a", "#46a8b8"], // teal
+  ["#7a4a2e", "#c08a52"], // copper
+  ["#4a4a8e", "#7a7ad0"], // indigo
+];
+function projectAccent(name: string): { from: string; to: string } {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  const [from, to] = PROJECT_ACCENTS[hash % PROJECT_ACCENTS.length];
+  return { from, to };
+}
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const emptyChapterNotes = (): ChapterNotesData => ({
@@ -2586,10 +2608,15 @@ export default function MyFiles() {
                   const projWc = proj.docs.reduce((s, d) => s + wc(docPlainText(d.content)), 0);
                   const mostRecent = [...proj.docs].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
                   const initial = (proj.name[0] || "?").toUpperCase();
+                  const accent = projectAccent(proj.name);
                   return (
                     <button key={proj.id} className="mf-proj-tile"
+                      style={{ ["--mf-accent-from" as string]: accent.from, ["--mf-accent-to" as string]: accent.to }}
                       onClick={() => { setHomeView(false); if (mostRecent) setTimeout(() => openDoc(proj.id, mostRecent.id), 50); }}>
-                      <div className="mf-proj-initial">{initial}</div>
+                      <div
+                        className="mf-proj-initial"
+                        style={{ background: `linear-gradient(145deg, ${accent.from}, ${accent.to})` }}
+                      >{initial}</div>
                       <div className="mf-proj-info">
                         <span className="mf-proj-name">{proj.name}</span>
                         <span className="mf-proj-meta">
