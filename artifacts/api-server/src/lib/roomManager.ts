@@ -589,6 +589,28 @@ function _startRunning(room: Room): void {
     });
   }
 
+  // Initialize kart state for all current participants. This MUST run on every
+  // start (idempotent on the first one), because restartSprint only zeroes word
+  // counts — without this, a restarted kart room kept last sprint's car offsets,
+  // item thresholds (so high-word players earned nothing), spent golden pen,
+  // armed banana traps and active stars. Mirrors the gladiator reset above.
+  if (room.mode === "kart") {
+    room.bananaTraps = [];
+    room.activeStars.clear();
+    room.goldenPenUsed = false;
+    room.participants.forEach((p) => {
+      p.kartItems = [];
+      p.kartCarOffset = 0;
+      p.kartBonusWords = 0;
+      p.kartNextItemAt = Math.floor(p.wordCount / 250) * 250 + 250;
+      // Push the cleared inventory to each client so the slot bar empties
+      // immediately rather than showing last sprint's stale items.
+      if (p.ws.readyState === WebSocket.OPEN) {
+        p.ws.send(JSON.stringify({ type: "kart_inventory", items: [] }));
+      }
+    });
+  }
+
   broadcastRoomState(room);
 
   // Always clear any pre-existing interval before creating a new one.
@@ -729,8 +751,17 @@ export function endSprint(room: Room, naturalEnd = true): void {
   if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = null; }
   persistRoom(room);
 
-  // Gladiator timer end: broadcast HP-based outcome before the normal results
-  if (room.mode === "gladiator" && room.gladiatorMatchStats) {
+  // Gladiator timer end: broadcast the HP-based outcome before the normal
+  // results — BUT only when the match did NOT already end by execution. An
+  // execution (gap ≥ death gap) is broadcast separately by the wsHandler with
+  // the gap-based winner; HP and gap are independent, so also firing the
+  // HP-based timer result here would send a second, possibly CONTRADICTORY
+  // gladiator_execution that overwrites the correct one on the client.
+  if (
+    room.mode === "gladiator" &&
+    room.gladiatorMatchStats &&
+    !room.gladiatorMatchStats.endedByExecution
+  ) {
     const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor");
     if (fighters.length === 2) {
       broadcastGladiatorTimerEnd(room, fighters[0], fighters[1], room.gladiatorMatchStats);
