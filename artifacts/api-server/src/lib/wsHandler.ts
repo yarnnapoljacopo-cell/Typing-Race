@@ -720,12 +720,20 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             break;
           }
           case "golden_pen": {
+            // Golden pen is a forward boost. It MUST move the car via
+            // kartCarOffset — the only field that flows through room_state,
+            // client RaceTrack rendering AND the final standings sort. The old
+            // code only bumped kartBonusWords, which is read nowhere for
+            // position, so the rarest item did nothing. Mirror the (working)
+            // mushroom path with a larger amount, and keep the bonus-words
+            // counter purely as an end-of-sprint stat.
+            participant.kartCarOffset += 400;
             participant.kartBonusWords += 400;
             broadcastToRoom(room, {
               type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
               sourceId: participantId, sourceName: participant.name,
               targetId: participantId, targetName: participant.name,
-              effect: "bonus_words", amount: 400,
+              effect: "car_add", amount: 400,
             });
             break;
           }
