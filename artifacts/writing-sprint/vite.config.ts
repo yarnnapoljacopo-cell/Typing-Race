@@ -54,6 +54,7 @@ export default defineConfig({
     target: ["chrome87", "firefox78", "safari14", "edge88"],
   },
   optimizeDeps: {
+    entries: ["index.html"],
     esbuildOptions: {
       target: "safari14",
     },
@@ -73,6 +74,10 @@ export default defineConfig({
       strict: true,
     },
     proxy: {
+      "/ws": {
+        target: "http://localhost:8080",
+        ws: true,
+      },
       "/api": {
         target: "http://localhost:8080",
         changeOrigin: false,

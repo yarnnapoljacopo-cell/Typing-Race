@@ -121,7 +121,7 @@ export function SpectatorView({
     <div className="space-y-2 w-full">
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
         <Eye className="w-3.5 h-3.5" />
-        Writers — hover to read
+        Writers — tap or hover to read
       </p>
       {sorted.map((p, i) => {
         const color = LANE_COLORS[i % LANE_COLORS.length];
@@ -141,6 +141,10 @@ export function SpectatorView({
           >
             <HoverCardTrigger asChild>
               <button
+                onClick={() => setOpenId(openId === p.id ? null : p.id)}
+                onKeyDown={e => { if (e.key === "Escape") setOpenId(null); }}
+                aria-expanded={openId === p.id}
+                aria-label={`Read ${p.name}'s writing`}
                 className="w-full flex items-center gap-3 bg-card border rounded-lg px-3 py-2.5 text-left hover:bg-muted/40 transition-colors cursor-pointer"
                 style={{ borderLeft: `3px solid ${color}` }}
               >
@@ -193,7 +197,7 @@ export function SpectatorView({
             <HoverCardContent
               side="left"
               align="start"
-              className="w-80 shadow-lg"
+              className="w-80 max-w-[calc(100vw-24px)] shadow-lg"
             >
               <div className="space-y-2">
                 <div className="flex items-center gap-2">

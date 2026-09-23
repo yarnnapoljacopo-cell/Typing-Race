@@ -2,21 +2,7 @@
 
 // Load .env file for local development (no-op in production where env vars
 // are injected by Railway).
-import { readFileSync } from "fs";
-import { resolve } from "path";
-try {
-  const envPath = resolve(import.meta.dirname, "..", ".env");
-  const lines = readFileSync(envPath, "utf8").split("\n");
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq === -1) continue;
-    const key = trimmed.slice(0, eq).trim();
-    const val = trimmed.slice(eq + 1).trim();
-    if (key && !(key in process.env)) process.env[key] = val;
-  }
-} catch { /* no .env file — fine in production */ }
+import "./loadEnv";
 
 import { createServer } from "http";
 import app from "./app";

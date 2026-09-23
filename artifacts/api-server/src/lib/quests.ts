@@ -1,5 +1,5 @@
 import { pool } from "@workspace/db";
-import type { PoolClient } from "pg";
+import type { PoolClient } from "@workspace/db";
 import { logger } from "./logger";
 import { creditCoins, ensureUserCoins, dailyResetCheck } from "./coinHelper";
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, Package, Gift, FlaskConical, Sparkles, Flame, Loader2, ShoppingBag, Coins, AlertTriangle, Trash2 } from "lucide-react";
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { CoinBalance } from "@/components/CoinBalance";
 import { ItemIcon } from "@/components/ItemIcon";
+import "@/components/cultivation-shop.css";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -304,7 +305,7 @@ export default function Bag() {
   const slotPct = Math.min(100, (usedSlots / totalSlots) * 100);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="cultivation-bag min-h-screen bg-background">
 
       {/* Sticky header */}
       <div className="border-b border-border bg-card sticky top-0 z-10">
@@ -606,7 +607,7 @@ export default function Bag() {
                             {eff.effect_type.replace(/_/g, " ")}
                             {eff.effect_value ? ` · ${eff.effect_value}` : ""}
                           </div>
-                          {meta.sprints_remaining && (
+                          {Number(meta.sprints_remaining) > 0 && (
                             <div className="text-xs text-primary mt-1">
                               {String(meta.sprints_remaining)} sprint{Number(meta.sprints_remaining) !== 1 ? "s" : ""} remaining
                             </div>

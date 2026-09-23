@@ -183,6 +183,8 @@ export const WritingToolbar = memo(function WritingToolbar({
         {/* Font toggle pill — shows current font, click to expand */}
         <button
           onClick={() => setShowFonts((v) => !v)}
+          aria-expanded={showFonts}
+          aria-label="Writing appearance"
           title={showFonts ? "Hide font options" : "Change font, size & spacing"}
           style={{
             display: "flex", alignItems: "center", gap: 5,
@@ -218,8 +220,10 @@ export const WritingToolbar = memo(function WritingToolbar({
 
         {/* B / I / U */}
         <button
-          onMouseDown={(e) => { e.preventDefault(); onFormat("bold"); }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onFormat("bold")}
           title="Bold"
+          aria-label="Bold"
           aria-pressed={aBold}
           style={formatChipStyle(aBold)}
           onMouseEnter={e => { if (!aBold) { (e.currentTarget as HTMLElement).style.background = C.blueLight; (e.currentTarget as HTMLElement).style.color = C.ink; } }}
@@ -228,8 +232,10 @@ export const WritingToolbar = memo(function WritingToolbar({
           <strong>B</strong>
         </button>
         <button
-          onMouseDown={(e) => { e.preventDefault(); onFormat("italic"); }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onFormat("italic")}
           title="Italic"
+          aria-label="Italic"
           aria-pressed={aItalic}
           style={formatChipStyle(aItalic)}
           onMouseEnter={e => { if (!aItalic) { (e.currentTarget as HTMLElement).style.background = C.blueLight; (e.currentTarget as HTMLElement).style.color = C.ink; } }}
@@ -238,8 +244,10 @@ export const WritingToolbar = memo(function WritingToolbar({
           <em>I</em>
         </button>
         <button
-          onMouseDown={(e) => { e.preventDefault(); onFormat("underline"); }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onFormat("underline")}
           title="Underline"
+          aria-label="Underline"
           aria-pressed={aUnderline}
           style={{ ...formatChipStyle(aUnderline), textDecoration: "underline" }}
           onMouseEnter={e => { if (!aUnderline) { (e.currentTarget as HTMLElement).style.background = C.blueLight; (e.currentTarget as HTMLElement).style.color = C.ink; } }}
@@ -253,6 +261,7 @@ export const WritingToolbar = memo(function WritingToolbar({
         <button
           onClick={() => onChange({ typewriterMode: !style.typewriterMode })}
           title="Typewriter mode — cursor stays vertically centered while you write"
+          aria-pressed={style.typewriterMode}
           style={spacingChipStyle(style.typewriterMode, true)}
         >
           TW

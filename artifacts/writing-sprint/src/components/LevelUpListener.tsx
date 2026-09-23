@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuth, useUser } from "@clerk/react";
+import { useAuth, useUser } from "@/lib/auth";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { getRankFromXp, RANKS, type Rank } from "@/lib/ranks";

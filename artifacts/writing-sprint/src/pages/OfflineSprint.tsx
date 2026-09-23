@@ -139,6 +139,7 @@ export default function OfflineSprint() {
   const [folioTarget, setFolioTarget] = useState<FolioTarget | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const deadlineRef = useRef<number | null>(null);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Mirror of `text` so the autosave interval can read the latest value
@@ -163,18 +164,17 @@ export default function OfflineSprint() {
   // ── Timer ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (phase !== "sprinting") return;
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setPhase("done");
-          eAPI()?.dismissRecovery?.().catch(() => {});
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil(((deadlineRef.current ?? Date.now()) - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining === 0) {
+        setPhase("done");
+      }
+    };
+    const interval = setInterval(tick, 250);
+    const onVisible = () => { if (!document.hidden) tick(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(interval); document.removeEventListener("visibilitychange", onVisible); };
   }, [phase]);
 
   // ── Auto-save every 30s ───────────────────────────────────────────────────
@@ -201,6 +201,8 @@ export default function OfflineSprint() {
   // ── Finalize into Folio when sprint completes ────────────────────────────
   useEffect(() => {
     if (phase !== "done") return;
+    if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+    eAPI()?.dismissRecovery?.().catch(() => {});
     if (!text.trim()) return;
     const target = upsertOfflineSprintToFolio(text, { final: true });
     if (target) {
@@ -217,20 +219,25 @@ export default function OfflineSprint() {
     if (!eAPI()?.saveRecovery) return;
     if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
     recoveryTimerRef.current = setTimeout(() => {
-      eAPI()?.saveRecovery(text).catch(() => {});
+      eAPI()?.saveRecovery(textRef.current).catch(() => {});
     }, 2000);
-  }, [text]);
+  }, []);
+
+  useEffect(() => () => {
+    if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+  }, []);
 
   // ── Start sprint ──────────────────────────────────────────────────────────
   function handleStart() {
-    const mins = customMin ? parseInt(customMin, 10) : duration;
-    if (!mins || mins < 1 || mins > 300) {
+    const mins = customMin ? Number(customMin) : duration;
+    if (!Number.isInteger(mins) || mins < 1 || mins > 300) {
       toast({ title: "Invalid duration", description: "Pick 1–300 minutes.", variant: "destructive" });
       return;
     }
     // Make sure a fresh sprint never appends to a previous session's chapter.
     clearOfflineSprintSession();
     setFolioTarget(null);
+    deadlineRef.current = Date.now() + mins * 60_000;
     setTimeLeft(mins * 60);
     setStartTime(new Date());
     setPhase("sprinting");
@@ -253,6 +260,7 @@ export default function OfflineSprint() {
 
   // ── Text change ───────────────────────────────────────────────────────────
   function handleTextChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    textRef.current = e.target.value;
     setText(e.target.value);
     if (phase === "sprinting") scheduleRecoverySave();
   }
@@ -294,7 +302,7 @@ export default function OfflineSprint() {
   async function handleSync() {
     const api = eAPI();
     if (!api?.syncOfflineSprint) return;
-    const mins = customMin ? parseInt(customMin, 10) : duration;
+    const mins = customMin ? Number(customMin) : duration;
     setSyncing(true);
     const result = await api.syncOfflineSprint({ duration: mins, words, text }).catch(() => null);
     setSyncing(false);

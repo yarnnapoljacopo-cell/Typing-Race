@@ -1,7 +1,9 @@
+import { useCultivation } from "@/lib/cultivation";
+import { PiDotsThreeThin, PiHouseLineThin, PiDoorOpenThin, PiTimerThin, PiBookOpenThin, PiListThin, PiXThin, PiScrollThin, PiUsersThin, PiShieldThin, PiSealCheckThin, PiChartBarThin, PiFireThin, PiChartLineUpThin, PiTreasureChestThin, PiFlowerLotusThin } from "react-icons/pi";
 import "./Sidebar.css";
 import { useEffect, useState } from "react";
-import { useLocation, Link } from "wouter";
-import { useAuth, useUser } from "@clerk/react";
+import { useLocation, useSearch, Link } from "wouter";
+import { useAuth, useUser } from "@/lib/auth";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { useGuest } from "@/lib/guestContext";
@@ -32,23 +34,26 @@ function getActiveKey(path: string): string {
 }
 
 export function Sidebar() {
+  const { enabled: cultivation } = useCultivation();
   const [location] = useLocation();
+  const search = useSearch();
   const { isSignedIn } = useAuth();
   const { user } = useUser();
   const { guestName } = useGuest();
   const af = useAuthedFetch();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   // Close drawer on route change.
-  useEffect(() => { setMobileOpen(false); }, [location]);
+  useEffect(() => { setMobileOpen(false); setMoreOpen(false); }, [location, search]);
 
   // Close on Escape.
   useEffect(() => {
-    if (!mobileOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileOpen(false); };
+    if (!mobileOpen && !moreOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setMobileOpen(false); setMoreOpen(false); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mobileOpen]);
+  }, [mobileOpen, moreOpen]);
 
   const { data: ownPrefs } = useQuery({
     queryKey: ["ownPrefs"],
@@ -100,6 +105,36 @@ export function Sidebar() {
     avatarLetter = guestName[0].toUpperCase();
   }
 
+  if (cultivation) {
+    const paths = [
+      { href: "/portal", label: "Home", icon: PiHouseLineThin, key: "sprint" },
+      { href: "/portal?tab=rooms", label: "Rooms", icon: PiDoorOpenThin, key: "rooms" },
+      { href: "/offline-sprint", label: "Focus", icon: PiTimerThin, key: "focus" },
+      { href: "/stats", label: "Stats", icon: PiChartBarThin, key: "stats" },
+      { href: "/novel-notes", label: "Journal", icon: PiScrollThin, key: "journal" },
+      { href: "/friends", label: "Friends", icon: PiUsersThin, key: "friends" },
+      { href: "/my-files", label: "Library", icon: PiBookOpenThin, key: "my-files" },
+    ];
+    const current = location.startsWith("/novel-notes") ? "journal" : location === "/portal" && new URLSearchParams(search).get("tab") === "rooms" ? "rooms" : active;
+    return <>
+      <button className="sb-toggle" type="button" onClick={()=>setMobileOpen(v=>!v)} aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen} aria-controls="workspace-navigation">{mobileOpen ? <PiXThin size={22}/> : <PiListThin size={22}/>}</button>
+      <div className={`sb-backdrop${mobileOpen ? " sb-backdrop-open" : ""}`} onClick={()=>setMobileOpen(false)} aria-hidden="true"/>
+      <aside id="workspace-navigation" aria-label="Workspace navigation" className={`sb cultivation-sidebar${mobileOpen ? " sb-open" : ""}`}>
+        {paths.map(({href,label,icon:Icon,key})=><Link key={key} href={href} className={`ni${key===current ? " active" : ""}`} aria-current={key===current ? "page" : undefined}><span className="ni-ico"><Icon className="cultivation-nav-icon" aria-hidden="true"/></span><span className="ni-lbl">{label}</span></Link>)}
+        <div className="cultivation-sidebar-footer">
+          <button type="button" aria-label="More destinations" aria-expanded={moreOpen} aria-controls="cultivation-more-navigation" onClick={()=>setMoreOpen(v=>!v)}><PiDotsThreeThin size={27}/></button>
+
+          <Link href="/shop" aria-label="Shop" title="Spirit market"><PiTreasureChestThin size={27}/></Link><Link href={profileHref} aria-label="My Profile" title="Your cultivation"><PiFlowerLotusThin size={29}/></Link></div>
+      </aside>
+          {moreOpen && <nav id="cultivation-more-navigation" aria-label="More destinations" className="cultivation-more-navigation" style={{zIndex:550}}>
+            <Link href="/guild"><PiShieldThin/> Guild</Link>
+            <Link href="/quests"><PiSealCheckThin/> Quests</Link>
+            <Link href="/global-ranking"><PiChartLineUpThin/> Rankings</Link>
+            <Link href="/streak"><PiFireThin/> Streak</Link>
+          </nav>}
+    </>;
+  }
+
   return (
     <>
       <button
@@ -107,6 +142,7 @@ export function Sidebar() {
         className="sb-toggle"
         aria-label={mobileOpen ? "Close menu" : "Open menu"}
         aria-expanded={mobileOpen}
+        aria-controls="workspace-navigation"
         onClick={() => setMobileOpen((v) => !v)}
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -129,7 +165,7 @@ export function Sidebar() {
         onClick={() => setMobileOpen(false)}
         aria-hidden="true"
       />
-    <aside className={`sb${mobileOpen ? " sb-open" : ""}`}>
+    <aside id="workspace-navigation" aria-label="Workspace navigation" className={`sb${mobileOpen ? " sb-open" : ""}`}>
       <div className="sb-logo" aria-hidden="true">
         <span className="sb-logo-shine" />
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "relative", zIndex: 2 }}>
@@ -139,8 +175,9 @@ export function Sidebar() {
         <span className="sb-logo-spark" />
       </div>
 
-      <Link href="/portal" className={`ni${active === "sprint" ? " active" : ""}`}>
+      <Link href="/portal" className={`ni${active === "sprint" ? " active" : ""}`} aria-current={active === "sprint" ? "page" : undefined}>
         <span className="ni-ico">
+          {cultivation && <PiHouseLineThin className="cultivation-nav-icon" aria-hidden="true" />}
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
           </svg>
@@ -148,8 +185,9 @@ export function Sidebar() {
         <span className="ni-lbl">Sprint</span>
       </Link>
 
-      <Link href="/my-files" className={`ni${active === "my-files" ? " active" : ""}`}>
+      <Link href="/my-files" className={`ni${active === "my-files" ? " active" : ""}`} aria-current={active === "my-files" ? "page" : undefined}>
         <span className="ni-ico">
+          {cultivation && <PiScrollThin className="cultivation-nav-icon" aria-hidden="true" />}
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -162,7 +200,7 @@ export function Sidebar() {
 
       <Link
         href="/friends"
-        className={`ni${active === "friends" ? " active" : ""}`}
+        className={`ni${active === "friends" ? " active" : ""}`} aria-current={active === "friends" ? "page" : undefined}
         aria-label={
           pendingFriendRequests > 0
             ? `Friends — ${pendingFriendRequests} pending request${pendingFriendRequests === 1 ? "" : "s"}`
@@ -170,6 +208,7 @@ export function Sidebar() {
         }
       >
         <span className="ni-ico" style={{ position: "relative" }}>
+          {cultivation && <PiUsersThin className="cultivation-nav-icon" aria-hidden="true" />}
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
             <circle cx="9" cy="7" r="4"/>
@@ -196,18 +235,20 @@ export function Sidebar() {
         </span>
       </Link>
 
-      <Link href="/guild" className={`ni${active === "guild" ? " active" : ""}`}>
+      <Link href="/guild" className={`ni${active === "guild" ? " active" : ""}`} aria-current={active === "guild" ? "page" : undefined}>
         <span className="ni-ico" style={{ position: "relative" }}>
+          {cultivation && <PiShieldThin className="cultivation-nav-icon" aria-hidden="true" />}
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           </svg>
         </span>
         <span className="ni-lbl">Guild</span>
-        <span style={{ marginLeft: "auto" }}><GuildBell /></span>
+        <span style={{ marginLeft: "auto" }}><GuildBell embedded /></span>
       </Link>
 
-      <Link href="/quests" className={`ni${active === "quests" ? " active" : ""}`}>
+      <Link href="/quests" className={`ni${active === "quests" ? " active" : ""}`} aria-current={active === "quests" ? "page" : undefined}>
         <span className="ni-ico">
+          {cultivation && <PiSealCheckThin className="cultivation-nav-icon" aria-hidden="true" />}
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 11l3 3L22 4"/>
             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
@@ -216,8 +257,9 @@ export function Sidebar() {
         <span className="ni-lbl">Quests</span>
       </Link>
 
-      <Link href="/global-ranking" className={`ni${active === "rankings" ? " active" : ""}`}>
+      <Link href="/global-ranking" className={`ni${active === "rankings" ? " active" : ""}`} aria-current={active === "rankings" ? "page" : undefined}>
         <span className="ni-ico">
+          {cultivation && <PiChartBarThin className="cultivation-nav-icon" aria-hidden="true" />}
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10"/>
             <polyline points="12 6 12 12 16 14"/>
@@ -226,8 +268,9 @@ export function Sidebar() {
         <span className="ni-lbl">Rankings</span>
       </Link>
 
-      <Link href="/streak" className={`ni${active === "streak" ? " active" : ""}`}>
+      <Link href="/streak" className={`ni${active === "streak" ? " active" : ""}`} aria-current={active === "streak" ? "page" : undefined}>
         <span className="ni-ico">
+          {cultivation && <PiFireThin className="cultivation-nav-icon" aria-hidden="true" />}
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
           </svg>
@@ -235,8 +278,9 @@ export function Sidebar() {
         <span className="ni-lbl">Streak</span>
       </Link>
 
-      <Link href="/stats" className={`ni${active === "stats" ? " active" : ""}`}>
+      <Link href="/stats" className={`ni${active === "stats" ? " active" : ""}`} aria-current={active === "stats" ? "page" : undefined}>
         <span className="ni-ico">
+          {cultivation && <PiChartLineUpThin className="cultivation-nav-icon" aria-hidden="true" />}
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="20" x2="18" y2="10"/>
             <line x1="12" y1="20" x2="12" y2="4"/>
@@ -249,8 +293,9 @@ export function Sidebar() {
 
       <div className="sb-sep" />
 
-      <Link href="/shop" className={`ni${active === "shop" ? " active" : ""}`}>
+      <Link href="/shop" className={`ni${active === "shop" ? " active" : ""}`} aria-current={active === "shop" ? "page" : undefined}>
         <span className="ni-ico">
+          {cultivation && <PiTreasureChestThin className="cultivation-nav-icon" aria-hidden="true" />}
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
             <line x1="3" y1="6" x2="21" y2="6"/>
@@ -260,8 +305,9 @@ export function Sidebar() {
         <span className="ni-lbl">Shop</span>
       </Link>
 
-      <Link href={profileHref} className={`ni${active === "profile" ? " active" : ""}`}>
+      <Link href={profileHref} className={`ni${active === "profile" ? " active" : ""}`} aria-current={active === "profile" ? "page" : undefined}>
         <span className="ni-ico">
+          {cultivation && <PiFlowerLotusThin className="cultivation-nav-icon" aria-hidden="true" />}
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
             <circle cx="12" cy="7" r="4"/>

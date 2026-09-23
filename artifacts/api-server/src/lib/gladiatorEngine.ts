@@ -61,6 +61,39 @@ export function initGladiatorParticipant(p: Participant): void {
   p.gladiatorMomentumGapAtStart = null;
   p.gladiatorWoundSince = null;
   p.gladiatorWoundGapAtStart = null;
+  p.gladiatorHealHighWater = p.wordCount;
+}
+
+/** Advance combat by elapsed wall time, independently of typing/packet rate. */
+export function advanceGladiatorCombat(room: Room, now = Date.now(), broadcast = true): void {
+  const stats = room.gladiatorMatchStats;
+  if (room.status !== "running" || !stats || stats.endedByExecution) return;
+  const tickAt = Math.min(now, room.endTime ?? now);
+  const elapsedMs = Math.max(0, tickAt - (stats.lastDamageAt ?? tickAt));
+  stats.lastDamageAt = tickAt;
+  const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor");
+  if (fighters.length !== 2) return;
+  const [p1, p2] = fighters;
+  const gap = p1.wordCount - p2.wordCount;
+  const deathGap = room.gladiatorDeathGap ?? 400;
+  const ratio = Math.abs(gap) / deathGap;
+  const damagePerSecond = ratio >= 0.75 ? 4 : ratio >= 0.5 ? 2 : ratio >= 0.25 ? 1 : 0;
+  if (damagePerSecond > 0) {
+    const behind = gap < 0 ? p1 : p2;
+    behind.gladiatorHp = Math.max(0, behind.gladiatorHp - damagePerSecond * elapsedMs / 1000);
+  }
+  if (ratio > 0.75) stats.timeInDangerMs += elapsedMs;
+  updateCombatantBuffs(p1, p2, Math.abs(gap), gap >= 0, deathGap, tickAt);
+  updateCombatantBuffs(p2, p1, Math.abs(gap), gap <= 0, deathGap, tickAt);
+  if (broadcast) broadcastGladiatorState(p1, p2, Math.abs(gap), deathGap);
+}
+
+export function gladiatorWinnerId(room: Room): string | null {
+  const stats = room.gladiatorMatchStats;
+  if (stats?.endedByExecution) return stats.winnerId ?? null;
+  const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor");
+  if (fighters.length !== 2 || Math.abs(fighters[0].gladiatorHp - fighters[1].gladiatorHp) <= 50) return null;
+  return fighters[0].gladiatorHp > fighters[1].gladiatorHp ? fighters[0].id : fighters[1].id;
 }
 
 /**
@@ -74,22 +107,25 @@ export function processGladiatorUpdate(
   prevWordCount: number,
 ): { executed: boolean; winnerId: string | null } {
   const deathGap = room.gladiatorDeathGap ?? 400;
-  const stats = room.gladiatorMatchStats!;
+  const stats = room.gladiatorMatchStats;
+  if (!stats || updatedParticipant.isSpectator || updatedParticipant.role === "editor") return { executed: false, winnerId: null };
 
-  const active = Array.from(room.participants.values()).filter((p) => !p.isSpectator);
-  if (active.length < 2) return { executed: false, winnerId: null };
+  const active = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor");
+  if (active.length !== 2) return { executed: false, winnerId: null };
 
   const me = updatedParticipant;
   const opponent = active.find((p) => p.id !== me.id);
   if (!opponent) return { executed: false, winnerId: null };
 
   const now = Date.now();
-  const newWords = Math.max(0, newWordCount - prevWordCount);
+  // Deleting and retyping the same words must not manufacture healing.
+  const highWater = me.gladiatorHealHighWater ?? prevWordCount;
+  const newWords = Math.max(0, newWordCount - Math.max(prevWordCount, highWater));
+  me.gladiatorHealHighWater = Math.max(highWater, newWordCount);
 
   // ── Compute current gap ──────────────────────────────────────────────────
   const gap = newWordCount - opponent.wordCount; // positive = I am ahead
   const absGap = Math.abs(gap);
-  const meAhead = gap > 0;
 
   // ── Track stats ──────────────────────────────────────────────────────────
   if (stats.closestGap === -1 || absGap < stats.closestGap) stats.closestGap = absGap;
@@ -102,29 +138,19 @@ export function processGladiatorUpdate(
     stats.currentLeaderId = currentLeader;
   }
 
-  // Danger zone: gap > 75% of death gap
-  if (absGap > deathGap * 0.75) {
-    stats.timeInDangerMs += 1000; // approximate per update
-  }
-
   // ── Execution check ──────────────────────────────────────────────────────
   const loser = gap >= deathGap ? opponent : (gap <= -deathGap ? me : null);
   const winner = loser ? (loser.id === me.id ? opponent : me) : null;
   if (loser && winner) {
     stats.endedByExecution = true;
+    stats.winnerId = winner.id;
     return { executed: true, winnerId: winner.id };
   }
 
   // ── Update me: buffs + heal ──────────────────────────────────────────────
-  updateCombatantBuffs(me, opponent, absGap, meAhead, deathGap, now);
-  const healedHp = applyHeal(me, newWords, stats);
-
-  // ── Gap damage to the one who is BEHIND ─────────────────────────────────
-  // Damage applies to the participant behind, computed every update.
-  // We do it from both sides: each participant gets damaged according to how
-  // far behind they are.  Since we're called per update, just apply damage
-  // to both based on current gap.
-  applyGapDamage(me, opponent, absGap, deathGap);
+  updateCombatantBuffs(me, opponent, absGap, gap >= 0, deathGap, now);
+  updateCombatantBuffs(opponent, me, absGap, gap <= 0, deathGap, now);
+  applyHeal(me, newWords, stats);
 
   // Clamp HP
   me.gladiatorHp = Math.max(0, Math.min(MAX_HP, me.gladiatorHp));
@@ -145,7 +171,6 @@ function updateCombatantBuffs(
   now: number,
 ): void {
   // ── Last Stand ───────────────────────────────────────────────────────────
-  const wasLastStand = hasBuff(me, G_BUFF.LAST_STAND);
   if (me.gladiatorHp < LAST_STAND_HP_THRESHOLD) {
     addBuff(me, G_BUFF.LAST_STAND);
   } else {
@@ -225,26 +250,11 @@ function applyHeal(me: Participant, newWords: number, stats: GladiatorMatchStats
     me.gladiatorFrenzyStartTime = now;
   }
 
-  me.gladiatorHp = Math.min(MAX_HP, me.gladiatorHp + heal);
-  stats.totalHpHealed[me.id] = (stats.totalHpHealed[me.id] ?? 0) + heal;
+  const actualHeal = Math.min(heal, MAX_HP - me.gladiatorHp);
+  me.gladiatorHp += actualHeal;
+  stats.totalHpHealed[me.id] = (stats.totalHpHealed[me.id] ?? 0) + actualHeal;
 
-  return heal;
-}
-
-function applyGapDamage(me: Participant, opponent: Participant, absGap: number, deathGap: number): void {
-  const gapRatio = absGap / deathGap;
-  // Damage per second (applied per word_update, so it's light — scales with activity):
-  // 0-25%: 0 dmg, 25-50%: 1/s, 50-75%: 2/s, 75-100%: 4/s
-  let dmgPerSecond = 0;
-  if (gapRatio >= 0.75) dmgPerSecond = 4;
-  else if (gapRatio >= 0.50) dmgPerSecond = 2;
-  else if (gapRatio >= 0.25) dmgPerSecond = 1;
-
-  if (dmgPerSecond === 0) return;
-
-  // Apply to whoever is behind (the one with lower word count)
-  const behind = me.wordCount < opponent.wordCount ? me : opponent;
-  behind.gladiatorHp = Math.max(0, behind.gladiatorHp - dmgPerSecond);
+  return actualHeal;
 }
 
 export function broadcastGladiatorState(

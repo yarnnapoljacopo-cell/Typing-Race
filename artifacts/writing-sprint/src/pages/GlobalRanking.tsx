@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { Crown, ArrowLeft, Trophy, Loader2, Lock } from "lucide-react";
@@ -79,7 +79,7 @@ export default function GlobalRanking() {
     <div className="min-h-[100dvh] bg-background flex flex-col">
       {/* Header */}
       <div
-        className="border-b"
+        className="ranking-header border-b"
         style={{
           background: "linear-gradient(135deg, #1a0020 0%, #2d0039 50%, #1a0020 100%)",
         }}

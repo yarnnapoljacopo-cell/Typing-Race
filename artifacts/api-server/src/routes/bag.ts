@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { pool, db, userProfilesTable, sprintWritingTable } from "@workspace/db";
 import { eq, and, desc, sql, sum, lt } from "drizzle-orm";
-import type { PoolClient } from "pg";
+import type { PoolClient } from "@workspace/db";
 import { mutationLimiter } from "../lib/rateLimits";
 
 const router: IRouter = Router();

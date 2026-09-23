@@ -1,4 +1,4 @@
-import type { PoolClient } from "pg";
+import type { PoolClient } from "@workspace/db";
 
 /**
  * Ensures a user_coins row exists for this user, creating it if needed.

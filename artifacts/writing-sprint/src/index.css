@@ -579,3 +579,28 @@ html.villain h1, html.villain h2 {
     width: max-content;
   }
 }
+
+/* Keep mobile room controls reachable without changing desktop layout. */
+.kart-counter-obscured { filter:blur(6px); transition:filter .4s ease; }
+@media (max-width:860px) {
+  .ws-room-shell { height:auto !important; min-height:100dvh; overflow:visible !important; }
+  .ws-room-main { flex:none; padding:8px 12px 20px !important; }
+  .ws-room-main .ws-room-grid { flex:none !important; grid-template-columns:minmax(0,1fr); }
+  .ws-room-main .writing-editor { min-height:42dvh !important; max-height:65dvh; }
+  .ws-room-main .ws-room-sidebar { width:100% !important; min-width:0 !important; }
+  .ws-room-game-row { flex-direction:column; }
+  .ws-room-clock { width:100% !important; min-height:70px; }
+  .ws-room-clock > div { flex-direction:row !important; gap:12px; }
+}
+
+/* Room surface polish: no spacing, sizing, or placement overrides. */
+.ws-room-shell { -webkit-font-smoothing:antialiased; }
+.ws-room-shell .ws-writing-surface { box-shadow:0 1px 2px #18244208,0 6px 24px #1824420a !important; transition:box-shadow 180ms ease,border-color 180ms ease; }
+.ws-room-shell .ws-writing-surface:focus-within { border-color:rgba(107,143,212,.32) !important; box-shadow:0 0 0 3px #6b8fd40a,0 6px 24px #1824420a !important; }
+.ws-room-shell .writing-editor { caret-color:#6486c5; }
+.ws-room-shell .writing-editor::selection,.ws-room-shell .writing-editor *::selection { background:#a8bce859; }
+.ws-room-shell .ws-room-clock > div { box-shadow:0 1px 2px #18244208,0 5px 18px #1824420a !important; }
+.ws-room-shell button { transition-property:background-color,border-color,color,box-shadow,opacity; transition-duration:160ms; transition-timing-function:ease-out; }
+.ws-room-shell button:focus-visible { outline:2px solid #7294cd; outline-offset:3px; }
+@media(hover:hover) { .ws-room-shell .ws-room-sidebar button:not(:disabled):hover { filter:brightness(.98); box-shadow:0 2px 7px #31436916; } }
+@media(prefers-reduced-motion:reduce) { .ws-room-shell button,.ws-room-shell .ws-writing-surface { transition:none; } }

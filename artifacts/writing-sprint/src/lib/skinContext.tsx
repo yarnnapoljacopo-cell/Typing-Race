@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 
-export type SkinKey = "default" | "eternal" | "final";
+export type SkinKey = "default" | "eternal" | "final" | "cultivation";
 
 interface SkinContextValue {
   activeSkin: SkinKey;

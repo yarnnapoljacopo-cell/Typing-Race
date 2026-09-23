@@ -12,7 +12,7 @@ export async function saveWriting(
   wordGoal?: number | null,
   /** Final WPM (words / actual elapsed minutes). Persisted at sprint end. */
   wpm?: number | null,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await db
       .insert(sprintWritingTable)
@@ -38,15 +38,17 @@ export async function saveWriting(
           ...(wpm != null ? { wpm } : {}),
         },
       });
+    return true;
   } catch (err) {
     logger.error({ err, roomCode, participantName }, "Failed to save writing to DB");
+    return false;
   }
 }
 
 export async function getWriting(
   roomCode: string,
   participantName: string,
-): Promise<{ text: string; wordCount: number } | null> {
+): Promise<{ text: string; wordCount: number; clerkUserId: string | null } | null> {
   try {
     const rows = await db
       .select()
@@ -60,7 +62,7 @@ export async function getWriting(
       .limit(1);
 
     if (rows.length === 0) return null;
-    return { text: rows[0].text, wordCount: rows[0].wordCount };
+    return { text: rows[0].text, wordCount: rows[0].wordCount, clerkUserId: rows[0].clerkUserId };
   } catch (err) {
     logger.error({ err, roomCode, participantName }, "Failed to fetch writing from DB");
     return null;

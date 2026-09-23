@@ -3,7 +3,7 @@ console.log("[clerk-key] VITE_CLERK_PK =", import.meta.env.VITE_CLERK_PK, "| VIT
 
 import { useEffect, useRef, useState, Component, createContext, useContext, lazy, Suspense } from "react";
 import type { ReactNode } from "react";
-import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, ClerkLoading, ClerkLoaded } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, ClerkLoading, ClerkLoaded } from "@/lib/auth";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, Redirect, useLocation, Router as WouterRouter } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
@@ -51,6 +51,7 @@ import { GuestProvider, useGuest } from "@/lib/guestContext";
 import { VillainModeProvider } from "@/lib/villainModeContext";
 import { SkinProvider } from "@/lib/skinContext";
 import { DarkModeProvider } from "@/lib/darkModeContext";
+import { CultivationShell } from "@/components/CultivationShell";
 import { Sidebar } from "@/components/Sidebar";
 import { isPreviewBypassActive } from "@/lib/previewBypass";
 
@@ -622,8 +623,8 @@ function ClerkProviderWithRoutes() {
       proxyUrl={clerkProxyUrl}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
-      afterSignInUrl={`${basePath}/portal`}
-      afterSignUpUrl={`${basePath}/portal`}
+      signInFallbackRedirectUrl={`${basePath}/portal`}
+      signUpFallbackRedirectUrl={`${basePath}/portal`}
       appearance={clerkAppearance}
       localization={{
         signIn: {
@@ -680,6 +681,7 @@ function ClerkProviderWithRoutes() {
           <ClerkQueryClientCacheInvalidator />
           <FolioSync />
           <TooltipProvider>
+            <CultivationShell />
             <SidebarWithRoute />
             <LevelUpListener />
             <Suspense fallback={<RouteFallback />}>

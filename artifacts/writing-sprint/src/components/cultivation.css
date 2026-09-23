@@ -1,0 +1,259 @@
+/* Optional cultivation skin. All rules are scoped; classic layouts remain available. */
+.cultivation-toggle { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:40px; padding:0 12px; border:1px solid #b7a785; border-radius:7px; background:#faf5e9; color:#58492f; font:500 13px Georgia,serif; cursor:pointer; transition:background .18s,color .18s,transform .18s; }
+.cultivation-toggle:hover { background:#efe4cc; }
+.cultivation-toggle:active { transform:scale(.96); }
+.cultivation-toggle-state { font:10px system-ui,sans-serif; text-transform:uppercase; letter-spacing:1px; opacity:.75; }
+.cultivation-toggle--floating { position:fixed; top:10px; right:18px; z-index:450; box-shadow:0 2px 10px #191d2520; }
+html[data-skin='cultivation'] {
+  --background:40 30% 94%; --foreground:215 16% 19%; --card:40 37% 95%; --card-foreground:215 16% 19%;
+  --popover:40 39% 96%; --popover-foreground:215 16% 19%; --primary:210 13% 20%; --primary-foreground:43 56% 88%;
+  --secondary:40 23% 87%; --secondary-foreground:215 16% 19%; --muted:40 20% 88%; --muted-foreground:215 9% 38%;
+  --accent:42 32% 83%; --accent-foreground:215 16% 19%; --border:39 28% 72%; --input:39 22% 76%; --ring:40 35% 48%;
+  --surface:#f7f1e6; --bg-solid:transparent; --bg-grid-color:transparent; --bg-orb1:none; --bg-orb2:none; --bg-orb3:none; --bg-ring1:transparent; --bg-ring2:transparent;
+  --navbar-bg:#202830ed; --navbar-border:#ae946357; --app-font-sans:Georgia,'Times New Roman',serif; --app-font-serif:'Cormorant Garamond',Georgia,serif;
+  --cultivation-paper:#f7f1e8; --cultivation-ink:#242c32; --cultivation-gold:#ad8c50; --cultivation-jade:#d4ddc7;
+}
+html[data-skin='cultivation'] body { background:#dce0df url('/cultivation/realm-portrait.png') center top / cover fixed no-repeat; color:#28303a; -webkit-font-smoothing:antialiased; }
+html[data-skin='cultivation'] body::before { content:''; position:fixed; inset:0; background:#f5f0e710; pointer-events:none; z-index:-1; }
+html[data-skin='cultivation'] :is(button,input,select,textarea) { font-family:Georgia,'Times New Roman',serif; }
+html[data-skin='cultivation'] :is(h1,h2,h3,h4) { font-family:'Cormorant Garamond',Georgia,serif; text-wrap:balance; }
+html[data-skin='cultivation'] :is(button,a,input,textarea,select):focus-visible { outline:2px solid #9c773f; outline-offset:4px; }
+html[data-skin='cultivation'] :is(button,a) { -webkit-tap-highlight-color:transparent; }
+html[data-skin='cultivation'] .app-navbar,.cultivation-header { height:66px!important; background:#202830ed!important; border-bottom:1px solid #b69b6b80!important; color:#efe2bd; box-shadow:0 3px 18px #12191e20!important; }
+html[data-skin='cultivation'] .app-navbar { z-index:400!important; }
+html[data-skin='cultivation'] .app-navbar > div:first-child > span { color:#f2e5c4!important; font-size:28px!important; font-family:'Cormorant Garamond',Georgia,serif!important; font-weight:600!important; }
+.cultivation-brand-feather { color:#e9d8ae; }
+.cultivation-navbar-motto,.cultivation-header>p { font:italic 14px Georgia,serif; color:#ddd6c4a8; margin-left:auto; margin-right:24px; }
+html[data-skin='cultivation'] .cultivation-toggle { background:#293239; color:#e8d8b4; border-color:#a98b5c; }
+html[data-skin='cultivation'] .cultivation-toggle:hover { background:#3c4242; }
+html[data-skin='cultivation'] .navbar-actions > button:last-child { width:40px!important; height:40px!important; border-color:#c4aa7f!important; color:#ead5ab!important; border-radius:50%!important; background:transparent!important; }
+.cultivation-header { position:fixed; inset:0 0 auto; z-index:400; display:flex; align-items:center; padding:0 24px; gap:16px; }
+.cultivation-brand { display:flex; align-items:center; gap:16px; color:#f2e5c4; text-decoration:none; font:600 28px 'Cormorant Garamond',Georgia,serif; white-space:nowrap; }
+.cultivation-header-actions { display:flex; align-items:center; gap:16px; }
+.cultivation-header-actions>a,.cultivation-header-actions>button { min-width:40px; min-height:40px; display:flex; align-items:center; justify-content:center; color:#e5d0a5; }
+/* Full-height ink navigation, matching the reference rail. */
+html[data-skin='cultivation'] .sb,html[data-skin='cultivation'] .sb:hover { top:66px; bottom:0; left:0; transform:none; width:112px; border-radius:0; background:#1e272de8; border:0; border-right:1px solid #b59a6880; box-shadow:none; padding:28px 8px 20px; gap:5px; overflow-y:auto; scrollbar-width:none; z-index:350; }
+html[data-skin='cultivation'] .sb-logo { display:none; }
+html[data-skin='cultivation'] .ni { flex-direction:column; gap:9px; width:100%; min-height:66px; padding:10px 5px; border-radius:3px; color:#d8d4c8; flex-shrink:0; }
+html[data-skin='cultivation'] .ni:hover { background:#ffffff0a; color:#f3e3bb; }
+html[data-skin='cultivation'] .ni.active { background:#e8d3a50c; color:#f6e2ad; box-shadow:inset 2px 0 #d2b476,0 0 20px #dec28a0b; }
+html[data-skin='cultivation'] .ni-ico,html[data-skin='cultivation'] .sb:hover .ni-ico { width:27px; height:27px; margin:0; }
+html[data-skin='cultivation'] .ni-ico svg { width:27px; height:27px; stroke-width:1.25; }
+html[data-skin='cultivation'] .ni-lbl,html[data-skin='cultivation'] .sb:hover .ni-lbl { opacity:1; width:auto; font:14px Georgia,serif; }
+html[data-skin='cultivation'] .sb-sep { background:#b79b6b42; }
+html[data-skin='cultivation'] .sb-foot { border:1px solid #b89c67; background:transparent; color:#ead5a9; min-height:42px; width:42px; margin-top:20px; }
+/* Portal composition follows the supplied 1144 x 1375 reference. */
+html[data-skin='cultivation'] .portal-background { background:transparent!important; }
+html[data-skin='cultivation'] .portal-content { margin-left:112px; padding-top:132px!important; padding-bottom:200px!important; overflow:visible!important; min-height:100vh!important; }
+html[data-skin='cultivation'] .portal-fade-up { width:540px!important; max-width:calc(100vw - 160px)!important; padding:0 8px!important; font-family:Georgia,serif!important; animation:none; }
+html[data-skin='cultivation'] .portal-symbol { display:none!important; }
+html[data-skin='cultivation'] .portal-heading { margin:0 -26px 20px!important; }
+html[data-skin='cultivation'] .portal-heading h1 { width:100%; font-size:80px!important; line-height:1!important; }
+html[data-skin='cultivation'] .portal-heading h1 img { width:100%; height:174px; object-fit:contain; transform:scale(1.12); transform-origin:center; }
+html[data-skin='cultivation'] .portal-heading p { font:15px/1.65 Georgia,serif!important; font-weight:400!important; text-transform:uppercase; letter-spacing:3.6px!important; max-width:390px; margin:0 auto!important; color:#263046!important; }
+html[data-skin='cultivation'] .cultivation-verse { display:flex; align-items:center; justify-content:center; gap:15px; margin:20px -3px 30px; white-space:nowrap; font:italic 15px Georgia,serif; color:#344053; }
+html[data-skin='cultivation'] .cultivation-verse::before,html[data-skin='cultivation'] .cultivation-verse::after { content:''; width:65px; height:1px; background:#b59b6d70; }
+html[data-skin='cultivation'] .portal-guest-banner { min-height:50px; border:1px solid #c9ae79!important; border-radius:8px!important; background:#f8f0dfdb!important; margin:0 0 22px!important; padding:10px 20px!important; box-shadow:inset 0 0 0 4px #e7dac348; }
+html[data-skin='cultivation'] .portal-guest-banner p { font-size:16px!important; color:#7e572e!important; }
+html[data-skin='cultivation'] .portal-guest-banner button { font-size:16px!important; color:#65401f!important; }
+html[data-skin='cultivation'] .portal-account { margin:22px 12px 0!important; min-height:53px; padding:0 6px!important; }
+html[data-skin='cultivation'] .portal-account > button { color:#2e3642!important; font-family:Georgia,serif!important; font-size:16px!important; }
+html[data-skin='cultivation'] .portal-account button[data-state] { background:#f7f2e8ef!important; border:1px solid #bdb3a1!important; border-radius:28px 28px 0 0!important; padding:11px 35px!important; min-height:51px; box-shadow:0 -2px 8px #1c253012!important; }
+html[data-skin='cultivation'] .portal-tabs { position:relative; padding:15px 36px 13px!important; margin:0!important; border:1px solid #b69b6b!important; border-bottom:0!important; border-radius:10px 10px 0 0!important; background:#f5efe3ef!important; backdrop-filter:none!important; }
+html[data-skin='cultivation'] .portal-tabs button { min-height:45px; border-radius:8px!important; font:16px Georgia,serif!important; color:#344052!important; background:#eee9e0!important; box-shadow:inset 0 1px 2px #82796518!important; }
+html[data-skin='cultivation'] .portal-tabs button[aria-selected='true'] { background:#283138!important; color:#f7e8c7!important; box-shadow:0 0 0 1px #a88c55,inset 0 0 10px #080e1740!important; }
+html[data-skin='cultivation'] .portal-session { position:relative; padding:18px 48px 40px!important; border:1px solid #b69b6b!important; border-top:0!important; border-radius:0 0 7px 7px!important; background:#f7f1e8f2 url('/cultivation/panel.png') center / 100% 100% no-repeat!important; backdrop-filter:none!important; box-shadow:0 14px 45px #1b263528,inset 0 0 0 10px #f7f2e873!important; }
+html[data-skin='cultivation'] .portal-session-badge { background:#dce4cd!important; border-color:#c6d0b6!important; color:#354838!important; margin-bottom:14px!important; padding:5px 12px!important; font:12px Georgia,serif!important; letter-spacing:.2px!important; }
+html[data-skin='cultivation'] .portal-badge-dot { background:#526c43!important; box-shadow:none!important; }
+html[data-skin='cultivation'] .portal-session-title { font:700 34px/1.1 Georgia,'Times New Roman',serif!important; margin-bottom:6px!important; color:#161a1d!important; }
+html[data-skin='cultivation'] .portal-session-title+div { font:17px Georgia,serif!important; margin-bottom:24px!important; }
+html[data-skin='cultivation'] .portal-join-toggle { background:#e9e4dc!important; padding:2px!important; border-radius:11px!important; margin-bottom:19px!important; }
+html[data-skin='cultivation'] .portal-join-toggle button { min-height:47px; font:16px Georgia,serif!important; }
+html[data-skin='cultivation'] .portal-join-toggle button[aria-pressed='true'],html[data-skin='cultivation'] .portal-session [role='radio'][aria-checked='true'] { background:#283138!important; color:#f4e5c7!important; box-shadow:inset 0 0 0 1px #bda577,0 2px 6px #26314020!important; }
+html[data-skin='cultivation'] .portal-session [role='radiogroup'] { padding:2px!important; border-radius:10px!important; background:#f0ebe3!important; border-color:#c8c0b2!important; }
+html[data-skin='cultivation'] .portal-session [role='radio'] { min-height:43px; font:16px Georgia,serif!important; }
+html[data-skin='cultivation'] .portal-session [role='radiogroup']+div { color:#586273!important; font-size:13px!important; line-height:1.5!important; margin:10px 0 18px!important; }
+html[data-skin='cultivation'] .portal-session input { background:#f1ede7b8!important; border-color:#c3b9a7!important; min-height:50px; border-radius:9px!important; font-family:Georgia,serif!important; color:#26303c!important; }
+html[data-skin='cultivation'] .portal-enter { min-height:62px; border:1px solid #b4965e!important; border-radius:32px!important; background:#273139!important; color:#f8edcf!important; box-shadow:inset 0 0 0 3px #d1b77940,0 4px 8px #303a4320!important; font:600 24px 'Cormorant Garamond',Georgia,serif!important; }
+html[data-skin='cultivation'] .portal-enter:disabled { opacity:.78; }
+html[data-skin='cultivation'] .portal-enter:not(:disabled):hover { background:#374346!important; }
+/* Shared paper, ink and jade treatment throughout existing routes. */
+html[data-skin='cultivation']:not([data-cultivation-page='portal']):not([data-cultivation-page='room']) #root { padding:90px 32px 40px 144px; min-height:100vh; }
+html[data-skin='cultivation'] :is(.bg-card,.bg-popover,[data-slot='card'],[role='dialog'],[role='menu']) { background-color:#f8f2e8!important; border-color:#baa477!important; box-shadow:0 5px 24px #29323c15; }
+html[data-skin='cultivation'] :is(.bg-background,.bg-white) { background-color:#f7f1e8f0!important; }
+html[data-skin='cultivation'] :is(.bg-primary,.bg-blue-500,.bg-blue-600) { background-color:#303b3c!important; color:#f2e4c5!important; }
+html[data-skin='cultivation'] :is(.bg-muted,.bg-secondary) { background-color:#e9e1d4!important; }
+html[data-skin='cultivation'] :is(.text-blue-500,.text-blue-600,.text-indigo-500,.text-violet-500) { color:#6f7550!important; }
+html[data-skin='cultivation'] :is(.fp,.g-page) { background:#f8f3e9ed!important; border:1px solid #bba273; border-radius:8px; }
+html[data-skin='cultivation'] :is(.fp-card,.fp-results,.fp-empty,.g-card) { background:#faf6ef!important; border-color:#d0bf9f!important; color:#293239!important; }
+/* These workspaces define local color tokens; override the actual scopes so
+   their dark-mode rules and editor controls use one readable paper palette. */
+html[data-skin='cultivation'] :is(.folio-root,.cw-list-root,.cw-room-root) {
+  --bg:#f4eddf; --surface:#fbf6eb; --surface-hover:#eee4d1;
+  --border:#cbb88f; --border-light:#e5d9c1;
+  --text-primary:#293239; --text-secondary:#665f50; --text-muted:#766d5a;
+  --accent:#78633d; --accent-light:#eae1c9; --accent-hover:#4b584e;
+  --sidebar-bg:#e9e1d0; --sidebar-active:#d9ceb5;
+  --danger:#a73529; --danger-light:#f7e8df;
+}
+html[data-skin='cultivation'] .folio-root { top:66px; }
+html[data-skin='cultivation'] :is(.folio-topbar,.editor-topbar,.cw-list-topbar,.cw-room-topbar) { background:var(--surface)!important; border-color:var(--border)!important; }
+html[data-skin='cultivation'] :is(.folio-root .home-view,.folio-root .editor-body,.folio-root .cn-sidebar,.folio-root .nncards-sidebar) { background:var(--bg)!important; color:var(--text-primary)!important; }
+html[data-skin='cultivation'] :is(.folio-root .topbar-search-results,.folio-root .nnmodal,.folio-root .welcome-panel-icon,.folio-root .home-proj-card) { background:var(--surface)!important; border-color:var(--border)!important; color:var(--text-primary)!important; }
+html[data-skin='cultivation'] :is(.folio-root .btn-primary,.folio-root .sprint-primary-btn,.folio-root .sprint-enter-btn,.cw-btn-primary) { background:#303c3a!important; color:#f6e8c9!important; border-color:#a48b57!important; }
+html[data-skin='cultivation'] .folio-root .topbar-logo { background-image:none; color:#685434; }
+html[data-skin='cultivation'] .folio-root .sidebar-novel-notes-btn { background:#eae1c9!important; color:#665439!important; border-color:#cbb88f!important; }
+html[data-skin='cultivation'] .folio-root .sidebar-novel-notes-btn svg { color:inherit!important; }
+html[data-skin='cultivation'] .fp :is(.fp-title,.fp-name,.fp-result-name,.fp-back:hover) { color:#293239!important; }
+html[data-skin='cultivation'] .fp :is(.fp-sub,.fp-back,.fp-sec-label,.fp-empty-text,.fp-loading,.fp-connected,.fp-btn) { color:#6e6556!important; }
+html[data-skin='cultivation'] .fp :is(.fp-search-input,.fp-sec-count,.fp-title-badge,.fp-icon-wrap) { background:#ece3d2!important; color:#5d6047!important; border-color:#cbb88f!important; }
+html[data-skin='cultivation'] .fp .fp-search-input::placeholder { color:#776e5d!important; }
+html[data-skin='cultivation'] .fp .fp-sec-line { background:#cbb88f; }
+html[data-skin='cultivation'] .gp { --gp-bg-primary:#fbf6eb; --gp-bg-secondary:#f1e9da; --gp-bg-tertiary:#e8dfcd; --gp-text-primary:#293239; --gp-text-secondary:#665f50; --gp-text-tertiary:#766d5a; --gp-border:#cbb88f; --gp-gold:#ad8c50; --gp-gold-deep:#796139; }
+/* Ranking's legacy design used white lettering on its body even in light mode. */
+html[data-skin='cultivation'][data-cultivation-page='global-ranking'] #root .bg-background > .flex-1 :is([class*='text-white'],.truncate) { color:#293239!important; }
+html[data-skin='cultivation'][data-cultivation-page='global-ranking'] #root .bg-background > .flex-1 [class*='text-fuchsia'] { color:#76603d!important; }
+html[data-skin='cultivation'][data-cultivation-page='co-writing'] #root { padding-left:32px; }
+html[data-skin='cultivation']:is([data-cultivation-page='quests'],[data-cultivation-page='chests']) #root div.bg-gradient-to-br { background:#f7f1e8!important; color:#293239; border-color:#c4ae82!important; }
+html[data-skin='cultivation'][data-cultivation-page='quests'] #root :is([class*='dark:text-purple-400'],[class*='dark:text-amber-400']) { color:#796139!important; }
+html[data-skin='cultivation'][data-cultivation-page='quests'] #root [class*='dark:text-emerald-400'] { color:#426548!important; }
+html[data-skin='cultivation'] [aria-label='Local demo session'] { background:#f4ead8!important; color:#5b513e!important; border-color:#b8a17a!important; left:124px!important; }
+html[data-skin='cultivation'][data-cultivation-page='room'] [aria-label='Local demo session'] { left:12px!important; }
+html[data-skin='cultivation'][data-cultivation-page='room'] .cultivation-toggle--floating { top:auto; bottom:12px; right:12px; }
+html[data-skin='cultivation'] [data-skin='cultivation'] { color:inherit; }
+html[data-skin='cultivation'].dark { --foreground:215 16% 19%; --card-foreground:215 16% 19%; --popover-foreground:215 16% 19%; --muted-foreground:215 9% 38%; }
+html[data-skin='cultivation'].dark body { background-blend-mode:multiply; background-color:#667078; }
+/* Skin respects narrow screens without changing the writing room geometry. */
+@media(min-height:1000px) { html[data-skin='cultivation'] .sb { padding-top:165px; gap:16px; } html[data-skin='cultivation'] .ni { min-height:76px; } }
+@media(max-width:900px) { .cultivation-navbar-motto,.cultivation-header>p { display:none; } html[data-skin='cultivation'] .navbar-actions [aria-haspopup='menu'] { display:none; } html[data-skin='cultivation'] .portal-content { padding-top:105px!important; } html[data-skin='cultivation'] .portal-heading h1 img { height:145px; } }
+@media(max-width:700px) {
+ html[data-skin='cultivation'] .sb,html[data-skin='cultivation'] .sb:hover { width:88px; padding-top:22px; transform:translateX(-100%); } html[data-skin='cultivation'] .sb.sb-open { transform:translateX(0); }
+ html[data-skin='cultivation'] .sb-toggle { display:flex; z-index:500; top:14px; left:12px; background:#283239; color:#e7d4aa; border-color:#b59a6a; }
+ html[data-skin='cultivation'] .app-navbar,.cultivation-header { padding:0 14px 0 58px!important; }
+ html[data-skin='cultivation'] .app-navbar>div:first-child>span,.cultivation-brand span { font-size:20px!important; }
+ html[data-skin='cultivation'] .cultivation-brand-feather,.cultivation-brand>svg { display:none; }
+ .cultivation-toggle { padding:0 8px; gap:5px; } .cultivation-toggle-state { display:none; }
+ html[data-skin='cultivation'] .navbar-actions { gap:6px!important; } html[data-skin='cultivation'] .navbar-actions>button:last-child { display:none; }
+ html[data-skin='cultivation'] .portal-content { margin-left:0; padding-top:106px!important; padding-bottom:120px!important; }
+ html[data-skin='cultivation'] .portal-fade-up { width:calc(100% - 32px)!important; max-width:540px!important; padding:0!important; }
+ html[data-skin='cultivation'] .portal-heading { margin:0 0 15px!important; } html[data-skin='cultivation'] .portal-heading h1 img { height:110px; }
+ html[data-skin='cultivation'] .portal-heading p { font-size:11px!important; letter-spacing:2.5px!important; max-width:300px; }
+ html[data-skin='cultivation'] .cultivation-verse { font-size:12px; gap:7px; margin:16px 0 24px; } html[data-skin='cultivation'] .cultivation-verse::before,html[data-skin='cultivation'] .cultivation-verse::after { width:24px; }
+ html[data-skin='cultivation'] .portal-session { padding:26px 23px 30px!important; } html[data-skin='cultivation'] .portal-tabs { padding:13px 18px!important; } html[data-skin='cultivation'] .portal-tabs button { font-size:13px!important; }
+ html[data-skin='cultivation'] .portal-guest-banner { padding:8px 10px!important; gap:8px!important; } html[data-skin='cultivation'] .portal-guest-banner p,html[data-skin='cultivation'] .portal-guest-banner button { font-size:12px!important; }
+ html[data-skin='cultivation'] .portal-session-title { font-size:32px!important; }
+ html[data-skin='cultivation']:not([data-cultivation-page='portal']):not([data-cultivation-page='room']) #root { padding:86px 12px 32px; }
+ html[data-skin='cultivation'] [aria-label='Local demo session'] { left:10px!important; font-size:10px!important; bottom:8px!important; }
+ .cultivation-header-actions { gap:8px; } .cultivation-header-actions>a { display:none; } .cultivation-header-actions>button:last-child { display:none; }
+}
+@media(prefers-reduced-motion:reduce) { html[data-skin='cultivation'] *,html[data-skin='cultivation'] *::before,html[data-skin='cultivation'] *::after { animation-duration:.01ms!important; animation-iteration-count:1!important; scroll-behavior:auto!important; } }
+html[data-skin='cultivation'] .ni-ico > svg:not(.cultivation-nav-icon) { display:none; }
+html[data-skin='cultivation'] .cultivation-demo-banner { display:flex; align-items:center; gap:12px; min-height:50px; padding:10px 22px; border:1px solid #c7aa74; border-radius:8px; background:#f8efdedb; color:#7b5b35; font:15px Georgia,serif; box-shadow:inset 0 0 0 4px #e8d5ab28; margin:0 0 20px; }
+@media(max-width:700px) { html[data-skin='cultivation'] .cultivation-demo-banner { font-size:12px; padding:9px 13px; gap:8px; } }
+/* Existing inline paper surfaces are recolored without touching their geometry. */
+html[data-skin='cultivation'] #root [style*='background: rgba(255, 255, 255']:not(button):not(input):not([contenteditable]):not(.race-track):not(.race-track *) { background-color:#f7f1e8f2!important; border-color:#c9b994!important; box-shadow:0 4px 20px #29313b12!important; }
+html[data-skin='cultivation'] #root [style*='background: rgba(255,255,255']:not(button):not(input):not([contenteditable]):not(.race-track):not(.race-track *) { background-color:#f7f1e8f2!important; border-color:#c9b994!important; box-shadow:0 4px 20px #29313b12!important; }
+html[data-skin='cultivation'] #root [style*='DM Sans']:not([contenteditable]):not([contenteditable] *):not(textarea) { font-family:Georgia,'Times New Roman',serif!important; }
+html[data-skin='cultivation'][data-cultivation-page='room'] .ws-room-sidebar button { background-image:none!important; border-color:#b9a17a!important; }
+html[data-skin='cultivation'][data-cultivation-page='room'] .ws-room-sidebar button[style*='linear-gradient'] { background:#303b3c!important; color:#f2e4c5!important; }
+html[data-skin='cultivation'][data-cultivation-page='room'] [contenteditable='true'] { color:#29313a!important; caret-color:#8b6230!important; }
+html[data-skin='cultivation'][data-cultivation-page='room'] .race-track { border-color:#a68a57!important; box-shadow:0 6px 24px #24323924!important; }
+html[data-skin='cultivation'][data-cultivation-page='room'] .ws-room-shell > .tracking-wide { background:#293338!important; color:#e4d1a4!important; border-color:#a68a57!important; text-shadow:none!important; }
+html[data-skin='cultivation'] :is(.boss-arena,.gladiator-arena) { border-color:#bda477!important; }
+html[data-skin='cultivation'][data-cultivation-page='my-files'] #root { padding:66px 0 0!important; }
+html[data-skin='cultivation'][data-cultivation-page='novel-notes'] #root { padding:66px 0 0!important; }
+html[data-skin='cultivation'][data-cultivation-page='novel-notes'] #root > div:has(> iframe[title='Novel Notes']) { height:calc(100dvh - 66px)!important; }
+html[data-skin='cultivation'].dark :is(.portal-session,.portal-tabs,.portal-heading,.cultivation-verse,.portal-account) { --color-foreground:#28303a; --color-muted-foreground:#586273; }
+@media(max-width:700px) { html[data-skin='cultivation'][data-cultivation-page='novel-notes'] #root { padding:66px 0 0!important; } }
+
+html[data-cultivation-page='room'] .cultivation-toggle--floating { top:auto; bottom:12px; right:12px; }
+@media(min-aspect-ratio:6/5) { html[data-skin='cultivation'] body { background-image:url('/cultivation/realm-wide.png'); } }
+html[data-skin='cultivation'] [role='dialog'] { z-index:600; }
+@media(min-width:901px) { html[data-skin='cultivation'] .portal-content { margin-right:80px; } }
+html[data-skin='cultivation'] .portal-heading h1 img { height:154px; }
+html[data-skin='cultivation'] .portal-session { padding-bottom:30px!important; }
+html[data-skin='cultivation'] .portal-session-title+div { margin-bottom:20px!important; }
+html[data-skin='cultivation'] .portal-session input[aria-label='Room code'] { margin-bottom:18px!important; }
+html[data-skin='cultivation'] .cultivation-role-icon { display:inline-block; vertical-align:middle; margin-right:10px; }
+@media(max-width:900px) { html[data-skin='cultivation'] .portal-heading h1 img { height:145px; } }
+@media(max-width:700px) { html[data-skin='cultivation'] .portal-heading h1 img { height:110px; } }
+html[data-skin='cultivation'] .cultivation-sidebar-footer { margin-top:auto; padding:28px 0 6px; display:flex; flex-direction:column; gap:16px; align-items:center; }
+.cultivation-sidebar-footer > :is(a,button) { width:46px; height:46px; border:1px solid #bba16a; color:#e8d6a8; border-radius:50%; display:grid; place-items:center; }
+@media(min-height:1000px) { html[data-skin='cultivation'] .sb.cultivation-sidebar { padding-top:166px; gap:34px; } html[data-skin='cultivation'] .cultivation-sidebar .ni { min-height:76px; } }
+html[data-skin='cultivation'] .portal-enter,html[data-skin='cultivation'] .portal-enter:not(:disabled):hover { background:transparent url('/cultivation/ink-button.png') center / 104% 225% no-repeat!important; border:0!important; box-shadow:0 4px 12px #1b23231f!important; color:#f6e6c3!important; }
+html[data-skin='cultivation'] .portal-enter:disabled { opacity:.94; }
+
+.cultivation-sidebar-footer > button { background:transparent; cursor:pointer; }
+.cultivation-more-navigation { position:fixed; left:100px; bottom:140px; width:190px; padding:8px; background:#263137; border:1px solid #bba16a; border-radius:8px; box-shadow:0 8px 25px #121b2845; }
+.cultivation-more-navigation a { display:flex; align-items:center; gap:12px; color:#eee0bc; padding:12px; border-radius:4px; font:15px Georgia,serif; }
+.cultivation-more-navigation a:hover { background:#e9d9b517; }
+.cultivation-more-navigation svg { width:22px; height:22px; }
+@media(max-width:700px) { .cultivation-more-navigation { left:78px; bottom:115px; } }
+
+/* Library landing and its selected Folio workspace share the same ink palette. */
+html[data-skin='cultivation'] .mf-home { min-height:calc(100dvh - 66px); background:transparent; color:#293239; font-family:Georgia,'Times New Roman',serif; }
+html[data-skin='cultivation'] .mf-home .mf-orb { display:none; }
+html[data-skin='cultivation'] .mf-home-hero { padding:26px 18px; background:rgba(247,241,229,.68); border-radius:5px; box-shadow:0 8px 36px #2630390a; }
+html[data-skin='cultivation'] .mf-brand-icon { background:#303c3c; border:1px solid #a88b54; border-radius:5px; box-shadow:0 3px 10px #29333714; }
+html[data-skin='cultivation'] .mf-brand-icon svg { stroke:#e4d2a9; }
+html[data-skin='cultivation'] .mf-home-brand-name { color:#786340; font-family:Georgia,'Times New Roman',serif; }
+html[data-skin='cultivation'] .mf-home-heading { color:#273035; text-shadow:none; letter-spacing:-.025em; font-family:'Cormorant Garamond',Georgia,serif; font-weight:600; }
+html[data-skin='cultivation'] .mf-home-sub { color:#625d4e; font-weight:400; }
+html[data-skin='cultivation'] .mf-home-stats { color:#5e6554; background:#e2e6d4e8; border-color:#b9c0a3; backdrop-filter:none; font-variant-numeric:tabular-nums; }
+html[data-skin='cultivation'] .mf-stat-dot { background:#7f8967; }
+html[data-skin='cultivation'] .mf-card { background:#f7f1e8ed url('/cultivation/panel.png') center / 100% 100% no-repeat; border:1px solid #bca170; border-radius:6px; box-shadow:0 5px 20px #29323a12; backdrop-filter:none; animation:none; }
+html[data-skin='cultivation'] .mf-card:hover { transform:translateY(-3px); border-color:#8d7249; box-shadow:0 10px 28px #29323a23; }
+html[data-skin='cultivation'] .mf-card:active { transform:scale(.96); }
+html[data-skin='cultivation'] .mf-card-shine { display:none; }
+html[data-skin='cultivation'] .mf-card-icon-wrap { background:#e4e5d6; border:1px solid #c3c2a5; color:#657050; border-radius:7px; box-shadow:0 2px 6px #3d432610; }
+html[data-skin='cultivation'] .mf-card-icon-wrap svg { stroke:currentColor; }
+html[data-skin='cultivation'] .mf-card:hover .mf-card-icon-wrap { background:#d9dfc8; transform:none; }
+html[data-skin='cultivation'] .mf-card-chip { color:#7b6848; }
+html[data-skin='cultivation'] .mf-card-name { color:#293238; text-shadow:none; font-family:'Cormorant Garamond',Georgia,serif; font-size:30px; font-weight:600; }
+html[data-skin='cultivation'] .mf-card-blurb { color:#665f51; }
+html[data-skin='cultivation'] .mf-card-foot { color:#766b56; border-color:#c6b792; }
+html[data-skin='cultivation'] .mf-card-arr,html[data-skin='cultivation'] .mf-card:hover .mf-card-arr { color:#76613c; }
+html[data-skin='cultivation'] .mf-section { padding:20px; background:#f7f1e8eb; border:1px solid #c5ae83; border-radius:6px; }
+html[data-skin='cultivation'] .mf-section-hd { border-color:#cec1a4; }
+html[data-skin='cultivation'] .mf-section-label { color:#6e6048; }
+html[data-skin='cultivation'] .mf-section-btn { color:#685232; min-height:40px; padding:0 10px; }
+html[data-skin='cultivation'] .mf-section-btn:hover { color:#293c31; }
+html[data-skin='cultivation'] .mf-proj-tile { background:#eee7d8; border-color:#cdbf9e; border-radius:5px; backdrop-filter:none; transition:background-color .18s,border-color .18s,transform .18s; }
+html[data-skin='cultivation'] .mf-proj-tile:hover { background:#e8e1cf; border-color:#9d875d; box-shadow:0 4px 12px #2933370c; }
+html[data-skin='cultivation'] .mf-proj-initial { background:#39453e!important; color:#e9d5a5; border:1px solid #b49a63; border-radius:5px; box-shadow:none; }
+html[data-skin='cultivation'] :is(.mf-proj-name,.mf-recent-name) { color:#293239; }
+html[data-skin='cultivation'] .mf-proj-meta { color:#756b58; }
+html[data-skin='cultivation'] :is(.mf-proj-go,.mf-recent-go,.mf-proj-tile:hover .mf-proj-go,.mf-recent-tile:hover .mf-recent-go) { color:#856a3e; }
+html[data-skin='cultivation'] .mf-recent-tile { border-radius:4px; transition:background-color .18s,border-color .18s; }
+html[data-skin='cultivation'] .mf-recent-tile:hover { background:#eae3d2; border-color:#c6b791; }
+html[data-skin='cultivation'] .mf-recent-tile:hover .mf-recent-name { color:#354b3b; }
+html[data-skin='cultivation'] .mf-recent-proj { color:#6a614e; background:#e9e1cf; border-color:#cbbd9b; }
+html[data-skin='cultivation'] .mf-recent-dot { box-shadow:none; }
+html[data-skin='cultivation'] .folio-root .folio-sidebar { background:var(--sidebar-bg); }
+html[data-skin='cultivation'] .folio-root :is(.writing-toolbar,.editor-controls-pill,.editor-paper) { background:var(--surface); border-color:var(--border); box-shadow:0 3px 14px #292e2410; }
+html[data-skin='cultivation'] .folio-root .editor-paper { border-radius:5px; }
+html[data-skin='cultivation'] .folio-root .today-badge--done,html[data-skin='cultivation'] .folio-root .today-badge--done :is(strong,svg) { color:#426548; }
+@media(max-width:700px) {
+  html[data-skin='cultivation'] .navbar-actions > :not(.cultivation-toggle) { display:none!important; }
+  html[data-skin='cultivation'] .mf-home { padding:28px 18px 80px; }
+  html[data-skin='cultivation'] .mf-home-inner { gap:32px; }
+  html[data-skin='cultivation'] .mf-home-hero { padding:22px 12px; }
+  html[data-skin='cultivation'] .mf-home-stats { padding:8px 11px; font-size:10px; gap:7px; flex-wrap:wrap; justify-content:center; }
+  html[data-skin='cultivation'] .mf-section { padding:15px; }
+}
+
+.cultivation-marginalia { position:absolute; inset:0; pointer-events:none; z-index:0; color:#37414ab0; font:24px/1.6 'STKaiti','KaiTi',serif; }
+.cultivation-marginalia > span { position:absolute; writing-mode:vertical-rl; letter-spacing:7px; }
+.cultivation-marginalia > span:first-child { left:18.5%; top:545px; }
+.cultivation-marginalia > span:last-child { right:3.5%; top:420px; }
+.cultivation-card-inscription { position:absolute; right:27px; top:22px; color:#777970; font:italic 18px/1.2 'Cormorant Garamond',Georgia,serif; transform:rotate(-9deg); text-align:center; pointer-events:none; }
+@media(max-width:1000px) { .cultivation-marginalia { display:none; } }
+@media(max-width:700px) { .cultivation-card-inscription { display:none; } }
+html[data-skin='cultivation'] .portal-room-code-field { position:relative; }
+.cultivation-room-code-icon { position:absolute; left:18px; top:13px; width:25px; height:25px; color:#687078; pointer-events:none; }
+html[data-skin='cultivation'] .portal-session-title { font-family:'Times New Roman',Georgia,serif!important; }
+html[data-skin='cultivation'] .ranking-header { background:#293338!important; border-color:#a68a57!important; }
+html[data-skin='cultivation'] .ranking-header :is(h1,p,button,svg) { color:#e5d4ad!important; }
+html[data-skin='cultivation'] .ranking-header [style*='linear-gradient'] { background:#49544b!important; }
+html[data-skin='cultivation'][data-cultivation-page='global-ranking'] ol li { background:#ede9dd!important; border-color:#c8b78f!important; }
+html[data-skin='cultivation'][data-cultivation-page='global-ranking'] .bg-gradient-to-r { background:linear-gradient(90deg,#6e8065,#b5bb8a)!important; }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { SignInButton, SignUpButton } from "@clerk/react";
+import { SignInButton, SignUpButton } from "@/lib/auth";
 import { ArrowRight, Zap, Users, BookOpen, UserRound, WifiOff, Lock, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useGuest } from "@/lib/guestContext";

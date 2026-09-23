@@ -1,6 +1,7 @@
+import { isDemoSession } from "@/lib/demoSession";
 import { useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -21,9 +22,9 @@ export default function NovelNotes() {
   useEffect(() => {
     if (!isSignedIn) return;
     getToken().then((token) => {
-      if (!token) return;
+      if (!token && !isDemoSession()) return;
       fetch(`${basePath}/api/novel-notes`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       })
         .then((r) => r.json())
         .then((d) => {
@@ -49,10 +50,10 @@ export default function NovelNotes() {
         goBack();
       } else if (msg.type === "nn:save" && isSignedIn) {
         getToken().then((token) => {
-          if (!token) return;
+          if (!token && !isDemoSession()) return;
           fetch(`${basePath}/api/novel-notes`, {
             method: "PUT",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             body: JSON.stringify({ nnData: msg.data }),
           }).catch(() => {});
         });
@@ -70,7 +71,7 @@ export default function NovelNotes() {
     <div style={{ height: "100dvh", overflow: "hidden" }}>
       <iframe
         ref={iframeRef}
-        src="/novel-notes.html"
+        src={`${basePath}/novel-notes.html${isDemoSession() ? "?demo=1" : ""}`}
         style={{ width: "100%", height: "100%", border: "none", display: "block" }}
         title="Novel Notes"
       />

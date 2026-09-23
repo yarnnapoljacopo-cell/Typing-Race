@@ -1,3 +1,4 @@
+import { demoStorageKey, isDemoSession } from "@/lib/demoSession";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import SprintPopup from "./SprintPopup";
@@ -747,7 +748,7 @@ function applyModeToPMyFiles(p: HTMLElement, mode: string): void {
 
 function loadRecent(): RecentEntry[] {
   try {
-    return JSON.parse(localStorage.getItem("folio_recent") || "[]");
+    return JSON.parse(localStorage.getItem(demoStorageKey("folio_recent")) || "[]");
   } catch {
     return [];
   }
@@ -1062,19 +1063,19 @@ export default function MyFiles() {
 
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [paragraphMode, setParagraphMode] = useState<"none" | "indent" | "double">("none");
-  const [fontSize, setFontSize] = useState(() => parseInt(localStorage.getItem("folio_font_size") || "16", 10));
+  const [fontSize, setFontSize] = useState(() => parseInt(localStorage.getItem(demoStorageKey("folio_font_size")) || "16", 10));
   const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
 
   // Daily goal
   const [dailyGoal, setDailyGoal] = useState<number>(() =>
-    parseInt(localStorage.getItem("folio_daily_goal") || "500", 10),
+    parseInt(localStorage.getItem(demoStorageKey("folio_daily_goal")) || "500", 10),
   );
   const [dailyDate, setDailyDate] = useState<string>(
-    () => localStorage.getItem("folio_daily_date") || todayStr(),
+    () => localStorage.getItem(demoStorageKey("folio_daily_date")) || todayStr(),
   );
   const [dailyWords, setDailyWords] = useState<number>(() => {
-    const saved = parseInt(localStorage.getItem("folio_daily_words") || "0", 10);
-    const stored = localStorage.getItem("folio_daily_date") || "";
+    const saved = parseInt(localStorage.getItem(demoStorageKey("folio_daily_words")) || "0", 10);
+    const stored = localStorage.getItem(demoStorageKey("folio_daily_date")) || "";
     return stored !== todayStr() ? 0 : saved;
   });
 
@@ -1098,7 +1099,7 @@ export default function MyFiles() {
 
   // Grammar check state
   const [ltEnabled, setLtEnabled] = useState<boolean>(() => {
-    const stored = localStorage.getItem("folio_grammar_enabled");
+    const stored = localStorage.getItem(demoStorageKey("folio_grammar_enabled"));
     return stored === null ? true : stored === "true";
   });
 
@@ -1208,7 +1209,7 @@ export default function MyFiles() {
     const skip = sessionStorage.getItem("mf_skip_home");
     if (skip) { sessionStorage.removeItem("mf_skip_home"); return false; }
     try {
-      const last = localStorage.getItem("folio_last_doc");
+      const last = localStorage.getItem(demoStorageKey("folio_last_doc"));
       if (last) {
         const parsed = JSON.parse(last) as { projectId?: string; docId?: string };
         if (parsed.projectId && parsed.docId) return false;
@@ -1229,7 +1230,7 @@ export default function MyFiles() {
     if (activeDocId) { restoredLastDocRef.current = true; return; }
     if (!state.projects.length) return; // wait for data
     try {
-      const last = localStorage.getItem("folio_last_doc");
+      const last = localStorage.getItem(demoStorageKey("folio_last_doc"));
       if (!last) { restoredLastDocRef.current = true; return; }
       const parsed = JSON.parse(last) as { projectId?: string; docId?: string };
       const proj = state.projects.find((p) => p.id === parsed.projectId);
@@ -1252,7 +1253,7 @@ export default function MyFiles() {
   useEffect(() => {
     if (activeProjectId && activeDocId) {
       try {
-        localStorage.setItem("folio_last_doc", JSON.stringify({ projectId: activeProjectId, docId: activeDocId }));
+        localStorage.setItem(demoStorageKey("folio_last_doc"), JSON.stringify({ projectId: activeProjectId, docId: activeDocId }));
       } catch { /* ignore quota errors */ }
     }
   }, [activeProjectId, activeDocId]);
@@ -1267,14 +1268,14 @@ export default function MyFiles() {
 
   // ── Persistence ─────────────────────────────────────────
   useEffect(() => {
-    localStorage.setItem("folio_recent", JSON.stringify(recentDocs));
+    localStorage.setItem(demoStorageKey("folio_recent"), JSON.stringify(recentDocs));
   }, [recentDocs]);
   useEffect(() => {
-    localStorage.setItem("daily_goal", String(dailyGoal));
+    localStorage.setItem(demoStorageKey("daily_goal"), String(dailyGoal));
   }, [dailyGoal]);
   useEffect(() => {
-    localStorage.setItem("folio_daily_words", String(dailyWords));
-    localStorage.setItem("folio_daily_date", dailyDate);
+    localStorage.setItem(demoStorageKey("folio_daily_words"), String(dailyWords));
+    localStorage.setItem(demoStorageKey("folio_daily_date"), dailyDate);
   }, [dailyWords, dailyDate]);
 
   // Reset daily count at midnight (on mount only; cheap)
@@ -1629,7 +1630,7 @@ export default function MyFiles() {
   }, [clearMarks]);
 
   useEffect(() => {
-    localStorage.setItem("folio_grammar_enabled", String(ltEnabled));
+    localStorage.setItem(demoStorageKey("folio_grammar_enabled"), String(ltEnabled));
     if (!ltEnabled) {
       if (ltTimerRef.current) clearTimeout(ltTimerRef.current);
       setLtStatus("idle");
@@ -2680,7 +2681,7 @@ export default function MyFiles() {
           saveCurrentDoc();
           // Clear the "last doc" marker — explicitly going home means the next
           // refresh should land on the picker, not back in the editor.
-          try { localStorage.removeItem("folio_last_doc"); } catch { /* ignore */ }
+          try { localStorage.removeItem(demoStorageKey("folio_last_doc")); } catch { /* ignore */ }
           setHomeView(true);
         }} />
         <div className="topbar-spacer" />
@@ -3090,7 +3091,7 @@ export default function MyFiles() {
         {novelNotesOpen && (
           <div className="nn-overlay">
             <iframe
-              src={`${import.meta.env.BASE_URL}novel-notes.html?src=folio`}
+              src={`${import.meta.env.BASE_URL}novel-notes.html?src=folio${isDemoSession() ? "&demo=1" : ""}`}
               className="nn-overlay-frame"
               title="Novel Notes"
             />
@@ -3326,7 +3327,7 @@ export default function MyFiles() {
                       // is selected. Previously this was the else-branch,
                       // which meant a stale savedRange would silently fail.
                       setFontSize(size);
-                      localStorage.setItem("folio_font_size", size.toString());
+                      localStorage.setItem(demoStorageKey("folio_font_size"), size.toString());
 
                       // 2) If text was selected (saved range from selectionchange),
                       // additionally wrap it in a span with the explicit size.

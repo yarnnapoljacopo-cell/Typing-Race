@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, UserPlus, UserCheck, UserX, Search, ExternalLink, Loader2, Users } from "lucide-react";
 import { getRankFromXp } from "@/lib/ranks";

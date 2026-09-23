@@ -3,6 +3,7 @@ import { getAuth } from "@clerk/express";
 import { pool } from "@workspace/db";
 import { grantXp } from "./bag";
 import { mutationLimiter } from "../lib/rateLimits";
+import { fuseInventory } from "../lib/fuseInventory";
 
 const router: IRouter = Router();
 
@@ -103,81 +104,12 @@ router.post("/user/crafting/fusion", mutationLimiter, async (req, res): Promise<
   const userId = auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { inventoryIds } = req.body ?? {};
-  if (!Array.isArray(inventoryIds) || inventoryIds.length !== 3) {
-    res.status(400).json({ error: "Select exactly 3 identical items" }); return;
-  }
-
   const client = await pool.connect();
   try {
-    // Fetch all 3 inventory records
-    const { rows: invRows } = await client.query(
-      `SELECT ui.id, ui.item_id, ui.quantity,
-              im.name, im.rarity, im.category, im.icon
-       FROM user_inventory ui
-       JOIN items_master im ON im.id = ui.item_id
-       WHERE ui.id = ANY($1::int[]) AND ui.user_id = $2`,
-      [inventoryIds, userId],
-    );
-
-    if (invRows.length !== 3) {
-      res.status(400).json({ error: "Items not found in your bag" }); return;
-    }
-
-    // All must be the same item
-    const uniqueNames = new Set(invRows.map(r => r.name));
-    if (uniqueNames.size !== 1) {
-      res.status(400).json({ error: "All 3 items must be identical" }); return;
-    }
-
-    const item = invRows[0];
-    const rarityIdx = RARITY_ORDER.indexOf(item.rarity);
-
-    // Fusion only works up to Epic → cannot produce Mythic or Legendary
-    if (rarityIdx < 0 || rarityIdx >= RARITY_ORDER.indexOf("epic")) {
-      res.status(400).json({ error: "Fusion cannot produce Mythic or Legendary items" }); return;
-    }
-
-    const targetRarity = RARITY_ORDER[rarityIdx + 1];
-
-    // Find a random item of the next rarity in the same category
-    const { rows: resultCandidates } = await client.query(
-      `SELECT id, name, icon, rarity FROM items_master
-       WHERE category = $1 AND rarity = $2 AND is_chest_obtainable = TRUE
-       ORDER BY RANDOM() LIMIT 1`,
-      [item.category, targetRarity],
-    );
-
-    if (resultCandidates.length === 0) {
-      res.status(400).json({ error: "No items of the next rarity exist in this category" }); return;
-    }
-
-    const result = resultCandidates[0];
-
-    // Consume 3 items (deduct quantity or delete)
-    for (const inv of invRows) {
-      if (inv.quantity > 1) {
-        await client.query(
-          `UPDATE user_inventory SET quantity = quantity - 1 WHERE id = $1`,
-          [inv.id],
-        );
-      } else {
-        await client.query(`DELETE FROM user_inventory WHERE id = $1`, [inv.id]);
-      }
-    }
-
-    // Grant result item
-    await client.query(
-      `INSERT INTO user_inventory (user_id, item_id, quantity) VALUES ($1,$2,1)`,
-      [userId, result.id],
-    );
-
+    const result = await fuseInventory(client, userId, req.body?.inventoryIds);
+    if (!result.ok) { res.status(result.status).json({error: result.error}); return; }
+    responseBody = result;
     pendingQuestBumps.push(["crafts_succeeded", 1]);
-    responseBody = {
-      ok: true,
-      result: { id: result.id, name: result.name, icon: result.icon, rarity: result.rarity },
-      message: `Fusion successful! 3× ${item.name} → ${result.name} (${result.rarity})`,
-    };
   } finally {
     client.release();
   }

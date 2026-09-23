@@ -1,4 +1,5 @@
-import { useAuth } from "@clerk/react";
+import { isDemoSession } from "./demoSession";
+import { useAuth } from "@/lib/auth";
 import { useCallback } from "react";
 
 type AuthedFetch = (url: string, options?: RequestInit) => Promise<Response>;
@@ -35,6 +36,7 @@ export function useAuthedFetch(): AuthedFetch {
 
   return useCallback(
     async (url: string, options: RequestInit = {}): Promise<Response> => {
+      if (isDemoSession()) return fetch(url, options);
       // Resolve the auth token we'll attach. If the user is supposed to
       // be signed in but Clerk hasn't surfaced a token yet, poll a few
       // times before falling back to an unauthenticated attempt. This

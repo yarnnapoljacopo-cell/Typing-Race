@@ -4,6 +4,8 @@ import { Trophy, Medal, Award, RotateCcw, Home, Zap, Coins, Package } from "luci
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import { WritingArchive, type Capsule } from "@/components/WritingArchive";
+import { BattleCharacter } from "./BattleCharacter";
+import "./battle-rooms.css";
 import { ChestIcon } from "@/components/ChestIcon";
 
 interface ResultsScreenProps {
@@ -15,6 +17,9 @@ interface ResultsScreenProps {
   capsules: Capsule[];
   xpGained?: number | null;
   isBossMode?: boolean;
+  bossDefeated?: boolean;
+  bossWordGoal?: number | null;
+  isGladiatorMode?: boolean;
   isKartMode?: boolean;
   betOutcome?: { outcome: "won" | "lost" | "refunded"; stake: number; payout: number } | null;
   /** Server-awarded chest for finishing the sprint. When non-null we show
@@ -50,6 +55,9 @@ export function ResultsScreen({
   capsules,
   xpGained,
   isBossMode = false,
+  bossDefeated = false,
+  bossWordGoal = 2500,
+  isGladiatorMode = false,
   isKartMode = false,
   betOutcome = null,
   chestAwarded = null,
@@ -57,19 +65,22 @@ export function ResultsScreen({
   onSaveChest,
 }: ResultsScreenProps) {
   const [, setLocation] = useLocation();
-  const sorted = [...participants].sort((a, b) => {
+  const sorted = participants.filter((participant) => participant.role !== "editor").sort((a, b) => {
+    // Preserve the server's health/execution order for gladiator matches.
+    if (isGladiatorMode) return 0;
     if (isKartMode) {
-      const aScore = a.wordCount + (a.kartCarOffset ?? 0);
-      const bScore = b.wordCount + (b.kartCarOffset ?? 0);
+      const aScore = Math.max(0, a.wordCount + (a.kartCarOffset ?? 0));
+      const bScore = Math.max(0, b.wordCount + (b.kartCarOffset ?? 0));
       return bScore - aScore;
     }
     return b.wordCount - a.wordCount;
   });
 
   const myIndex = sorted.findIndex((p) => p.id === currentParticipantId);
-  const isFirstPlace = myIndex === 0;
+  const isFirstPlace = myIndex === 0 && !isGladiatorMode;
 
   const getRankIcon = (index: number) => {
+    if (isGladiatorMode) return <span className="w-6 text-center text-muted-foreground">—</span>;
     switch (index) {
       case 0: return <Trophy className="w-6 h-6 text-yellow-500" />;
       case 1: return <Medal className="w-6 h-6 text-gray-400" />;
@@ -85,12 +96,13 @@ export function ResultsScreen({
       className="w-full max-w-2xl mx-auto space-y-6"
     >
       <div className="text-center space-y-2">
+        {isBossMode && <div className="mx-auto w-28"><BattleCharacter character={(bossWordGoal ?? 2500) > 10000 ? 3 : (bossWordGoal ?? 2500) > 5000 ? 2 : (bossWordGoal ?? 2500) > 2500 ? 1 : 0} label={bossDefeated ? "Defeated boss" : "Boss survived the battle"} defeated={bossDefeated} /></div>}
         <h2 className="text-3xl font-serif font-bold text-foreground">
-          {isBossMode ? "🎉 Boss Defeated!" : "Final Results"}
+          {isBossMode ? (bossDefeated ? "Boss Defeated!" : "Boss Battle Results") : "Final Results"}
         </h2>
         <p className="text-muted-foreground">
           {isBossMode
-            ? "You wrote together and slayed the beast."
+            ? (bossDefeated ? "You wrote together and slayed the beast." : "The battle has ended. Here is your team’s contribution.")
             : "The sprint has concluded. Here's how everyone did."}
         </p>
       </div>
@@ -331,7 +343,7 @@ export function ResultsScreen({
         <div className="divide-y">
           {sorted.map((p, i) => {
             const isMe = p.id === currentParticipantId;
-            const raceScore = isKartMode ? p.wordCount + (p.kartCarOffset ?? 0) : p.wordCount;
+            const raceScore = isKartMode ? Math.max(0, p.wordCount + (p.kartCarOffset ?? 0)) : p.wordCount;
             const hasOffset = isKartMode && (p.kartCarOffset ?? 0) !== 0;
             return (
               <motion.div

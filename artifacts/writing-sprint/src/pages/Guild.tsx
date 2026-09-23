@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, Users, LogOut, Send, Zap, Shield, UserMinus, ArrowRightLeft, Trash2, MessageCircle, BarChart3, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";

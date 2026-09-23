@@ -7,7 +7,8 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { logger } from "./logger";
 import { db, coWritingDocStateTable, coWritingDocsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { socketUserId } from "./socketAuth";
+import { and, eq } from "drizzle-orm";
 import { coWritingIsMember } from "../routes/coWriting";
 
 /**
@@ -21,10 +22,8 @@ import { coWritingIsMember } from "../routes/coWriting";
  * mutates. A plain-text snapshot is also stored so the room list can show a
  * preview without decoding the binary state.
  *
- * Auth: the client connects with `?room=<id>&doc=<id>&user=<clerkUserId>`.
- * We verify `user` is in `co_writing_members(room_id, user_id)` before
- * relaying any messages. (MVP — for stronger auth swap in a Clerk JWT
- * verify step here.)
+ * Auth: a verified Clerk session and membership in the document
+ * room are required before any document state is sent.
  */
 
 // y-websocket protocol message types
@@ -40,8 +39,10 @@ interface SharedDoc {
   conns: Set<WebSocket>;
   saveTimer: NodeJS.Timeout | null;
   dirty: boolean;
+  savePromise: Promise<void> | null;
 }
 const shared = new Map<string, SharedDoc>();
+const loading = new Map<string, Promise<SharedDoc>>();
 
 function shKey(roomId: number, docId: number) { return `${roomId}:${docId}`; }
 
@@ -50,6 +51,15 @@ export async function loadOrCreateDoc(roomId: number, docId: number): Promise<Sh
   const existing = shared.get(key);
   if (existing) return existing;
 
+  const pending = loading.get(key);
+  if (pending) return pending;
+  const creation = createSharedDoc(roomId, docId).finally(() => loading.delete(key));
+  loading.set(key, creation);
+  return creation;
+}
+
+async function createSharedDoc(roomId: number, docId: number): Promise<SharedDoc> {
+  const key = shKey(roomId, docId);
   const ydoc = new Y.Doc();
   // Hydrate from persisted state if any. If the binary Y.Doc state is missing
   // but the plain-text snapshot has content (the HTTP fallback save path —
@@ -63,14 +73,32 @@ export async function loadOrCreateDoc(roomId: number, docId: number): Promise<Sh
       ydoc.getText("body").insert(0, row.textPreview);
     }
   } catch (e) {
-    logger.warn({ err: e, roomId, docId }, "co-writing: failed to hydrate Y.Doc from DB");
+    ydoc.destroy();
+    throw e;
   }
 
   const awareness = new awarenessProtocol.Awareness(ydoc);
   awareness.setLocalState(null); // server doesn't claim a presence slot
 
-  const sd: SharedDoc = { ydoc, awareness, conns: new Set(), saveTimer: null, dirty: false };
+  const sd: SharedDoc = { ydoc, awareness, conns: new Set(), saveTimer: null, dirty: false, savePromise: null };
   shared.set(key, sd);
+
+  // One listener per document, not per connection (which broadcast each
+  // edit N times to every peer and retained disconnected listeners).
+  ydoc.on("update", (update: Uint8Array, origin: unknown) => {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_SYNC);
+    syncProtocol.writeUpdate(encoder, update);
+    broadcast(sd, encoding.toUint8Array(encoder), origin instanceof WebSocket ? origin : undefined);
+  });
+  awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) => {
+    const changed = [...added, ...updated, ...removed];
+    if (!changed.length) return;
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
+    encoding.writeVarUint8Array(encoder, awarenessProtocol.encodeAwarenessUpdate(awareness, changed));
+    broadcast(sd, encoding.toUint8Array(encoder), origin instanceof WebSocket ? origin : undefined);
+  });
 
   // Mark dirty + schedule a save on every Y.Doc update.
   ydoc.on("update", (_update, origin) => {
@@ -78,92 +106,61 @@ export async function loadOrCreateDoc(roomId: number, docId: number): Promise<Sh
     if (origin === "db") return;
     sd.dirty = true;
     if (sd.saveTimer) clearTimeout(sd.saveTimer);
-    sd.saveTimer = setTimeout(() => void persistDoc(roomId, docId, sd), 2000);
+    sd.saveTimer = setTimeout(() => void persistDoc(roomId, docId, sd).catch(() => undefined), 2000);
   });
 
   return sd;
 }
 
 async function persistDoc(roomId: number, docId: number, sd: SharedDoc): Promise<void> {
-  if (!sd.dirty) return;
-  sd.dirty = false;
-  try {
-    const state = Buffer.from(Y.encodeStateAsUpdate(sd.ydoc));
-    // Persist the FULL body text (was sliced to 500 chars previously — useless
-    // for restoration). This is the resilient fallback used by loadOrCreateDoc
-    // if the binary Y.Doc state ever ends up missing or corrupt.
-    const ytext = sd.ydoc.getText("body");
-    const fullText = ytext.toString();
-    const now = new Date();
-    // Upsert state row.
-    await db.insert(coWritingDocStateTable)
-      .values({ docId, state, textPreview: fullText, updatedAt: now })
-      .onConflictDoUpdate({
-        target: [coWritingDocStateTable.docId],
-        set: { state, textPreview: fullText, updatedAt: now },
-      });
-    // Bump doc.updated_at so room listings see freshness.
-    await db.update(coWritingDocsTable).set({ updatedAt: now }).where(eq(coWritingDocsTable.id, docId));
-  } catch (e) {
-    logger.error({ err: e, roomId, docId }, "co-writing: failed to persist Y.Doc state");
-    // Re-arm so we retry on the next update.
-    sd.dirty = true;
-  }
+  if (sd.savePromise) return sd.savePromise;
+  sd.savePromise = (async () => {
+    while (sd.dirty) {
+      sd.dirty = false;
+      const state = Buffer.from(Y.encodeStateAsUpdate(sd.ydoc));
+      const fullText = sd.ydoc.getText("body").toString();
+      const now = new Date();
+      try {
+        await db.insert(coWritingDocStateTable)
+          .values({ docId, state, textPreview: fullText, updatedAt: now })
+          .onConflictDoUpdate({
+            target: [coWritingDocStateTable.docId],
+            set: { state, textPreview: fullText, updatedAt: now },
+          });
+        await db.update(coWritingDocsTable).set({ updatedAt: now }).where(eq(coWritingDocsTable.id, docId));
+      } catch (err) {
+        sd.dirty = true;
+        logger.error({ err, roomId, docId }, "co-writing: failed to persist Y.Doc state");
+        throw err;
+      }
+    }
+  })().finally(() => { sd.savePromise = null; });
+  return sd.savePromise;
 }
 
-/**
- * HTTP-fallback save path: writes the client's current HTML to BOTH the
- * `text_preview` column (always — used by loadOrCreateDoc if Y state is
- * missing) AND the Y.Doc binary state (so subsequent reloads pick it up
- * via the normal state path).
- *
- * If a SharedDoc is currently in memory for this (room, doc) — i.e. there
- * are connected WS clients — we ALSO splice the new HTML into the live
- * Y.Text so everyone converges. We do this idempotently: if the body
- * already matches, no Yjs ops are emitted.
- */
-export async function snapshotDoc(
-  roomId: number, docId: number, html: string,
-): Promise<void> {
-  const trimmed = html.length > 200_000 ? html.slice(0, 200_000) : html;
-  const now = new Date();
-
-  // Update the live in-memory doc (if any) so connected clients see the
-  // update too. This keeps the snapshot path and the WS path consistent.
-  const key = shKey(roomId, docId);
-  const live = shared.get(key);
-  if (live) {
-    const ytext = live.ydoc.getText("body");
-    if (ytext.toString() !== trimmed) {
-      live.ydoc.transact(() => {
-        ytext.delete(0, ytext.length);
-        if (trimmed.length > 0) ytext.insert(0, trimmed);
+/** Merge the client's CRDT backup into the same document used by WebSockets. */
+export async function snapshotDoc(roomId: number, docId: number, html: string, update?: Uint8Array): Promise<void> {
+  const sd = await loadOrCreateDoc(roomId, docId);
+  if (update) {
+    Y.applyUpdate(sd.ydoc, update, "snapshot");
+  } else {
+    // Backwards-compatible HTML saves must retain the document's Yjs identity.
+    const trimmed = html.slice(0, 200_000);
+    const body = sd.ydoc.getText("body");
+    if (body.toString() !== trimmed) {
+      sd.ydoc.transact(() => {
+        body.delete(0, body.length);
+        if (trimmed) body.insert(0, trimmed);
       }, "snapshot");
     }
-    // The transaction above triggers ydoc.on("update") which already
-    // schedules a debounced persistDoc — but we also write directly below
-    // so we don't depend on that timer firing.
   }
+  sd.dirty = true;
+  await persistDoc(roomId, docId, sd);
+}
 
-  // Build a Y.Doc state encoding of just this HTML so the next load via
-  // loadOrCreateDoc gets it back via the fast Y.Doc state path (skipping
-  // the text-only fallback branch).
-  const tempDoc = new Y.Doc();
-  if (trimmed.length > 0) tempDoc.getText("body").insert(0, trimmed);
-  const state = Buffer.from(Y.encodeStateAsUpdate(tempDoc));
-
-  try {
-    await db.insert(coWritingDocStateTable)
-      .values({ docId, state, textPreview: trimmed, updatedAt: now })
-      .onConflictDoUpdate({
-        target: [coWritingDocStateTable.docId],
-        set: { state, textPreview: trimmed, updatedAt: now },
-      });
-    await db.update(coWritingDocsTable).set({ updatedAt: now }).where(eq(coWritingDocsTable.id, docId));
-  } catch (e) {
-    logger.error({ err: e, roomId, docId }, "co-writing: snapshot save failed");
-    throw e;
-  }
+export async function documentSnapshot(roomId: number, docId: number) {
+  const sd = await loadOrCreateDoc(roomId, docId);
+  return { html: sd.ydoc.getText("body").toString(), state: Array.from(Y.encodeStateAsUpdate(sd.ydoc)) };
 }
 
 // ── Per-connection message handling ───────────────────────────────────────
@@ -212,7 +209,7 @@ export function setupCoWritingWsServer(server: Server): WebSocketServer {
       // pathname is `/ws/cowriting/<roomname>`, not exactly `/ws/cowriting`.
       // Match anything under the prefix and let the per-conn handler read
       // the room/doc/user from the query string.
-      if (!url.pathname.startsWith("/ws/cowriting")) return;
+      if (url.pathname !== "/ws/cowriting" && !url.pathname.startsWith("/ws/cowriting/")) return;
       wss.handleUpgrade(req, socket, head, (ws) => {
         wss.emit("connection", ws, req);
       });
@@ -228,9 +225,12 @@ export function setupCoWritingWsServer(server: Server): WebSocketServer {
 
     const roomId = parseInt(url.searchParams.get("room") ?? "", 10);
     const docId = parseInt(url.searchParams.get("doc") ?? "", 10);
-    const userId = url.searchParams.get("user") ?? "";
+    ws.on("error", (err) => logger.warn({ err }, "co-writing: socket error"));
+    let userId: string | null;
+    try { userId = await socketUserId(req, url.searchParams.get("token")); }
+    catch { ws.close(1008, "Invalid session"); return; }
 
-    if (!Number.isFinite(roomId) || !Number.isFinite(docId) || !userId) {
+    if (!Number.isSafeInteger(roomId) || roomId <= 0 || !Number.isSafeInteger(docId) || docId <= 0 || !userId) {
       ws.close(1008, "Missing params"); return;
     }
     // Verify membership before joining the shared doc.
@@ -243,7 +243,17 @@ export function setupCoWritingWsServer(server: Server): WebSocketServer {
       ws.close(1011, "Server error"); return;
     }
 
-    const sd = await loadOrCreateDoc(roomId, docId);
+    let sd: SharedDoc;
+    try {
+      const [doc] = await db.select({ id: coWritingDocsTable.id }).from(coWritingDocsTable)
+        .where(and(eq(coWritingDocsTable.id, docId), eq(coWritingDocsTable.roomId, roomId)));
+      if (!doc) { ws.close(1008, "Document not found in this room"); return; }
+      sd = await loadOrCreateDoc(roomId, docId);
+    } catch (err) {
+      logger.warn({ err }, "co-writing: failed to load document");
+      ws.close(1011, "Unable to load document"); return;
+    }
+    if (ws.readyState !== WebSocket.OPEN) return;
     sd.conns.add(ws);
 
     // ── Send initial sync (step 1) so the client can converge ──
@@ -267,37 +277,6 @@ export function setupCoWritingWsServer(server: Server): WebSocketServer {
       }
     }
 
-    // Awareness change listener — broadcast any changes to ALL clients so
-    // they reflect each other's presence/cursors.
-    const onAwarenessChange = (
-      { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
-      origin: unknown,
-    ) => {
-      const changedClients = [...added, ...updated, ...removed];
-      if (changedClients.length === 0) return;
-      const encoder = encoding.createEncoder();
-      encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
-      encoding.writeVarUint8Array(
-        encoder,
-        awarenessProtocol.encodeAwarenessUpdate(sd.awareness, changedClients),
-      );
-      const payload = encoding.toUint8Array(encoder);
-      // Re-broadcast to everyone EXCEPT the origin connection (it already has
-      // the state locally). Origin may be a WebSocket or null for server-side.
-      sd.conns.forEach((c) => { if (c !== origin) send(c, payload); });
-    };
-    sd.awareness.on("update", onAwarenessChange);
-
-    // Doc update listener — broadcast incremental updates to other clients.
-    const onDocUpdate = (update: Uint8Array, origin: unknown) => {
-      const encoder = encoding.createEncoder();
-      encoding.writeVarUint(encoder, MESSAGE_SYNC);
-      syncProtocol.writeUpdate(encoder, update);
-      const payload = encoding.toUint8Array(encoder);
-      sd.conns.forEach((c) => { if (c !== origin) send(c, payload); });
-    };
-    sd.ydoc.on("update", onDocUpdate);
-
     ws.on("message", (data: Buffer) => {
       try {
         const decoder = decoding.createDecoder(new Uint8Array(data));
@@ -315,9 +294,7 @@ export function setupCoWritingWsServer(server: Server): WebSocketServer {
     });
 
     const cleanup = () => {
-      sd.conns.delete(ws);
-      sd.ydoc.off("update", onDocUpdate);
-      sd.awareness.off("update", onAwarenessChange);
+      if (!sd.conns.delete(ws)) return;
 
       // Belt-and-suspenders: if this was the last connection AND there are
       // pending edits, flush them to DB right away — don't wait the 2s
@@ -326,7 +303,7 @@ export function setupCoWritingWsServer(server: Server): WebSocketServer {
       // ("everything inside deletes and doesn't save").
       if (sd.conns.size === 0 && sd.dirty) {
         if (sd.saveTimer) { clearTimeout(sd.saveTimer); sd.saveTimer = null; }
-        void persistDoc(roomId, docId, sd);
+        void persistDoc(roomId, docId, sd).catch(() => undefined);
       }
 
       // Keep the in-memory doc around for a short grace window so quick
@@ -342,8 +319,12 @@ export function setupCoWritingWsServer(server: Server): WebSocketServer {
             }
             // One more chance to flush — covers updates that arrived between
             // the immediate flush above and this grace-window expiry.
-            if (current.dirty) void persistDoc(roomId, docId, current);
-            shared.delete(key);
+            void persistDoc(roomId, docId, current).then(() => {
+              if (current.conns.size || current.dirty) return;
+              shared.delete(key);
+              current.awareness.destroy();
+              current.ydoc.destroy();
+            }).catch(() => undefined);
           }
         }, 30_000);
       }

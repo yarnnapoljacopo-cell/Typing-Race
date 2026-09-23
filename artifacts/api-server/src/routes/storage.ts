@@ -10,7 +10,7 @@ const DEFAULT_BAG_SLOTS = 20;
  * Ensures an equipped_storage row exists for the user.
  * Returns the current row (item_id may be null = Cloth Bag).
  */
-async function ensureEquippedStorage(client: import("pg").PoolClient, userId: string) {
+async function ensureEquippedStorage(client: import("@workspace/db").PoolClient, userId: string) {
   await client.query(
     `INSERT INTO equipped_storage (user_id, item_id, slot_count)
      VALUES ($1, NULL, 20)

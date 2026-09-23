@@ -873,6 +873,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'DM Sans'
 @media(max-width:700px){.sidebar{width:200px}.wiki-nav{width:150px}}
 
 </style>
+<style>
+html[data-skin="cultivation"] { --bg:#f4eddf;--surface:#fbf6eb;--surface-hover:#eee4d1;--border:#cbb88f;--border-light:#e5d9c1;--text-primary:#293239;--text-secondary:#665f50;--text-muted:#827a66;--accent:#816c42;--accent-light:#eae1c9;--accent-hover:#4b584e;--sidebar-bg:#e9e1d0;--gold:#a48649;--purple:#757754; }
+html[data-skin="cultivation"] body,html[data-skin="cultivation"] button,html[data-skin="cultivation"] input,html[data-skin="cultivation"] textarea { font-family:Georgia,serif; }
+html[data-skin="cultivation"] .topbar { background:#283238;color:#f1dfb8;border-color:#a78d5b; }
+html[data-skin="cultivation"] .topbar button,html[data-skin="cultivation"] .topbar-title { color:#f1dfb8; }
+</style>
+<script>
+(function(){
+  function syncSkin(){ try { document.documentElement.dataset.skin=parent!==window?parent.document.documentElement.dataset.skin:localStorage.getItem('activeSkin')||'default'; } catch {} }
+  syncSkin();
+  if(parent!==window) { try { new MutationObserver(syncSkin).observe(parent.document.documentElement,{attributes:true,attributeFilter:['data-skin']}); } catch {} }
+  window.addEventListener('storage',syncSkin);
+})();
+</script>
 </head>
 <body>
 
@@ -954,7 +968,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'DM Sans'
 
 <script type="module">
 // ── IndexedDB helpers ─────────────────────────────────────────────────────────
-const DB_NAME = 'folio_db', STORE_NAME = 'folio', DB_VERSION = 1;
+const demoNotes = ['localhost','127.0.0.1','[::1]'].includes(location.hostname) && new URLSearchParams(location.search).get('demo') === '1';
+const DB_NAME = demoNotes ? 'ws.demo.folio_db' : 'folio_db', STORE_NAME = 'folio', DB_VERSION = 1;
 
 function openIDB() {
   return new Promise((res, rej) => {

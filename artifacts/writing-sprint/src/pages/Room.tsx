@@ -1,6 +1,9 @@
-import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { demoStorageKey, isDemoSession } from "@/lib/demoSession";
+import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
+import { recoverWritingBaseline, sprintWords } from "@/lib/writingProgress";
+import { countWritingWords as countWords, editorPlainText } from "@/lib/writingText";
 import { useLocation } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { useSprintRoom, type RoomState, type Participant } from "@/hooks/useSprintRoom";
 import { getNameplateStyle } from "@/lib/nameplates";
@@ -47,32 +50,25 @@ function useSearchParams() {
   return useMemo(() => new URLSearchParams(window.location.search), [window.location.search]);
 }
 
-// O(n) with zero array allocation — much faster than /\b\w+\b/g on large texts
-function countWords(str: string): number {
-  const m = str.match(/\S+/g);
-  return m ? m.length : 0;
-}
-
 // Apply per-paragraph inline styles for a given spacing mode.
 // Inline styles win over the CSS default so each <p> carries its own mode.
 function applyModeToP(p: HTMLElement, mode: string): void {
+  p.style.textIndent = mode === "indent" ? "1.5em" : "";
   if (mode === "double") {
-    p.style.lineHeight = "1.7";
+    p.style.lineHeight = "inherit";
     p.style.marginBottom = "28px";
     p.style.marginTop = "0";
   } else {
-    p.style.lineHeight = "1.4";
+    p.style.lineHeight = "inherit";
     p.style.marginBottom = "0";
     p.style.marginTop = "0";
   }
 }
 
-function editorPlainText(el: HTMLElement): string {
-  return el.innerHTML
-    .replace(/<\/p>/gi, " ")      // paragraph boundary → word separator
-    .replace(/<br\s*\/?>/gi, " ") // explicit line-break → word separator
-    .replace(/<[^>]+>/g, "")      // strip remaining tags
-    .replace(/&nbsp;/g, " ");
+function plainTextFromHtml(html: string): string {
+  const element = document.createElement("div");
+  element.innerHTML = html;
+  return editorPlainText(element);
 }
 
 // Play a short ascending chime when the sprint starts (Web Audio API, no file needed)
@@ -109,7 +105,7 @@ function scheduleIdle(fn: () => void) {
 }
 
 function autoSaveKey(code: string) {
-  return `sprint-autosave-${code}`;
+  return demoStorageKey(`sprint-autosave-${code}`);
 }
 
 const SETTINGS_KEY = "sprint-writing-style";
@@ -132,7 +128,7 @@ function loadWritingStyle(): WritingStyle {
 }
 
 function capsulesKey(code: string) {
-  return `sprint-capsules-${code}`;
+  return demoStorageKey(`sprint-capsules-${code}`);
 }
 
 function loadCapsules(code: string): Capsule[] {
@@ -342,7 +338,7 @@ export default function Room() {
   const [, setLocation] = useLocation();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { isSignedIn, userId } = useAuth();
+  const { isSignedIn, userId, getToken } = useAuth();
   const authedFetch = useAuthedFetch();
 
   const code = searchParams.get("code") || "";
@@ -373,16 +369,15 @@ export default function Room() {
     return "";
   });
   const [wordCount, setWordCount] = useState(() =>
-    countWords((() => { try { return localStorage.getItem(autoSaveKey(code)) ?? ""; } catch { return ""; } })())
+    countWords(plainTextFromHtml((() => { try { return localStorage.getItem(autoSaveKey(code)) ?? ""; } catch { return ""; } })()))
   );
   // Persistent save-status pill: never disappears, only upgrades.
   // "unsaved" → "local" (400 ms debounce) → "cloud" (5 s debounce).
   const [saveStatus, setSaveStatus] = useState<"unsaved" | "local" | "cloud">(() =>
     // If we loaded text from localStorage, start in "local" state
-    code && localStorage.getItem(autoSaveKey(code)) ? "local" : "unsaved"
+    (() => { try { return code && localStorage.getItem(autoSaveKey(code)) ? "local" : "unsaved"; } catch { return "unsaved"; } })()
   );
   const [capsuleFlash, setCapsuleFlash] = useState(false);
-  const [slowBitchVisible, setSlowBitchVisible] = useState(false);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [capsules, setCapsules] = useState<Capsule[]>(() => loadCapsules(code));
   const [writingStyle, setWritingStyle] = useState<WritingStyle>(loadWritingStyle);
@@ -397,6 +392,9 @@ export default function Room() {
   });
   const [folioTargetLabel, setFolioTargetLabel] = useState<string>("");
   const [distractionFree, setDistractionFree] = useState(false);
+  const [gladiatorResultDismissed, setGladiatorResultDismissed] = useState(false);
+  const isComposingRef = useRef(false);
+  const savedSelectionRef = useRef<Range | null>(null);
   const [stickyOpen, setStickyOpen] = useState(false);
   const [readMode, setReadMode] = useState(false);
   const [graceCountdown, setGraceCountdown] = useState<number | null>(null);
@@ -430,6 +428,10 @@ export default function Room() {
   const currentCapsulesRef = useRef<Capsule[]>(capsules);
   const finalSnapshotTakenRef = useRef<boolean>(false);
   const serverRestoreDoneRef = useRef<boolean>(false);
+  const hasEditedRef = useRef(false);
+  const closedRef = useRef(false);
+  const serverSaveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const sprintWasRunningRef = useRef(false);
   const hasAutoDownloadedRef = useRef<boolean>(false);
   // Stores the net word count restored by the server on reconnect so the
   // baseline effect can set the correct offset instead of resetting to 0.
@@ -438,15 +440,15 @@ export default function Room() {
   // ── Baseline: words written BEFORE sprint started don't count ──────────
   // Set to the wordCount at the moment the sprint transitions to "running".
   const baselineWordCountRef = useRef<number>(0);
+  const [, refreshBaseline] = useState(0);
   const prevStatusRef = useRef<string | null>(null);
 
-  // ── "Slow Bitch." — fired every 5 min if behind the leader ─────────────
+  // Current sprint count shared with timers and live UI.
   const netWordCountRef = useRef<number>(0);
   // Sync ref so applyText can read the current paragraph mode without adding
   // writingStyle.paragraphMode to its dep array (which would cascade rebuilds).
   const paragraphModeRef = useRef(writingStyle.paragraphMode);
   paragraphModeRef.current = writingStyle.paragraphMode;
-  const slowBitchHideTimerRef = useRef<number | null>(null);
   // Always-current snapshot of room so the interval doesn't read stale state
   const roomRef = useRef<RoomState | null>(null);
 
@@ -458,11 +460,12 @@ export default function Room() {
     if (!code) return;
     const t = currentTextRef.current;
     const write = () => {
+      if (currentTextRef.current !== t || (closedRef.current && !immediate)) return;
       try {
         if (t) localStorage.setItem(autoSaveKey(code), t);
         else localStorage.removeItem(autoSaveKey(code));
         // Upgrade status to at least "local" — never downgrade from "cloud"
-        setSaveStatus((prev) => prev === "cloud" ? "cloud" : "local");
+        if (currentTextRef.current === t) setSaveStatus((prev) => prev === "cloud" ? "cloud" : "local");
       } catch { /* storage unavailable */ }
     };
     // During normal typing pauses: defer so it never blocks the main thread.
@@ -472,15 +475,19 @@ export default function Room() {
   }, [code]);
 
   // ── Server backup helpers ───────────────────────────────────────────────
-  const serverSaveNow = useCallback((textToSave: string, wc: number) => {
+  const serverSaveNow = useCallback((textToSave: string, wc: number, keepalive = false) => {
     if (!code || !name) return;
-    authedFetch(`/api/rooms/${encodeURIComponent(code)}/writing`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ participantName: name, text: textToSave, wordCount: wc }),
-    })
-      .then((r) => { if (r.ok) setSaveStatus("cloud"); })
-      .catch(() => { /* silent — localStorage is the local fallback */ });
+    // Serialize backups: a slow older response must not overwrite the newest
+    // chapter or resurrect text that the writer has deliberately cleared.
+    serverSaveQueueRef.current = serverSaveQueueRef.current.catch(() => {}).then(async () => {
+      const response = await authedFetch(`/api/rooms/${encodeURIComponent(code)}/writing`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantName: name, text: textToSave, wordCount: wc }),
+        keepalive,
+      });
+      if (response.ok && !closedRef.current && currentTextRef.current === textToSave) setSaveStatus("cloud");
+    }).catch(() => { /* localStorage remains the local fallback */ });
   }, [code, name, authedFetch]);
 
   const scheduleServerSave = useCallback((textToSave: string, wc: number) => {
@@ -492,7 +499,7 @@ export default function Room() {
   const chapterCountRef = useRef<number>(1);
 
   const getCurrentPlainText = useCallback(() => {
-    return textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
+    return textareaRef.current ? editorPlainText(textareaRef.current) : plainTextFromHtml(currentTextRef.current);
   }, []);
 
   const saveSilentlyToFolio = useCallback((target: FolioTarget): { ok: boolean; label: string } => {
@@ -555,7 +562,7 @@ export default function Room() {
   void authedFetch;
 
   const downloadWriting = useCallback(() => {
-    const plainText = textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
+    const plainText = textareaRef.current ? editorPlainText(textareaRef.current) : plainTextFromHtml(currentTextRef.current);
     const blob = new Blob([plainText], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -570,7 +577,7 @@ export default function Room() {
     const div = textareaRef.current;
     if (!div) return;
     const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
+    if (!sel || sel.rangeCount === 0 || !div.contains(sel.anchorNode)) return;
     const range = sel.getRangeAt(0).cloneRange();
     range.collapse(true);
 
@@ -597,6 +604,8 @@ export default function Room() {
     isReconnecting,
     disconnectReason,
     error,
+    actionError,
+    clearActionError,
     participantTexts,
     restoredWordCount,
     chestAwarded,
@@ -615,7 +624,7 @@ export default function Room() {
     betOutcome,
     setBetOutcome,
     betsSettledTick,
-  } = useSprintRoom({ code, name, isCreator: isCreatorParams, password: roomPassword, clerkUserId: userId ?? null, role: sprintRole });
+  } = useSprintRoom({ code, name, isCreator: isCreatorParams, password: roomPassword, clerkUserId: userId ?? null, getToken, role: sprintRole });
 
   // ── Reconnect banner — debounced so sub-2-second blips are invisible ──────
   // Brief network hiccups (Railway proxy resets, mobile handoffs, etc.) resolve
@@ -689,8 +698,8 @@ export default function Room() {
     const key = `bet-shown-${code}`;
     if (sessionStorage.getItem(key) && prev !== "finished") return;
     sessionStorage.setItem(key, "1");
-    setShowBetModal(true);
-  }, [code, room?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (isSignedIn) setShowBetModal(true);
+  }, [code, room?.status, isSignedIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   type BetSummaryResp = {
     totalPot: number;
@@ -770,10 +779,10 @@ export default function Room() {
   // The component does an early return when !room, so textareaRef is null on the
   // very first render.  We watch participantId (set at the same time as room) so
   // the effect retries after the room loads and the div is actually mounted.
-  useEffect(() => {
-    if (textareaInitDoneRef.current) return; // already ran
+  useLayoutEffect(() => {
     const div = textareaRef.current;
-    if (!div) return; // div not in DOM yet — will retry when participantId changes
+    if (!div) { textareaInitDoneRef.current = false; return; }
+    if (textareaInitDoneRef.current) return; // div not in DOM yet — will retry when participantId changes
     textareaInitDoneRef.current = true;
     try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch { /* ignore */ }
     if (!text) {
@@ -788,6 +797,7 @@ export default function Room() {
         ? text
         : text.split(/<br\s*\/?>/gi).map(s => `<p>${s || "<br>"}</p>`).join("");
     }
+    setWordCount(countWords(editorPlainText(div)));
     // Cursor to end
     const sel = window.getSelection();
     if (sel) {
@@ -799,7 +809,7 @@ export default function Room() {
     }
   // text is intentionally omitted: we only want the stored value, not re-init on keystrokes
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [participantId]); // participantId defined ⟹ room loaded ⟹ div now in DOM
+  }, [participantId, room?.status]); // participantId defined ⟹ room loaded ⟹ div now in DOM
 
   useEffect(() => { currentTextRef.current = text; }, [text]);
   useEffect(() => { currentCapsulesRef.current = capsules; }, [capsules]);
@@ -810,8 +820,8 @@ export default function Room() {
   // this, the "server lost our count" branch below used to set baseline=0
   // and credit the ENTIRE editor — including warm-up text — as sprint
   // words, inflating the player's word count on every refresh.
-  const baselineLsKey = code ? `sprint-baseline-v1-${code}` : "";
-  useEffect(() => {
+  const baselineLsKey = code ? demoStorageKey(`sprint-baseline-v1-${code}`) : "";
+  useLayoutEffect(() => {
     if (!room) return;
     if (prevStatusRef.current !== "running" && room.status === "running") {
       // Play chime on genuine sprint start — skip on page-refresh reconnect (prevStatus===null)
@@ -830,47 +840,30 @@ export default function Room() {
           const raw = localStorage.getItem(baselineLsKey);
           if (raw !== null) {
             const parsed = parseInt(raw, 10);
-            if (Number.isFinite(parsed) && parsed >= 0) storedBaseline = parsed;
+            if (Number.isFinite(parsed)) storedBaseline = parsed;
           }
         } catch { /* localStorage disabled — fall through */ }
       }
 
-      if (prevStatusRef.current === null && restored > 0) {
-        // Page-refresh reconnect: server knows our net word count.
-        // Set baseline so the display resumes from the correct value.
-        // e.g. totalWords=500, restored=500 → baseline=0 → net=500 ✓
-        //      totalWords=600, restored=500 → baseline=100 → net=500 ✓
-        baselineWordCountRef.current = Math.max(0, currentTotalWords - restored);
-      } else if (prevStatusRef.current === null && storedBaseline !== null) {
-        // Page-refresh reconnect AND we have a previously-captured baseline.
-        // This is the warm-up-survives-refresh path: the baseline tells us
-        // how much of the current editor was warm-up vs sprint, so net = 0
-        // until they start typing again (instead of crediting all 100+
-        // warm-up words as sprint output).
-        baselineWordCountRef.current = Math.min(currentTotalWords, storedBaseline);
-        const net = Math.max(0, currentTotalWords - baselineWordCountRef.current);
+      baselineWordCountRef.current = recoverWritingBaseline({
+        totalWords: currentTotalWords,
+        restoredWords: restored,
+        storedBaseline,
+        hasLocalDraft: !!currentTextRef.current,
+        freshSprint: prevStatusRef.current !== null,
+      });
+      sprintWasRunningRef.current = true;
+      const net = sprintWords(currentTotalWords, baselineWordCountRef.current, true);
+      // Do not overwrite a cloud-only draft with an empty editor before restore.
+      if (currentTextRef.current || prevStatusRef.current !== null) {
         sendTextUpdate(currentTextRef.current, net);
-      } else if (prevStatusRef.current === null && currentTotalWords > 0) {
-        // No server record AND no stored baseline — be SAFE and treat
-        // everything in the editor as warm-up. The user might lose some
-        // legitimate sprint words written before a localStorage-wiping
-        // refresh, but the previous behaviour (credit all as sprint) let
-        // someone's warm-up draft suddenly inflate their friend's car
-        // when they reconnected mid-sprint. Safety > convenience here.
-        baselineWordCountRef.current = currentTotalWords;
-        if (baselineLsKey) {
-          try { localStorage.setItem(baselineLsKey, String(currentTotalWords)); } catch { /* ignore */ }
-        }
-        sendTextUpdate(currentTextRef.current, 0);
-      } else {
-        // Genuine sprint start (or late join with no prior text).
-        // Snapshot current words so any pre-sprint text doesn't count.
-        baselineWordCountRef.current = currentTotalWords;
-        if (baselineLsKey) {
-          try { localStorage.setItem(baselineLsKey, String(currentTotalWords)); } catch { /* ignore */ }
-        }
-        sendTextUpdate(currentTextRef.current, 0);
       }
+      if (baselineLsKey) {
+        try { localStorage.setItem(baselineLsKey, String(baselineWordCountRef.current)); } catch { /* storage unavailable */ }
+      }
+      // Ref changes must be reflected before paint: warm-up words must never
+      // briefly put this car ahead of the starting line.
+      refreshBaseline(value => value + 1);
     }
     // Clear the stored baseline once the sprint actually finishes so a future
     // sprint in the same browser doesn't pick up a stale value.
@@ -914,12 +907,22 @@ export default function Room() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.status, isGameOver]);
 
+  // Keep the lifecycle effect stable as authentication and participant state
+  // resolve; an effect cleanup during admission must not save a blank editor.
+  const lifecycleRef = useRef({ flushAutoSave, serverSaveNow, participantId });
+  lifecycleRef.current = { flushAutoSave, serverSaveNow, participantId };
+
   // ── Crash protection ──────────────────────────────────────────────────
   useEffect(() => {
+    closedRef.current = false;
     if (!code) return;
     const flushAll = () => {
       if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); autoSaveTimeoutRef.current = null; }
-      flushAutoSave(true); // immediate — page may close before idle callback fires
+      // Composition text can be visible before compositionend fires. Preserve
+      // that DOM snapshot when switching apps or leaving the page.
+      const liveEditor = textareaRef.current;
+      if (liveEditor && (hasEditedRef.current || isComposingRef.current || currentTextRef.current)) currentTextRef.current = liveEditor.innerHTML;
+      lifecycleRef.current.flushAutoSave(true);
       try { saveCapsules(code, currentCapsulesRef.current); } catch { /* ignore */ }
     };
     const onBeforeUnload = () => flushAll();
@@ -935,8 +938,21 @@ export default function Room() {
       window.removeEventListener("pagehide", onPageHide);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("blur", onBlur);
+      flushAll();
+      closedRef.current = true;
+      for (const timer of [debounceTimeoutRef, autoSaveTimeoutRef, serverSaveTimeoutRef, raceThrottleRef, capsuleFlashTimeoutRef, idleTimerRef]) {
+        if (timer.current) window.clearTimeout(timer.current);
+        timer.current = null;
+      }
+      if (hasEditedRef.current) {
+        const total = countWords(plainTextFromHtml(currentTextRef.current));
+        const finalCount = roomRef.current?.status === "finished"
+          ? roomRef.current.participants.find(p => p.id === lifecycleRef.current.participantId)?.wordCount ?? 0
+          : sprintWords(total, baselineWordCountRef.current, roomRef.current?.status === "running");
+        lifecycleRef.current.serverSaveNow(currentTextRef.current, finalCount, true);
+      }
     };
-  }, [code, flushAutoSave]);
+  }, [code]);
 
   // ── Death Mode grace countdown ────────────────────────────────────────
   // Compute a safe "am I eliminated" value using optional chaining so it can
@@ -1020,31 +1036,34 @@ export default function Room() {
     finalSnapshotTakenRef.current = true;
     flushAutoSave();
     const finalHtml = currentTextRef.current;
-    const finalPlain = textareaRef.current ? (textareaRef.current.innerText ?? "") : finalHtml;
+    const finalPlain = textareaRef.current ? editorPlainText(textareaRef.current) : plainTextFromHtml(finalHtml);
     const finalWords = countWords(finalPlain);
     // Flush to server immediately on sprint end. CRITICAL: send the NET
     // word count (sprint-only), not the absolute page count — otherwise
     // we overwrite the server's correct in-memory net count with one that
     // includes warm-up text, inflating saved word counts and ranking.
-    const finalNetWords = Math.max(0, finalWords - baselineWordCountRef.current);
-    serverSaveNow(finalHtml, finalNetWords);
+    const finalNetWords = sprintWasRunningRef.current
+      ? Math.max(0, finalWords - baselineWordCountRef.current)
+      : room.participants.find(p => p.id === participantId)?.wordCount ?? 0;
+    if (sprintWasRunningRef.current) serverSaveNow(finalHtml, finalNetWords);
     // Credit sprint words to the Folio daily word goal counter.
-    if (finalNetWords > 0) {
+    if (sprintWasRunningRef.current && finalNetWords > 0) {
       try {
         const today = new Date().toISOString().slice(0, 10);
-        const storedDate = localStorage.getItem("folio_daily_date") || "";
+        const storedDate = localStorage.getItem(demoStorageKey("folio_daily_date")) || "";
         const prevWords = storedDate === today
-          ? parseInt(localStorage.getItem("folio_daily_words") || "0", 10)
+          ? parseInt(localStorage.getItem(demoStorageKey("folio_daily_words")) || "0", 10)
           : 0;
-        localStorage.setItem("folio_daily_date", today);
-        localStorage.setItem("folio_daily_words", String(prevWords + finalNetWords));
+        localStorage.setItem(demoStorageKey("folio_daily_date"), today);
+        localStorage.setItem(demoStorageKey("folio_daily_words"), String(prevWords + finalNetWords));
       } catch { /* storage unavailable */ }
     }
     if (!finalHtml) return;
     setCapsules((prev) => {
       const filtered = prev.filter((c) => !c.isFinal);
       const next: Capsule[] = [...filtered, { wordCount: finalWords, savedAt: Date.now(), text: finalHtml, isFinal: true }];
-      scheduleIdle(() => saveCapsules(code, next));
+      currentCapsulesRef.current = next;
+      scheduleIdle(() => { if (!closedRef.current) saveCapsules(code, currentCapsulesRef.current); });
       return next;
     });
   }, [room?.status, code, flushAutoSave, serverSaveNow]);
@@ -1076,20 +1095,21 @@ export default function Room() {
     if (!div) return;
     if (!writingStyle.typewriterMode) {
       div.style.height = "";
-      div.style.flex = "";
-      div.style.paddingTop = "";
-      div.style.paddingBottom = "";
+      div.style.flex = "1";
+      div.style.paddingTop = "20px";
+      div.style.paddingBottom = "20px";
       return;
     }
-    // Capture current rendered height (min 380px from the Tailwind class)
-    const h = Math.max(380, div.getBoundingClientRect().height);
+    // Keep the current writing area exactly the same size when toggling.
+    const h = Math.max(1, div.getBoundingClientRect().height);
     div.style.height = `${h}px`;
     div.style.flex = "none";
-    const pad = Math.max(160, Math.floor(h * 0.45));
+    const pad = Math.floor(h * 0.45);
     div.style.paddingTop = `${pad}px`;
     div.style.paddingBottom = `${pad}px`;
     // Scroll so cursor is already centred when mode turns on
-    setTimeout(scrollToCursor, 50);
+    const timer = setTimeout(scrollToCursor, 50);
+    return () => clearTimeout(timer);
   }, [writingStyle.typewriterMode, scrollToCursor]);
 
   // ── Core text update ──────────────────────────────────────────────────
@@ -1098,32 +1118,16 @@ export default function Room() {
   // the current editor content and syncs all state (used from handleInput,
   // handleFormat, handleKeyDown after execCommand).
 
-  const applyText = useCallback((newHtml?: string, keepBaseline = false) => {
+  const applyText = useCallback((newHtml?: string, keepBaseline = false, restoreOnly = false) => {
     const div = textareaRef.current;
     if (!div) return;
 
-    // Guard: if the user deleted all text and the browser collapsed the div to
-    // a bare text node or left it completely empty, reinitialize with a clean
-    // styled <p> so the cursor and word count continue working from zero.
-    if (newHtml === undefined && !div.querySelector("p")) {
-      const p = document.createElement("p");
-      applyModeToP(p, paragraphModeRef.current);
-      p.innerHTML = "<br>";
-      div.innerHTML = "";
-      div.appendChild(p);
-      const s = window.getSelection();
-      if (s) {
-        const r = document.createRange();
-        r.setStart(p, 0);
-        r.collapse(true);
-        s.removeAllRanges();
-        s.addRange(r);
-      }
-    }
-
+    // Native editing can produce bare text or <div> blocks (paste, undo, IME).
+    // Never replace those nodes during input: doing so discards valid writing.
     if (newHtml !== undefined) {
       // Programmatic update — set innerHTML and move cursor to end
-      div.innerHTML = newHtml;
+      div.innerHTML = newHtml || "<p><br></p>";
+      if (!newHtml) applyModeToP(div.firstElementChild as HTMLElement, paragraphModeRef.current);
       const sel = window.getSelection();
       if (sel) {
         const range = document.createRange();
@@ -1143,9 +1147,21 @@ export default function Room() {
     currentTextRef.current = html;
     setText(html);
     setWordCount(wc);
+    if (restoreOnly) {
+      const restoredNet = roomRef.current?.status === "finished"
+        ? roomRef.current.participants.find(p => p.id === participantId)?.wordCount ?? 0
+        : sprintWords(wc, baselineWordCountRef.current, roomRef.current?.status === "running");
+      setLatestText(html, restoredNet);
+      if (roomRef.current?.status === "running") sendTextUpdate(html, restoredNet);
+      setSaveStatus("cloud");
+      return;
+    }
+    setSaveStatus("unsaved");
+    setSavedToMyFiles(false);
+    hasEditedRef.current = true;
 
     // ── HUD fade: mark as typing, reset idle timer (2 s) ─────────────────
-    if (!newHtml) { // only on user input, not programmatic restores
+    if (newHtml === undefined) { // only on user input, not programmatic restores
       setIsTyping(true);
       if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
       idleTimerRef.current = window.setTimeout(() => setIsTyping(false), 2000);
@@ -1156,12 +1172,13 @@ export default function Room() {
     // keepBaseline=true skips this so "Chapter Finished" clears the box
     // without resetting the car position.
     if (wc === 0 && roomRef.current?.status === "running" && !keepBaseline) {
-      baselineWordCountRef.current = 0;
+      baselineWordCountRef.current = Math.min(0, baselineWordCountRef.current);
+      try { localStorage.setItem(baselineLsKey, String(baselineWordCountRef.current)); } catch { /* storage unavailable */ }
       lastCapsuleThresholdRef.current = 0;
     }
 
     // Net words = words typed SINCE sprint started (baseline subtracted)
-    const netWc = Math.max(0, wc - baselineWordCountRef.current);
+    const netWc = sprintWords(wc, baselineWordCountRef.current, roomRef.current?.status === "running");
     setLatestText(html, netWc);
 
     // Optimistic car movement — throttled to 200 ms so mobile doesn't
@@ -1195,7 +1212,8 @@ export default function Room() {
         const filtered = prev.filter((c) => c.wordCount !== crossedThreshold);
         const updated = [...filtered, newCapsule];
         // Defer the localStorage write so it never blocks the keystroke
-        scheduleIdle(() => saveCapsules(code, updated));
+        currentCapsulesRef.current = updated;
+        scheduleIdle(() => { if (!closedRef.current) saveCapsules(code, currentCapsulesRef.current); });
         return updated;
       });
       setCapsuleFlash(true);
@@ -1213,11 +1231,11 @@ export default function Room() {
 
     // 5s debounced server backup
     scheduleServerSave(html, netWc);
-  }, [code, participantId, setLatestText, sendTextUpdate, updateLocalWordCount, flushAutoSave, scheduleServerSave]);
+  }, [code, baselineLsKey, participantId, setLatestText, sendTextUpdate, updateLocalWordCount, flushAutoSave, scheduleServerSave]);
 
   // ── Chapter Finished ───────────────────────────────────────────────────
   const handleChapterFinished = useCallback(() => {
-    const chapterText = textareaRef.current ? (textareaRef.current.innerText ?? "") : currentTextRef.current;
+    const chapterText = textareaRef.current ? editorPlainText(textareaRef.current) : plainTextFromHtml(currentTextRef.current);
     if (!chapterText.trim()) return;
 
     // Download with chapter number in filename
@@ -1232,8 +1250,9 @@ export default function Room() {
 
     // Adjust baseline BEFORE clearing so the net word count stays the same.
     // Math: netWc = max(0, wc - baseline). After clear wc=0, so baseline = -netWc.
-    const currentNetWc = Math.max(0, wordCount - baselineWordCountRef.current);
+    const currentNetWc = sprintWords(countWords(chapterText), baselineWordCountRef.current, roomRef.current?.status === "running");
     baselineWordCountRef.current = -currentNetWc;
+    try { localStorage.setItem(baselineLsKey, String(-currentNetWc)); } catch { /* storage unavailable */ }
 
     // Clear the box — keepBaseline=true prevents the wipe-reset guard from
     // zeroing the baseline we just set above, so the car position is preserved.
@@ -1249,24 +1268,47 @@ export default function Room() {
       title: `Chapter ${chapterNum} saved`,
       description: "Downloaded and cleared. Your sprint word count continues from here.",
     });
-  }, [wordCount, code, applyText, serverSaveNow, toast]);
+  }, [wordCount, code, baselineLsKey, applyText, serverSaveNow, toast]);
 
-  // ── Restore from server if localStorage was empty ──────────────────────
+  // Restore only after the real editor exists; a slow response must never
+  // replace writing that the user has started in the meantime.
   useEffect(() => {
-    if (!code || !name || serverRestoreDoneRef.current) return;
-    if (currentTextRef.current) { serverRestoreDoneRef.current = true; return; }
-    serverRestoreDoneRef.current = true;
-    fetch(`/api/rooms/${encodeURIComponent(code)}/writing/${encodeURIComponent(name)}`)
+    if (!code || !name || !participantId || !textareaRef.current || serverRestoreDoneRef.current) return;
+    if (currentTextRef.current || hasEditedRef.current) {
+      serverRestoreDoneRef.current = true;
+      // A reload may happen before the previous debounce reached the server.
+      // Resume backup of the local draft even if the writer does not type again.
+      // Completed sprints retain their authoritative server result.
+      if (currentTextRef.current && !hasEditedRef.current && roomRef.current?.status !== "finished") {
+        const total = countWords(plainTextFromHtml(currentTextRef.current));
+        serverSaveNow(currentTextRef.current, sprintWords(total, baselineWordCountRef.current, roomRef.current?.status === "running"));
+      }
+      return;
+    }
+    let cancelled = false;
+    authedFetch(`/api/rooms/${encodeURIComponent(code)}/writing/${encodeURIComponent(name)}`)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
-        if (data?.text && !currentTextRef.current) {
-          applyText(data.text);
-          try { localStorage.setItem(autoSaveKey(code), data.text); } catch { /* ignore */ }
-          toast({ title: "Writing restored", description: "Your previous writing has been recovered from the server." });
+        if (cancelled) return;
+        serverRestoreDoneRef.current = true;
+        if (typeof data?.text !== "string" || currentTextRef.current || hasEditedRef.current || !textareaRef.current) return;
+        const total = countWords(plainTextFromHtml(data.text));
+        if (roomRef.current?.status === "running") {
+          // The live room is authoritative, including an intentional zero
+          // after a restart; an older HTTP backup must not revive that score.
+          const recoveredWords = roomRef.current.participants.find(p => p.id === participantId)?.wordCount
+            ?? (Number.isFinite(data.wordCount) ? Math.max(0, data.wordCount) : 0);
+          baselineWordCountRef.current = total - recoveredWords;
+          try { localStorage.setItem(baselineLsKey, String(baselineWordCountRef.current)); } catch { /* storage unavailable */ }
         }
+        applyText(data.text, true, true);
+        flushAutoSave(true);
+        setSaveStatus("cloud");
+        if (data.text) toast({ title: "Writing restored", description: "Your previous writing has been recovered from the server." });
       })
-      .catch(() => { /* silent */ });
-  }, [code, name, applyText, toast]);
+      .catch(() => { /* keep the local fallback; a later reconnect can retry */ });
+    return () => { cancelled = true; };
+  }, [code, name, participantId, room?.status, baselineLsKey, authedFetch, applyText, flushAutoSave, serverSaveNow, toast]);
 
   // ── Goal mode: reset hit-flag when a new sprint starts ─────────────────
   useEffect(() => {
@@ -1302,35 +1344,11 @@ export default function Room() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.status, isSignedIn, participantId]);
 
-  // ── "Slow Bitch." every 5 min when behind the leader ───────────────────
-  // Must live BEFORE the early returns (if !room / if error) so hook order
-  // stays constant across every render.
-  // Uses roomRef so the callback always reads the latest participants/word
-  // counts rather than the stale closure captured at sprint-start.
-  useEffect(() => {
-    if (room?.status !== "running") return;
-    const intervalId = window.setInterval(() => {
-      const currentRoom = roomRef.current;
-      if (!currentRoom) return;
-      const participants = currentRoom.participants;
-      if (participants.length < 2) return;
-      const leaderWc = Math.max(...participants.map((p) => p.wordCount));
-      if (leaderWc <= 0) return; // everyone still at 0 — too early
-      if (netWordCountRef.current >= leaderWc) return;
-      setSlowBitchVisible(true);
-      if (slowBitchHideTimerRef.current) clearTimeout(slowBitchHideTimerRef.current);
-      slowBitchHideTimerRef.current = window.setTimeout(() => setSlowBitchVisible(false), 2500);
-    }, 5 * 60 * 1000);
-    return () => {
-      clearInterval(intervalId);
-      if (slowBitchHideTimerRef.current) clearTimeout(slowBitchHideTimerRef.current);
-    };
-  }, [room?.status]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Handlers ─────────────────────────────────────────────────────────
 
   // User typing in the contenteditable editor — just sync from current DOM state
   const handleInput = useCallback(() => {
+    if (isComposingRef.current) return;
     applyText();
     if (writingStyle.typewriterMode) requestAnimationFrame(scrollToCursor);
   }, [applyText, writingStyle.typewriterMode, scrollToCursor]);
@@ -1341,7 +1359,7 @@ export default function Room() {
     // Ensure editor always has at least one <p> to type into, with inline
     // spacing styles matching the current mode so line 0 behaves identically
     // to every subsequent paragraph created by insertParagraphAtCursor.
-    if (!div.querySelector("p")) {
+    if (!div.textContent && !div.querySelector("p")) {
       const p = document.createElement("p");
       applyModeToP(p, writingStyle.paragraphMode);
       p.innerHTML = "<br>";
@@ -1358,88 +1376,12 @@ export default function Room() {
     }
   }, [writingStyle.paragraphMode]);
 
-  // Insert a new <p> at the cursor, splitting the current paragraph.
-  // One Enter press = one new paragraph, regardless of mode.
-  // CSS on the editor controls spacing (line-height / margin) per mode.
-  const insertParagraphAtCursor = useCallback(() => {
-    const div = textareaRef.current;
-    const sel = window.getSelection();
-    if (!div || !sel || sel.rangeCount === 0) return;
-    const range = sel.getRangeAt(0);
-    range.deleteContents();
-
-    // Walk up from the cursor to find the enclosing <p>
-    let currentP: HTMLElement | null = null;
-    let node: Node | null = range.startContainer;
-    while (node && node !== div) {
-      if ((node as Element).nodeName === "P") { currentP = node as HTMLElement; break; }
-      node = node.parentNode;
-    }
-
-    // Ensure the paragraph we're splitting from also has the correct mode
-    // stamped on it. When the user clicks a toolbar button to change mode,
-    // the editor loses focus and the selection is cleared, so handleStyleChange
-    // may not have applied the new mode to this paragraph. Stamping it here
-    // guarantees the gap appears immediately on the first Enter press.
-    if (currentP) {
-      applyModeToP(currentP, writingStyle.paragraphMode);
-    }
-
-    const newP = document.createElement("p");
-    // Stamp the current mode as inline styles so this paragraph keeps its
-    // spacing even if the user switches modes later without a selection.
-    applyModeToP(newP, writingStyle.paragraphMode);
-
-    if (currentP) {
-      // Extract everything from cursor to end of currentP into newP
-      const splitRange = document.createRange();
-      splitRange.setStart(range.startContainer, range.startOffset);
-      splitRange.setEnd(currentP, currentP.childNodes.length);
-      newP.appendChild(splitRange.extractContents());
-      currentP.after(newP);
-      // Keep currentP non-empty so the cursor line stays visible
-      if (!currentP.textContent && !currentP.querySelector("br")) {
-        currentP.appendChild(document.createElement("br"));
-      }
-    } else {
-      // Cursor is directly in the editor div (e.g. first focus on empty editor)
-      div.appendChild(newP);
-    }
-
-    // New paragraph needs at least a <br> so the cursor is visible on the line
-    if (!newP.textContent && !newP.querySelector("br")) {
-      newP.appendChild(document.createElement("br"));
-    }
-
-    // Place cursor at the start of the new paragraph
-    const r = document.createRange();
-    const fc = newP.firstChild;
-    r.setStart(fc instanceof Text ? fc : newP, 0);
-    r.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(r);
-  }, [writingStyle.paragraphMode]);
-
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    insertParagraphAtCursor();
-    if (writingStyle.paragraphMode === "indent") {
-      // Add leading indent after the new paragraph is created
-      const indentSel = window.getSelection();
-      if (indentSel && indentSel.rangeCount > 0) {
-        const r = indentSel.getRangeAt(0);
-        const indent = document.createTextNode("\u00a0\u00a0\u00a0\u00a0");
-        r.insertNode(indent);
-        r.setStartAfter(indent);
-        r.collapse(true);
-        indentSel.removeAllRanges();
-        indentSel.addRange(r);
-      }
-    }
-    applyText();
-    if (writingStyle.typewriterMode) requestAnimationFrame(scrollToCursor);
-  }, [writingStyle.paragraphMode, writingStyle.typewriterMode, applyText, scrollToCursor, insertParagraphAtCursor]);
+    // Let the browser own paragraphs, Shift+Enter, undo and composition.
+    // Direct Range mutations on Enter used to break undo and IME input.
+    if (e.nativeEvent.isComposing) return;
+    if (e.key === "Escape") setDistractionFree(false);
+  }, []);
 
   // Strip pasted HTML — keep only the plain text
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -1451,35 +1393,10 @@ export default function Room() {
   }, [applyText]);
 
   const handleStyleChange = (partial: Partial<WritingStyle>) => {
-    // Paragraph-mode changes are applied selectively:
-    // • If text is selected → restyle only the <p> elements that intersect the selection.
-    // • If nothing is selected → don't touch existing paragraphs; new mode applies to
-    //   future paragraphs only (inline styles set at creation time in insertParagraphAtCursor).
-    if ("paragraphMode" in partial && partial.paragraphMode !== writingStyle.paragraphMode) {
-      const mode = partial.paragraphMode!;
-      const div = textareaRef.current;
-      const sel = window.getSelection();
-      if (div && sel && !sel.isCollapsed && sel.rangeCount > 0) {
-        // Selection exists: restyle every <p> that intersects it.
-        const range = sel.getRangeAt(0);
-        if (div.contains(range.commonAncestorContainer)) {
-          div.querySelectorAll("p").forEach((p) => {
-            if (range.intersectsNode(p)) applyModeToP(p as HTMLElement, mode);
-          });
-        }
-      } else if (div && sel && sel.rangeCount > 0) {
-        // No selection: restyle only the paragraph the cursor is currently in
-        // so the very next Enter already produces correctly-spaced output.
-        const range = sel.getRangeAt(0);
-        let node: Node | null = range.startContainer;
-        while (node && node !== div) {
-          if ((node as Element).nodeName === "P") {
-            applyModeToP(node as HTMLElement, mode);
-            break;
-          }
-          node = node.parentNode;
-        }
-      }
+    if (partial.paragraphMode && textareaRef.current) {
+      textareaRef.current.querySelectorAll("p").forEach(p => {
+        applyModeToP(p, partial.paragraphMode!);
+      });
     }
     setWritingStyle((prev) => {
       const next = { ...prev, ...partial };
@@ -1507,6 +1424,7 @@ export default function Room() {
       setActiveFormats({ bold: false, italic: false, underline: false });
       return;
     }
+    savedSelectionRef.current = sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
     try {
       setActiveFormats({
         // eslint-disable-next-line @typescript-eslint/no-deprecated
@@ -1528,8 +1446,14 @@ export default function Room() {
 
   const handleFormat = useCallback((type: FormatType) => {
     const div = textareaRef.current;
-    if (!div) return;
+    if (!div || !div.isContentEditable) return;
     div.focus();
+    const selection = window.getSelection();
+    const saved = savedSelectionRef.current;
+    if (saved && div.contains(saved.commonAncestorContainer)) {
+      selection?.removeAllRanges();
+      selection?.addRange(saved);
+    }
     const command = type === "bold" ? "bold" : type === "italic" ? "italic" : "underline";
     // eslint-disable-next-line @typescript-eslint/no-deprecated
     document.execCommand(command, false, undefined);
@@ -1538,9 +1462,49 @@ export default function Room() {
   }, [applyText, refreshActiveFormats]);
 
   const copyRoomCode = () => {
-    navigator.clipboard.writeText(code);
-    toast({ title: "Copied!", description: "Room code copied to clipboard." });
+    navigator.clipboard.writeText(code)
+      .then(() => toast({ title: "Copied!", description: "Room code copied to clipboard." }))
+      .catch(() => toast({ title: "Room code", description: code }));
   };
+
+  useEffect(() => {
+    if (room?.status === "waiting" || room?.status === "countdown") setGladiatorResultDismissed(false);
+  }, [room?.status]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        setDistractionFree(value => !value);
+      }
+      if (event.key === "Escape") setDistractionFree(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    if (!actionError) return;
+    toast({ title: "Action unavailable", description: actionError });
+    clearActionError();
+  }, [actionError, clearActionError, toast]);
+
+  useEffect(() => {
+    if (room?.status !== "waiting") return;
+    finalSnapshotTakenRef.current = false;
+    sprintWasRunningRef.current = false;
+    xpAwardedRef.current = false;
+    restoredNetWordsRef.current = 0;
+    eliminationStartedRef.current = false;
+    hasAutoDownloadedRef.current = false;
+    goalHitShownRef.current = false;
+    setIsGameOver(false);
+    setReadMode(false);
+    setGraceCountdown(null);
+    setXpGained(null);
+    setChestOpenRequested(false);
+    setGoalDialogOpen(false);
+  }, [room?.status]);
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -1624,7 +1588,7 @@ export default function Room() {
   const isOpenMode = room.mode === "open";
 
   // Net word count: what shows on the badge and car during a sprint
-  const netWordCount = isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : wordCount;
+  const netWordCount = isRunning ? (prevStatusRef.current === "running" ? Math.max(0, wordCount - baselineWordCountRef.current) : restoredWordCount ?? 0) : isFinished ? (room.participants.find(p => p.id === participantId)?.wordCount ?? 0) : 0;
 
   // Death Mode: smooth client-side reaper position (updates every 150 ms)
   const reaperWordCount = isRunning && room.deathModeWpm != null
@@ -1678,8 +1642,8 @@ export default function Room() {
     </>}
     <div className={distractionFree
       ? "fixed inset-0 z-50 bg-background flex flex-col overflow-auto"
-      : "w-full flex flex-col gap-4"
-    } style={!distractionFree ? { position: "relative", zIndex: 1, height: "100dvh", overflow: "hidden", overflowX: "hidden" } : undefined}>
+      : "ws-room-shell w-full flex flex-col gap-4"
+    } style={!distractionFree ? { position: "relative", zIndex: 1, height: isFinished ? "auto" : "100dvh", minHeight: "100dvh", overflow: isFinished ? "visible" : "hidden", overflowX: "hidden" } : undefined}>
 
       {/* Chest award modal — only mounted once the user clicks "Open Now" on
           the inline chest card embedded in the results screen. autoOpen=true
@@ -1702,8 +1666,8 @@ export default function Room() {
       )}
 
       {/* Gladiator execution / victory / draw overlay */}
-      {room?.mode === "gladiator" && gladiatorState.executionResult && (
-        <GladiatorResults result={gladiatorState.executionResult} participantId={participantId} />
+      {room?.mode === "gladiator" && gladiatorState.executionResult && !gladiatorResultDismissed && (
+        <GladiatorResults result={gladiatorState.executionResult} participantId={participantId} onClose={() => setGladiatorResultDismissed(true)} />
       )}
 
       {/* Reconnecting banner — fixed overlay so it never shifts the writing
@@ -1836,6 +1800,9 @@ export default function Room() {
             capsules={capsules}
             xpGained={xpGained}
             isBossMode={room.mode === "boss"}
+            bossWordGoal={room.bossWordGoal}
+            bossDefeated={room.mode === "boss" && (room.bossTotalWords ?? room.participants.filter(p => p.role !== "editor").reduce((sum, p) => sum + p.wordCount, 0)) >= (room.bossWordGoal ?? Infinity)}
+            isGladiatorMode={room.mode === "gladiator"}
             isKartMode={room.mode === "kart"}
             betOutcome={derivedBetOutcome}
             chestAwarded={chestAwarded}
@@ -1844,14 +1811,14 @@ export default function Room() {
           />
         </div>
       ) : (
-        <div className={distractionFree ? "flex-1 flex flex-col" : "flex-1 flex flex-col"} style={!distractionFree ? { padding: "6px 20px 6px", minHeight: 0 } : undefined}>
+        <div className={distractionFree ? "flex-1 flex flex-col" : "ws-room-main flex-1 flex flex-col"} style={!distractionFree ? { padding: "6px 20px 6px", minHeight: 0 } : undefined}>
           {/* Race / boss track + timer — hidden in distraction-free mode */}
           {!distractionFree && (
             <div
               style={{ maxWidth: 1100, margin: "0 auto", width: "100%", paddingTop: 2, flexShrink: 0 }}
               onMouseEnter={() => { if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current); setIsTyping(false); }}
             >
-              <div style={{ display: "flex", gap: 12, alignItems: "stretch", paddingBottom: 4 }}>
+              <div className="ws-room-game-row" style={{ display: "flex", gap: 12, alignItems: "stretch", paddingBottom: 4 }}>
                 {/* Race / boss / gladiator track */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {room.mode === "gladiator" ? (
@@ -1872,6 +1839,8 @@ export default function Room() {
                       participants={room.participants}
                       currentParticipantId={participantId}
                       bossWordGoal={room.bossWordGoal}
+                      isRunning={isRunning}
+                      bossDefeated={(room.bossTotalWords ?? 0) >= room.bossWordGoal}
                     />
                   ) : (
                     <RaceTrack
@@ -1884,7 +1853,7 @@ export default function Room() {
                       starActiveIds={room.mode === "kart" ? kartState.starActiveIds : undefined}
                       kartEffects={room.mode === "kart" ? kartState.effects : undefined}
                       isKartMode={room.mode === "kart"}
-                      localWordCount={isRunning ? Math.max(0, wordCount - baselineWordCountRef.current) : undefined}
+                      localWordCount={isRunning ? netWordCount : undefined}
                       hostCarSkin={room.hostCarSkin}
                       hostRoadSkin={room.hostRoadSkin}
                       roomMode={room.mode}
@@ -1931,7 +1900,7 @@ export default function Room() {
                 </div>
 
                 {/* Sticky inline timer — always visible while scrolling, aligns with sidebar */}
-                <div style={{ width: 240, flexShrink: 0, display: "flex", alignItems: "stretch" }}>
+                <div className="ws-room-clock" style={{ width: 240, flexShrink: 0, display: "flex", alignItems: "stretch" }}>
                   {(() => {
                     if (isRunning || isCountdown) {
                       // Use client-interpolated time when running so the
@@ -2112,7 +2081,7 @@ export default function Room() {
 
               <div
                 style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", overflow: "hidden", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}
-                className={`${kartState.boldText ? "kart-banana-hit" : ""}${kartState.blurCounter ? " kart-blur-counter" : ""}`}
+                className={`ws-writing-surface ${kartState.boldText ? "kart-banana-hit" : ""}${kartState.blurCounter ? " kart-blur-counter" : ""}`}
               >
                 {/* nothing before the editor now */}
                 <div
@@ -2123,7 +2092,13 @@ export default function Room() {
                   onInput={handleInput}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  spellCheck={false}
+                  onCompositionStart={() => { isComposingRef.current = true; }}
+                  onCompositionEnd={() => { isComposingRef.current = false; handleInput(); }}
+                  role="textbox"
+                  aria-label="Your writing"
+                  aria-multiline="true"
+                  aria-readonly={readMode || (!isRunning && !isWaiting && !isCountdown)}
+                  spellCheck={true}
                   data-placeholder={
                     isRunning
                       ? "Write here — the clock is ticking!"
@@ -2157,18 +2132,6 @@ export default function Room() {
                     Capsule saved
                   </div>
                 </div>
-                {/* Slow Bitch notification — below the badge row */}
-                <div
-                  className="flex justify-center pt-2 transition-all duration-300"
-                  style={{ opacity: slowBitchVisible ? 1 : 0, transform: slowBitchVisible ? "scale(1)" : "scale(0.85)", pointerEvents: "none" }}
-                >
-                  <span
-                    className="inline-flex items-center gap-2 bg-red-600 text-white text-sm font-bold px-4 py-1.5 rounded-lg select-none shadow-lg"
-                    style={{ letterSpacing: "0.03em" }}
-                  >
-                    🐢 You're the slow bitch.
-                  </span>
-                </div>
               </div>
               {/* Word count + auto-save — outside the writing card, bottom-right */}
               {!distractionFree && (
@@ -2180,16 +2143,16 @@ export default function Room() {
                           ? "bg-green-50 border-green-200 text-green-700 dark:bg-green-950/30 dark:border-green-800 dark:text-green-400"
                           : "bg-muted border text-muted-foreground"
                       }`}
-                      title={saveStatus === "cloud" ? "Saved on this device and backed up to the server" : "Saved on this device — server backup in progress"}
+                      title={isDemoSession() ? "Demo writing is saved on this device" : saveStatus === "cloud" ? "Saved on this device and backed up to the server" : "Saved on this device"}
                     >
                       {saveStatus === "cloud" ? (
-                        <><span>✓</span><span>Device + Cloud</span></>
+                        <><span>✓</span><span>{isDemoSession() ? "Demo saved" : "Device + Cloud"}</span></>
                       ) : (
                         <><span>✓</span><span>Device</span></>
                       )}
                     </div>
                   )}
-                  <div className="kart-word-count bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5">
+                  <div className={`kart-word-count bg-muted/60 border px-3 py-1 rounded-md flex items-baseline gap-1.5${kartState.blurCounter ? " kart-counter-obscured" : ""}`}>
                     <span className="font-mono font-semibold text-sm text-foreground">
                       {wordCount}
                       {room.mode === "kart" && kartState.bonusWords > 0 ? <span className="text-orange-400 text-xs ml-1">+{kartState.bonusWords}</span> : null}
@@ -2391,14 +2354,19 @@ export default function Room() {
               {isRunning && isCreator && (
                 <div style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.9)", borderRadius: 16, padding: 16, boxShadow: "0 4px 20px rgba(107,143,212,0.08)", display: "flex", flexDirection: "column", gap: 10 }}>
                   <p style={{ fontSize: "0.75rem", fontWeight: 700, color: "#7a7a92", letterSpacing: "0.06em", textTransform: "uppercase" }}>Host Controls</p>
-                  <Button onClick={endSprint} variant="destructive" className="w-full" disabled={!isConnected} style={{ borderRadius: 12 }}>
+                  <Button onClick={() => {
+                      if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+                      sendTextUpdate(currentTextRef.current, Math.max(0, wordCount - baselineWordCountRef.current));
+                      flushAutoSave(true);
+                      endSprint();
+                    }} variant="destructive" className="w-full" disabled={!isConnected} style={{ borderRadius: 12 }}>
                     End Early
                   </Button>
                 </div>
               )}
 
-              {/* Focus mode button — available once sprint is running */}
-              {isRunning && (
+              {/* Focus mode is available during warmup and the sprint. */}
+              {(isRunning || isWaiting || isCountdown) && (
                 <Button
                   variant="outline"
                   className="w-full"

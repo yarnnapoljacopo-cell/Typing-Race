@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { Link } from "wouter";
 import { Bell } from "lucide-react";
 import { useAuthedFetch } from "@/lib/authedFetch";
@@ -9,7 +9,7 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface InviteSummary { id: number; guildName: string; guildTag: string }
 
-export function GuildBell() {
+export function GuildBell({ embedded = false }: { embedded?: boolean }) {
   const { isSignedIn } = useAuth();
   const af = useAuthedFetch();
 
@@ -43,14 +43,17 @@ export function GuildBell() {
   const sprint = activeSprint?.sprint ?? null;
   const totalCount = inviteCount + (sprint ? 1 : 0);
 
-  return (
-    <Link href="/guild" className="gb-bell" title={
-      sprint ? `Guild sprint started by ${sprint.startedBy}` :
-      inviteCount > 0 ? `${inviteCount} pending guild invite${inviteCount === 1 ? "" : "s"}` :
-      "Guild"
-    }>
-      <Bell size={16} />
-      {totalCount > 0 && <span className="gb-badge">{totalCount}</span>}
-    </Link>
-  );
+  const title = sprint ? `Guild sprint started by ${sprint.startedBy}` :
+    inviteCount > 0 ? `${inviteCount} pending guild invite${inviteCount === 1 ? "" : "s"}` :
+    "Guild";
+  const content = <>
+    <Bell size={16} aria-hidden="true" />
+    {totalCount > 0 && <span className="gb-badge">{totalCount}</span>}
+  </>;
+
+  // A sidebar row already provides its own guild link. Keep the badge's
+  // appearance without nesting another anchor inside that navigation target.
+  return embedded
+    ? <span className="gb-bell" title={title}>{content}</span>
+    : <Link href="/guild" className="gb-bell" title={title}>{content}</Link>;
 }

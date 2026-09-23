@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { useAuth, useUser } from "@clerk/react";
+import { useAuth, useUser } from "@/lib/auth";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { useDarkMode } from "@/lib/darkModeContext";
 import { Flame, X, ShoppingBag, ChevronDown, Shield } from "lucide-react";

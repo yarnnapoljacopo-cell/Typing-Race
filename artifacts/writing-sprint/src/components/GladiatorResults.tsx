@@ -1,146 +1,56 @@
+import { useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import type { GladiatorResult } from "@/hooks/useSprintRoom";
+import { BattleCharacter } from "./BattleCharacter";
+import { Button } from "./ui/button";
+import "./battle-rooms.css";
 
 interface GladiatorResultsProps {
   result: GladiatorResult;
   participantId: string | null;
+  onClose?: () => void;
 }
 
 function StatRow({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex items-baseline justify-between py-1.5 border-b border-white/5 last:border-0">
-      <span className="text-xs text-white/40">{label}</span>
-      <span className="text-xs font-mono font-bold text-white/80">{value}</span>
-    </div>
-  );
+  return <div className="flex items-baseline justify-between gap-3 border-b border-border py-2 last:border-0">
+    <dt className="text-xs text-muted-foreground">{label}</dt>
+    <dd className="text-xs font-medium tabular-nums text-right">{value}</dd>
+  </div>;
 }
 
-export function GladiatorResults({ result, participantId }: GladiatorResultsProps) {
+export function GladiatorResults({ result, participantId, onClose }: GladiatorResultsProps) {
+  const [open, setOpen] = useState(true);
+  const close = () => { setOpen(false); onClose?.(); };
   const { outcome, myHp, opponentHp, myWordCount, opponentWordCount, stats } = result;
   const isVictory = outcome === "victory";
   const isDraw = outcome === "draw";
+  const healed = participantId ? Math.round(stats.totalHpHealed[participantId] ?? 0) : 0;
+  const seconds = Math.floor(Math.max(0, stats.timeInDangerMs) / 1000);
+  const reason = stats.endedByExecution
+    ? (isVictory ? "Your word lead settled the duel." : "The word gap grew too wide this round.")
+    : isDraw ? "Equal health at the final bell. An even match." : "The bell rang. Remaining health decided the match.";
 
-  const myHealedHp = participantId ? Math.round(stats.totalHpHealed[participantId] ?? 0) : 0;
-  const dangerMin = Math.round(stats.timeInDangerMs / 60_000);
-  const dangerSec = Math.round((stats.timeInDangerMs % 60_000) / 1000);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.95)" }}
-    >
-      <div
-        className="w-full max-w-sm rounded-2xl overflow-hidden"
-        style={{
-          background: "rgba(10,10,20,0.98)",
-          border: isVictory
-            ? "1px solid rgba(251,191,36,0.4)"
-            : isDraw
-            ? "1px solid rgba(148,163,184,0.3)"
-            : "1px solid rgba(239,68,68,0.3)",
-          boxShadow: isVictory
-            ? "0 0 60px rgba(251,191,36,0.15), 0 24px 64px rgba(0,0,0,0.8)"
-            : "0 24px 64px rgba(0,0,0,0.8)",
-        }}
-      >
-        {/* Outcome header */}
-        <div
-          className="px-6 py-8 text-center"
-          style={{
-            background: isVictory
-              ? "linear-gradient(180deg, rgba(251,191,36,0.12) 0%, transparent 100%)"
-              : isDraw
-              ? "linear-gradient(180deg, rgba(148,163,184,0.08) 0%, transparent 100%)"
-              : "linear-gradient(180deg, rgba(239,68,68,0.1) 0%, transparent 100%)",
-          }}
-        >
-          <div className="text-4xl mb-3">
-            {isVictory ? "⚔️" : isDraw ? "🤝" : "💀"}
-          </div>
-          <h1
-            className="font-serif text-3xl font-black tracking-tight mb-1"
-            style={{
-              color: isVictory ? "#fbbf24" : isDraw ? "#94a3b8" : "#ef4444",
-              textShadow: isVictory ? "0 0 30px rgba(251,191,36,0.4)" : isDraw ? "none" : "0 0 20px rgba(239,68,68,0.3)",
-            }}
-          >
-            {isVictory ? "Victory" : isDraw ? "Draw" : "You have fallen"}
-          </h1>
-          {stats.endedByExecution && !isVictory && (
-            <p className="text-xs text-white/30 italic tracking-wider mt-0.5">The gap was your undoing</p>
-          )}
-          {stats.endedByExecution && isVictory && (
-            <p className="text-xs text-white/30 italic tracking-wider mt-0.5">You executed your opponent</p>
-          )}
-          {!stats.endedByExecution && (
-            <p className="text-xs text-white/30 italic tracking-wider mt-0.5">
-              {isDraw ? "Both gladiators fought with equal fury" : "Timer's verdict: HP decides fate"}
-            </p>
-          )}
+  return <Dialog.Root open={open} onOpenChange={value => { if (!value) close(); }}>
+    <Dialog.Portal>
+      <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
+      <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-32px)] max-w-sm max-h-[calc(100dvh-32px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card text-card-foreground p-6 shadow-xl">
+        <div className="mx-auto w-28"><BattleCharacter character={4} label={isVictory ? "Victorious gladiator" : isDraw ? "Your gladiator" : "Defeated gladiator"} defeated={!isVictory && !isDraw} /></div>
+        <Dialog.Title className="font-serif text-3xl text-center font-bold">{isVictory ? "Victory" : isDraw ? "An even match" : "A hard-fought duel"}</Dialog.Title>
+        <Dialog.Description className="mt-2 text-center text-sm text-muted-foreground">{reason}</Dialog.Description>
+        <div className="grid grid-cols-2 gap-4 my-5 rounded-xl bg-muted/50 p-4 text-center tabular-nums">
+          <div><p className="text-xs text-muted-foreground">You</p><p className="text-2xl font-semibold mt-1">{Math.ceil(Math.max(0, myHp))}<span className="text-xs font-normal text-muted-foreground"> HP</span></p><p className="text-xs text-muted-foreground mt-1">{myWordCount.toLocaleString()} words</p></div>
+          <div><p className="text-xs text-muted-foreground">Challenger</p><p className="text-2xl font-semibold mt-1">{Math.ceil(Math.max(0, opponentHp))}<span className="text-xs font-normal text-muted-foreground"> HP</span></p><p className="text-xs text-muted-foreground mt-1">{opponentWordCount.toLocaleString()} words</p></div>
         </div>
-
-        {/* HP comparison */}
-        <div className="px-6 pb-4">
-          <div className="flex items-end justify-center gap-6 py-4">
-            <div className="text-center">
-              <div
-                className="text-3xl font-mono font-black tabular-nums"
-                style={{ color: myHp < 200 ? "#ef4444" : myHp < 500 ? "#f97316" : "#22c55e" }}
-              >
-                {myHp}
-              </div>
-              <div className="text-[10px] text-white/30 mt-0.5 uppercase tracking-wider">Your HP</div>
-            </div>
-            <div className="text-white/20 text-2xl font-light mb-1">vs</div>
-            <div className="text-center">
-              <div className="text-3xl font-mono font-black tabular-nums text-white/40">
-                {opponentHp}
-              </div>
-              <div className="text-[10px] text-white/30 mt-0.5 uppercase tracking-wider">Opponent HP</div>
-            </div>
-          </div>
-
-          <div className="flex gap-4 text-center pt-2">
-            <div className="flex-1">
-              <div className="text-lg font-mono font-bold text-white/80">{myWordCount}</div>
-              <div className="text-[9px] text-white/30 uppercase tracking-wider">Your words</div>
-            </div>
-            <div className="flex-1">
-              <div className="text-lg font-mono font-bold text-white/40">{opponentWordCount}</div>
-              <div className="text-[9px] text-white/30 uppercase tracking-wider">Their words</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div
-          className="mx-4 mb-4 rounded-xl px-4 py-3"
-          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-        >
-          <div className="text-[9px] text-white/25 uppercase tracking-widest mb-2 font-semibold">Match Stats</div>
-          <StatRow label="Closest gap" value={`${stats.closestGap} words`} />
-          <StatRow label="Max gap reached" value={`${stats.maxGap} words`} />
-          <StatRow label="HP healed by writing" value={`${myHealedHp} HP`} />
+        <dl className="mb-5">
+          <StatRow label="Closest gap" value={`${Math.max(0, stats.closestGap)} words`} />
+          <StatRow label="Largest gap" value={`${stats.maxGap} words`} />
+          <StatRow label="Health restored by writing" value={`${healed} HP`} />
           <StatRow label="Lead changes" value={stats.leadChanges} />
-          <StatRow label="Time in danger zone" value={dangerMin > 0 ? `${dangerMin}m ${dangerSec}s` : `${dangerSec}s`} />
-          <StatRow label="Ended by" value={stats.endedByExecution ? "Execution ⚔️" : "Timer ⏱️"} />
-        </div>
-
-        {/* Return button */}
-        <div className="px-4 pb-5">
-          <button
-            type="button"
-            onClick={() => window.location.href = "/"}
-            className="w-full py-3 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95"
-            style={{
-              background: isVictory ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.06)",
-              border: isVictory ? "1px solid rgba(251,191,36,0.3)" : "1px solid rgba(255,255,255,0.1)",
-              color: isVictory ? "#fbbf24" : "#ffffff80",
-            }}
-          >
-            Return to the portal
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+          <StatRow label="Time in danger" value={seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`} />
+        </dl>
+        <Button onClick={close} className="w-full min-h-10">Review your writing</Button>
+        <a href="/portal" className="flex min-h-10 items-center justify-center mt-2 text-sm text-muted-foreground hover:text-foreground">Return to the portal</a>
+      </Dialog.Content>
+    </Dialog.Portal>
+  </Dialog.Root>;
 }

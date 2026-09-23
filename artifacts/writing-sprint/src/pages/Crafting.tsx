@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { ItemIcon } from "@/components/ItemIcon";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import "./Crafting.css";
+import "@/components/cultivation-shop.css";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -535,7 +536,7 @@ export default function Crafting() {
     .filter(r => activeTab === "alchemy" ? r.recipe_type === "alchemy" : activeTab === "tribulation" ? r.recipe_type === "tribulation" : true)
     .filter(r => recipeFilter === "known" ? r.is_known : recipeFilter === "unknown" ? !r.is_known : true);
 
-  const TABS: { key: Tab; label: string; icon: JSX.Element }[] = [
+  const TABS: { key: Tab; label: string; icon: React.ReactElement }[] = [
     { key: "fusion",      label: "Fusion",      icon: <IconSun /> },
     { key: "alchemy",     label: "Alchemy",     icon: <IconFlask /> },
     { key: "tribulation", label: "Tribulation", icon: <IconZap /> },

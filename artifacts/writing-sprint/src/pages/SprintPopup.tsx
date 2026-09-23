@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { useUser, useAuth } from "@clerk/react";
+import { useUser, useAuth } from "@/lib/auth";
 import { useGuest } from "@/lib/guestContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateRoom } from "@workspace/api-client-react";

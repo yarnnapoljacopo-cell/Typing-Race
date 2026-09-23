@@ -32,6 +32,7 @@ export interface RoomState {
   creatorXp: number;
   hostCarSkin: string | null;
   hostRoadSkin: string | null;
+  starActiveIds?: string[];
 }
 
 export interface GladiatorResult {
@@ -126,6 +127,7 @@ interface UseSprintRoomProps {
   isCreator?: boolean;
   password?: string | null;
   clerkUserId?: string | null;
+  getToken?: () => Promise<string | null>;
   /** Join as a "writer" (default — gets a car & races) or "editor"
    *  (visible spectator with no car, used for live editing/noting). */
   role?: "writer" | "editor";
@@ -156,18 +158,26 @@ const MAX_RECONNECT_ATTEMPTS = 10;
 // How long to keep retrying "Room not found" — covers server restart window
 const ROOM_NOT_FOUND_RETRY_MS = 90_000;
 
-export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSprintRoomProps) {
+export function useSprintRoom({ code, name, password, clerkUserId, getToken, role }: UseSprintRoomProps) {
   // Keep mutable refs for values that shouldn't change connect's identity but
   // must always be fresh on reconnect (avoid stale-closure bugs).
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
+  const terminalErrorRef = useRef(false);
+  const reconnectTokenRef = useRef("");
   const passwordRef = useRef(password);
   const clerkUserIdRef = useRef(clerkUserId);
   const roleRef = useRef(role);
   useEffect(() => { passwordRef.current = password; }, [password]);
   useEffect(() => { clerkUserIdRef.current = clerkUserId; }, [clerkUserId]);
   useEffect(() => { roleRef.current = role; }, [role]);
+  const roomStatusRef = useRef<RoomState["status"] | null>(null);
+  const effectTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const starVisualTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [room, setRoom] = useState<RoomState | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [disconnectReason, setDisconnectReason] = useState<"server_restart" | "network" | null>(null);
@@ -232,6 +242,38 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
   // When the most recent ping was sent — used to detect pong timeouts
   const lastPingSentAtRef = useRef<number>(0);
 
+  const clearModeTimers = useCallback(() => {
+    for (const ref of [blurTimerRef, boldTimerRef, starTimerRef, flashTimerRef, hitTimerRef]) {
+      if (ref.current) clearTimeout(ref.current);
+      ref.current = null;
+    }
+    effectTimersRef.current.forEach(clearTimeout);
+    effectTimersRef.current.clear();
+    starVisualTimersRef.current.forEach(clearTimeout);
+    starVisualTimersRef.current.clear();
+  }, []);
+
+  const receiveRoom = useCallback((snapshot: RoomState) => {
+    // Round state cannot leak through a restart into the next game.
+    if (snapshot.status === "waiting" && roomStatusRef.current !== "waiting") {
+      clearModeTimers();
+      setKartState({ items: [], bonusWords: 0, carOffsets: {}, blurCounter: false, boldText: false, starActive: false, starActiveIds: [], flashEvent: null, hitNotification: null, effects: [] });
+      setGladiatorState({ myHp: 1000, opponentHp: 1000, myWordCount: 0, opponentWordCount: 0, gap: 0, iAhead: false, deathGap: snapshot.gladiatorDeathGap ?? 400, myBuffs: [], opponentBuffs: [], executionResult: null });
+      setRestoredWordCount(null);
+      setBetOutcome(null);
+      setChestAwarded(null);
+      latestNetWordCountRef.current = 0;
+    }
+    roomStatusRef.current = snapshot.status;
+    setRoom(snapshot);
+    if (snapshot.mode === "kart") {
+      const own = snapshot.participants.find(p => p.id === participantIdRef.current);
+      const offsets = Object.fromEntries(snapshot.participants.map(p => [p.id, p.kartCarOffset ?? 0]));
+      setKartState(prev => ({ ...prev, carOffsets: offsets, bonusWords: own?.kartBonusWords ?? prev.bonusWords,
+        ...(Array.isArray(snapshot.starActiveIds) ? { starActiveIds: snapshot.starActiveIds, starActive: snapshot.starActiveIds.includes(participantIdRef.current ?? "") } : {}) }));
+    }
+  }, [clearModeTimers]);
+
   const connect = useCallback(() => {
     if (!code || !name || unmountedRef.current) return;
 
@@ -241,34 +283,42 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
-    ws.onopen = () => {
-      if (unmountedRef.current) { ws.close(); return; }
-      setIsConnected(true);
-      setIsReconnecting(false);
-      setDisconnectReason(null);
+    ws.onopen = async () => {
+      if (unmountedRef.current || wsRef.current !== ws) { ws.close(); return; }
+      lastMessageAtRef.current = Date.now();
+      lastPingSentAtRef.current = 0;
       setError(null);
-      reconnectAttemptRef.current = 0;
       const joinMsg: Record<string, unknown> = { type: "join_room", code, name };
       if (passwordRef.current) joinMsg.password = passwordRef.current;
       if (clerkUserIdRef.current) joinMsg.clerkUserId = clerkUserIdRef.current;
       if (roleRef.current === "editor") joinMsg.role = "editor";
-      ws.send(JSON.stringify(joinMsg));
+      joinMsg.reconnectToken = reconnectTokenRef.current;
+      try {
+        if (clerkUserIdRef.current) joinMsg.token = await getTokenRef.current?.();
+        if (wsRef.current === ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(joinMsg));
+      } catch {
+        ws.close();
+      }
     };
 
     ws.onmessage = (event) => {
-      if (unmountedRef.current) return;
+      if (unmountedRef.current || wsRef.current !== ws) return;
       lastMessageAtRef.current = Date.now();
       try {
         const data = JSON.parse(event.data);
 
         switch (data.type) {
           case "joined": {
+            setIsConnected(true);
+            setIsReconnecting(false);
+            setDisconnectReason(null);
+            reconnectAttemptRef.current = 0;
             const isReconnect = hasJoinedRef.current;
             disconnectedAtRef.current = null;
             participantIdRef.current = data.participantId;
             setParticipantId(data.participantId);
             const joinedRoom = { ...ROOM_STATE_DEFAULTS, ...data.room, participants: data.room.participants ?? [] };
-            setRoom(joinedRoom);
+            receiveRoom(joinedRoom);
             // Restore kart state from server on join/reconnect
             if (joinedRoom.mode === "kart") {
               const offsets: Record<string, number> = {};
@@ -281,7 +331,7 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
                 items: Array.isArray(data.kartItems) ? (data.kartItems as string[]) : prev.items,
               }));
             }
-            if (isReconnect && latestTextRef.current) {
+            if (isReconnect) {
               ws.send(JSON.stringify({
                 type: "text_update",
                 text: latestTextRef.current,
@@ -296,8 +346,10 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
           }
 
           case "room_state": {
+            // Admission broadcasts precede joined; wait for identity and restored score.
+            if (!hasJoinedRef.current) break;
             const updatedRoom = { ...ROOM_STATE_DEFAULTS, ...data.room, participants: data.room.participants ?? [] };
-            setRoom(updatedRoom);
+            receiveRoom(updatedRoom);
             // Keep car offsets in sync with authoritative server values
             if (updatedRoom.mode === "kart") {
               const offsets: Record<string, number> = {};
@@ -321,7 +373,7 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
                     p.id === data.participant.id ? { ...p, ...data.participant } : p
                   )
                 : [...prev.participants, data.participant];
-              return { ...prev, participants };
+              return { ...prev, participants, ...(prev.mode === "boss" ? { bossTotalWords: participants.filter(p => p.role !== "editor").reduce((sum, p) => sum + p.wordCount, 0) } : {}) };
             });
             break;
 
@@ -337,23 +389,19 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
             }));
             break;
 
+          case "boss_defeated":
+            setRoom(prev => prev ? { ...prev, bossTotalWords: data.bossTotalWords ?? prev.bossWordGoal } : prev);
+            break;
+
           case "sprint_ended":
+            roomStatusRef.current = "finished";
             setRoom((prev) => {
               if (!prev) return prev;
-              return { ...prev, status: "finished", participants: data.results };
+              return { ...prev, status: "finished", timeLeft: 0, participants: data.results,
+                ...(prev.mode === "boss" ? { bossTotalWords: data.results.filter((p: Participant) => p.role !== "editor").reduce((sum: number, p: Participant) => sum + p.wordCount, 0) } : {}) };
             });
-            // Sprint is over — no reason to keep the connection alive long
-            // term, BUT the server fires per-participant trailing messages
-            // AFTER broadcasting sprint_ended (chest_awarded, bet_settled,
-            // gladiator_execution, …) from an async finalizeSprintData. The
-            // previous `ws.close()` here hung up the socket within microseconds
-            // — those trailing messages then landed on a closed WS and never
-            // surfaced the chest popup. Hold the socket open for a grace
-            // window so they actually arrive.
-            hasJoinedRef.current = false;
-            setTimeout(() => {
-              try { ws.close(); } catch { /* already closed */ }
-            }, 8000);
+            // Keep the socket until the server closes the room: the host can
+            // restart and rewards may arrive after slow database writes.
             break;
 
           case "chest_awarded":
@@ -414,10 +462,14 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
               return;
             }
 
-            setError(data.message);
-            if (isRoomNotFound || data.message === "Sprint already finished") {
+            if (!hasJoinedRef.current || isRoomNotFound || data.message === "Sprint already finished" ||
+              ["AUTH_REQUIRED", "NAME_IN_USE", "ARENA_FULL"].includes(data.code)) {
+              setError(data.message);
+              terminalErrorRef.current = true;
               hasJoinedRef.current = false;
               ws.close();
+            } else {
+              setActionError(data.message);
             }
             break;
           }
@@ -486,12 +538,11 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
             };
             const lifeMs = EFFECT_DURATIONS[itemKey] ?? 2000;
             setKartState((prev) => ({ ...prev, effects: [...prev.effects, newEffect] }));
-            setTimeout(() => {
-              setKartState((prev) => ({
-                ...prev,
-                effects: prev.effects.filter((x) => x.id !== newEffect.id),
-              }));
+            const effectTimer = setTimeout(() => {
+              effectTimersRef.current.delete(effectTimer);
+              setKartState((prev) => ({ ...prev, effects: prev.effects.filter((x) => x.id !== newEffect.id) }));
             }, lifeMs);
+            effectTimersRef.current.add(effectTimer);
 
             if (effect === "car_subtract") {
               setKartState((prev) => {
@@ -511,12 +562,12 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
                 ...prev,
                 starActiveIds: [...prev.starActiveIds.filter((id) => id !== targetId), targetId],
               }));
-              setTimeout(() => {
-                setKartState((prev) => ({
-                  ...prev,
-                  starActiveIds: prev.starActiveIds.filter((id) => id !== targetId),
-                }));
-              }, starDuration);
+              const previousTimer = starVisualTimersRef.current.get(targetId);
+              if (previousTimer) clearTimeout(previousTimer);
+              starVisualTimersRef.current.set(targetId, setTimeout(() => {
+                starVisualTimersRef.current.delete(targetId);
+                setKartState((prev) => ({ ...prev, starActiveIds: prev.starActiveIds.filter(id => id !== targetId) }));
+              }, starDuration));
             }
 
             // Flash notification (broadcast to all)
@@ -633,10 +684,13 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
     };
 
     ws.onclose = (event) => {
-      if (unmountedRef.current) return;
+      if (unmountedRef.current || wsRef.current !== ws) return;
       setIsConnected(false);
+      if (event.code === 4001 || event.code === 1000) terminalErrorRef.current = true;
+      if (event.code === 4001) setError("This room was opened in another tab.");
+      if (terminalErrorRef.current) { setIsReconnecting(false); return; }
 
-      if (hasJoinedRef.current && reconnectAttemptRef.current < MAX_RECONNECT_ATTEMPTS) {
+      if (reconnectAttemptRef.current < MAX_RECONNECT_ATTEMPTS) {
         if (disconnectedAtRef.current === null) {
           disconnectedAtRef.current = Date.now();
         }
@@ -650,7 +704,7 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
         reconnectTimeoutRef.current = window.setTimeout(() => {
           connect();
         }, delay);
-      } else if (hasJoinedRef.current) {
+      } else {
         // Hit the retry cap — stop reconnecting and surface a connection error.
         setIsReconnecting(false);
         setError("Connection lost. Please refresh the page to rejoin.");
@@ -660,10 +714,21 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
     ws.onerror = () => {
       setIsConnected(false);
     };
-  }, [code, name]);
+  }, [code, name, receiveRoom]);
 
   useEffect(() => {
     unmountedRef.current = false;
+    terminalErrorRef.current = false;
+    hasJoinedRef.current = false;
+    reconnectAttemptRef.current = 0;
+    disconnectedAtRef.current = null;
+    const tokenKey = `sprint-connection:${code}:${name}`;
+    try {
+      reconnectTokenRef.current = sessionStorage.getItem(tokenKey) || crypto.randomUUID();
+      sessionStorage.setItem(tokenKey, reconnectTokenRef.current);
+    } catch {
+      reconnectTokenRef.current = crypto.randomUUID();
+    }
     connect();
 
     const pingInterval = setInterval(() => {
@@ -694,12 +759,15 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
       unmountedRef.current = true;
       clearInterval(pingInterval);
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-      if (wsRef.current) wsRef.current.close();
+      const socket = wsRef.current;
+      wsRef.current = null;
+      socket?.close();
+      clearModeTimers();
       // Clear any pending emote auto-prune timers so they don't fire after unmount.
       emoteTimersRef.current.forEach((t) => clearTimeout(t));
       emoteTimersRef.current.clear();
     };
-  }, [connect]);
+  }, [connect, clearModeTimers]);
 
   const setLatestText = useCallback((text: string, netWordCount?: number) => {
     latestTextRef.current = text;
@@ -719,6 +787,8 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
   }, []);
 
   const sendTextUpdate = useCallback((text: string, netWordCount: number) => {
+    latestTextRef.current = text;
+    latestNetWordCountRef.current = netWordCount;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: "text_update", text, netWordCount }));
     }
@@ -771,6 +841,8 @@ export function useSprintRoom({ code, name, password, clerkUserId, role }: UseSp
     isReconnecting,
     disconnectReason,
     error,
+    actionError,
+    clearActionError: () => setActionError(null),
     participantTexts,
     restoredWordCount,
     chestAwarded,

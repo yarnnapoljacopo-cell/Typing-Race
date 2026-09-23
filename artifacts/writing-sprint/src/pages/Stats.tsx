@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { useUser, useAuth } from "@clerk/react";
+import { useUser, useAuth } from "@/lib/auth";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import {

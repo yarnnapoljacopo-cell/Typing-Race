@@ -1,4 +1,4 @@
-import type { PoolClient } from "pg";
+import type { PoolClient } from "@workspace/db";
 import { pool } from "@workspace/db";
 
 // ── Daily-streak chest reward configuration ──────────────────────────────

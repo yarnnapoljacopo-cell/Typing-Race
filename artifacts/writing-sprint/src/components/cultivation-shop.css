@@ -1,0 +1,41 @@
+/* Optional skin; the market's stock, controls, and dimensions stay shared. */
+html[data-skin='cultivation'] .cultivation-shop { background:transparent!important; }
+html[data-skin='cultivation'] .cultivation-shop>.sticky { background:#f8f2e9f5!important; border-color:#b6a27b; }
+html[data-skin='cultivation'] .cultivation-shop h1 { color:#283739; font-weight:500; letter-spacing:.025em; }
+html[data-skin='cultivation'] .shop-treasure-card {
+  background-color:#f5edde!important;
+  background-image:linear-gradient(145deg,#fcf8ef,#e9dfcc)!important;
+  border:1px solid #b59b6b!important; border-radius:9px;
+  box-shadow:inset 0 0 0 4px #fff9ed80,inset 0 0 0 5px #a68a5a28,0 5px 18px #23313318!important;
+  transition:transform 180ms ease,box-shadow 180ms ease!important;
+}
+html[data-skin='cultivation'] .shop-treasure-card:hover { transform:translateY(-2px)!important; box-shadow:inset 0 0 0 4px #fff9ed80,0 8px 23px #23313325!important; }
+html[data-skin='cultivation'] .shop-treasure-card h3 { color:#263432; font-weight:600; font-size:17px; }
+html[data-skin='cultivation'] .shop-treasure-card p { color:#6c685c; }
+html[data-skin='cultivation'] .shop-treasure-card .w-16.h-16 { background:#ddd6bd80!important; border:1px solid #baaa8155; border-radius:50%; }
+html[data-skin='cultivation'] .shop-treasure-card button:not(.absolute) { background:#2c3c38!important; color:#f5e6c4!important; border:1px solid #b49a61; box-shadow:inset 0 0 0 2px #cdb47820; border-radius:6px; }
+html[data-skin='cultivation'] .shop-treasure-card button:not(.absolute):hover:not(:disabled) { background:#3a4f45!important; }
+html[data-skin='cultivation'] .shop-demo-wallet { background:#f6eedfe8; border-color:#baa879; color:#6d6047; }
+html[data-skin='cultivation'] .cultivation-item-art { filter:drop-shadow(0 2px 2px #45372324); }
+html[data-skin='cultivation'] .cultivation-bag { background:transparent!important; }
+html[data-skin='cultivation'] .cultivation-bag .bg-card { background:#f8f2e8!important; }
+html[data-skin='cultivation'] .cf-root { background:transparent; font-family:Georgia,'Times New Roman',serif; }
+html[data-skin='cultivation'] .cf-root :is(.cf-bg-grid,.cf-bg-orb,.cf-bg-symbol,.cf-corner-rune) { display:none; }
+html[data-skin='cultivation'] .cf-root :is(.cf-topnav,.cf-info-banner,.cf-selected-panel,.cf-item-card,.cf-recipe-card,.cf-craft-panel,.cf-recipe-detail,.cf-book-card) { background:#f8f2e8!important; border-color:#b7a079!important; box-shadow:0 4px 18px #27313b16; }
+html[data-skin='cultivation'] .cf-root :is(.cf-fuse-btn,.cf-craft-btn) { background:#2c3c38!important; color:#f5e6c4!important; border:1px solid #b49a61; }
+@media (max-width:600px) {
+  html[data-skin='cultivation'] .shop-featured-content { display:grid!important; grid-template-columns:64px minmax(0,1fr); gap:16px; padding:24px 18px; }
+  html[data-skin='cultivation'] .shop-featured-content>div:first-child { width:64px; height:80px; }
+  html[data-skin='cultivation'] .shop-featured-content>div:first-child>div:not(:last-child) { display:none; }
+  html[data-skin='cultivation'] .shop-featured-content>button { grid-column:1 / -1; width:100%; min-height:44px; }
+  html[data-skin='cultivation'] .shop-featured-content h3 { font-size:21px!important; }
+  html[data-skin='cultivation'] .shop-featured-content .text-\[10px\] { letter-spacing:.06em!important; font-size:9px!important; }
+  html[data-skin='cultivation'] .shop-featured-content .flex.items-center.gap-2.mb-1 { flex-wrap:wrap; }
+  html[data-skin='cultivation'] .shop-merchant-tabs { grid-template-columns:1fr!important; }
+  html[data-skin='cultivation'] .shop-merchant-tabs>button { min-height:62px; }
+  html[data-skin='cultivation'] .shop-merchant-tabs .shop-tab-active-bar { position:absolute; inset:0 auto 0 0; height:auto; width:3px; }
+  html[data-skin='cultivation'] .shop-demo-wallet { align-items:flex-start; flex-direction:column; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .cultivation-shop *, .cultivation-shop *::before, .cultivation-shop *::after { animation:none!important; transition:none!important; }
+}

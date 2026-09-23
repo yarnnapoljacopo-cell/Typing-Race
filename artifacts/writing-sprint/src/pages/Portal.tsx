@@ -1,6 +1,9 @@
+import { PiFeatherThin, PiScrollThin, PiBridgeThin } from "react-icons/pi";
+import { isDemoSession } from "@/lib/demoSession";
+import { useCultivation } from "@/lib/cultivation";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useLocation } from "wouter";
-import { useUser, useClerk, useAuth, SignUpButton } from "@clerk/react";
+import { useLocation, useSearch } from "wouter";
+import { useUser, useClerk, useAuth, SignUpButton } from "@/lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCreateRoom } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
@@ -107,6 +110,7 @@ function RoleToggle({
   role: "writer" | "editor";
   onChange: (r: "writer" | "editor") => void;
 }) {
+  const { enabled: cultivation } = useCultivation();
   const btn = (active: boolean): React.CSSProperties => ({
     flex: 1,
     border: "none",
@@ -158,7 +162,7 @@ function RoleToggle({
           onClick={() => onChange("writer")}
           style={btn(role === "writer")}
         >
-          Writer
+          {cultivation && <PiFeatherThin size={24} className="cultivation-role-icon" />}Writer
         </button>
         <button
           type="button"
@@ -167,7 +171,7 @@ function RoleToggle({
           onClick={() => onChange("editor")}
           style={btn(role === "editor")}
         >
-          Editor
+          {cultivation && <PiScrollThin size={24} className="cultivation-role-icon" />}Editor
         </button>
       </div>
       <div style={{ fontSize: "0.66rem", color: C.muted, marginTop: 4, lineHeight: 1.35 }}>
@@ -178,6 +182,7 @@ function RoleToggle({
 }
 
 export default function Portal() {
+  const { enabled: cultivation } = useCultivation();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useUser();
@@ -210,8 +215,11 @@ export default function Portal() {
     sessionStorage.getItem("folio_sprint_embed") === "1"
   );
 
-  const initialTab = new URLSearchParams(window.location.search).get("tab") ?? "sprint";
+  const search = useSearch();
+  const requestedTab = new URLSearchParams(search).get("tab");
+  const initialTab = requestedTab === "rooms" || (requestedTab === "past" && !isGuest) ? requestedTab : "sprint";
   const [activeTab, setActiveTab] = useState<string>(initialTab);
+  useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
   const [joinMode, setJoinMode] = useState<"join" | "create">("join");
 
   // Sprint role — "writer" gets a car & races; "editor" joins as a visible
@@ -241,7 +249,7 @@ export default function Portal() {
   const { data: profile, isLoading: profileLoading, isError: profileError, error: profileErrorObj } = useQuery({
     queryKey: ["user-profile"],
     queryFn: () => fetchProfile(authedFetch),
-    enabled: isLoaded && !isGuest,
+    enabled: isLoaded && !!isSignedIn,
     retry: 4,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15000),
     // Keep last-known profile visible during background refetches so the
@@ -252,7 +260,9 @@ export default function Portal() {
   const saveMutation = useMutation({
     mutationFn: (writerName: string) => saveProfile(writerName, authedFetch),
     onSuccess: (data) => {
-      queryClient.setQueryData(["user-profile"], data);
+      queryClient.setQueryData<ProfileData>(["user-profile"], previous => previous ? { ...previous, ...data } : undefined);
+      void queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      void queryClient.invalidateQueries({ queryKey: ["ownPrefs"] });
       setNameDialogOpen(false);
       toast({ title: "Writer name saved", description: `You'll appear as "${data.writerName}" in sprints.` });
     },
@@ -327,8 +337,20 @@ export default function Portal() {
   });
 
   const handleCreate = () => {
-    const wordGoal = roomMode === "goal" ? (parseInt(goalWords, 10) || 1000) : undefined;
-    const bossWordGoal = roomMode === "boss" ? (parseInt(bossGoalWords, 10) || 5000) : undefined;
+    const wordGoal = roomMode === "goal" ? Number(goalWords) : undefined;
+    const bossWordGoal = roomMode === "boss" ? Number(bossGoalWords) : undefined;
+    if (wordGoal !== undefined && (!Number.isInteger(wordGoal) || wordGoal < 50 || wordGoal > 50000)) {
+      toast({ title: "Choose a valid word goal", description: "Enter a whole number between 50 and 50,000 words.", variant: "destructive" });
+      return;
+    }
+    if (bossWordGoal !== undefined && (!Number.isInteger(bossWordGoal) || bossWordGoal < 500 || bossWordGoal > 200000)) {
+      toast({ title: "Choose a valid team goal", description: "Enter a whole number between 500 and 200,000 words.", variant: "destructive" });
+      return;
+    }
+    if (useRoomPassword && !roomPassword.trim()) {
+      toast({ title: "Add a room password", description: "Enter a password or turn off password protection.", variant: "destructive" });
+      return;
+    }
     const pw = useRoomPassword && roomPassword.trim() ? roomPassword.trim() : undefined;
     pendingRoomPasswordRef.current = pw ?? null;
     createRoomMutation.mutate({
@@ -392,7 +414,8 @@ export default function Portal() {
       {!isFolioEmbed && <Navbar />}
 
       {/* ── Fixed background ── */}
-      <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "var(--bg-solid)" }} />
+      <div className="portal-background" style={{ position: "fixed", inset: 0, zIndex: 0, background: "var(--bg-solid)" }} />
+      {cultivation && !isFolioEmbed && <div className="cultivation-marginalia" aria-hidden="true"><span>一念一書一世界</span><span>書山有路<br />勤為徑</span></div>}
 
       {/* grid */}
       <div style={{
@@ -411,11 +434,11 @@ export default function Portal() {
       <div style={{ position: "fixed", width: 500, height: 500, borderRadius: "50%", border: "1.5px solid var(--bg-ring2)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 0, pointerEvents: "none" }} />
 
       {/* ── Scrollable content ── */}
-      <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto", paddingTop: isFolioEmbed ? 24 : 80, paddingBottom: 32 }}>
+      <div className="portal-content" style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto", paddingTop: isFolioEmbed ? 24 : 80, paddingBottom: 32 }}>
         <div className="portal-fade-up" style={{ width: "100%", maxWidth: 460, padding: "0 20px", fontFamily: "'DM Sans', sans-serif" }}>
 
           {/* Logo */}
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+          <div className="portal-symbol" style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
             <div className="portal-logo-float" style={{
               width: 64, height: 64,
               background: "linear-gradient(135deg, #dce6f7 0%, #c5d8f5 100%)",
@@ -428,18 +451,22 @@ export default function Portal() {
           </div>
 
           {/* Headline */}
-          <div style={{ textAlign: "center", marginBottom: 6 }}>
+          <div className="portal-heading" style={{ textAlign: "center", marginBottom: 6 }}>
             <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "3rem", fontWeight: 900, color: "var(--color-foreground)", letterSpacing: "-0.02em", lineHeight: 1.05 }}>
-              Writing Sprint
+              {cultivation ? <img src={`${import.meta.env.BASE_URL}cultivation/title.png`} alt="Writing Sprint" /> : "Writing Sprint"}
             </h1>
             <p style={{ fontSize: "0.97rem", color: "var(--color-muted-foreground)", fontWeight: 300, letterSpacing: "0.02em", marginTop: 8 }}>
               Race against fellow writers. Find your flow.
             </p>
           </div>
 
+          {cultivation && <p className="cultivation-verse">Small words today. Greater worlds tomorrow.</p>}
+
+          {cultivation && !isGuest && isDemoSession() && <div className="cultivation-demo-banner"><UserRound size={19} /><span>Demo account — your journey is saved on this device</span></div>}
+
           {/* Guest banner */}
           {isGuest && (
-            <div style={{ margin: "16px 0", borderRadius: 12, border: "1px solid rgba(232,168,56,0.3)", background: "rgba(255,248,230,0.8)", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <div className="portal-guest-banner" style={{ margin: "16px 0", borderRadius: 12, border: "1px solid rgba(232,168,56,0.3)", background: "rgba(255,248,230,0.8)", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <UserRound size={14} style={{ color: "#b45309", flexShrink: 0 }} />
                 <p style={{ fontSize: "0.85rem", color: "#92400e", lineHeight: 1.4 }}>Guest mode — sprints won't be saved</p>
@@ -483,7 +510,7 @@ export default function Portal() {
           })()}
 
           {/* Top bar */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 0 18px", padding: "0 2px" }}>
+          <div className="portal-account" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 0 18px", padding: "0 2px" }}>
 
             {/* Coins */}
             {isSignedIn ? (
@@ -596,7 +623,7 @@ export default function Portal() {
           )}
 
           {/* ── Tab nav ── */}
-          <div style={{
+          <div className="portal-tabs" role="tablist" aria-label="Writing sessions" style={{
             display: "flex",
             background: "rgba(255,255,255,0.6)",
             border: "1px solid rgba(107,143,212,0.13)",
@@ -610,7 +637,7 @@ export default function Portal() {
               ...(!isGuest ? [{ key: "past", label: "Past Sprints", icon: <BookOpen size={14} /> }] : []),
             ].map(({ key, label, icon }) => (
               <button
-                key={key}
+                key={key} role="tab" aria-selected={activeTab === key}
                 onClick={() => setActiveTab(key)}
                 style={{
                   flex: 1, background: activeTab === key ? "white" : "none",
@@ -633,7 +660,7 @@ export default function Portal() {
 
           {/* ── Sprint tab ── */}
           {activeTab === "sprint" && (
-            <div style={{
+            <div className="portal-session" style={{
               background: C.cardBg,
               backdropFilter: "blur(20px)",
               border: "1px solid rgba(255,255,255,0.9)",
@@ -641,7 +668,8 @@ export default function Portal() {
               boxShadow: "0 8px 40px rgba(107,143,212,0.12), 0 1px 0 rgba(255,255,255,0.8) inset",
             }}>
               {/* Badge */}
-              <div style={{
+              {cultivation && <span className="cultivation-card-inscription" aria-hidden="true">Same<br />page.<br />Further<br />realms.</span>}
+              <div className="portal-session-badge" style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
                 background: "linear-gradient(135deg, #e8f0fc, #d4e3fa)",
                 border: "1px solid rgba(107,143,212,0.2)",
@@ -654,16 +682,16 @@ export default function Portal() {
                 Session open
               </div>
 
-              <div style={{ fontSize: "1.05rem", fontWeight: 700, color: C.ink, marginBottom: 3 }}>Join the session</div>
+              <div className="portal-session-title" style={{ fontSize: "1.05rem", fontWeight: 700, color: C.ink, marginBottom: 3 }}>Join the session</div>
               <div style={{ fontSize: "0.84rem", color: C.muted, marginBottom: 22 }}>
                 Writing as <strong style={{ color: C.ink }}>{displayName}</strong>
               </div>
 
               {/* Mode toggle */}
-              <div style={{ display: "flex", background: "#f0f0f5", borderRadius: 12, padding: 3, marginBottom: 22 }}>
+              <div className="portal-join-toggle" style={{ display: "flex", background: "#f0f0f5", borderRadius: 12, padding: 3, marginBottom: 22 }}>
                 {(["join", "create"] as const).map((m) => (
                   <button
-                    key={m}
+                    key={m} aria-pressed={joinMode === m}
                     onClick={() => setJoinMode(m)}
                     style={{
                       flex: 1, border: "none",
@@ -688,8 +716,11 @@ export default function Portal() {
                   <div style={{ fontSize: "0.78rem", fontWeight: 600, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 8 }}>
                     Room Code
                   </div>
+                  <div className="portal-room-code-field">
+                  {cultivation && <PiBridgeThin className="cultivation-room-code-icon" aria-hidden="true" />}
                   <input
                     type="text"
+                    aria-label="Room code"
                     placeholder="SPRINT-XXXX"
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
@@ -719,8 +750,9 @@ export default function Portal() {
                       e.target.style.boxShadow = "none";
                     }}
                   />
+                  </div>
                   <button
-                    onClick={handleJoin}
+                    className="portal-enter" onClick={handleJoin}
                     disabled={!joinCode.trim()}
                     style={{
                       width: "100%",
@@ -857,7 +889,7 @@ export default function Portal() {
                       <div style={{ marginTop: 12, borderRadius: 12, border: `1px solid rgba(107,143,212,0.25)`, background: "rgba(107,143,212,0.05)", padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
                         <Target size={16} style={{ color: C.blueSoft, flexShrink: 0 }} />
                         <label style={{ fontSize: "0.88rem", fontWeight: 600, color: C.ink, flexShrink: 0 }}>Word target:</label>
-                        <Input type="number" min={50} max={50000} step={50} value={goalWords} onChange={(e) => setGoalWords(e.target.value)} className="h-8 w-24 text-center font-mono focus-visible:ring-primary" />
+                        <Input aria-label="Word target" type="number" min={50} max={50000} step={50} value={goalWords} onChange={(e) => setGoalWords(e.target.value)} className="h-8 w-24 text-center font-mono focus-visible:ring-primary" />
                         <span style={{ fontSize: "0.85rem", color: C.muted }}>words</span>
                       </div>
                     )}
@@ -881,7 +913,7 @@ export default function Portal() {
                           ))}
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <Input type="number" min={500} max={200000} step={500} value={bossGoalWords} onChange={(e) => setBossGoalWords(e.target.value)} className="h-8 w-28 text-center font-mono" />
+                          <Input aria-label="Boss word target" type="number" min={500} max={200000} step={500} value={bossGoalWords} onChange={(e) => setBossGoalWords(e.target.value)} className="h-8 w-28 text-center font-mono" />
                           <span style={{ fontSize: "0.85rem", color: C.muted }}>custom words</span>
                         </div>
                         <p style={{ fontSize: "0.72rem", color: "rgba(192,132,252,0.7)", marginTop: 8 }}>Everyone writes together to defeat the boss.</p>
@@ -898,6 +930,9 @@ export default function Portal() {
                         <span style={{ fontSize: "0.75rem", color: C.muted, fontWeight: 400 }}>(reaper line)</span>
                       </label>
                       <button
+                        role="switch"
+                        aria-label="Death Mode"
+                        aria-checked={!!deathModeWpm}
                         onClick={() => setDeathModeWpm(deathModeWpm ? null : 20)}
                         style={{
                           position: "relative", display: "inline-flex", height: 20, width: 36,
@@ -945,6 +980,9 @@ export default function Portal() {
                         <span style={{ fontSize: "0.75rem", color: C.muted, fontWeight: 400 }}>(optional)</span>
                       </label>
                       <button
+                        role="switch"
+                        aria-label="Require room password"
+                        aria-checked={useRoomPassword}
                         onClick={() => { setUseRoomPassword(!useRoomPassword); setRoomPassword(""); }}
                         style={{
                           position: "relative", display: "inline-flex", height: 20, width: 36,
@@ -963,7 +1001,8 @@ export default function Portal() {
                     </div>
                     {useRoomPassword && (
                       <Input
-                        type="text"
+                        type="password"
+                        aria-label="Room password"
                         placeholder="Enter a room password"
                         value={roomPassword}
                         onChange={(e) => setRoomPassword(e.target.value)}
@@ -975,8 +1014,8 @@ export default function Portal() {
 
                   {/* Create CTA */}
                   <button
-                    onClick={handleCreate}
-                    disabled={createRoomMutation.isPending}
+                    className="portal-enter" onClick={handleCreate}
+                    disabled={createRoomMutation.isPending || (useRoomPassword && !roomPassword.trim())}
                     style={{
                       width: "100%",
                       background: "linear-gradient(135deg, #7fa4e0 0%, #5a82d0 100%)",
@@ -1081,6 +1120,7 @@ export default function Portal() {
           <div className="space-y-4 pt-1">
             <Input
               type="password"
+              aria-label="Room password"
               placeholder="Enter room password"
               value={joinPasswordInput}
               onChange={(e) => setJoinPasswordInput(e.target.value)}
@@ -1106,7 +1146,7 @@ export default function Portal() {
       </Dialog>
 
       {/* ── Edit name dialog ── */}
-      <Dialog open={nameDialogOpen} onOpenChange={(open) => { if (!open && profile?.writerName) setNameDialogOpen(false); }}>
+      <Dialog open={nameDialogOpen} onOpenChange={(open) => { if (open || isGuest || profile?.writerName) setNameDialogOpen(open); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">Your writer name</DialogTitle>
@@ -1114,6 +1154,7 @@ export default function Portal() {
           </DialogHeader>
           <div className="space-y-4 pt-1">
             <Input
+              aria-label="Writer name"
               placeholder="e.g. QuantumScribe"
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
@@ -1122,7 +1163,7 @@ export default function Portal() {
               onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
             />
             <div className="flex gap-2 justify-end">
-              {profile?.writerName && (
+              {(isGuest || profile?.writerName) && (
                 <button
                   onClick={() => setNameDialogOpen(false)}
                   style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", cursor: "pointer", fontSize: "0.9rem", color: C.muted }}

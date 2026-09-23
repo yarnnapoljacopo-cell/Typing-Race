@@ -10,7 +10,7 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { snapshotDoc } from "../lib/coWritingWs";
+import { snapshotDoc, documentSnapshot } from "../lib/coWritingWs";
 
 const router: IRouter = Router();
 
@@ -349,15 +349,7 @@ router.get("/co-writing/rooms/:id/docs/:docId/snapshot", wrap(async (req, res): 
     .where(and(eq(coWritingDocsTable.id, docId), eq(coWritingDocsTable.roomId, roomId)));
   if (!doc) { res.status(404).json({ error: "Doc not found in this room" }); return; }
 
-  const [row] = await db.select({
-    textPreview: coWritingDocStateTable.textPreview,
-    updatedAt: coWritingDocStateTable.updatedAt,
-  }).from(coWritingDocStateTable).where(eq(coWritingDocStateTable.docId, docId));
-
-  res.json({
-    html: row?.textPreview ?? "",
-    updatedAt: row?.updatedAt ? row.updatedAt.toISOString() : null,
-  });
+  res.json(await documentSnapshot(roomId, docId));
 }));
 
 /**
@@ -366,16 +358,12 @@ router.get("/co-writing/rooms/:id/docs/:docId/snapshot", wrap(async (req, res): 
  * even when the WebSocket sync path is unavailable for some reason
  * (proxies, deploys, flaky connections, …).
  *
- * Auth: regular Clerk + membership check. Note that we ALSO accept a
- * fallback `userId` field in the body so sendBeacon paths still work when
- * Clerk hasn't injected the auth header (sendBeacon strips custom headers).
- * Membership check still runs against whichever userId is established.
+ * Auth: regular Clerk session + room membership. Beacon requests use
+ * the same-origin session cookie; a body user ID is never an identity.
  */
-router.put("/co-writing/rooms/:id/docs/:docId/snapshot", wrap(async (req, res): Promise<void> => {
-  let userId = getAuth(req)?.userId ?? null;
-  // sendBeacon can't set Authorization, so allow body.userId as a fallback
-  // — but ONLY when it matches a real member of the room (verified below).
-  if (!userId && typeof req.body?.userId === "string") userId = req.body.userId;
+router.route("/co-writing/rooms/:id/docs/:docId/snapshot").all(wrap(async (req, res, next): Promise<void> => {
+  if (req.method !== "PUT" && req.method !== "POST") { next(); return; }
+  const userId = getAuth(req)?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const roomId = parseInt(String(req.params.id), 10);
@@ -391,7 +379,12 @@ router.put("/co-writing/rooms/:id/docs/:docId/snapshot", wrap(async (req, res): 
   if (!doc) { res.status(404).json({ error: "Doc not found in this room" }); return; }
 
   const html = typeof req.body?.html === "string" ? req.body.html : "";
-  await snapshotDoc(roomId, docId, html);
+  const state = req.body?.state;
+  if (state !== undefined && (!Array.isArray(state) || state.length > 1_000_000 ||
+    !state.every((n: unknown) => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 255))) {
+    res.status(400).json({ error: "Invalid document state" }); return;
+  }
+  await snapshotDoc(roomId, docId, html, state === undefined ? undefined : new Uint8Array(state));
   res.json({ ok: true });
 }));
 

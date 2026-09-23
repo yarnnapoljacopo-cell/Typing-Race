@@ -1,0 +1,78 @@
+.cultivator-profile {
+  position: relative;
+  color: #293238;
+  border: 1px solid #c7af79;
+  background: rgba(247, 243, 233, .96);
+  box-shadow: inset 0 0 0 5px rgba(223, 204, 164, .18), 0 8px 32px rgba(33, 40, 42, .1);
+  font-family: Georgia, "Times New Roman", serif;
+}
+.cultivator-profile button { font: inherit; }
+.cultivator-profile__heading { position: relative; text-align: center; padding: 26px 44px 4px; }
+.cultivator-profile__eyebrow { display: flex; justify-content: center; align-items: center; gap: 9px; margin: 0 0 9px; color: #77684b; font: 500 10px/1.5 system-ui, sans-serif; letter-spacing: .18em; }
+.cultivator-profile h1 { margin: 0; font-family: "Playfair Display", Georgia, serif; font-size: clamp(30px, 5vw, 42px); font-weight: 600; line-height: 1.15; text-wrap: balance; }
+.cultivator-profile__motto { margin: 12px auto 0; max-width: 360px; font-size: 14px; font-style: italic; line-height: 1.5; color: #686453; text-wrap: pretty; overflow-wrap: anywhere; }
+.cultivator-profile__edit, .cultivator-profile__motion { display: flex; justify-content: center; align-items: center; min-width: 40px; min-height: 40px; border: 1px solid rgba(166, 143, 95, .4); border-radius: 50%; color: #6e6046; background: rgba(251, 247, 237, .85); cursor: pointer; transition: background-color .18s, transform .18s; }
+.cultivator-profile__edit { position: absolute; top: 12px; right: 12px; }
+.cultivator-profile__edit:hover, .cultivator-profile__motion:hover { background: #f8eed9; }
+.cultivator-profile__edit:active, .cultivator-profile__motion:active { transform: scale(.96); }
+.cultivator-profile :is(button, input):focus-visible { outline: 2px solid #52694f; outline-offset: 3px; }
+.cultivator-profile__scene { position: relative; height: 310px; overflow: hidden; display: grid; place-items: center; background-image: linear-gradient(#f7f3e9 0%, rgba(247, 243, 233, .45) 33%, rgba(247, 243, 233, .28) 65%, #f7f3e9 100%), url("/cultivation/realm-background.png"); background-size: cover; background-position: center 60%; }
+.cultivator-profile__scene-caption { position: absolute; top: 20px; left: 22px; display: flex; align-items: center; gap: 7px; color: #50634f; font-size: 11px; font-style: italic; z-index: 1; }
+.cultivator-profile__character { width: 290px; height: 290px; object-fit: contain; align-self: end; transform-origin: center 85%; animation: cultivator-breath 6.5s ease-in-out infinite; filter: drop-shadow(0 10px 8px rgba(56, 52, 43, .16)); }
+.cultivator-profile__motion { position: absolute; bottom: 20px; right: 18px; z-index: 1; }
+.cultivator-profile__scene--paused .cultivator-profile__character { animation-play-state: paused; }
+.cultivator-profile__appearance { margin: 0 20px; padding: 0; border: 0; text-align: center; }
+.cultivator-profile__appearance legend { width: 100%; font-size: 12px; letter-spacing: .03em; margin-bottom: 10px; color: #70654f; }
+.cultivator-profile__choices { display: flex; justify-content: center; gap: 8px; }
+.cultivator-profile__choices label { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 105px; min-height: 40px; padding: 6px 14px; border: 1px solid #c5bca7; border-radius: 4px; color: #635d50; background: #f1ede3; cursor: pointer; transition: color .18s, background-color .18s, border-color .18s; }
+.cultivator-profile__choices label.is-selected { background: #303c3d; border-color: #aa925f; color: #f7edd5; }
+.cultivator-profile__choices input { width: 13px; height: 13px; accent-color: #6e7858; }
+.cultivator-profile__appearance p { margin: 8px 0 0; color: #766d5c; font: 10px/1.5 system-ui, sans-serif; }
+.cultivator-profile__progress { padding: 25px 34px 8px; text-align: center; }
+.cultivator-profile h2 { font-size: 25px; font-weight: 500; margin: 0 0 20px; line-height: 1.2; text-wrap: balance; }
+.cultivator-profile__xp { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 9px; color: #74654a; font: 11px/1.4 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.cultivator-profile__progress-track { height: 7px; background: #e4ddce; border-radius: 9px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(58, 50, 35, .1); }
+.cultivator-profile__progress-track > div { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #586e60, #a1ac88); transition: width .45s ease-out; }
+.cultivator-profile__next { font-size: 12px; color: #786e5e; margin: 11px 0 0; font-variant-numeric: tabular-nums; }
+.cultivator-profile__next strong { font-weight: 500; color: #414e42; }
+.cultivator-profile__standing { font-size: 12px; color: #816332; margin: 12px 0 0; }
+.cultivator-profile__realms { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; padding: 17px 16px 0; }
+.cultivator-profile__realms button { width: 40px; height: 40px; border: 1px solid #d4cbb8; background: #eae5da; color: #898376; border-radius: 50%; font-size: 12px; cursor: pointer; transition: background-color .18s, transform .18s, border-color .18s; }
+.cultivator-profile__realms button.is-reached { color: #4f634d; border-color: #b9bba3; background: #e3e8d7; }
+.cultivator-profile__realms button.is-current { color: #f9edd4; background: #303d3a; border-color: #b19a67; box-shadow: 0 0 0 3px #ede3ce; }
+.cultivator-profile__realms button:hover { transform: translateY(-2px); border-color: #87714a; }
+.cultivator-profile__realms button:active { transform: scale(.96); }
+.cultivator-profile__realm-detail { display: grid; gap: 4px; margin: 14px 24px 0; padding: 12px; background: #eae7db; text-align: center; border-radius: 4px; }
+.cultivator-profile__realm-detail strong { font-size: 14px; font-weight: 500; }
+.cultivator-profile__realm-detail span { color: #786e5e; font-size: 11px; }
+.cultivator-profile__footnote { color: #7f7460; text-align: center; font-size: 12px; font-style: italic; margin: 17px 18px 22px; }
+.cultivation-profile-page { --profile-muted: #746b5b; --profile-ink: #293238; --profile-accent: #7a694a; }
+.cultivation-profile-page .cultivation-profile-banner { border-radius: 5px !important; border: 0 !important; box-shadow: none !important; overflow: visible !important; }
+.cultivation-profile-page .profile-symbol { color: #847043; }
+.cultivation-profile-page .profile-symbol svg { margin: auto; }
+@keyframes cultivator-breath { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-5px) scale(1.012); } }
+@media (min-width: 1000px) {
+  .cultivator-profile { display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: "heading heading" "scene progress" "scene realms" "appearance footnote" "details details"; column-gap: 4px; }
+  .cultivator-profile__heading { grid-area: heading; padding-top: 30px; padding-bottom: 10px; }
+  .cultivator-profile__scene { grid-area: scene; height: 345px; }
+  .cultivator-profile__character { width: 330px; height: 330px; }
+  .cultivator-profile__appearance { grid-area: appearance; padding-bottom: 22px; }
+  .cultivator-profile__progress { grid-area: progress; align-self: end; padding: 45px 38px 15px 20px; }
+  .cultivator-profile__progress h2 { font-size: 31px; margin-bottom: 24px; }
+  .cultivator-profile__realms { grid-area: realms; align-self: start; padding: 10px 25px 20px 10px; }
+  .cultivator-profile__footnote { grid-area: footnote; align-self: center; padding-right: 18px; }
+  .cultivator-profile__realm-detail { grid-area: details; margin-bottom: 20px; }
+}
+@media (max-width: 420px) {
+  .cultivator-profile__scene-caption { top: 13px; left: 15px; }
+  .cultivator-profile__scene { height: 285px; }
+  .cultivator-profile__character { height: 265px; width: 265px; }
+  .cultivator-profile__progress { padding-left: 22px; padding-right: 22px; }
+  .cultivator-profile__realms { gap: 4px; padding-left: 10px; padding-right: 10px; }
+  .cultivator-profile__realms button { width: 40px; min-height: 40px; border-radius: 5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cultivator-profile__character { animation: none; }
+  .cultivator-profile *, .cultivation-profile-page * { transition: none !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+  .cultivator-profile__motion { display: none; }
+}

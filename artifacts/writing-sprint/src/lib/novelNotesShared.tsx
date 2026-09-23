@@ -1,3 +1,4 @@
+import { demoStorageKey } from "./demoSession";
 /**
  * Shared Novel Notes data model + card editor.
  *
@@ -127,7 +128,7 @@ export function fileToDataUrl(file: File): Promise<string | null> {
 export function idbFolioGet<T>(key: string): Promise<T | undefined> {
   return new Promise((resolve) => {
     try {
-      const req = indexedDB.open("folio_db", 1);
+      const req = indexedDB.open(demoStorageKey("folio_db"), 1);
       req.onsuccess = () => {
         const db = req.result;
         try {
@@ -145,7 +146,7 @@ export function idbFolioGet<T>(key: string): Promise<T | undefined> {
 export function idbFolioSet(key: string, value: unknown): Promise<void> {
   return new Promise((resolve) => {
     try {
-      const req = indexedDB.open("folio_db", 1);
+      const req = indexedDB.open(demoStorageKey("folio_db"), 1);
       req.onsuccess = () => {
         const db = req.result;
         try {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, Package, Gift, FlaskConical, Loader2 } from "lucide-react";

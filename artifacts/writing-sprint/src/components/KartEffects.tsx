@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { KartEffect } from "@/hooks/useSprintRoom";
 
 /**
@@ -25,6 +25,7 @@ export const KartLaneEffects = memo(function KartLaneEffects({
   targetFraction,
   participantFractions,
 }: KartLaneEffectsProps) {
+  const reducedMotion = useReducedMotion();
   // Pick up only effects that touch THIS lane (either as target, or the source
   // for self-buffs like mushroom/star/golden_pen/mystery_box).
   const relevant = effects.filter((e) => {
@@ -40,7 +41,7 @@ export const KartLaneEffects = memo(function KartLaneEffects({
     return isTarget || isSelfBuff;
   });
 
-  if (relevant.length === 0) return null;
+  if (reducedMotion || relevant.length === 0) return null;
 
   return (
     <AnimatePresence>
@@ -814,6 +815,8 @@ interface KartEffectsLayerProps {
 export const KartEffectsLayer = memo(function KartEffectsLayer({
   effects,
 }: KartEffectsLayerProps) {
+  const reducedMotion = useReducedMotion();
+  if (reducedMotion) return null;
   const hasLightning = effects.some((e) => e.item === "lightning");
   const hasBlue = effects.some((e) => e.item === "blue_shell");
 

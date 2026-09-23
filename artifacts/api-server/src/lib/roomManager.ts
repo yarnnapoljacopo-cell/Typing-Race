@@ -3,7 +3,7 @@ import { logger } from "./logger";
 import { db, pool, roomsTable, userProfilesTable, sprintWritingTable } from "@workspace/db";
 import { eq, gt, and, ne, sql } from "drizzle-orm";
 import { saveWriting } from "./writingStore";
-import { initGladiatorParticipant, broadcastGladiatorTimerEnd } from "./gladiatorEngine";
+import { initGladiatorParticipant, broadcastGladiatorTimerEnd, advanceGladiatorCombat, broadcastGladiatorState, gladiatorWinnerId } from "./gladiatorEngine";
 import { settleBets, refundActiveBets, type BetOutcome } from "./bettingManager";
 
 // ── Sprint chest roll ─────────────────────────────────────────────────────────
@@ -57,6 +57,7 @@ export interface Participant {
   nameplate: string;
   xp: number;
   disconnectTimer?: ReturnType<typeof setTimeout>;
+  reconnectToken?: string;
   kartItems: string[];
   kartBonusWords: number;
   kartCarOffset: number;
@@ -73,6 +74,7 @@ export interface Participant {
   gladiatorMomentumGapAtStart: number | null;
   gladiatorWoundSince: number | null;
   gladiatorWoundGapAtStart: number | null;
+  gladiatorHealHighWater?: number;
 }
 
 export type RoomMode = "regular" | "open" | "goal" | "boss" | "kart" | "gladiator";
@@ -119,6 +121,21 @@ export interface GladiatorMatchStats {
   timeInDangerMs: number;
   endedByExecution: boolean;
   currentLeaderId: string | null;
+  lastDamageAt?: number;
+  winnerId?: string | null;
+}
+
+function newGladiatorMatchStats(): GladiatorMatchStats {
+  return {
+    closestGap: -1,
+    maxGap: 0,
+    totalHpHealed: {},
+    leadChanges: 0,
+    timeInDangerMs: 0,
+    endedByExecution: false,
+    currentLeaderId: null,
+    lastDamageAt: Date.now(),
+  };
 }
 
 const rooms = new Map<string, Room>();
@@ -187,49 +204,50 @@ function isPersistPaused(code: string): boolean {
   return !!s && s.count >= PERSIST_FAILURE_THRESHOLD && Date.now() < s.pausedUntil;
 }
 
-function persistRoom(room: Room): void {
+async function persistRoom(room: Room): Promise<void> {
   if (isPersistPaused(room.code)) return;
-  db.insert(roomsTable)
-    .values({
-      code: room.code,
-      creatorName: room.creatorName,
-      durationMinutes: room.durationMinutes,
-      countdownDelayMinutes: room.countdownDelayMinutes,
-      mode: room.mode,
-      wordGoal: room.wordGoal,
-      bossWordGoal: room.bossWordGoal,
-      deathModeWpm: room.deathModeWpm,
-      passwordHash: room.passwordHash,
-      gladiatorDeathGap: room.gladiatorDeathGap,
-      status: room.status,
-      startTime: room.startTime,
-      endTime: room.endTime,
-      countdownEndsAt: room.countdownEndsAt,
-      hostCarSkin: room.hostCarSkin,
-      hostRoadSkin: room.hostRoadSkin,
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [roomsTable.code],
-      set: {
+  try {
+    await db.insert(roomsTable)
+      .values({
+        code: room.code,
+        creatorName: room.creatorName,
+        durationMinutes: room.durationMinutes,
+        countdownDelayMinutes: room.countdownDelayMinutes,
+        mode: room.mode,
+        wordGoal: room.wordGoal,
+        bossWordGoal: room.bossWordGoal,
+        deathModeWpm: room.deathModeWpm,
+        passwordHash: room.passwordHash,
+        gladiatorDeathGap: room.gladiatorDeathGap,
         status: room.status,
         startTime: room.startTime,
         endTime: room.endTime,
         countdownEndsAt: room.countdownEndsAt,
-        durationMinutes: room.durationMinutes,
         hostCarSkin: room.hostCarSkin,
         hostRoadSkin: room.hostRoadSkin,
         updatedAt: new Date(),
-      },
-    })
-    .then(() => recordPersistSuccess(room.code))
-    .catch((err: unknown) => {
-      recordPersistFailure(room.code, err);
-      logger.error({ err, code: room.code }, "Failed to persist room");
-    });
+      })
+      .onConflictDoUpdate({
+        target: [roomsTable.code],
+        set: {
+          status: room.status,
+          startTime: room.startTime,
+          endTime: room.endTime,
+          countdownEndsAt: room.countdownEndsAt,
+          durationMinutes: room.durationMinutes,
+          hostCarSkin: room.hostCarSkin,
+          hostRoadSkin: room.hostRoadSkin,
+          updatedAt: new Date(),
+        },
+      });
+    recordPersistSuccess(room.code);
+  } catch (err) {
+    recordPersistFailure(room.code, err);
+    logger.error({ err, code: room.code }, "Failed to persist room");
+  }
 }
 
-function deleteRoomFromDB(code: string): void {
+async function deleteRoomFromDB(code: string): Promise<void> {
   // Always drop the breaker entry — the room object is being torn down, so
   // there's no in-memory state left to protect, and we don't want to leak
   // an entry per ever-deleted room into persistFailures.
@@ -237,17 +255,13 @@ function deleteRoomFromDB(code: string): void {
     persistFailures.delete(code);
     return;
   }
-  db.delete(roomsTable)
-    .where(eq(roomsTable.code, code))
-    .then(() => recordPersistSuccess(code))
-    .catch((err: unknown) => {
-      recordPersistFailure(code, err);
-      logger.error({ err, code }, "Failed to delete room from DB");
-    })
-    .finally(() => {
-      // Tear-down: remove any breaker entry once the room is gone.
-      persistFailures.delete(code);
-    });
+  try {
+    await db.delete(roomsTable).where(eq(roomsTable.code, code));
+  } catch (err) {
+    logger.error({ err, code }, "Failed to delete room from DB");
+  } finally {
+    persistFailures.delete(code);
+  }
 }
 
 export async function restoreRoomsFromDB(): Promise<void> {
@@ -290,7 +304,7 @@ export async function restoreRoomsFromDB(): Promise<void> {
         goldenPenUsed: false,
         activeStars: new Map(),
         gladiatorDeathGap: (row as Record<string, unknown>).gladiatorDeathGap as number | null ?? null,
-        gladiatorMatchStats: null,
+        gladiatorMatchStats: row.mode === "gladiator" ? newGladiatorMatchStats() : null,
         creatorXp: 0,
         hostCarSkin: row.hostCarSkin ?? null,
         hostRoadSkin: row.hostRoadSkin ?? null,
@@ -301,6 +315,7 @@ export async function restoreRoomsFromDB(): Promise<void> {
           // Sprint still has time remaining
           rooms.set(row.code, room);
           room.timerInterval = setInterval(() => {
+            if (room.mode === "gladiator") advanceGladiatorCombat(room);
             if (!room.endTime || Date.now() >= room.endTime) {
               endSprint(room);
             } else {
@@ -477,7 +492,7 @@ export function broadcastRoomState(room: Room): void {
       role: p.role,
       nameplate: p.nameplate,
       xp: p.xp,
-      ...(room.mode === "kart" && { kartCarOffset: p.kartCarOffset }),
+      ...(room.mode === "kart" && { kartCarOffset: p.kartCarOffset, kartBonusWords: p.kartBonusWords }),
     }));
 
   const now = Date.now();
@@ -515,6 +530,7 @@ export function broadcastRoomState(room: Room): void {
       countdownTimeLeft,
       participants,
       creatorXp: room.creatorXp,
+      starActiveIds: Array.from(room.activeStars).filter(([, expiry]) => expiry > now).map(([id]) => id),
     },
   });
 }
@@ -559,6 +575,11 @@ export function startSprint(room: Room): void {
 
 function _startRunning(room: Room): void {
   if (room.status !== "waiting") return;
+  // A fighter can leave during a delayed countdown. Do not launch a broken 1v1.
+  if (room.mode === "gladiator" && Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor").length !== 2) {
+    broadcastRoomState(room);
+    return;
+  }
 
   room.status = "running";
   room.startTime = Date.now();
@@ -575,18 +596,12 @@ function _startRunning(room: Room): void {
 
   // Initialize gladiator state for all current participants
   if (room.mode === "gladiator") {
-    room.gladiatorMatchStats = {
-      closestGap: -1,
-      maxGap: 0,
-      totalHpHealed: {},
-      leadChanges: 0,
-      timeInDangerMs: 0,
-      endedByExecution: false,
-      currentLeaderId: null,
-    };
+    room.gladiatorMatchStats = newGladiatorMatchStats();
     room.participants.forEach((p) => {
       if (!p.isSpectator && p.role !== "editor") initGladiatorParticipant(p);
     });
+    const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor");
+    broadcastGladiatorState(fighters[0], fighters[1], Math.abs(fighters[0].wordCount - fighters[1].wordCount), room.gladiatorDeathGap ?? 400);
   }
 
   // Initialize kart state for all current participants. This MUST run on every
@@ -619,6 +634,7 @@ function _startRunning(room: Room): void {
   if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = null; }
   room.timerInterval = setInterval(() => {
     const now = Date.now();
+    if (room.mode === "gladiator") advanceGladiatorCombat(room, now);
     if (!room.endTime || now >= room.endTime) {
       endSprint(room);
     } else {
@@ -638,15 +654,19 @@ const POST_SPRINT_CLOSE_MS = 10 * 60 * 1000; // 10 minutes
 async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void> {
   // Editors are visible non-racers — they don't appear in rankings or
   // earn race XP, but their text is still persisted below where applicable.
-  const allParticipants = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor");
+  const allParticipants = Array.from(room.participants.values())
+    .filter((p) => !p.isSpectator && p.role !== "editor")
+    .map((p) => ({ ...p })); // freeze results before restart mutates live participants
   if (allParticipants.length === 0) return;
 
-  const sorted = [...allParticipants].sort((a, b) => b.wordCount - a.wordCount);
-  const firstPlaceId = sorted[0]?.id;
+  const score = (p: Participant) => p.wordCount + (room.mode === "kart" ? p.kartCarOffset : 0);
+  const sorted = [...allParticipants].sort((a, b) => score(b) - score(a));
+  const firstPlaceId = room.mode === "gladiator" ? gladiatorWinnerId(room) : sorted[0]?.id;
 
   for (const p of allParticipants) {
     if (p.latestText || p.wordCount > 0) {
-      await saveWriting(room.code, p.name, p.latestText, p.wordCount, p.clerkUserId, room.mode, room.wordGoal, p.wpm);
+      const saved = await saveWriting(room.code, p.name, p.latestText, p.wordCount, p.clerkUserId, room.mode, room.wordGoal, p.wpm);
+      if (!saved) continue;
     }
 
     if (!p.clerkUserId || p.wordCount <= 0) continue;
@@ -747,6 +767,7 @@ async function finalizeSprintData(room: Room, naturalEnd: boolean): Promise<void
 export function endSprint(room: Room, naturalEnd = true): void {
   if (room.status === "finished") return;
 
+  if (room.mode === "gladiator") advanceGladiatorCombat(room);
   room.status = "finished";
   if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = null; }
   persistRoom(room);
@@ -796,9 +817,14 @@ export function endSprint(room: Room, naturalEnd = true): void {
         kartCarOffset: room.mode === "kart" ? p.kartCarOffset : 0,
       };
     })
-    .sort((a, b) =>
-      (b.wordCount + b.kartCarOffset) - (a.wordCount + a.kartCarOffset)
-    );
+    .sort((a, b) => {
+      if (room.mode === "gladiator") {
+        const winnerId = gladiatorWinnerId(room);
+        if (winnerId) return a.id === winnerId ? -1 : b.id === winnerId ? 1 : 0;
+        return 0;
+      }
+      return (b.wordCount + b.kartCarOffset) - (a.wordCount + a.kartCarOffset);
+    });
 
   broadcastToRoom(room, { type: "sprint_ended", results: participants });
 
@@ -813,7 +839,9 @@ export function endSprint(room: Room, naturalEnd = true): void {
   // clerkUserId, NOT writer name — name matching could let an unrelated user
   // claim the pot. If the top scorer has no signed-in account, or everyone
   // wrote 0 words, treat as no winner so all bets refund.
-  const topScorer = participants[0];
+  const topScorer = room.mode === "gladiator"
+    ? participants.find((p) => p.id === gladiatorWinnerId(room))
+    : participants[0];
   const hasAnyWords = participants.some((p) => p.wordCount > 0);
   const winnerParticipant = topScorer
     ? room.participants.get(topScorer.id)
@@ -938,7 +966,11 @@ export function reconnectParticipant(
   }
 
   // Mutate in-place — Map entry keeps its original insertion position.
+  const previousSocket = existing.ws;
   existing.ws = ws;
+  if (previousSocket !== ws && previousSocket.readyState === WebSocket.OPEN) {
+    previousSocket.close(4001, "Connected from another tab");
+  }
   existing.wordCount = wordCount;
   existing.lastWordCount = wordCount;
   existing.lastWordCountTime = Date.now();
@@ -1048,6 +1080,10 @@ export function restartSprint(room: Room, durationMinutes: number): void {
   room.endTime = null;
   room.countdownEndsAt = null;
   room.durationMinutes = durationMinutes;
+  room.bananaTraps = [];
+  room.activeStars.clear();
+  room.goldenPenUsed = false;
+  room.gladiatorMatchStats = null;
   persistRoom(room);
 
   room.participants.forEach((p) => {
@@ -1055,6 +1091,11 @@ export function restartSprint(room: Room, durationMinutes: number): void {
     p.wpm = 0;
     p.lastWordCount = 0;
     p.lastWordCountTime = Date.now();
+    p.kartItems = [];
+    p.kartCarOffset = 0;
+    p.kartBonusWords = 0;
+    p.kartNextItemAt = 250;
+    if (room.mode === "gladiator") initGladiatorParticipant(p);
   });
 
   broadcastRoomState(room);

@@ -1,3 +1,6 @@
+import { CultivationToggle } from "./CultivationShell";
+import { useCultivation } from "@/lib/cultivation";
+import { PiFeatherThin } from "react-icons/pi";
 import { Moon, Sun } from "lucide-react";
 import { useDarkMode } from "@/lib/darkModeContext";
 import { UserStatsDropdown } from "@/components/UserStatsDropdown";
@@ -5,10 +8,11 @@ import { UserStatsDropdown } from "@/components/UserStatsDropdown";
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export function Navbar() {
+  const { enabled } = useCultivation();
   const { isDark, toggleDarkMode } = useDarkMode();
 
   return (
-    <nav
+    <nav className="app-navbar"
       style={{
         position: "fixed",
         top: 0,
@@ -37,7 +41,7 @@ export function Navbar() {
           flexShrink: 0,
         }}
       >
-        <img
+        {enabled ? <PiFeatherThin size={36} className="cultivation-brand-feather" /> : <img
           src={`${basePath}/logo-icon.png`}
           alt="Writing Sprint logo"
           style={{
@@ -48,7 +52,7 @@ export function Navbar() {
             display: "block",
             flexShrink: 0,
           }}
-        />
+        />}
         <span
           style={{
             fontFamily: "'Playfair Display', Georgia, serif",
@@ -63,7 +67,9 @@ export function Navbar() {
         </span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+      {enabled && <p className="cultivation-navbar-motto">“Discipline turns thoughts into worlds.”</p>}
+      <div className="navbar-actions" style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <CultivationToggle />
         <UserStatsDropdown />
         <button
           onClick={toggleDarkMode}

@@ -17,6 +17,7 @@ import {
   Participant,
   Room,
 } from "./roomManager";
+import { socketUserId } from "./socketAuth";
 import { getWriting } from "./writingStore";
 import { db, userProfilesTable, guildMembersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -28,6 +29,7 @@ import {
   broadcastGladiatorExecution,
   broadcastGladiatorTimerEnd,
   broadcastGladiatorState,
+  advanceGladiatorCombat,
 } from "./gladiatorEngine";
 
 function countWords(text: string): number {
@@ -64,9 +66,13 @@ function getActiveParticipants(room: Room): Participant[] {
 
 function getParticipantPosition(room: Room, participantId: string): { position: number; total: number } {
   const active = getActiveParticipants(room);
-  const sorted = [...active].sort((a, b) => b.wordCount - a.wordCount);
+  const sorted = [...active].sort((a, b) => kartScore(b) - kartScore(a));
   const pos = sorted.findIndex((p) => p.id === participantId) + 1;
   return { position: pos || active.length, total: active.length };
+}
+
+function kartScore(participant: Participant): number {
+  return participant.wordCount + participant.kartCarOffset;
 }
 
 function getRedirectTarget(room: Room, excludeIds: string[]): Participant | null {
@@ -82,8 +88,31 @@ function sendEffect(target: Participant, effect: string, duration?: number, sour
   }
 }
 
+function checkBananaTraps(room: Room, participant: Participant, previousPosition: number): void {
+  const currentPosition = kartScore(participant);
+  room.bananaTraps = room.bananaTraps.filter((trap) => {
+    if (trap.placedById === participant.id || previousPosition > trap.threshold || currentPosition <= trap.threshold) return true;
+    const target = isStarActive(room, participant.id)
+      ? getRedirectTarget(room, [participant.id, trap.placedById])
+      : participant;
+    if (!target) return false;
+    sendEffect(target, "bold_text", 5000, trap.placedByName);
+    broadcastToRoom(room, {
+      type: "item_used", item: "banana", emoji: ITEM_EMOJIS.banana,
+      sourceId: trap.placedById, sourceName: trap.placedByName,
+      targetId: target.id, targetName: target.name,
+      effect: "bold_text", duration: 5000,
+    });
+    return false;
+  });
+}
+
 export function setupWebSocketServer(server: Server): WebSocketServer {
-  const wss = new WebSocketServer({ server, path: "/ws" });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 5 * 1024 * 1024 });
+  server.on("upgrade", (req, socket, head) => {
+    if (new URL(req.url ?? "/", "http://localhost").pathname !== "/ws") return;
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+  });
 
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     logger.info({ url: req.url }, "WebSocket connection established");
@@ -93,10 +122,13 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
     let presenceUserId: string | null = null;
     let presenceGuildId: number | null = null;
 
-    ws.on("message", async (data: Buffer) => {
+    const handleMessage = async (data: Buffer) => {
       let message: Record<string, unknown>;
       try {
         message = JSON.parse(data.toString());
+        if (!message || typeof message !== "object" || Array.isArray(message)) {
+          throw new Error("Expected a message object");
+        }
       } catch {
         ws.send(JSON.stringify({ type: "error", message: "Invalid JSON" }));
         return;
@@ -105,10 +137,14 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
       const type = message.type as string;
 
       if (type === "join_room") {
-        const code = (message.code as string)?.toUpperCase();
-        const name = message.name as string;
+        if (participantId) {
+          ws.send(JSON.stringify({ type: "error", message: "Already joined a room" }));
+          return;
+        }
+        const code = typeof message.code === "string" ? message.code.toUpperCase() : "";
+        const name = typeof message.name === "string" ? message.name.trim() : "";
 
-        if (!code || !name) {
+        if (!code || !name || name.length > 100) {
           ws.send(JSON.stringify({ type: "error", message: "code and name required" }));
           return;
         }
@@ -119,20 +155,10 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           return;
         }
 
-        // ── Gladiator: max 2 fighters ─────────────────────────────────────────
-        if (room.mode === "gladiator") {
-          const fighters = Array.from(room.participants.values()).filter((p) => !p.isSpectator && p.role !== "editor" && p.name !== name);
-          if (fighters.length >= 2) {
-            ws.send(JSON.stringify({ type: "error", message: "The arena is full. Two gladiators have already entered.", code: "ARENA_FULL" }));
-            ws.close();
-            return;
-          }
-        }
-
         // ── Password check ────────────────────────────────────────────────────
         if (room.passwordHash) {
           const providedPassword = message.password as string | undefined;
-          if (!providedPassword) {
+          if (typeof providedPassword !== "string" || !providedPassword) {
             ws.send(JSON.stringify({ type: "error", message: "Password required", code: "PASSWORD_REQUIRED" }));
             return;
           }
@@ -143,48 +169,19 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           }
         }
 
-        // ── Inherit state from a previous connection with the same name ──────
-        // If someone disconnects and quickly reconnects, they may still appear
-        // in the room. Transfer their word count, text, AND id to the new
-        // connection so client-side lane maps stay stable across reconnects.
-        const incomingClerkUserId = (message.clerkUserId as string | null | undefined) ?? null;
-        let inheritedWordCount = 0;
-        let inheritedText = "";
-        let inheritedIsCreator = false;
-        let inheritedClerkUserId: string | null = null;
-        let inheritedId: string | null = null;
-        for (const [existingId, existingP] of room.participants) {
-          if (existingP.name === name) {
-            // Cancel any pending grace-period removal so the rejoin is seamless.
-            // Do NOT call removeParticipant here — we will update this entry
-            // in-place via reconnectParticipant so the Map position (and
-            // therefore every client's lane/colour assignment) never changes.
-            if (existingP.disconnectTimer) clearTimeout(existingP.disconnectTimer);
-            inheritedWordCount = existingP.wordCount;
-            inheritedText = existingP.latestText;
-            inheritedIsCreator = existingP.isCreator;
-            inheritedClerkUserId = existingP.clerkUserId;
-            inheritedId = existingId;
-            break;
-          }
+        // Only a verified session may claim an account; a supplied user ID
+        // or matching display name is not proof of ownership.
+        let resolvedClerkUserId: string | null;
+        try {
+          resolvedClerkUserId = await socketUserId(req, message.token);
+        } catch {
+          ws.send(JSON.stringify({ type: "error", message: "Please sign in again", code: "AUTH_REQUIRED" }));
+          return;
         }
-        // ── Verify incoming clerkUserId actually belongs to this writer name ──
-        // Never trust a client-supplied Clerk ID without confirming the DB-stored
-        // writerName matches. This prevents a malicious client from claiming
-        // someone else's ID and having XP awarded into their account.
-        let verifiedClerkUserId: string | null = null;
-        if (incomingClerkUserId) {
-          const verifyRows = await db
-            .select({ writerName: userProfilesTable.writerName })
-            .from(userProfilesTable)
-            .where(eq(userProfilesTable.clerkUserId, incomingClerkUserId))
-            .limit(1);
-          if (verifyRows[0]?.writerName === name) {
-            verifiedClerkUserId = incomingClerkUserId;
-          }
-          // If writerName doesn't match, silently discard the supplied ID.
+        if (message.clerkUserId && message.clerkUserId !== resolvedClerkUserId) {
+          ws.send(JSON.stringify({ type: "error", message: "Please sign in again", code: "AUTH_REQUIRED" }));
+          return;
         }
-        const resolvedClerkUserId = verifiedClerkUserId ?? inheritedClerkUserId;
 
         // ── Look up profile for nameplate, xp, and Grand Scribe spectating ──
         let userNameplate = "default";
@@ -209,14 +206,30 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         // Grand Scribes (60k+ XP) can join any room as an invisible spectator
         const isGrandScribe = userXp >= 60000;
 
-        // ── Restore word count from DB if higher than in-memory value ────────
         const saved = await getWriting(code, name);
-        const restoredWordCount = Math.max(inheritedWordCount, saved?.wordCount ?? 0);
-        const restoredText = inheritedText || saved?.text || "";
+        if (saved?.clerkUserId && saved.clerkUserId !== resolvedClerkUserId) {
+          ws.send(JSON.stringify({ type: "error", message: "That name belongs to another writer", code: "NAME_IN_USE" }));
+          return;
+        }
+        if (ws.readyState !== WebSocket.OPEN) return;
 
-        // Reuse the old id if this is a reconnect — guarantees lane stability
-        participantId = inheritedId ?? uuidv4();
-        roomCode = code;
+        // Re-read after awaits so simultaneous joins cannot replace each other
+        // using an obsolete participant snapshot.
+        const existing = Array.from(room.participants.values()).find((p) => p.name === name);
+        const reconnectToken = typeof message.reconnectToken === "string"
+          ? message.reconnectToken : undefined;
+        if (existing && (existing.clerkUserId
+          ? existing.clerkUserId !== resolvedClerkUserId
+          : !existing.reconnectToken || existing.reconnectToken !== reconnectToken)) {
+          ws.send(JSON.stringify({ type: "error", message: "That name is already in use in this room", code: "NAME_IN_USE" }));
+          return;
+        }
+        const inheritedId = existing?.id ?? null;
+        const inheritedIsCreator = existing?.isCreator ?? false;
+        // In-memory state is newer than a periodic backup, including intentional
+        // deletions and zeroed counts after a restart.
+        const restoredWordCount = existing ? existing.wordCount : (saved?.wordCount ?? 0);
+        const restoredText = existing ? existing.latestText : (saved?.text ?? "");
 
         // Grant creator status if: (a) this is a reconnect that already had it,
         // OR (b) the name matches the room's designated creator name.
@@ -226,14 +239,26 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
 
         // Creators and Grand Scribes (25k+ XP) can join as invisible spectators
         const wantsSpectator = message.spectator === true;
-        const isSpectator = wantsSpectator && (isCreator || isGrandScribe);
+        const isSpectator = existing && room.status !== "waiting"
+          ? existing.isSpectator
+          : wantsSpectator && (isCreator || isGrandScribe);
 
         // Optional sprint role — anyone can join as an "editor" (visible
         // non-racer). Defaults to "writer". Editors aren't allowed in
         // gladiator (1v1 only) — they'd just sit there.
         const requestedRole = message.role === "editor" ? "editor" : "writer";
-        const role: "writer" | "editor" =
-          requestedRole === "editor" && room.mode !== "gladiator" ? "editor" : "writer";
+        const role: "writer" | "editor" = existing && room.status !== "waiting"
+          ? existing.role
+          : requestedRole === "editor" && room.mode !== "gladiator" ? "editor" : "writer";
+
+        if (room.mode === "gladiator" && !isSpectator && getActiveParticipants(room).filter((p) => p.id !== existing?.id).length >= 2) {
+          ws.send(JSON.stringify({ type: "error", message: "The arena is full", code: "ARENA_FULL" }));
+          return;
+        }
+
+        // Only claim this connection after every admission check succeeds.
+        participantId = inheritedId ?? uuidv4();
+        roomCode = code;
 
         // For reconnects, update the existing entry in-place so the participant
         // keeps their original Map position (= stable lane + colour for everyone).
@@ -255,6 +280,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         } else {
           participant = {
             id: participantId,
+            reconnectToken,
             name,
             wordCount: restoredWordCount,
             wpm: 0,
@@ -328,7 +354,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             role: p.role,
             nameplate: p.nameplate,
             xp: p.xp,
-            ...(room.mode === "kart" && { kartCarOffset: p.kartCarOffset }),
+            ...(room.mode === "kart" && { kartCarOffset: p.kartCarOffset, kartBonusWords: p.kartBonusWords }),
           }));
 
         const bossTotalWords = room.mode === "boss"
@@ -363,12 +389,36 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
               timeLeft:
                 room.status === "running" && room.endTime
                   ? Math.max(0, Math.floor((room.endTime - Date.now()) / 1000))
-                  : null,
+                  : room.status === "finished" ? 0 : null,
+              countdownTimeLeft: room.status === "countdown" && room.countdownEndsAt
+                ? Math.max(0, Math.ceil((room.countdownEndsAt - Date.now()) / 1000))
+                : null,
               participants: currentParticipants,
               creatorXp: room.creatorXp,
+              starActiveIds: Array.from(room.activeStars).filter(([, expiry]) => expiry > Date.now()).map(([id]) => id),
             },
           })
         );
+
+        if (room.mode === "kart" && isStarActive(room, participantId)) {
+          sendEffect(participant, "star", room.activeStars.get(participantId)! - Date.now());
+        }
+        if (room.mode === "gladiator" && room.gladiatorMatchStats) {
+          const fighters = getActiveParticipants(room);
+          if (fighters.length === 2) {
+            if (room.status === "finished") {
+              const winner = fighters.find((p) => p.id === room.gladiatorMatchStats?.winnerId);
+              const loser = fighters.find((p) => p.id !== winner?.id);
+              if (room.gladiatorMatchStats.endedByExecution && winner && loser) {
+                broadcastGladiatorExecution(room, winner, loser, room.gladiatorMatchStats);
+              } else {
+                broadcastGladiatorTimerEnd(room, fighters[0], fighters[1], room.gladiatorMatchStats);
+              }
+            } else {
+              broadcastGladiatorState(fighters[0], fighters[1], Math.abs(fighters[0].wordCount - fighters[1].wordCount), room.gladiatorDeathGap ?? 400);
+            }
+          }
+        }
 
         // Catch the new participant up with everyone's current text in
         // open mode (everyone is visible) AND always send any editor's text
@@ -408,13 +458,27 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
       }
 
       const participant = room.participants.get(participantId);
-      if (!participant) return;
+      if (!participant || participant.ws !== ws) return;
+
+      // The interval may be delayed by a busy event loop. Its scheduling must
+      // never grant extra race time to a late text or item packet.
+      if ((type === "text_update" || type === "use_item") && room.status === "running" && room.endTime && Date.now() >= room.endTime) {
+        endSprint(room);
+        return;
+      }
 
       if (type === "text_update") {
-        const text = (message.text as string) ?? "";
+        if (participant.isSpectator) return;
+        if (typeof message.text !== "string" ||
+          (message.netWordCount !== undefined &&
+            (typeof message.netWordCount !== "number" || !Number.isFinite(message.netWordCount)))) {
+          ws.send(JSON.stringify({ type: "error", message: "Invalid text update" }));
+          return;
+        }
+        const text = message.text;
         const rawNetWordCount =
           typeof message.netWordCount === "number"
-            ? Math.max(0, message.netWordCount)
+            ? Math.max(0, Math.floor(message.netWordCount))
             : countWords(text);
 
         // Anti-cheat: cap implausibly large word jumps. A sustained 250 WPM is
@@ -494,6 +558,8 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         // also benefit so reconnect restores in-progress text).
         if (room.mode !== "open") participant.latestText = text;
 
+        // Charge the elapsed time at the previous gap before changing it.
+        if (room.mode === "gladiator") advanceGladiatorCombat(room, Date.now(), false);
         updateParticipantStats(room, participantId, netWordCount);
 
         // Kart mode: item earning + banana trap check.
@@ -531,28 +597,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             }));
           }
 
-          room.bananaTraps = room.bananaTraps.filter((trap) => {
-            if (trap.placedById === participantId) return true;
-            if (participant.wordCount <= trap.threshold) return true;
-
-            let targetPId = participantId;
-            let targetP: Participant = participant;
-
-            if (isStarActive(room, participantId)) {
-              const redirect = getRedirectTarget(room, [participantId, trap.placedById]);
-              if (redirect) { targetPId = redirect.id; targetP = redirect; }
-              else return false;
-            }
-
-            sendEffect(targetP, "bold_text", 5000, trap.placedByName);
-            broadcastToRoom(room, {
-              type: "item_used", item: "banana", emoji: ITEM_EMOJIS["banana"],
-              sourceId: trap.placedById, sourceName: trap.placedByName,
-              targetId: targetPId, targetName: targetP.name,
-              effect: "bold_text", duration: 5000,
-            });
-            return false;
-          });
+          checkBananaTraps(room, participant, currentWc + participant.kartCarOffset);
         }
 
         // ── Gladiator mode: process combat ───────────────────────────────────
@@ -560,7 +605,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           // currentWc was captured before updateParticipantStats ran — use as prevWordCount
           const result = processGladiatorUpdate(room, participant, netWordCount, currentWc);
           if (result.executed && result.winnerId) {
-            const active = Array.from(room.participants.values()).filter((p) => !p.isSpectator);
+            const active = getActiveParticipants(room);
             const winner = active.find((p) => p.id === result.winnerId);
             const loser = active.find((p) => p.id !== result.winnerId);
             if (winner && loser) {
@@ -574,14 +619,15 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
       }
 
       if (type === "use_item") {
-        if (room.mode !== "kart" || room.status !== "running") return;
+        if (room.mode !== "kart" || room.status !== "running" || participant.isSpectator || participant.role === "editor") return;
         const item = message.item as string;
         const itemIdx = participant.kartItems.indexOf(item);
         if (itemIdx === -1) return;
         participant.kartItems.splice(itemIdx, 1);
+        const previousPosition = kartScore(participant);
 
         const active = getActiveParticipants(room);
-        const sorted = [...active].sort((a, b) => b.wordCount - a.wordCount);
+        const sorted = [...active].sort((a, b) => kartScore(b) - kartScore(a));
         const senderIdx = sorted.findIndex((p) => p.id === participantId);
 
         switch (item) {
@@ -619,7 +665,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           }
           case "banana": {
             const trapId = Math.random().toString(36).slice(2);
-            room.bananaTraps.push({ id: trapId, placedById: participantId, placedByName: participant.name, threshold: participant.wordCount });
+            room.bananaTraps.push({ id: trapId, placedById: participantId, placedByName: participant.name, threshold: kartScore(participant) });
             broadcastToRoom(room, {
               type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
               sourceId: participantId, sourceName: participant.name,
@@ -630,7 +676,12 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           case "star": {
             const expiry = Date.now() + 30000;
             room.activeStars.set(participantId, expiry);
-            setTimeout(() => room.activeStars.delete(participantId), 30000);
+            const starParticipantId = participant.id;
+            setTimeout(() => {
+              if (room.activeStars.get(starParticipantId) === expiry) {
+                room.activeStars.delete(starParticipantId);
+              }
+            }, 30000);
             sendEffect(participant, "star", 30000);
             broadcastToRoom(room, {
               type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
@@ -703,7 +754,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           case "boo": {
             if (senderIdx <= 0 && sorted.length > 0) break;
             const ahead = senderIdx > 0 ? sorted[senderIdx - 1] : null;
-            if (!ahead || ahead.kartItems.length === 0) break;
+            if (!ahead || ahead.kartItems.length === 0 || isStarActive(room, ahead.id)) break;
             const stealIdx = Math.floor(Math.random() * ahead.kartItems.length);
             const stolen = ahead.kartItems.splice(stealIdx, 1)[0];
             if (participant.kartItems.length < 3) {
@@ -738,6 +789,8 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             break;
           }
         }
+        // Boosts can cross a trap even without a new word being typed.
+        if (kartScore(participant) > previousPosition) checkBananaTraps(room, participant, previousPosition);
         // Authoritative inventory resync after every use_item — covers all
         // cases (mystery_box additions, boo steals, regular uses). Same
         // rationale as the kart-grant sync: never let a dropped message
@@ -813,6 +866,10 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           ws.send(JSON.stringify({ type: "error", message: "Sprint already started" }));
           return;
         }
+        if (room.mode === "gladiator" && getActiveParticipants(room).length !== 2) {
+          ws.send(JSON.stringify({ type: "error", message: "Two writers must join before the duel can start." }));
+          return;
+        }
         startSprint(room);
         return;
       }
@@ -831,7 +888,11 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           ws.send(JSON.stringify({ type: "error", message: "Only the creator can restart the sprint" }));
           return;
         }
-        const durationMinutes = (message.durationMinutes as number) || room.durationMinutes;
+        const durationMinutes = message.durationMinutes ?? room.durationMinutes;
+        if (typeof durationMinutes !== "number" || !Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 180) {
+          ws.send(JSON.stringify({ type: "error", message: "Duration must be between 1 and 180 minutes" }));
+          return;
+        }
         restartSprint(room, durationMinutes);
         return;
       }
@@ -842,6 +903,21 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
       }
 
       logger.warn({ type }, "Unknown WebSocket message type");
+    };
+
+    // EventEmitter does not catch rejected async callbacks. Keep messages in
+    // order and contain DB/auth failures so one connection cannot crash the API.
+    let pending = Promise.resolve();
+    ws.on("message", (data: Buffer) => {
+      pending = pending.then(() => {
+        if (ws.readyState === WebSocket.OPEN) return handleMessage(data);
+        return undefined;
+      }).catch((err) => {
+        logger.error({ err }, "Failed to handle sprint message");
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "error", message: "Could not process room request. Please retry." }));
+        }
+      });
     });
 
     ws.on("close", () => {
@@ -871,11 +947,11 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
 
       if (hasGracePeriod) {
         const p = room.participants.get(participantId);
-        if (p) {
+        if (p && p.ws === ws) {
           if (p.disconnectTimer) clearTimeout(p.disconnectTimer);
           p.disconnectTimer = setTimeout(() => {
             const currentRoom = getRoom(roomCode!);
-            if (currentRoom?.participants.has(participantId!)) {
+            if (currentRoom?.participants.get(participantId!)?.ws === ws) {
               removeParticipant(currentRoom, participantId!);
               logger.info({ code: roomCode, participantId }, `Participant removed after ${gracePeriodMs / 1000}s grace period`);
             }

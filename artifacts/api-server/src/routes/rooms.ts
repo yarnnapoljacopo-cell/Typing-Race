@@ -81,7 +81,10 @@ function buildSprintAnnouncement(opts: {
 }
 
 router.post("/rooms", mutationLimiter, async (req, res): Promise<void> => {
-  const parsed = CreateRoomBody.safeParse(req.body);
+  const parsed = CreateRoomBody.extend({
+    creatorName: CreateRoomBody.shape.creatorName.trim().min(1).max(100),
+    durationMinutes: CreateRoomBody.shape.durationMinutes.min(1).max(180),
+  }).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
@@ -89,7 +92,23 @@ router.post("/rooms", mutationLimiter, async (req, res): Promise<void> => {
 
   const { creatorName, durationMinutes, mode } = parsed.data;
   const rawBody = req.body as Record<string, unknown>;
+  for (const field of ["wordGoal", "bossWordGoal"] as const) {
+    const value = rawBody[field];
+    if (value !== undefined && value !== null &&
+      (typeof value !== "number" || !Number.isFinite(value) || value < 1 || value > Number.MAX_SAFE_INTEGER)) {
+      res.status(400).json({ error: "Word goals must be positive, finite numbers." });
+      return;
+    }
+  }
+  if ((mode === "boss" && !rawBody.bossWordGoal) || (mode === "goal" && !rawBody.wordGoal)) {
+    res.status(400).json({ error: "Choose a word target for this mode." });
+    return;
+  }
   const rawDelay = rawBody.countdownDelayMinutes;
+  if (rawDelay !== undefined && (typeof rawDelay !== "number" || !Number.isFinite(rawDelay) || rawDelay < 0 || rawDelay > 30)) {
+    res.status(400).json({ error: "Countdown must be between 0 and 30 minutes." });
+    return;
+  }
   const countdownDelayMinutes = typeof rawDelay === "number"
     ? Math.min(30, Math.max(0, Math.floor(rawDelay)))
     : 0;
@@ -195,7 +214,7 @@ router.get("/rooms/:code", async (req, res): Promise<void> => {
 });
 
 router.put("/rooms/:code/writing", mutationLimiter, async (req, res): Promise<void> => {
-  const code = req.params.code?.toUpperCase();
+  const code = (typeof req.params.code === "string" ? req.params.code.toUpperCase() : undefined);
   if (!code) { res.status(400).json({ error: "Missing code" }); return; }
 
   const { participantName, text, wordCount } = req.body ?? {};
@@ -230,18 +249,22 @@ router.put("/rooms/:code/writing", mutationLimiter, async (req, res): Promise<vo
   }
 
   const room = getRoom(code);
-  await saveWriting(code, name, text, wc, clerkUserId, room?.mode ?? null, room?.wordGoal ?? null);
+  const saved = await saveWriting(code, name, text, wc, clerkUserId, room?.mode ?? null, room?.wordGoal ?? null);
+  if (!saved) { res.status(503).json({ error: "Writing could not be saved. Please retry." }); return; }
   res.json({ ok: true });
 });
 
 router.get("/rooms/:code/writing/:participantName", async (req, res): Promise<void> => {
-  const code = req.params.code?.toUpperCase();
-  const participantName = req.params.participantName;
+  const code = (typeof req.params.code === "string" ? req.params.code.toUpperCase() : undefined);
+  const participantName = typeof req.params.participantName === "string" ? req.params.participantName : undefined;
   if (!code || !participantName) { res.status(400).json({ error: "Missing params" }); return; }
 
   const result = await getWriting(code, participantName);
   if (!result) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(result);
+  if (result.clerkUserId && result.clerkUserId !== getAuth(req)?.userId) {
+    res.status(403).json({ error: "This writing belongs to another writer" }); return;
+  }
+  res.json({ text: result.text, wordCount: result.wordCount });
 });
 
 router.get("/user/sprints", async (req, res): Promise<void> => {
@@ -1110,7 +1133,7 @@ router.post("/user/discord/test", async (req, res): Promise<void> => {
 // ── Betting ──────────────────────────────────────────────────────────────────
 
 router.get("/rooms/:code/bets", async (req, res): Promise<void> => {
-  const code = req.params.code?.toUpperCase();
+  const code = (typeof req.params.code === "string" ? req.params.code.toUpperCase() : undefined);
   if (!code) { res.status(400).json({ error: "code required" }); return; }
   const auth = getAuth(req);
   const userId = auth?.userId ?? null;
@@ -1124,7 +1147,7 @@ router.get("/rooms/:code/bets", async (req, res): Promise<void> => {
 });
 
 router.post("/rooms/:code/bet", mutationLimiter, async (req, res): Promise<void> => {
-  const code = req.params.code?.toUpperCase();
+  const code = (typeof req.params.code === "string" ? req.params.code.toUpperCase() : undefined);
   if (!code) { res.status(400).json({ error: "code required" }); return; }
 
   const auth = getAuth(req);

@@ -1,15 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useUser, useAuth } from "@clerk/react";
+import { useUser, useAuth } from "@/lib/auth";
 import { useAuthedFetch } from "@/lib/authedFetch";
-import { ArrowLeft, Check, ExternalLink, Loader2, Pencil } from "lucide-react";
+import { ArrowLeft, Check, ExternalLink, Loader2, Pencil, Feather, Trophy, BookOpen, Flame, ChartNoAxesCombined, Package, Gift, FlaskConical } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { RANKS, getRankFromXp, getNextRank, xpProgressPercent, type Rank } from "@/lib/ranks";
 import { NAMEPLATES, getUnlockedNameplates, type NameplateKey } from "@/lib/nameplates";
 import { BANNERS, ACCENTS, getBanner, getAccent } from "@/lib/profileThemes";
+import { useCultivation } from "@/lib/cultivation";
+import { CultivationProfile } from "@/components/CultivationProfile";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -178,6 +180,7 @@ function ordinal(n: number): string {
 }
 
 function GlobalRankBadge({ position }: { position: number }) {
+  if (!Number.isFinite(position) || position < 1) return null;
   const isMedal = position <= 3;
   const medalColors: Record<number, { border: string; glow: string; bg: string; text: string }> = {
     1: { border: "#fbbf24", glow: "0 0 18px #fbbf2466", bg: "rgba(251,191,36,0.08)", text: "#fbbf24" },
@@ -377,6 +380,14 @@ function RankBadge({ xp }: { xp: number }) {
 }
 
 export default function Profile() {
+  const { enabled: cultivationEnabled } = useCultivation();
+  const profileCard: React.CSSProperties = cultivationEnabled ? {
+    ...CARD,
+    background: "rgba(247,243,233,.94)",
+    border: "1px solid rgba(181,157,111,.6)",
+    borderRadius: 5,
+    boxShadow: "0 3px 14px rgba(42,42,34,.07)",
+  } : CARD;
   const [, params] = useRoute("/profile/:name");
   const [, setLocation] = useLocation();
   const name = decodeURIComponent(params?.name ?? "");
@@ -579,7 +590,7 @@ export default function Profile() {
   });
 
   const globalRankEntry = top10?.find(
-    (e) => e.writerName.toLowerCase() === name.toLowerCase(),
+    (e) => e.writerName?.toLowerCase() === name.toLowerCase() && Number.isFinite(e.position) && e.position >= 1,
   );
 
   if (!name) {
@@ -589,6 +600,7 @@ export default function Profile() {
   return (
     <>
       {/* Fixed background layers */}
+      {!cultivationEnabled && <>
       <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "var(--bg-solid)" }} />
       <div style={{
         position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
@@ -598,15 +610,16 @@ export default function Profile() {
       <div style={{ position: "fixed", width: 500, height: 500, borderRadius: "50%", background: "var(--bg-orb1)", filter: "blur(90px)", top: -120, right: -100, pointerEvents: "none", zIndex: 0 }} />
       <div style={{ position: "fixed", width: 350, height: 350, borderRadius: "50%", background: "var(--bg-orb2)", filter: "blur(90px)", bottom: 0, left: -80, pointerEvents: "none", zIndex: 0 }} />
       <div style={{ position: "fixed", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(168,85,247,0.07) 0%, transparent 70%)", filter: "blur(90px)", top: "40%", left: "30%", pointerEvents: "none", zIndex: 0 }} />
+      </>}
 
       {/* Scrollable content */}
-      <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 40, paddingBottom: 60, paddingLeft: 20, paddingRight: 20 }}>
-        <div style={{ width: "100%", maxWidth: 520, animation: "portalFadeUp 0.6s cubic-bezier(.22,1,.36,1) both" }}>
+      <div className={cultivationEnabled ? "cultivation-profile-page" : undefined} style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: cultivationEnabled ? 0 : 40, paddingBottom: 60, paddingLeft: cultivationEnabled ? 0 : 20, paddingRight: cultivationEnabled ? 0 : 20 }}>
+        <div style={{ width: "100%", maxWidth: cultivationEnabled ? 850 : 520, animation: "portalFadeUp 0.6s cubic-bezier(.22,1,.36,1) both" }}>
 
           {/* Back button */}
           <button
             onClick={() => setLocation("/portal")}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: "#7a7a92", fontSize: "0.85rem", fontWeight: 500, marginBottom: 24, padding: "4px 0", transition: "color 0.15s" }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: "var(--profile-muted, #7a7a92)", fontSize: "0.85rem", fontWeight: 500, marginBottom: 24, padding: "4px 0", transition: "color 0.15s" }}
             onMouseEnter={e => (e.currentTarget.style.color = "#1a1a2e")}
             onMouseLeave={e => (e.currentTarget.style.color = "#7a7a92")}
           >
@@ -614,7 +627,7 @@ export default function Profile() {
           </button>
 
           {isLoading && (
-            <div style={{ textAlign: "center", color: "#7a7a92", padding: "64px 0" }}>Loading profile…</div>
+            <div style={{ textAlign: "center", color: "var(--profile-muted, #7a7a92)", padding: "64px 0" }}>Loading profile…</div>
           )}
 
           {isError && (
@@ -625,6 +638,7 @@ export default function Profile() {
             <>
               {/* Banner header — gradient backdrop with the writer's name */}
               <div
+                className={cultivationEnabled ? "cultivation-profile-banner" : undefined}
                 style={{
                   position: "relative",
                   borderRadius: 22,
@@ -634,7 +648,16 @@ export default function Profile() {
                   boxShadow: "0 8px 32px rgba(107,143,212,0.16)",
                 }}
               >
-                <div
+                {cultivationEnabled && <CultivationProfile
+                  name={data.writerName}
+                  bio={displayBio}
+                  xp={displayXp}
+                  accountId={isOwnProfile ? user?.id : undefined}
+                  isOwnProfile={isOwnProfile}
+                  globalPosition={globalRankEntry?.position}
+                  onEditBio={() => { setBioInput(displayBio ?? ""); setEditingBio(true); }}
+                />}
+                {!cultivationEnabled && <div
                   style={{
                     position: "relative",
                     minHeight: 168,
@@ -710,7 +733,7 @@ export default function Profile() {
                       <Pencil size={14} />
                     </button>
                   )}
-                </div>
+                </div>}
 
                 {/* Inline bio editor — own profile only */}
                 {isOwnProfile && editingBio && (
@@ -725,17 +748,17 @@ export default function Profile() {
                         background: "rgba(255,255,255,0.7)",
                         border: "1.5px solid rgba(107,143,212,0.2)", borderRadius: 11,
                         padding: "10px 14px", fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "0.88rem", color: "#1a1a2e", outline: "none",
+                        fontSize: "0.88rem", color: "var(--profile-ink, #1a1a2e)", outline: "none",
                         boxSizing: "border-box",
                       }}
                       autoFocus
                     />
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-                      <span style={{ fontSize: "0.72rem", color: "#7a7a92" }}>{bioInput.length}/200</span>
+                      <span style={{ fontSize: "0.72rem", color: "var(--profile-muted, #7a7a92)" }}>{bioInput.length}/200</span>
                       <div style={{ display: "flex", gap: 8 }}>
                         <button
                           onClick={() => { setEditingBio(false); setBioInput(displayBio ?? ""); }}
-                          style={{ background: "none", border: "1.5px solid rgba(107,143,212,0.2)", borderRadius: 9, padding: "6px 14px", fontSize: "0.82rem", fontWeight: 600, color: "#7a7a92", cursor: "pointer" }}
+                          style={{ background: "none", border: "1.5px solid rgba(107,143,212,0.2)", borderRadius: 9, padding: "6px 14px", fontSize: "0.82rem", fontWeight: 600, color: "var(--profile-muted, #7a7a92)", cursor: "pointer" }}
                         >
                           Cancel
                         </button>
@@ -765,7 +788,7 @@ export default function Profile() {
 
               {/* No sprints note — only when stats loaded successfully and count is genuinely zero */}
               {data.sprintCount === 0 && !data.statsError && (
-                <p style={{ textAlign: "center", color: "#7a7a92", fontSize: "0.88rem", marginBottom: 16 }}>No sprints recorded yet.</p>
+                <p style={{ textAlign: "center", color: "var(--profile-muted, #7a7a92)", fontSize: "0.88rem", marginBottom: 16 }}>No sprints recorded yet.</p>
               )}
 
               {/* Stats error notice */}
@@ -782,33 +805,33 @@ export default function Profile() {
               )}
 
               {/* Avatar + rank */}
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
+              {!cultivationEnabled && <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
                 <RankBadge xp={displayXp} />
-              </div>
+              </div>}
 
               {/* Stats grid */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
                 {[
-                  { emoji: "✍️", label: "All-Time Words", value: data.totalWords },
-                  { emoji: "🏆", label: "Best Sprint", value: data.highestWordCount },
-                  { emoji: "#", label: "Sprints", value: data.sprintCount },
+                  { emoji: cultivationEnabled ? <Feather size={20} /> : "✍️", label: "All-Time Words", value: data.totalWords },
+                  { emoji: cultivationEnabled ? <Trophy size={20} /> : "🏆", label: "Best Sprint", value: data.highestWordCount },
+                  { emoji: cultivationEnabled ? <BookOpen size={20} /> : "#", label: "Sprints", value: data.sprintCount },
                 ].map(({ emoji, label, value }) => (
-                  <div key={label} style={{ ...CARD, padding: "18px 10px", textAlign: "center", transition: "transform 0.2s" }}
+                  <div key={label} style={{ ...profileCard, padding: "18px 10px", textAlign: "center", transition: "transform 0.2s" }}
                     onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)")}
                     onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.transform = "")}
                   >
-                    <div style={{ fontSize: "1.1rem", marginBottom: 6, color: "#6B8FD4" }}>{emoji}</div>
+                    <div className="profile-symbol" style={{ fontSize: "1.1rem", marginBottom: 6, color: "var(--profile-accent, #6B8FD4)" }}>{emoji}</div>
                     <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.6rem", fontWeight: 700, color: data.statsError ? "#d1d5db" : "#1a1a2e", lineHeight: 1, marginBottom: 5 }}>
                       {data.statsError ? "–" : (typeof value === "number" ? value.toLocaleString() : value)}
                     </div>
-                    <div style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.08em", color: "#7a7a92", textTransform: "uppercase" }}>{label}</div>
+                    <div style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.08em", color: "var(--profile-muted, #7a7a92)", textTransform: "uppercase" }}>{label}</div>
                   </div>
                 ))}
               </div>
 
               {data.sprintCount > 0 && !data.statsError && (
-                <p style={{ textAlign: "center", fontSize: "0.88rem", color: "#7a7a92", marginBottom: 16 }}>
-                  Averaging <strong style={{ color: "#1a1a2e" }}>{Math.round(data.totalWords / data.sprintCount).toLocaleString()} words</strong> per sprint
+                <p style={{ textAlign: "center", fontSize: "0.88rem", color: "var(--profile-muted, #7a7a92)", marginBottom: 16 }}>
+                  Averaging <strong style={{ color: "var(--profile-ink, #1a1a2e)" }}>{Math.round(data.totalWords / data.sprintCount).toLocaleString()} words</strong> per sprint
                 </p>
               )}
 
@@ -817,25 +840,25 @@ export default function Profile() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
                   <button
                     onClick={() => setLocation("/streak")}
-                    style={{ ...CARD, padding: "16px 14px", cursor: "pointer", textAlign: "left", border: "1px solid rgba(255,255,255,0.9)", display: "flex", flexDirection: "column", gap: 6 }}
+                    style={{ ...profileCard, padding: "16px 14px", cursor: "pointer", textAlign: "left", border: "1px solid rgba(255,255,255,0.9)", display: "flex", flexDirection: "column", gap: 6 }}
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-3px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 28px rgba(107,143,212,0.15)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ""; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 20px rgba(107,143,212,0.08)"; }}
                   >
-                    <div style={{ fontSize: "1.4rem" }}>🔥</div>
-                    <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#1a1a2e" }}>Streak</div>
-                    <div style={{ fontSize: "0.74rem", color: "#7a7a92", lineHeight: 1.4 }}>
+                    <div className="profile-symbol" style={{ fontSize: "1.4rem" }}>{cultivationEnabled ? <Flame size={23} /> : "🔥"}</div>
+                    <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--profile-ink, #1a1a2e)" }}>Streak</div>
+                    <div style={{ fontSize: "0.74rem", color: "var(--profile-muted, #7a7a92)", lineHeight: 1.4 }}>
                       Daily writing calendar &amp; streak tracker
                     </div>
                   </button>
                   <button
                     onClick={() => setLocation("/stats")}
-                    style={{ ...CARD, padding: "16px 14px", cursor: "pointer", textAlign: "left", border: "1px solid rgba(255,255,255,0.9)", display: "flex", flexDirection: "column", gap: 6 }}
+                    style={{ ...profileCard, padding: "16px 14px", cursor: "pointer", textAlign: "left", border: "1px solid rgba(255,255,255,0.9)", display: "flex", flexDirection: "column", gap: 6 }}
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-3px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 28px rgba(107,143,212,0.15)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ""; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 20px rgba(107,143,212,0.08)"; }}
                   >
-                    <div style={{ fontSize: "1.4rem" }}>📊</div>
-                    <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#1a1a2e" }}>Statistics</div>
-                    <div style={{ fontSize: "0.74rem", color: "#7a7a92", lineHeight: 1.4 }}>
+                    <div className="profile-symbol" style={{ fontSize: "1.4rem" }}>{cultivationEnabled ? <ChartNoAxesCombined size={23} /> : "📊"}</div>
+                    <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--profile-ink, #1a1a2e)" }}>Statistics</div>
+                    <div style={{ fontSize: "0.74rem", color: "var(--profile-muted, #7a7a92)", lineHeight: 1.4 }}>
                       WPM trend, mode breakdown, productive hours
                     </div>
                   </button>
@@ -845,28 +868,28 @@ export default function Profile() {
               {/* Cultivation — only visible on own profile */}
               {isOwnProfile && (
                 <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "#7a7a92", textTransform: "uppercase", textAlign: "center", marginBottom: 12 }}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "var(--profile-muted, #7a7a92)", textTransform: "uppercase", textAlign: "center", marginBottom: 12 }}>
                     Cultivation
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
                     {[
-                      { emoji: "🎒", label: "Bag", description: "Items, effects & inventory", statLabel: "items", statValue: bagCount, href: "/bag" },
-                      { emoji: "🎁", label: "Chests", description: "Open rewards from sprinting", statLabel: "to open", statValue: chestCount, href: "/chests" },
-                      { emoji: "⚗️", label: "Crafting", description: "Fusion, alchemy & tribulation", statLabel: "recipes", statValue: recipeCount, href: "/crafting" },
+                      { emoji: cultivationEnabled ? <Package size={28} /> : "🎒", label: cultivationEnabled ? "Spirit Pouch" : "Bag", description: "Items, effects & inventory", statLabel: "items", statValue: bagCount, href: "/bag" },
+                      { emoji: cultivationEnabled ? <Gift size={28} /> : "🎁", label: cultivationEnabled ? "Treasures" : "Chests", description: "Open rewards from sprinting", statLabel: "to open", statValue: chestCount, href: "/chests" },
+                      { emoji: cultivationEnabled ? <FlaskConical size={28} /> : "⚗️", label: cultivationEnabled ? "Alchemy" : "Crafting", description: "Fusion, alchemy & tribulation", statLabel: "recipes", statValue: recipeCount, href: "/crafting" },
                     ].map(({ emoji, label, description, statLabel, statValue, href }) => (
                       <button
                         key={href}
                         onClick={() => setLocation(href)}
-                        style={{ ...CARD, padding: "16px 12px", cursor: "pointer", textAlign: "left", border: "1px solid rgba(255,255,255,0.9)", transition: "all 0.2s", display: "flex", flexDirection: "column" }}
+                        style={{ ...profileCard, padding: "16px 12px", cursor: "pointer", textAlign: "left", border: "1px solid rgba(255,255,255,0.9)", transition: "all 0.2s", display: "flex", flexDirection: "column" }}
                         onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-3px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 28px rgba(107,143,212,0.15)"; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ""; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 20px rgba(107,143,212,0.08)"; }}
                       >
                         <div style={{ fontSize: "1.6rem", marginBottom: 8 }}>{emoji}</div>
-                        <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#1a1a2e", marginBottom: 4 }}>{label}</div>
-                        <div style={{ fontSize: "0.75rem", color: "#7a7a92", lineHeight: 1.4, marginBottom: 10 }}>{description}</div>
-                        <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid rgba(107,143,212,0.15)", fontSize: "0.72rem", color: "#7a7a92" }}>
+                        <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--profile-ink, #1a1a2e)", marginBottom: 4 }}>{label}</div>
+                        <div style={{ fontSize: "0.75rem", color: "var(--profile-muted, #7a7a92)", lineHeight: 1.4, marginBottom: 10 }}>{description}</div>
+                        <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid rgba(107,143,212,0.15)", fontSize: "0.72rem", color: "var(--profile-muted, #7a7a92)" }}>
                           <span>{statLabel}</span>
-                          <span style={{ fontWeight: 700, color: "#1a1a2e" }}>{statValue}</span>
+                          <span style={{ fontWeight: 700, color: "var(--profile-ink, #1a1a2e)" }}>{statValue}</span>
                         </div>
                       </button>
                     ))}
@@ -876,16 +899,17 @@ export default function Profile() {
 
               {/* Profile Style — banner + accent picker, own profile only */}
               {isOwnProfile && (
-                <div style={{ ...CARD, padding: 20, marginBottom: 16 }}>
+                <div style={{ ...profileCard, padding: 20, marginBottom: 16 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
                     <div style={{ width: 6, height: 16, borderRadius: 3, background: accent.color }} />
-                    <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "#7a7a92", textTransform: "uppercase" }}>
-                      Profile Style
+                    <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "var(--profile-muted, #7a7a92)", textTransform: "uppercase" }}>
+                      {cultivationEnabled ? "Classic profile style" : "Profile Style"}
                     </div>
                   </div>
 
+                  {cultivationEnabled && <p style={{ color: "var(--profile-muted)", fontSize: "0.78rem", marginBottom: 14 }}>These colors are saved for your Classic skin. Your cultivation appearance is chosen above.</p>}
                   {/* Banner picker */}
-                  <div style={{ fontSize: "0.74rem", fontWeight: 600, color: "#7a7a92", marginBottom: 8 }}>Banner</div>
+                  <div style={{ fontSize: "0.74rem", fontWeight: 600, color: "var(--profile-muted, #7a7a92)", marginBottom: 8 }}>Banner</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(78px, 1fr))", gap: 8, marginBottom: 16 }}>
                     {Object.values(BANNERS).map((b) => {
                       const isActive = bannerKey === b.key;
@@ -934,7 +958,7 @@ export default function Profile() {
                   </div>
 
                   {/* Accent picker */}
-                  <div style={{ fontSize: "0.74rem", fontWeight: 600, color: "#7a7a92", marginBottom: 8 }}>Accent</div>
+                  <div style={{ fontSize: "0.74rem", fontWeight: 600, color: "var(--profile-muted, #7a7a92)", marginBottom: 8 }}>Accent</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                     {Object.values(ACCENTS).map((a) => {
                       const isActive = accentKey === a.key;
@@ -971,8 +995,8 @@ export default function Profile() {
 
               {/* Nameplate Picker — only visible on own profile */}
               {isOwnProfile && displayXp >= 10000 && (
-                <div style={{ ...CARD, padding: 20, marginBottom: 16 }}>
-                  <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "#7a7a92", textTransform: "uppercase", marginBottom: 14 }}>
+                <div style={{ ...profileCard, padding: 20, marginBottom: 16 }}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "var(--profile-muted, #7a7a92)", textTransform: "uppercase", marginBottom: 14 }}>
                     Your Nameplate
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -1003,20 +1027,20 @@ export default function Profile() {
                     })}
                   </div>
                   {displayXp < 25000 && (
-                    <p style={{ fontSize: "0.72rem", color: "#7a7a92", marginTop: 8 }}>More nameplates unlock at higher ranks.</p>
+                    <p style={{ fontSize: "0.72rem", color: "var(--profile-muted, #7a7a92)", marginTop: 8 }}>More nameplates unlock at higher ranks.</p>
                   )}
                 </div>
               )}
 
               {/* Discord Integration — only visible on own profile */}
               {isOwnProfile && (
-                <div style={{ ...CARD, padding: 20 }}>
+                <div style={{ ...profileCard, padding: 20 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: "#5865F2", flexShrink: 0 }} aria-hidden="true">
                         <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.033.056a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
                       </svg>
-                      <span style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "#7a7a92", textTransform: "uppercase" }}>Discord Integration</span>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "var(--profile-muted, #7a7a92)", textTransform: "uppercase" }}>Discord Integration</span>
                     </div>
                     {discordSettings?.webhookUrl && (
                       <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 10px", borderRadius: 999, background: "rgba(34,197,94,0.12)", color: "#16a34a" }}>
@@ -1025,7 +1049,7 @@ export default function Profile() {
                     )}
                   </div>
 
-                  <p style={{ fontSize: "0.83rem", color: "#7a7a92", lineHeight: 1.5, marginBottom: 10 }}>
+                  <p style={{ fontSize: "0.83rem", color: "var(--profile-muted, #7a7a92)", lineHeight: 1.5, marginBottom: 10 }}>
                     Paste a Discord channel webhook URL below. When you start a sprint from the web app, an announcement will automatically be posted to that channel.
                   </p>
 
@@ -1033,7 +1057,7 @@ export default function Profile() {
                     href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks"
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.83rem", color: "#6B8FD4", textDecoration: "none", marginBottom: 14 }}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.83rem", color: "var(--profile-accent, #6B8FD4)", textDecoration: "none", marginBottom: 14 }}
                   >
                     How to create a webhook in Discord <ExternalLink size={12} />
                   </a>
@@ -1048,7 +1072,7 @@ export default function Profile() {
                         flex: 1, background: "rgba(255,255,255,0.7)",
                         border: "1.5px solid rgba(107,143,212,0.2)", borderRadius: 11,
                         padding: "10px 14px", fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "0.83rem", color: "#1a1a2e", outline: "none",
+                        fontSize: "0.83rem", color: "var(--profile-ink, #1a1a2e)", outline: "none",
                         transition: "all 0.2s",
                       }}
                       onFocus={e => { e.target.style.borderColor = "#6B8FD4"; e.target.style.background = "white"; e.target.style.boxShadow = "0 0 0 3px rgba(107,143,212,0.1)"; }}
@@ -1078,7 +1102,7 @@ export default function Profile() {
                         onClick={() => testWebhookMutation.mutate()}
                         style={{
                           background: "white", border: "1.5px solid rgba(107,143,212,0.2)", borderRadius: 9,
-                          padding: "7px 14px", fontSize: "0.82rem", fontWeight: 600, color: "#1a1a2e",
+                          padding: "7px 14px", fontSize: "0.82rem", fontWeight: 600, color: "var(--profile-ink, #1a1a2e)",
                           cursor: testWebhookMutation.isPending ? "not-allowed" : "pointer",
                           display: "inline-flex", alignItems: "center", gap: 5,
                           transition: "all 0.18s",

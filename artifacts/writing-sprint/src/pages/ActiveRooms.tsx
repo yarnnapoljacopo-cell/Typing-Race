@@ -1,7 +1,8 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { useUser, useAuth } from "@clerk/react";
+import { useUser, useAuth } from "@/lib/auth";
+import { useGuest } from "@/lib/guestContext";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,13 +10,13 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
-import { Loader2, Users, Clock, Target, Eye, Lock, Radio, KeyRound } from "lucide-react";
+import { Loader2, Users, Clock, Target, Eye, Lock, Radio, KeyRound, Swords, Flag, Crown } from "lucide-react";
 
 interface ActiveRoom {
   code: string;
   creatorName: string;
   durationMinutes: number;
-  mode: "regular" | "open" | "goal";
+  mode: "regular" | "open" | "goal" | "boss" | "kart" | "gladiator";
   wordGoal: number | null;
   status: "waiting" | "countdown" | "running";
   participantCount: number;
@@ -41,14 +42,18 @@ async function fetchProfile(af: AF): Promise<{ writerName: string | null }> {
 }
 
 function formatTimeLeft(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(safeSeconds / 60);
+  const s = safeSeconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 function ModeIcon({ mode }: { mode: ActiveRoom["mode"] }) {
   if (mode === "open") return <Eye className="w-3.5 h-3.5" />;
   if (mode === "goal") return <Target className="w-3.5 h-3.5" />;
+  if (mode === "boss") return <Swords className="w-3.5 h-3.5" />;
+  if (mode === "kart") return <Flag className="w-3.5 h-3.5" />;
+  if (mode === "gladiator") return <Crown className="w-3.5 h-3.5" />;
   return <Lock className="w-3.5 h-3.5" />;
 }
 
@@ -78,6 +83,7 @@ function StatusBadge({ room }: { room: ActiveRoom }) {
 export default function ActiveRooms() {
   const [, setLocation] = useLocation();
   const { user } = useUser();
+  const { guestName } = useGuest();
   const { isLoaded, isSignedIn } = useAuth();
   const authedFetch = useAuthedFetch();
   const [passwordDialogRoom, setPasswordDialogRoom] = React.useState<string | null>(null);
@@ -98,6 +104,7 @@ export default function ActiveRooms() {
 
   const displayName =
     profile?.writerName ||
+    (!isSignedIn ? guestName : null) ||
     user?.firstName ||
     user?.username ||
     user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] ||
@@ -177,6 +184,7 @@ export default function ActiveRooms() {
           </DialogHeader>
           <div className="space-y-4 pt-1">
             <Input
+              aria-label="Room password"
               type="password"
               placeholder="Enter room password"
               value={joinPasswordInput}
@@ -241,7 +249,7 @@ export default function ActiveRooms() {
             </span>
             <span className="flex items-center gap-1">
               <ModeIcon mode={room.mode} />
-              {room.mode === "regular" ? "Regular" : room.mode === "open" ? "Spectator" : `Goal · ${room.wordGoal?.toLocaleString()} words`}
+              {room.mode === "regular" ? "Regular" : room.mode === "open" ? "Spectator" : room.mode === "boss" ? "Boss Battle" : room.mode === "kart" ? "Kart Mode" : room.mode === "gladiator" ? "Gladiator" : room.wordGoal ? `Goal · ${room.wordGoal.toLocaleString()} words` : "Goal"}
             </span>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React from "react";
+import { useCultivation } from "@/lib/cultivation";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ItemIcon — custom SVG illustration for every bag item
@@ -2201,11 +2202,24 @@ const ICONS: Record<string, React.ReactElement> = {
 interface ItemIconProps {
   name: string;
   size?: number;
+  fallback?: string;
 }
 
-export function ItemIcon({ name, size = 38 }: ItemIconProps) {
+export function ItemIcon({ name, size = 38, fallback }: ItemIconProps) {
+  const { enabled } = useCultivation();
+  const asset = /recipe|scripture|manual|bible|scroll|decree|chronicle|book/i.test(name) ? "scroll"
+    : /cauldron|furnace/i.test(name) ? "cauldron"
+    : /pill|elixir|ink|water|dew|blood/i.test(name) ? "elixir"
+    : /herb|grass|ginseng|moss|root|lotus|flower|petal|bamboo|mushroom/i.test(name) ? "herb"
+    : /jade|slip|talisman|seal|ring|pouch/i.test(name) ? "talisman"
+    : /stone|ore|crystal|core|dust|fragment|essence|shard/i.test(name) ? "crystal" : "talisman";
+  if (enabled) return (
+    <img className="cultivation-item-art" src={`${import.meta.env.BASE_URL}cultivation/item-${asset}.png`}
+      width={size} height={size} alt="" aria-hidden="true" loading="lazy" decoding="async"
+      style={{ width: size, height: size, objectFit: "contain", flexShrink: 0 }} />
+  );
   const content = ICONS[name];
-  if (!content) return null;
+  if (!content) return fallback ? <span aria-hidden="true" style={{fontSize: size * .7}}>{fallback}</span> : null;
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
       {content}

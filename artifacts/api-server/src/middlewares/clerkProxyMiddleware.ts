@@ -222,9 +222,7 @@ export function clerkProxyMiddleware(): RequestHandler {
         // ── Step 2: Log redirects ──────────────────────────────────────────
         if (location && proxyRes.statusCode && proxyRes.statusCode >= 300 && proxyRes.statusCode < 400) {
           const setCookieRaw = proxyRes.headers["set-cookie"];
-          const cookieNames = Array.isArray(setCookieRaw)
-            ? setCookieRaw.map((c) => c.split("=")[0])
-            : setCookieRaw ? [setCookieRaw.split("=")[0]] : [];
+          const cookieNames = (setCookieRaw ?? []).map((c) => c.split("=")[0]);
           log.info(
             { method: req.method, url: req.url, status: proxyRes.statusCode, location, cookieNames },
             "clerk-proxy redirect"
@@ -248,9 +246,7 @@ export function clerkProxyMiddleware(): RequestHandler {
         // ── Step 3: oauth_callback special handling ────────────────────────
         if (isOAuthCallback) {
           const setCookieRaw = proxyRes.headers["set-cookie"];
-          const cookieNames = Array.isArray(setCookieRaw)
-            ? setCookieRaw.map((c) => c.split("=")[0])
-            : setCookieRaw ? [setCookieRaw.split("=")[0]] : [];
+          const cookieNames = (setCookieRaw ?? []).map((c) => c.split("=")[0]);
           log.info(
             { status: proxyRes.statusCode, location, cookieNames },
             "clerk-proxy oauth_callback response"

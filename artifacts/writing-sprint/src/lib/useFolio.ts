@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { useAuthedFetch } from "./authedFetch";
 import { folioStore, type FolioState, type FolioConflict } from "./folioStore";
 

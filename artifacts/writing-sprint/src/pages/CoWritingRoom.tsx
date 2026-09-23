@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
-import { useAuth, useUser } from "@clerk/react";
+import { useAuth, useUser } from "@/lib/auth";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { useAuthedFetch } from "@/lib/authedFetch";
@@ -118,7 +118,7 @@ export default function CoWritingRoom() {
   const [, setLocation] = useLocation();
   const params = useParams<{ id: string }>();
   const roomIdNum = parseInt(params.id ?? "", 10);
-  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const { user } = useUser();
   const authedFetch = useAuthedFetch();
 
@@ -166,25 +166,26 @@ export default function CoWritingRoom() {
   // (tab switch / mobile background), and just before switching docs.
   const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSnapshotHtmlRef = useRef<string>("");
-  const pushSnapshot = useCallback(async (html: string, options?: { beacon?: boolean }): Promise<void> => {
+  const pushSnapshot = useCallback(async (html: string, options?: { beacon?: boolean; state?: number[] }): Promise<void> => {
     if (!activeDocId || !userId) return;
-    if (html === lastSnapshotHtmlRef.current) return;
-    lastSnapshotHtmlRef.current = html;
+    const snapshotKey = `${activeDocId}:${html}`;
+    if (snapshotKey === lastSnapshotHtmlRef.current) return;
     const url = `${basePath}/api/co-writing/rooms/${roomIdNum}/docs/${activeDocId}/snapshot`;
-    const body = JSON.stringify({ html, userId });
+    const state = options?.state ?? (ydocRef.current ? Array.from(Y.encodeStateAsUpdate(ydocRef.current)) : undefined);
+    const body = JSON.stringify({ html, state });
     if (options?.beacon && navigator.sendBeacon) {
-      // sendBeacon can't carry the Clerk Authorization header — that's why
-      // the route also accepts userId in the body as a fallback identity.
+      // Same-origin beacons carry the Clerk session cookie.
       const blob = new Blob([body], { type: "application/json" });
-      navigator.sendBeacon(url, blob);
-      return;
+      if (navigator.sendBeacon(url, blob)) return;
     }
     try {
-      await authedFetch(url, {
+      const response = await authedFetch(url, {
         method: "PUT",
+        keepalive: options?.beacon ?? false,
         headers: { "Content-Type": "application/json" },
         body,
       });
+      if (response.ok) lastSnapshotHtmlRef.current = snapshotKey;
     } catch { /* network error — next debounce retries */ }
   }, [activeDocId, userId, roomIdNum, authedFetch]);
 
@@ -251,12 +252,6 @@ export default function CoWritingRoom() {
   useEffect(() => {
     if (!activeDocId || !userId || !details) return;
 
-    // Before discarding the previous Y.Doc, flush an HTTP snapshot of the
-    // editor's current content so nothing is lost when switching chapters.
-    const prevEditor = editorRef.current;
-    if (prevEditor && lastSnapshotHtmlRef.current !== prevEditor.innerHTML) {
-      void pushSnapshot(prevEditor.innerHTML);
-    }
     // Reset the snapshot dedupe cache so the next doc's saves fire fresh.
     lastSnapshotHtmlRef.current = "";
 
@@ -267,37 +262,33 @@ export default function CoWritingRoom() {
     ydocRef.current = ydoc;
 
     const provider = new WebsocketProvider(buildWsUrl(), `${roomIdNum}-${activeDocId}`, ydoc, {
-      params: { room: String(roomIdNum), doc: String(activeDocId), user: userId },
-      connect: true,
+      params: { room: String(roomIdNum), doc: String(activeDocId) },
+      connect: false,
     });
     providerRef.current = provider;
-
-    // ── HTTP-only load fallback ────────────────────────────────────────────
-    // If the WebSocket sync handshake can't complete (proxy not forwarding
-    // upgrades, server not redeployed with the path-prefix fix, mobile
-    // network blip on cold start, …) the user used to see an empty editor
-    // forever. Now we ALSO fetch the latest snapshot via plain HTTP and
-    // seed the Y.Text with it whenever the doc is still empty by the time
-    // the response arrives. If WS happens to win the race and populates
-    // ytext first, we leave it alone.
     let cancelled = false;
+    const refreshToken = async () => {
+      try {
+        const token = await getToken();
+        if (cancelled || !token) return;
+        provider.params.token = token;
+        provider.connect();
+      } catch { if (!cancelled) setConnState("offline"); }
+    };
+    void refreshToken();
+    const tokenTimer = setInterval(() => void refreshToken(), 30_000);
+
+    // Apply the same CRDT state as WebSocket sync. Inserting a second copy
+    // of the saved HTML could duplicate the chapter when both loads finish.
     authedFetch(`${basePath}/api/co-writing/rooms/${roomIdNum}/docs/${activeDocId}/snapshot`)
       .then(async (r) => {
         if (cancelled || !r.ok) return;
-        const data = await r.json() as { html?: string };
-        const html = (data.html ?? "").trim();
-        if (!html) return;
-        const ytext = ydoc.getText("body");
-        // Only seed when the Y.Doc is still empty. If WS already synced
-        // content, that content is authoritative — don't double-insert.
-        if (ytext.toString().length === 0) {
-          ydoc.transact(() => { ytext.insert(0, html); }, "http-snapshot-load");
-          // Remember what we loaded so the auto-save's "html unchanged"
-          // guard doesn't immediately push the same content back.
-          lastSnapshotHtmlRef.current = html;
+        const data = await r.json() as { state?: number[] };
+        if (!cancelled && Array.isArray(data.state)) {
+          Y.applyUpdate(ydoc, new Uint8Array(data.state), "http-snapshot-load");
         }
       })
-      .catch(() => { /* network error — WS path or next retry handles it */ });
+      .catch(() => { /* WebSocket sync can still recover. */ });
 
     const myMember = details.members.find((m) => m.userId === userId);
     const myDisplay = myMember?.displayName ?? (user?.firstName ?? user?.username ?? "Writer");
@@ -326,6 +317,11 @@ export default function CoWritingRoom() {
 
     return () => {
       cancelled = true;
+      clearInterval(tokenTimer);
+      if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current);
+      // This cleanup closes over the previous document ID. Saving in the new
+      // effect would write the old editor contents into the next chapter.
+      void pushSnapshot(ydoc.getText("body").toString(), { state: Array.from(Y.encodeStateAsUpdate(ydoc)) });
       provider.awareness.off("change", handleAwarenessChange);
       provider.off("status", handleStatus);
       provider.destroy();

@@ -46,7 +46,7 @@ export const Timer = memo(function Timer({ timeLeft, countdownTimeLeft, status }
     return (
       <div style={{ ...card, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 16px" }}>
         <TimerIcon style={{ width: 24, height: 24, marginBottom: 8, color: isImminent ? "#d97706" : "#6B8FD4" }} />
-        <div style={{ fontSize: "3rem", fontFamily: "monospace", fontWeight: 700, letterSpacing: "-0.04em", color: isImminent ? "#92400e" : "#1a1a2e", tabularNums: true }}>
+        <div style={{ fontSize: "3rem", fontFamily: "monospace", fontWeight: 700, letterSpacing: "-0.04em", color: isImminent ? "#92400e" : "#1a1a2e", fontVariantNumeric: "tabular-nums" }}>
           {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
         </div>
         <p style={{ fontSize: "0.72rem", marginTop: 8, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600, color: isImminent ? "#d97706" : "#7a7a92" }}>

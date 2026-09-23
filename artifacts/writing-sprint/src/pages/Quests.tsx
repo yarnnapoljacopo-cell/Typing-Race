@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useLocation } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, Calendar, CalendarDays, Gift, Loader2, CheckCircle2, Coins, Sparkles } from "lucide-react";

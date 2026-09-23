@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthedFetch } from "@/lib/authedFetch";
 import { ArrowLeft, ShoppingBag, Loader2, Pin, PinOff, Sparkles, Flame, Clock, Gift, ScrollText } from "lucide-react";
@@ -17,6 +17,9 @@ import { useToast } from "@/hooks/use-toast";
 import { ChestIcon } from "@/components/ChestIcon";
 import { ItemIcon } from "@/components/ItemIcon";
 import { ChestAwardModal } from "@/components/ChestAwardModal";
+import { useCultivation } from "@/lib/cultivation";
+import { demoStorageKey, isDemoSession } from "@/lib/demoSession";
+import "@/components/cultivation-shop.css";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -367,6 +370,7 @@ function useCountdown(endsAtIso: string | null | undefined): string {
 
 // ── Component ───────────────────────────────────────────────────────────────
 export default function Shop() {
+  const { enabled: cultivation } = useCultivation();
   const [, setLocation] = useLocation();
   const { isLoaded, isSignedIn } = useAuth();
   const authedFetch = useAuthedFetch();
@@ -376,6 +380,18 @@ export default function Shop() {
   const [confirmListing, setConfirmListing] = useState<ShopListing | null>(null);
   const [activeMerchant, setActiveMerchant] = useState<Merchant>("mortal");
   const [pendingChest, setPendingChest] = useState<string | null>(null);
+  const refillMutation = useMutation({
+    mutationFn: async () => {
+      const response = await authedFetch(`${basePath}/api/demo/wallet/refill`, {method: "POST"});
+      if (!response.ok) throw new Error("Could not refill demo coins.");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({queryKey: ["shop"]});
+      queryClient.invalidateQueries({queryKey: ["coinBalance"]});
+      toast({title: "Demo wallet refilled", description: "25,000 sample Spirit Coins added on this device."});
+    },
+    onError: (error: Error) => toast({title: error.message, variant: "destructive"}),
+  });
 
   const { data: shopData, isLoading, error } = useQuery<ShopData>({
     queryKey: ["shop"],
@@ -392,7 +408,7 @@ export default function Shop() {
     const pinned = shopData.listings.find(l => l.id === shopData.wishlist!.listing_id);
     if (!pinned) return;
     if (shopData.balance < pinned.price) return;
-    const lsKey = `shop:wishlist-notified:${pinned.id}`;
+    const lsKey = demoStorageKey(`shop:wishlist-notified:${pinned.id}`);
     if (typeof window !== "undefined") {
       const last = window.localStorage.getItem(lsKey);
       if (last === "yes") return;
@@ -409,7 +425,7 @@ export default function Shop() {
   // Reset the "notified" flag once the user actually buys it OR re-pins.
   useEffect(() => {
     if (!shopData?.wishlist || typeof window === "undefined") return;
-    const lsKey = `shop:wishlist-notified:${shopData.wishlist.listing_id}`;
+    const lsKey = demoStorageKey(`shop:wishlist-notified:${shopData.wishlist.listing_id}`);
     const pinned = shopData.listings.find(l => l.id === shopData.wishlist!.listing_id);
     // Below-affording threshold again → arm the notification for next time.
     if (pinned && shopData.balance < pinned.price) {
@@ -495,7 +511,7 @@ export default function Shop() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="cultivation-shop min-h-screen bg-background">
       {/* Scoped keyframes — signature shop animations, kept local so they
           don't leak into other pages. */}
       <style>{`
@@ -603,7 +619,7 @@ export default function Shop() {
           </Button>
           <div className="flex items-center gap-2 flex-1">
             <ShoppingBag size={18} className="text-primary" />
-            <h1 className="font-bold text-lg">Spirit Coin Shop</h1>
+            <h1 className="font-bold text-lg">{cultivation ? "The Spirit Market" : "Spirit Coin Shop"}</h1>
           </div>
           <Button variant="outline" size="sm" onClick={() => setLocation("/skins")} className="shrink-0">
             Skins
@@ -617,6 +633,14 @@ export default function Shop() {
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+        {isDemoSession() && (
+          <div className="shop-demo-wallet flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-xs">
+            <span>Demo market · purchases stay on this device.</span>
+            <Button size="sm" variant="outline" disabled={refillMutation.isPending} onClick={() => refillMutation.mutate()}>
+              {refillMutation.isPending ? "Refilling…" : "Refill demo coins"}
+            </Button>
+          </div>
+        )}
         {/* Wishlist banner */}
         <AnimatePresence>
           {wishlistListing && shopData && (
@@ -750,7 +774,7 @@ export default function Shop() {
                 }}
               />
 
-              <div className="relative flex items-center gap-5 px-6 py-5">
+              <div className="shop-featured-content relative flex items-center gap-5 px-6 py-5">
                 {/* Chest column — floating chest with rune orbit */}
                 <div className="shrink-0 relative w-24 h-24">
                   {/* Dashed rune orbit (outer) */}
@@ -800,7 +824,7 @@ export default function Shop() {
                         <ChestIcon type={featuredListing.item_type} />
                       </div>
                     ) : featuredListing.listing_type === "recipe" ? (
-                      <ScrollText size={52} className="text-amber-300" />
+                      cultivation ? <ItemIcon name="Cultivation Recipe Scroll" size={56} /> : <ScrollText size={52} className="text-amber-300" />
                     ) : (
                       <div className="w-14 h-14 flex items-center justify-center">
                         <ItemIcon name={featuredListing.name.replace(/ ×\d+$/, "").trim()} size={56} />
@@ -904,7 +928,7 @@ export default function Shop() {
         })()}
 
         {/* Merchant tabs */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="shop-merchant-tabs grid grid-cols-3 gap-2">
           {(["mortal", "earth", "heaven"] as Merchant[]).map((m) => {
             const meta = MERCHANTS[m];
             const active = activeMerchant === m;
@@ -1027,7 +1051,7 @@ export default function Shop() {
                     )}
                     {confirmListing.listing_type === "recipe" && (
                       <span className="block mt-1 text-xs text-amber-600 dark:text-amber-400">
-                        If you already know this recipe, your coins will still be spent.
+                        {isDemoSession() ? "Known recipes stay in your tome; duplicate purchases keep your demo coins." : "If you already know this recipe, your coins will still be spent."}
                       </span>
                     )}
                     <br />
@@ -1104,6 +1128,7 @@ function ListingCard({
   onBuy: () => void;
   onPin: () => void;
 }) {
+  const { enabled: cultivation } = useCultivation();
   const style = styleFor(listing);
   const effectivePrice = isFeatured
     ? Math.max(1, Math.floor(listing.price * (100 - featuredDiscountPct) / 100))
@@ -1119,14 +1144,13 @@ function ListingCard({
       return <Gift size={36} className="text-purple-600 dark:text-purple-300" />;
     }
     if (listing.listing_type === "recipe") {
-      return <ScrollText size={36} className="text-amber-600 dark:text-amber-300" />;
+      return cultivation ? <ItemIcon name="Cultivation Recipe Scroll" size={48} /> : <ScrollText size={36} className="text-amber-600 dark:text-amber-300" />;
     }
     if (listing.listing_type === "item") {
       // ItemIcon returns null if no custom illustration is defined; emoji is the fallback.
       return (
         <span className="relative inline-flex items-center justify-center" style={{ width: 48, height: 48 }}>
-          <span className="absolute inset-0 flex items-center justify-center text-3xl select-none" aria-hidden>{listing.icon}</span>
-          <span className="relative inline-flex"><ItemIcon name={listing.name.replace(/ ×\d+$/, "").trim()} size={48} /></span>
+          <ItemIcon name={listing.name.replace(/ ×\d+$/, "").trim()} size={48} fallback={listing.icon} />
         </span>
       );
     }
@@ -1154,7 +1178,7 @@ function ListingCard({
 
   return (
     <div
-      className={`relative rounded-2xl border-2 p-5 flex flex-col gap-4 transition-all hover:scale-[1.02] hover:shadow-xl ${style.card} ${style.glow ? `shadow-lg ${style.glow}` : "shadow-sm"} ${isFeatured ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-background" : ""}`}
+      className={`shop-treasure-card relative rounded-2xl border-2 p-5 flex flex-col gap-4 transition-all hover:scale-[1.02] hover:shadow-xl ${style.card} ${style.glow ? `shadow-lg ${style.glow}` : "shadow-sm"} ${isFeatured ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-background" : ""}`}
     >
       {/* Pin button */}
       <button

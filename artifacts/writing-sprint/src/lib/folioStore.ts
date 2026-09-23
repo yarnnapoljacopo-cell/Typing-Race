@@ -1,3 +1,4 @@
+import { demoStorageKey, isDemoSession } from "./demoSession";
 type StatusKey = "draft" | "progress" | "done" | "edit";
 
 export interface FolioDoc {
@@ -50,7 +51,7 @@ export interface FolioConflict {
 type FetchFn = (url: string, opts?: RequestInit) => Promise<Response>;
 type Listener = () => void;
 
-const DB_NAME = "folio_db";
+const DB_NAME = demoStorageKey("folio_db");
 const DB_VERSION = 1;
 const STORE_NAME = "folio";
 const SYNC_DEBOUNCE_MS = 3000;
@@ -110,6 +111,7 @@ async function idbDelete(key: string): Promise<void> {
 
 function migrateFromLocalStorage(): FolioState | null {
   try {
+    if (isDemoSession()) return null;
     const raw = localStorage.getItem("folio_v3");
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { projects?: FolioProject[] };
@@ -136,6 +138,7 @@ function migrateFromLocalStorage(): FolioState | null {
 }
 
 function clearLocalStorageFolioData(): void {
+  if (isDemoSession()) return;
   const toRemove: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
@@ -153,7 +156,7 @@ function clearLocalStorageFolioData(): void {
   toRemove.forEach((k) => localStorage.removeItem(k));
 }
 
-class FolioStore {
+export class FolioStore {
   private _state: FolioState = { projects: [] };
   private _listeners = new Set<Listener>();
   private _fetchFn: FetchFn | null = null;
@@ -164,6 +167,8 @@ class FolioStore {
   private _online =
     typeof navigator !== "undefined" ? navigator.onLine : true;
   private _syncing = false;
+  private _pushPromise: Promise<void> | null = null;
+  private _pushAgain = false;
   private _lastSyncError: string | null = null;
   private _initPromise: Promise<void> | null = null;
 
@@ -330,7 +335,7 @@ class FolioStore {
     try {
       const payload = JSON.stringify({ state: this._state, updatedAt: Date.now() });
       if (payload.length < 4 * 1024 * 1024) {
-        localStorage.setItem("folio_ls_backup", payload);
+        localStorage.setItem(demoStorageKey("folio_ls_backup"), payload);
       }
     } catch { /* quota exceeded — skip */ }
   }
@@ -363,26 +368,35 @@ class FolioStore {
   }
 
   async pushToServer(): Promise<void> {
-    if (!this._fetchFn || !this._online) return;
+    if (!this._fetchFn || !this._online || this._conflicts.length > 0) return;
+    this._pushAgain = true;
+    if (this._pushPromise) return this._pushPromise;
     this._syncing = true;
     this._lastSyncError = null;
     this.notify();
-    try {
-      const res = await this._fetchFn(`${BASE}api/folio`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: this._state }),
-      });
-      if (!res.ok) {
-        this._lastSyncError = `Sync failed (${res.status})`;
-        console.warn("[folio] pushToServer failed", res.status);
+    // Only one PUT may be in flight. Coalesce new edits into the next save,
+    // preventing an older request from finishing last and replacing new text.
+    this._pushPromise = (async () => {
+      while (this._pushAgain && this._fetchFn && this._online && !this._conflicts.length) {
+        this._pushAgain = false;
+        try {
+          const res = await this._fetchFn(`${BASE}api/folio`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ state: this._state }),
+          });
+          if (!res.ok) { this._lastSyncError = `Sync failed (${res.status})`; break; }
+        } catch {
+          this._lastSyncError = "Sync failed (network)";
+          break;
+        }
       }
-    } catch (err) {
-      this._lastSyncError = "Sync failed (network)";
-      console.warn("[folio] pushToServer network error", err);
-    }
-    this._syncing = false;
-    this.notify();
+    })().finally(() => {
+      this._pushPromise = null;
+      this._syncing = false;
+      this.notify();
+    });
+    return this._pushPromise;
   }
 
   private async pullFromServer(): Promise<FolioState | null> {
@@ -442,7 +456,7 @@ class FolioStore {
     // This recovers data lost when a tab-close raced the async IDB write.
     if (!localState) {
       try {
-        const raw = localStorage.getItem("folio_ls_backup");
+        const raw = localStorage.getItem(demoStorageKey("folio_ls_backup"));
         if (raw) {
           const parsed = JSON.parse(raw) as { state?: FolioState };
           if (parsed?.state) {
