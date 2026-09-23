@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useEffect } from "react";
 import { PiFeatherThin, PiFlowerLotusThin, PiMoonStarsThin, PiBookOpenThin } from "react-icons/pi";
+import { CultivationHeaderSettings } from "./CultivationHeaderSettings";
 import { useCultivation } from "@/lib/cultivation";
 import { useDarkMode } from "@/lib/darkModeContext";
 import "./cultivation.css";
@@ -23,6 +24,6 @@ export function CultivationShell() {
   return <header className="cultivation-header">
     <Link href="/portal" className="cultivation-brand"><PiFeatherThin size={34} /><span>Writing Sprint</span></Link>
     <p>“Discipline turns thoughts into worlds.”</p>
-    <div className="cultivation-header-actions"><Link href="/my-files" aria-label="Open your writing library"><PiBookOpenThin size={28} /></Link><CultivationToggle /><button onClick={toggleDarkMode} aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}><PiMoonStarsThin size={27} /></button></div>
+    <div className="cultivation-header-actions"><Link className="cultivation-header-icon cultivation-header-library" href="/my-files" aria-label="Open your writing library"><PiBookOpenThin size={30} /></Link><CultivationHeaderSettings /><button className="cultivation-header-icon cultivation-header-moon" onClick={toggleDarkMode} aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}><PiMoonStarsThin size={27} /></button></div>
   </header>;
 }

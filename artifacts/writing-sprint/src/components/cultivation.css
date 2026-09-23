@@ -10,7 +10,7 @@ html[data-skin='cultivation'] {
   --secondary:40 23% 87%; --secondary-foreground:215 16% 19%; --muted:40 20% 88%; --muted-foreground:215 9% 38%;
   --accent:42 32% 83%; --accent-foreground:215 16% 19%; --border:39 28% 72%; --input:39 22% 76%; --ring:40 35% 48%;
   --surface:#f7f1e6; --bg-solid:transparent; --bg-grid-color:transparent; --bg-orb1:none; --bg-orb2:none; --bg-orb3:none; --bg-ring1:transparent; --bg-ring2:transparent;
-  --navbar-bg:#202830ed; --navbar-border:#ae946357; --app-font-sans:Georgia,'Times New Roman',serif; --app-font-serif:'Cormorant Garamond',Georgia,serif;
+  --navbar-bg:#1a1e22c9; --navbar-border:#ae946357; --app-font-sans:Georgia,'Times New Roman',serif; --app-font-serif:'Cormorant Garamond',Georgia,serif;
   --cultivation-paper:#f7f1e8; --cultivation-ink:#242c32; --cultivation-gold:#ad8c50; --cultivation-jade:#d4ddc7;
 }
 html[data-skin='cultivation'] body { background:#dce0df url('/cultivation/realm-portrait.png') center top / cover fixed no-repeat; color:#28303a; -webkit-font-smoothing:antialiased; }
@@ -19,7 +19,7 @@ html[data-skin='cultivation'] :is(button,input,select,textarea) { font-family:Ge
 html[data-skin='cultivation'] :is(h1,h2,h3,h4) { font-family:'Cormorant Garamond',Georgia,serif; text-wrap:balance; }
 html[data-skin='cultivation'] :is(button,a,input,textarea,select):focus-visible { outline:2px solid #9c773f; outline-offset:4px; }
 html[data-skin='cultivation'] :is(button,a) { -webkit-tap-highlight-color:transparent; }
-html[data-skin='cultivation'] .app-navbar,.cultivation-header { height:66px!important; background:#202830ed!important; border-bottom:1px solid #b69b6b80!important; color:#efe2bd; box-shadow:0 3px 18px #12191e20!important; }
+html[data-skin='cultivation'] .app-navbar,.cultivation-header { height:66px!important; background:linear-gradient(90deg,#131719d9,#202a33b8 58%,#1d242bc9)!important; border-bottom:1px solid #b69b6b80!important; color:#efe2bd; box-shadow:0 4px 24px #1017192c!important; backdrop-filter:blur(9px) saturate(.8)!important; -webkit-backdrop-filter:blur(9px) saturate(.8)!important; }
 html[data-skin='cultivation'] .app-navbar { z-index:400!important; }
 html[data-skin='cultivation'] .app-navbar > div:first-child > span { color:#f2e5c4!important; font-size:28px!important; font-family:'Cormorant Garamond',Georgia,serif!important; font-weight:600!important; }
 .cultivation-brand-feather { color:#e9d8ae; }
@@ -27,16 +27,31 @@ html[data-skin='cultivation'] .app-navbar > div:first-child > span { color:#f2e5
 html[data-skin='cultivation'] .cultivation-toggle { background:#293239; color:#e8d8b4; border-color:#a98b5c; }
 html[data-skin='cultivation'] .cultivation-toggle:hover { background:#3c4242; }
 html[data-skin='cultivation'] .navbar-actions > button:last-child { width:40px!important; height:40px!important; border-color:#c4aa7f!important; color:#ead5ab!important; border-radius:50%!important; background:transparent!important; }
+html[data-skin='cultivation'] .navbar-actions { gap:17px!important; }
+.cultivation-header-icon { position:relative; width:42px; min-width:42px; height:42px; display:grid; place-items:center; border:0; background:transparent; color:#dcc79c; text-decoration:none; cursor:pointer; transition:color .18s,transform .18s,background-color .18s; }
+.cultivation-header-icon:hover { color:#fff0ca; background:#e6d3a510; }
+.cultivation-header-icon:active { transform:scale(.96); }
+.cultivation-header-library::before { content:''; position:absolute; left:-12px; top:9px; height:25px; width:1px; background:#c8b58b80; }
+.cultivation-header-settings { position:relative; display:grid; place-items:center; }
+.cultivation-header-settings-panel { position:absolute; top:calc(100% + 15px); right:-46px; width:224px; padding:15px; display:grid; gap:12px; border:1px solid #b9a177; border-radius:7px; background:#293239f4; color:#f0e2c3; box-shadow:0 15px 38px #12191e58; z-index:650; }
+.cultivation-header-settings-panel p { margin:0; font:italic 13px Georgia,serif; color:#d4c29f; }
+.cultivation-header-settings-panel .cultivation-toggle { justify-content:flex-start; width:100%; background:#e5d6b814!important; }
+.cultivation-header-settings-panel > a { color:#f0e2c3; padding:7px 3px; font:14px Georgia,serif; text-decoration:none; }
+.cultivation-header-settings-panel > a:hover { color:#fff4d9; text-decoration:underline; }
+.cultivation-header-settings-panel [aria-haspopup='menu'] { color:#f0e2c3!important; border-color:#aa946f!important; background:#e5d6b814!important; }
 .cultivation-header { position:fixed; inset:0 0 auto; z-index:400; display:flex; align-items:center; padding:0 24px; gap:16px; }
 .cultivation-brand { display:flex; align-items:center; gap:16px; color:#f2e5c4; text-decoration:none; font:600 28px 'Cormorant Garamond',Georgia,serif; white-space:nowrap; }
 .cultivation-header-actions { display:flex; align-items:center; gap:16px; }
 .cultivation-header-actions>a,.cultivation-header-actions>button { min-width:40px; min-height:40px; display:flex; align-items:center; justify-content:center; color:#e5d0a5; }
 /* Full-height ink navigation, matching the reference rail. */
-html[data-skin='cultivation'] .sb,html[data-skin='cultivation'] .sb:hover { top:66px; bottom:0; left:0; transform:none; width:112px; border-radius:0; background:#1e272de8; border:0; border-right:1px solid #b59a6880; box-shadow:none; padding:28px 8px 20px; gap:5px; overflow-y:auto; scrollbar-width:none; z-index:350; }
+html[data-skin='cultivation'] .sb,html[data-skin='cultivation'] .sb:hover { top:66px; bottom:0; left:0; transform:none; width:112px; border-radius:0; background:linear-gradient(180deg,#171c20bd,#1c2226c9 48%,#151a1cdb); backdrop-filter:blur(8px) saturate(.7); -webkit-backdrop-filter:blur(8px) saturate(.7); border:0; border-right:1px solid #b59a6880; box-shadow:inset -1px 0 #f5dfae14,4px 0 24px #10151722; padding:28px 8px 20px; gap:5px; overflow-y:auto; scrollbar-width:none; z-index:350; }
+html[data-skin='cultivation'] .sb.cultivation-sidebar::before { content:''; position:absolute; top:6px; left:-8px; width:128px; height:205px; background:url('/cultivation/sidebar-bamboo.png') top left / 130px auto no-repeat; opacity:.68; pointer-events:none; }
 html[data-skin='cultivation'] .sb-logo { display:none; }
-html[data-skin='cultivation'] .ni { flex-direction:column; gap:9px; width:100%; min-height:66px; padding:10px 5px; border-radius:3px; color:#d8d4c8; flex-shrink:0; }
-html[data-skin='cultivation'] .ni:hover { background:#ffffff0a; color:#f3e3bb; }
-html[data-skin='cultivation'] .ni.active { background:#e8d3a50c; color:#f6e2ad; box-shadow:inset 2px 0 #d2b476,0 0 20px #dec28a0b; }
+html[data-skin='cultivation'] .ni { position:relative; flex-direction:column; gap:9px; width:100%; min-height:66px; padding:10px 5px; border-radius:3px; color:#d8d4c8; flex-shrink:0; transition:color .18s,background-color .18s; }
+html[data-skin='cultivation'] .ni:hover { background:#ffffff0b; color:#f3e3bb; }
+html[data-skin='cultivation'] .ni.active { background:radial-gradient(ellipse 45px 42px at 50% 35%,#d6b57c1a,transparent 75%); color:#f6e2ad; box-shadow:none; }
+html[data-skin='cultivation'] .ni.active::before { content:''; position:absolute; top:10px; bottom:14px; left:8px; width:1px; background:#d9bb80; box-shadow:0 0 11px 2px #ebcc916d; }
+html[data-skin='cultivation'] .ni.active .ni-ico { filter:drop-shadow(0 0 7px #f1d39585); }
 html[data-skin='cultivation'] .ni-ico,html[data-skin='cultivation'] .sb:hover .ni-ico { width:27px; height:27px; margin:0; }
 html[data-skin='cultivation'] .ni-ico svg { width:27px; height:27px; stroke-width:1.25; }
 html[data-skin='cultivation'] .ni-lbl,html[data-skin='cultivation'] .sb:hover .ni-lbl { opacity:1; width:auto; font:14px Georgia,serif; }
@@ -124,8 +139,9 @@ html[data-skin='cultivation'] [data-skin='cultivation'] { color:inherit; }
 html[data-skin='cultivation'].dark { --foreground:215 16% 19%; --card-foreground:215 16% 19%; --popover-foreground:215 16% 19%; --muted-foreground:215 9% 38%; }
 html[data-skin='cultivation'].dark body { background-blend-mode:multiply; background-color:#667078; }
 /* Skin respects narrow screens without changing the writing room geometry. */
-@media(min-height:1000px) { html[data-skin='cultivation'] .sb { padding-top:165px; gap:16px; } html[data-skin='cultivation'] .ni { min-height:76px; } }
-@media(max-width:900px) { .cultivation-navbar-motto,.cultivation-header>p { display:none; } html[data-skin='cultivation'] .navbar-actions [aria-haspopup='menu'] { display:none; } html[data-skin='cultivation'] .portal-content { padding-top:105px!important; } html[data-skin='cultivation'] .portal-heading h1 img { height:145px; } }
+@media(min-height:1000px) { html[data-skin='cultivation'] .sb { padding-top:190px; gap:16px; } html[data-skin='cultivation'] .ni { min-height:76px; } }
+@media(max-width:900px) { .cultivation-navbar-motto,.cultivation-header>p { display:none; } html[data-skin='cultivation'] .portal-content { padding-top:105px!important; } html[data-skin='cultivation'] .portal-heading h1 img { height:145px; } }
+@media(max-height:999px) and (min-width:701px) { html[data-skin='cultivation'] .sb.cultivation-sidebar { padding-top:clamp(74px,10vh,115px); gap:2px; } html[data-skin='cultivation'] .cultivation-sidebar .ni { min-height:61px; } }
 @media(max-width:700px) {
  html[data-skin='cultivation'] .sb,html[data-skin='cultivation'] .sb:hover { width:88px; padding-top:22px; transform:translateX(-100%); } html[data-skin='cultivation'] .sb.sb-open { transform:translateX(0); }
  html[data-skin='cultivation'] .sb-toggle { display:flex; z-index:500; top:14px; left:12px; background:#283239; color:#e7d4aa; border-color:#b59a6a; }
@@ -133,7 +149,7 @@ html[data-skin='cultivation'].dark body { background-blend-mode:multiply; backgr
  html[data-skin='cultivation'] .app-navbar>div:first-child>span,.cultivation-brand span { font-size:20px!important; }
  html[data-skin='cultivation'] .cultivation-brand-feather,.cultivation-brand>svg { display:none; }
  .cultivation-toggle { padding:0 8px; gap:5px; } .cultivation-toggle-state { display:none; }
- html[data-skin='cultivation'] .navbar-actions { gap:6px!important; } html[data-skin='cultivation'] .navbar-actions>button:last-child { display:none; }
+ html[data-skin='cultivation'] .navbar-actions { gap:6px!important; } html[data-skin='cultivation'] .navbar-actions>.cultivation-header-library { display:none; }
  html[data-skin='cultivation'] .portal-content { margin-left:0; padding-top:106px!important; padding-bottom:120px!important; }
  html[data-skin='cultivation'] .portal-fade-up { width:calc(100% - 32px)!important; max-width:540px!important; padding:0!important; }
  html[data-skin='cultivation'] .portal-heading { margin:0 0 15px!important; } html[data-skin='cultivation'] .portal-heading h1 img { height:110px; }
@@ -144,7 +160,7 @@ html[data-skin='cultivation'].dark body { background-blend-mode:multiply; backgr
  html[data-skin='cultivation'] .portal-session-title { font-size:32px!important; }
  html[data-skin='cultivation']:not([data-cultivation-page='portal']):not([data-cultivation-page='room']) #root { padding:86px 12px 32px; }
  html[data-skin='cultivation'] [aria-label='Local demo session'] { left:10px!important; font-size:10px!important; bottom:8px!important; }
- .cultivation-header-actions { gap:8px; } .cultivation-header-actions>a { display:none; } .cultivation-header-actions>button:last-child { display:none; }
+ .cultivation-header-actions { gap:8px; } .cultivation-header-actions>a { display:none; }
 }
 @media(prefers-reduced-motion:reduce) { html[data-skin='cultivation'] *,html[data-skin='cultivation'] *::before,html[data-skin='cultivation'] *::after { animation-duration:.01ms!important; animation-iteration-count:1!important; scroll-behavior:auto!important; } }
 html[data-skin='cultivation'] .ni-ico > svg:not(.cultivation-nav-icon) { display:none; }
@@ -179,7 +195,7 @@ html[data-skin='cultivation'] .cultivation-role-icon { display:inline-block; ver
 @media(max-width:700px) { html[data-skin='cultivation'] .portal-heading h1 img { height:110px; } }
 html[data-skin='cultivation'] .cultivation-sidebar-footer { margin-top:auto; padding:28px 0 6px; display:flex; flex-direction:column; gap:16px; align-items:center; }
 .cultivation-sidebar-footer > :is(a,button) { width:46px; height:46px; border:1px solid #bba16a; color:#e8d6a8; border-radius:50%; display:grid; place-items:center; }
-@media(min-height:1000px) { html[data-skin='cultivation'] .sb.cultivation-sidebar { padding-top:166px; gap:34px; } html[data-skin='cultivation'] .cultivation-sidebar .ni { min-height:76px; } }
+@media(min-height:1000px) { html[data-skin='cultivation'] .sb.cultivation-sidebar { padding-top:190px; gap:28px; } html[data-skin='cultivation'] .cultivation-sidebar .ni { min-height:76px; } }
 html[data-skin='cultivation'] .portal-enter,html[data-skin='cultivation'] .portal-enter:not(:disabled):hover { background:transparent url('/cultivation/ink-button.png') center / 104% 225% no-repeat!important; border:0!important; box-shadow:0 4px 12px #1b23231f!important; color:#f6e6c3!important; }
 html[data-skin='cultivation'] .portal-enter:disabled { opacity:.94; }
 
@@ -234,7 +250,7 @@ html[data-skin='cultivation'] .folio-root :is(.writing-toolbar,.editor-controls-
 html[data-skin='cultivation'] .folio-root .editor-paper { border-radius:5px; }
 html[data-skin='cultivation'] .folio-root .today-badge--done,html[data-skin='cultivation'] .folio-root .today-badge--done :is(strong,svg) { color:#426548; }
 @media(max-width:700px) {
-  html[data-skin='cultivation'] .navbar-actions > :not(.cultivation-toggle) { display:none!important; }
+  html[data-skin='cultivation'] .navbar-actions > .cultivation-header-library { display:none!important; }
   html[data-skin='cultivation'] .mf-home { padding:28px 18px 80px; }
   html[data-skin='cultivation'] .mf-home-inner { gap:32px; }
   html[data-skin='cultivation'] .mf-home-hero { padding:22px 12px; }

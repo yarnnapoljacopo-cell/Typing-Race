@@ -1,7 +1,10 @@
 import { CultivationToggle } from "./CultivationShell";
 import { useCultivation } from "@/lib/cultivation";
 import { PiFeatherThin } from "react-icons/pi";
+import { PiBookOpenThin, PiMoonStarsThin, PiSunThin } from "react-icons/pi";
 import { Moon, Sun } from "lucide-react";
+import { Link } from "wouter";
+import { CultivationHeaderSettings } from "./CultivationHeaderSettings";
 import { useDarkMode } from "@/lib/darkModeContext";
 import { UserStatsDropdown } from "@/components/UserStatsDropdown";
 
@@ -69,8 +72,10 @@ export function Navbar() {
 
       {enabled && <p className="cultivation-navbar-motto">“Discipline turns thoughts into worlds.”</p>}
       <div className="navbar-actions" style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-        <CultivationToggle />
-        <UserStatsDropdown />
+        {enabled ? <>
+          <Link className="cultivation-header-icon cultivation-header-library" href="/my-files" aria-label="Open your writing library"><PiBookOpenThin size={30} aria-hidden="true" /></Link>
+          <CultivationHeaderSettings />
+        </> : <><CultivationToggle /><UserStatsDropdown /></>}
         <button
           onClick={toggleDarkMode}
           title={isDark ? "Switch to light mode" : "Switch to dark mode"}
@@ -90,11 +95,11 @@ export function Navbar() {
               : "rgba(107,143,212,0.07)",
             cursor: "pointer",
             color: isDark ? "rgba(255,255,255,0.75)" : "#6B8FD4",
-            transition: "all 0.2s",
+            transition: "background-color 0.2s, border-color 0.2s, transform 0.2s",
             flexShrink: 0,
           }}
         >
-          {isDark ? <Sun size={16} /> : <Moon size={16} />}
+          {enabled ? (isDark ? <PiSunThin size={27} /> : <PiMoonStarsThin size={27} />) : (isDark ? <Sun size={16} /> : <Moon size={16} />)}
         </button>
       </div>
     </nav>
