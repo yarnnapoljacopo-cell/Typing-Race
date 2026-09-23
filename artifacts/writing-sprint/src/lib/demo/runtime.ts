@@ -7,6 +7,19 @@ import { createDemoEconomy, seedEconomy } from "./economy";
 // v2 was an unreleased preview migration; recover the original v1 data instead.
 const KEY = "ws.localDemo.data.v3";
 const LEGACY_KEY = "ws.localDemo.data.v1";
+const DEMO_EMOTES: Record<string, { emoji: string; label: string }> = {
+  too_slow: { emoji: "🐌", label: "Too slow!" }, haha: { emoji: "😂", label: "Haha!" },
+  eat_dust: { emoji: "🏁", label: "Eat my dust!" }, catch_up: { emoji: "➡", label: "Catch up!" },
+  on_fire: { emoji: "🔥", label: "On fire!" }, bow_down: { emoji: "👑", label: "Bow down." },
+  write_faster: { emoji: "✍", label: "Write faster!" }, good_luck: { emoji: "🍀", label: "Good luck!" },
+  bring_it: { emoji: "⚔", label: "Bring it!" }, wake_up: { emoji: "⏰", label: "Wake up!" },
+  big_brain: { emoji: "🧠", label: "Big brain." }, gg: { emoji: "🏆", label: "GG!" },
+};
+const demoVisibleWords = (html: string) => html
+  .replace(/<\s*(?:br|\/p|\/div|\/li|\/h[1-6])\b[^>]*>/gi, " ")
+  .replace(/<[^>]*>/g, "")
+  .replace(/&(?:nbsp|amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);/gi, " ")
+  .match(/\S+/g)?.length ?? 0;
 const stamp = () => new Date().toISOString();
 function mergeChanges(current: any, baseline: any, latest: any): any {
   if (JSON.stringify(current) === JSON.stringify(baseline)) return latest === undefined ? current : latest;
@@ -24,7 +37,7 @@ function seed() {
     equippedCarSkin:"bluebird", equippedRoadSkin:"mushroom", wishlist:null as null | {listing_id:number;pinned_at:string},
     sprints:Array.from({length:7},(_,i)=>({id:i+1,roomCode:`DEMO-${i+1}`,participantName:DEMO_NAME,wordCount:400+i*137,wpm:30+i*3,roomMode:["regular","goal","boss","kart"][i%4],wordGoal:null,updatedAt:new Date(Date.now()-i*86400000).toISOString(),durationMinutes:25})),
     folio:{projects:[{id:"demo-project",name:"Demo notebook",open:true,docs:[{id:"demo-chapter",name:"A fresh page",content:"<p>This is your demo notebook. Try writing, organising chapters, and saving your work here.</p>",status:"draft",updatedAt:Date.now()}]}]},
-    deadline:0, starUntil:0, notes:null as unknown, room:null as RoomState|null, drafts:{} as Record<string,string>, claimed:false, awardedXpRooms:[] as string[],
+    deadline:0, starUntil:0, lastEmoteAt:0, kartItems:[] as string[], kartNextItemAt:250, kartBaselineWords:0, kartArchivedWords:0, kartVisibleWords:null as number|null, notes:null as unknown, room:null as RoomState|null, drafts:{} as Record<string,string>, claimed:false, awardedXpRooms:[] as string[],
   };
 }
 export type DemoData = ReturnType<typeof seed>;
@@ -148,7 +161,7 @@ function installRoomSocket(api:ReturnType<typeof createDemoApi>) {
   const NativeSocket=window.WebSocket;
   class DemoSocket {
     readyState=0;onopen:((event:Event)=>void)|null=null;onmessage:((event:MessageEvent)=>void)|null=null;onclose:((event:CloseEvent)=>void)|null=null;onerror:((event:Event)=>void)|null=null;
-    timer:ReturnType<typeof setInterval>|null=null;items=["mushroom","red_shell","star"];roomCode="";
+    timer:ReturnType<typeof setInterval>|null=null;roomCode="";
     constructor(){queueMicrotask(()=>{this.readyState=1;this.onopen?.(new Event("open"));});}
     emit(data:unknown){this.onmessage?.(new MessageEvent("message",{data:JSON.stringify(data)}));}
     publish(){this.emit({type:"room_state",room:api.data.room});}
@@ -176,12 +189,67 @@ function installRoomSocket(api:ReturnType<typeof createDemoApi>) {
       if(!r){this.emit({type:"error",message:"Create a demo room first."});return;}
       if(msg.type==="join_room"){if(msg.code!==r.code){this.emit({type:"error",message:"This demo room is no longer active. Open the current room from the portal."});return;}this.roomCode=r.code;}
       else if(this.roomCode!==r.code){this.emit({type:"error",message:"A different demo room is now active."});return;}
-      if(msg.type==="join_room"){this.emit({type:"joined",participantId:DEMO_USER_ID,room:r,kartItems:r.status==="running"?this.items:[],restoredWordCount:r.participants[0].wordCount});if(r.mode==="gladiator")this.duel();if(r.status==="running")this.resume();}
-      if(msg.type==="start_sprint"&&r.status==="waiting"){r.status="running";api.data.deadline=Date.now()+r.durationMinutes*60000;api.save();this.publish();if(r.mode==="kart")this.emit({type:"kart_inventory",items:this.items});this.resume();}
-      if(msg.type==="text_update"&&r.status==="running"){r.participants[0].wordCount=Math.max(0,Number(msg.netWordCount)||0);r.bossTotalWords=r.participants[0].wordCount;api.save();this.publish();if(r.mode==="gladiator")this.duel();if(r.mode==="boss"&&r.bossTotalWords>=(r.bossWordGoal??Infinity))this.end();}
+      if(msg.type==="join_room"){this.emit({type:"joined",participantId:DEMO_USER_ID,room:r,kartItems:r.status==="running"?api.data.kartItems:[],restoredWordCount:r.participants[0].wordCount});if(r.mode==="gladiator")this.duel();if(r.status==="running")this.resume();}
+      if(msg.type==="start_sprint"&&r.status==="waiting"){r.status="running";api.data.deadline=Date.now()+r.durationMinutes*60000;api.data.kartItems=[];api.data.kartNextItemAt=250;api.data.kartBaselineWords=0;api.data.kartArchivedWords=0;api.data.kartVisibleWords=null;api.save();this.publish();if(r.mode==="kart")this.emit({type:"kart_inventory",items:[]});this.resume();}
+      if(msg.type==="text_update"&&r.status==="running"){
+        let claimed=Math.max(0,Math.floor(Number(msg.netWordCount)||0));
+        if(r.mode==="kart"){
+          const visible=demoVisibleWords(String(msg.text??""));
+          const previous=api.data.kartVisibleWords;
+          if(previous===null){
+            api.data.kartArchivedWords=Math.max(api.data.kartArchivedWords??0,r.participants[0].wordCount);
+            api.data.kartBaselineWords=Math.max(api.data.kartBaselineWords??0,visible-claimed);
+          }else if(visible===0 && previous>0 && claimed>=r.participants[0].wordCount){
+            api.data.kartArchivedWords+=Math.max(0,previous-api.data.kartBaselineWords);
+            api.data.kartBaselineWords=0;
+          }
+          api.data.kartVisibleWords=visible;
+          const elapsedMs=Math.max(0,Date.now()-(api.data.deadline-r.durationMinutes*60000));
+          claimed=Math.min(claimed,Math.max(0,api.data.kartArchivedWords+visible-api.data.kartBaselineWords),20+Math.floor(elapsedMs*450/60000));
+        }
+        r.participants[0].wordCount=claimed;
+        r.bossTotalWords=r.participants[0].wordCount;
+        if(r.mode==="kart"){
+          const drops=["mushroom","red_shell","star","green_shell","banana","blue_shell","lightning"];
+          let earned=false;
+          while(r.participants[0].wordCount>=api.data.kartNextItemAt){
+            const item=drops[(api.data.kartNextItemAt/250-1)%drops.length];
+            api.data.kartNextItemAt+=250;
+            if(api.data.kartItems.length>=3)continue;
+            api.data.kartItems.push(item);earned=true;
+            this.emit({type:"item_earned",item});
+          }
+          if(earned)this.emit({type:"kart_inventory",items:api.data.kartItems});
+        }
+        api.save();this.publish();if(r.mode==="gladiator")this.duel();if(r.mode==="boss"&&r.bossTotalWords>=(r.bossWordGoal??Infinity))this.end();
+      }
       if(msg.type==="end_sprint")this.end();
-      if(msg.type==="restart_sprint"){if(this.timer)clearInterval(this.timer);api.data.deadline=0;api.data.starUntil=0;r.status="waiting";r.durationMinutes=msg.durationMinutes;r.timeLeft=msg.durationMinutes*60;r.bossTotalWords=0;r.starActiveIds=[];r.participants.forEach(p=>{p.wordCount=0;p.kartCarOffset=0;});this.items=["mushroom","red_shell","star"];this.publish();if(r.mode==="gladiator")this.duel();api.save();}
-      if(msg.type==="use_item"&&r.status==="running"&&this.items.includes(msg.item)){this.items.splice(this.items.indexOf(msg.item),1);if(msg.item==="mushroom")r.participants[0].kartCarOffset=(r.participants[0].kartCarOffset??0)+200;if(msg.item==="star"){r.starActiveIds=[DEMO_USER_ID];api.data.starUntil=Date.now()+30000;this.emit({type:"item_effect_start",effect:"star",duration:30000});}api.save();this.emit({type:"kart_inventory",items:this.items});this.publish();}
+      if(msg.type==="restart_sprint"){if(this.timer)clearInterval(this.timer);api.data.deadline=0;api.data.starUntil=0;api.data.kartItems=[];api.data.kartNextItemAt=250;api.data.kartBaselineWords=0;api.data.kartArchivedWords=0;api.data.kartVisibleWords=null;r.status="waiting";r.durationMinutes=msg.durationMinutes;r.timeLeft=msg.durationMinutes*60;r.bossTotalWords=0;r.starActiveIds=[];r.participants.forEach(p=>{p.wordCount=0;p.kartCarOffset=0;});this.publish();if(r.mode==="kart")this.emit({type:"kart_inventory",items:[]});if(r.mode==="gladiator")this.duel();api.save();}
+      if(msg.type==="send_emote"){
+        const emote=DEMO_EMOTES[String(msg.emoteId)];
+        const now=Date.now();
+        if(!emote || now-api.data.lastEmoteAt<1500)return;
+        api.data.lastEmoteAt=now;
+        api.save();
+        const target=r.participants.find(p=>p.id===msg.targetId && p.id!==DEMO_USER_ID);
+        this.emit({type:"emote",id:`demo-emote-${now}`,emoteId:msg.emoteId,...emote,sourceId:DEMO_USER_ID,sourceName:r.participants[0].name,targetId:target?.id??null,targetName:target?.name??null,ts:now});
+      }
+      if(msg.type==="use_item"&&r.mode==="kart"&&r.status==="running"){
+        const item=String(msg.item),index=api.data.kartItems.indexOf(item);
+        if(index<0){this.emit({type:"kart_inventory",items:api.data.kartItems});return;}
+        const me=r.participants[0],rival=r.participants[1];
+        api.data.kartItems.splice(index,1);
+        let effect="",amount=0,targetId: string|undefined,targetName: string|undefined;
+        if(item==="mushroom"||item==="golden_pen"){amount=item==="mushroom"?200:400;me.kartCarOffset=(me.kartCarOffset??0)+amount;effect="car_add";targetId=me.id;targetName=me.name;}
+        else if(item==="star"){r.starActiveIds=[DEMO_USER_ID];api.data.starUntil=Date.now()+30000;this.emit({type:"item_effect_start",effect:"star",duration:30000});effect="star";targetId=me.id;targetName=me.name;}
+        else if(item==="red_shell"){effect="blur_counter";targetId=rival?.id;targetName=rival?.name;}
+        else if(item==="green_shell"||item==="blue_shell"||item==="lightning"){amount=item==="green_shell"?100:item==="blue_shell"?200:300;effect="car_subtract";if(rival){rival.kartCarOffset=(rival.kartCarOffset??0)-amount;targetId=rival.id;targetName=rival.name;}}
+        else if(item==="banana")effect="banana_placed";
+        else if(item==="boo")effect="boo";
+        else if(item==="mystery_box"){effect="mystery_box";for(const bonus of ["mushroom","green_shell","star"].slice(0,3-api.data.kartItems.length)){api.data.kartItems.push(bonus);this.emit({type:"item_earned",item:bonus});}}
+        this.emit({type:"item_used",item,sourceId:me.id,sourceName:me.name,targetId,targetName,effect,amount,duration:item==="star"?30000:undefined});
+        api.save();this.emit({type:"kart_inventory",items:api.data.kartItems});this.publish();
+      }
     }
     close(){this.readyState=3;if(this.timer)clearInterval(this.timer);this.onclose?.(new CloseEvent("close",{code:1000}));}
   }

@@ -42,7 +42,7 @@ const DROPS_LAST: ItemWeight[] = [
 
 const ALL_REGULAR_ITEMS: ItemKey[] = [
   "red_shell", "green_shell", "banana", "star", "blue_shell",
-  "lightning", "mushroom", "mystery_box", "boo",
+  "lightning", "mushroom", "boo",
 ];
 
 function pickFromTable(table: ItemWeight[], goldenPenEligible: boolean): ItemKey {

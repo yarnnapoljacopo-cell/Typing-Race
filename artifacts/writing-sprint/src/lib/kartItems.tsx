@@ -29,26 +29,26 @@ export const TIER_STYLES: Record<ItemTier, {
   badgeColor: string;
 }> = {
   common: {
-    ring: "rgba(148,163,184,0.55)",
-    glow: "0 0 10px rgba(148,163,184,0.25)",
+    ring: "rgba(168,190,204,0.65)",
+    glow: "0 2px 8px rgba(5,18,31,0.35)",
     badge: "Common",
     badgeColor: "#cbd5e1",
   },
   rare: {
-    ring: "rgba(59,130,246,0.75)",
-    glow: "0 0 14px rgba(59,130,246,0.45)",
+    ring: "rgba(99,179,215,0.9)",
+    glow: "0 2px 8px rgba(5,18,31,0.38), 0 0 8px rgba(99,179,215,0.25)",
     badge: "Rare",
     badgeColor: "#93c5fd",
   },
   epic: {
-    ring: "rgba(168,85,247,0.85)",
-    glow: "0 0 18px rgba(168,85,247,0.55), inset 0 0 12px rgba(168,85,247,0.18)",
+    ring: "rgba(167,143,207,0.9)",
+    glow: "0 2px 9px rgba(5,18,31,0.4), 0 0 9px rgba(167,143,207,0.3)",
     badge: "Epic",
     badgeColor: "#d8b4fe",
   },
   legendary: {
-    ring: "rgba(253,224,71,0.95)",
-    glow: "0 0 22px rgba(253,224,71,0.75), inset 0 0 14px rgba(253,224,71,0.25)",
+    ring: "rgba(222,188,112,0.95)",
+    glow: "0 2px 9px rgba(5,18,31,0.4), 0 0 10px rgba(222,188,112,0.4)",
     badge: "Legendary",
     badgeColor: "#fde047",
   },
@@ -171,12 +171,8 @@ function StarIcon({ size }: { size?: number }) {
         strokeWidth="0.9"
         strokeLinejoin="round"
       />
-      {/* eyes */}
-      <circle cx="13" cy="16" r="1.2" fill="#1f2937" />
-      <circle cx="19" cy="16" r="1.2" fill="#1f2937" />
-      <circle cx="13.4" cy="15.6" r="0.4" fill="#fff" />
-      <circle cx="19.4" cy="15.6" r="0.4" fill="#fff" />
-      {/* shine */}
+      <path d="M 12 19 L 16 12 L 20 19" fill="none" stroke="#fff7d3" strokeOpacity="0.8" strokeWidth="1" strokeLinejoin="round" />
+      {/* Polished edge highlight replaces the toy-like face. */}
       <path d="M 9 10 Q 12 6 17 6" fill="none" stroke="#fff" strokeOpacity="0.85" strokeWidth="1.1" strokeLinecap="round" />
     </>,
     size,
@@ -259,10 +255,7 @@ function MushroomIcon({ size }: { size?: number }) {
     <>
       {/* stem */}
       <path d="M 11 19 Q 11 27 13 28 L 19 28 Q 21 27 21 19 Z" fill="#fef3c7" stroke="#78350f" strokeWidth="0.8" />
-      <ellipse cx="14" cy="25" rx="0.9" ry="1.4" fill="#1f2937" />
-      <ellipse cx="18" cy="25" rx="0.9" ry="1.4" fill="#1f2937" />
-      <ellipse cx="14.4" cy="24.6" rx="0.3" ry="0.5" fill="#fff" />
-      <ellipse cx="18.4" cy="24.6" rx="0.3" ry="0.5" fill="#fff" />
+      <path d="M 13 21 V26 M 19 21 V26" stroke="#c8bda5" strokeWidth="0.7" strokeLinecap="round" />
       {/* cap */}
       <path d="M 4 18 Q 4 5 16 4 Q 28 5 28 18 Z" fill="url(#msh-cap)" stroke="#1f2937" strokeWidth="0.9" />
       <ellipse cx="11" cy="11" rx="2.4" ry="2" fill="#fef3c7" stroke="#1f2937" strokeWidth="0.5" />
@@ -278,27 +271,16 @@ function MysteryBoxIcon({ size }: { size?: number }) {
   return withDefs(
     "mys",
     <>
-      <linearGradient id="mys-body" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#a78bfa" />
-        <stop offset="1" stopColor="#5b21b6" />
-      </linearGradient>
-      <linearGradient id="mys-lid" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#c4b5fd" />
-        <stop offset="1" stopColor="#7c3aed" />
+      <linearGradient id="mys-body" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#d7f4ff" />
+        <stop offset="0.45" stopColor="#548ba7" />
+        <stop offset="1" stopColor="#1c3454" />
       </linearGradient>
     </>,
     <>
-      {/* body */}
-      <rect x="5" y="13" width="22" height="15" rx="1.6" fill="url(#mys-body)" stroke="#1f2937" strokeWidth="0.9" />
-      {/* lid */}
-      <rect x="4" y="10" width="24" height="5" rx="1.2" fill="url(#mys-lid)" stroke="#1f2937" strokeWidth="0.9" />
-      {/* ribbon vertical */}
-      <rect x="14.5" y="10" width="3" height="18" fill="#facc15" stroke="#1f2937" strokeWidth="0.5" />
-      {/* ribbon horizontal */}
-      <rect x="4" y="11.5" width="24" height="2.4" fill="#facc15" stroke="#1f2937" strokeWidth="0.5" />
-      {/* bow */}
-      <path d="M 11 9 Q 14 5 16 10 Q 18 5 21 9 Q 18 11 16 10 Q 14 11 11 9 Z" fill="#facc15" stroke="#1f2937" strokeWidth="0.6" />
-      <text x="16" y="24" textAnchor="middle" fontSize="6" fontWeight="900" fill="#fef3c7" stroke="#1f2937" strokeWidth="0.4" fontFamily="system-ui, sans-serif">?</text>
+      <path d="M 7 6 H25 L28 10 V24 L25 27 H7 L4 24 V10 Z" fill="url(#mys-body)" stroke="#15283e" strokeWidth="1" />
+      <path d="M 7 6 L10 10 H22 L25 6 M 4 10 H28 M 4 24 H28 M 10 10 V27 M 22 10 V27" fill="none" stroke="#d1f3ff" strokeOpacity="0.66" strokeWidth="0.8" />
+      <path d="M 16 13 C12 13 12 17 16 17 C20 17 20 21 16 21 M16 11 V13 M16 21 V23" fill="none" stroke="#eafaff" strokeWidth="1.7" strokeLinecap="round" />
     </>,
     size,
   );
@@ -327,12 +309,7 @@ function BooIcon({ size }: { size?: number }) {
       <ellipse cx="20" cy="14" rx="1.7" ry="2.2" fill="#1f2937" />
       <ellipse cx="12.6" cy="13.4" rx="0.5" ry="0.7" fill="#fff" />
       <ellipse cx="20.6" cy="13.4" rx="0.5" ry="0.7" fill="#fff" />
-      {/* mouth */}
-      <ellipse cx="16" cy="19" rx="2.4" ry="1.6" fill="#1f2937" />
-      <ellipse cx="16" cy="18.6" rx="1.2" ry="0.6" fill="#fda4af" />
-      {/* fangs */}
-      <polygon points="14.5,18 15,20 15.5,18" fill="#fff" />
-      <polygon points="16.5,18 17,20 17.5,18" fill="#fff" />
+      <path d="M 13 20 Q 16 22 19 20" fill="none" stroke="#263549" strokeWidth="1.1" strokeLinecap="round" />
     </>,
     size,
   );

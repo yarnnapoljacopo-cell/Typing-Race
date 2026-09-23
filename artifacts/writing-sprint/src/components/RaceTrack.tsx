@@ -42,6 +42,11 @@ function targetWords(durationMinutes: number) {
   return 3500;
 }
 
+/** Keep the 52px kart inside the same lane at both the start and finish. */
+function kartTrackLeft(fraction: number) {
+  return `calc(${fraction * 100}% + ${26 - fraction * 52}px)`;
+}
+
 /** Each vehicle has a fixed-width anchor, so labels never shift the car.
  * Animate a full-width rail with transforms: percent positions still use the
  * existing track width, while car movement avoids layout work on every frame. */
@@ -57,8 +62,8 @@ function RacerPosition({ fraction, kart = false, children }: { fraction: number;
     return () => clearTimeout(timer);
   }, [fraction]);
   return <motion.div className={`racer-position${moving ? " race-moving" : ""}`} initial={false}
-    animate={{ x: `${fraction * 100}%` }} transition={reducedMotion ? { duration: 0 } : { type: "spring", duration: .55, bounce: 0 }}
-    style={{ position: "absolute", left: 0, width: "100%", top: kart ? "50%" : 0, bottom: kart ? undefined : 0, zIndex: kart ? 3 : undefined, pointerEvents: "none" }}>
+    animate={{ x: kart ? `calc(${fraction * 100}% - ${fraction * 52}px)` : `${fraction * 100}%` }} transition={reducedMotion ? { duration: 0 } : { type: "spring", duration: .55, bounce: 0 }}
+    style={{ position: "absolute", left: kart ? 26 : 0, width: "100%", top: kart ? "50%" : 0, bottom: kart ? undefined : 0, zIndex: kart ? 3 : undefined, pointerEvents: "none" }}>
     <div className="racer-anchor" style={kart ? { width: "max-content" } : { position: "absolute", top: 0, bottom: 0, width: CAR_W, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>{children}</div>
   </motion.div>;
 }
@@ -215,6 +220,7 @@ export const RaceTrack = memo(function RaceTrack({
                   (e.effect === "car_subtract" || e.effect === "bold_text" || e.effect === "blur_counter"),
               );
               const lastHitId = activeEffects.find((e) => e.targetIds.includes(p.id) && (e.effect === "car_subtract" || e.effect === "bold_text" || e.effect === "blur_counter"))?.id;
+              const boostEffect = activeEffects.find((e) => e.sourceId === p.id && e.effect === "car_add");
 
               return (
                 <div key={p.id} className="race-lane" style={{
@@ -258,24 +264,22 @@ export const RaceTrack = memo(function RaceTrack({
                               key={`box-${box}`}
                               className="race-item-box"
                               initial={false}
-                              animate={reducedMotion ? { y: 0 } : { y: [0, -1, 0] }}
+                              animate={reducedMotion ? { y: 0, rotate: 0 } : { y: [0, -2, 0], rotate: [-4, 3, -4] }}
                               transition={{ repeat: Infinity, duration: 2.6, ease: "easeInOut", delay: (box / 250) * 0.07 }}
                               style={{
                                 position: "absolute",
-                                left: `${boxFraction * 100}%`,
+                                left: kartTrackLeft(boxFraction),
                                 top: "50%",
                                 marginTop: -11,
                                 marginLeft: -11,
                                 width: 22, height: 22,
                                 borderRadius: 5,
-                                background:
-                                  "linear-gradient(135deg, #fde047 0%, #f6c90e 45%, #b45309 100%)",
-                                border: "2px solid rgba(255,255,255,0.7)",
+                                background: "linear-gradient(140deg, #d5f5ff 0%, #5594af 40%, #28456b 72%, #1c2646 100%)",
+                                border: "1px solid rgba(224,246,255,0.9)",
                                 display: "flex", alignItems: "center", justifyContent: "center",
-                                fontSize: "0.7rem", fontWeight: 900, color: "rgba(255,255,255,0.95)",
-                                textShadow: "0 1px 1px rgba(0,0,0,0.45)",
-                                boxShadow:
-                                  "0 0 8px rgba(253,224,71,0.6), 0 0 18px rgba(246,201,14,0.35), 0 2px 6px rgba(0,0,0,0.35), inset 0 0 6px rgba(255,255,255,0.25)",
+                                fontSize: "0.7rem", fontWeight: 900, color: "#f5fbff",
+                                textShadow: "0 1px 2px rgba(9,25,43,0.8)",
+                                boxShadow: "0 0 0 2px rgba(106,190,221,0.2), 0 3px 9px rgba(0,0,0,0.4), inset 0 1px rgba(255,255,255,0.7)",
                                 zIndex: 2,
                                 pointerEvents: "none",
                               }}
@@ -295,7 +299,7 @@ export const RaceTrack = memo(function RaceTrack({
                               transition={{ duration: 0.55, ease: "easeOut" }}
                               style={{
                                 position: "absolute",
-                                left: `${collectedFraction * 100}%`,
+                                left: kartTrackLeft(collectedFraction),
                                 top: "50%",
                                 marginTop: -13,
                                 marginLeft: -13,
@@ -319,7 +323,7 @@ export const RaceTrack = memo(function RaceTrack({
                           car's middle aligns with the item-box center (boxes use marginLeft:-11
                           to do the same). */}
                       <RacerPosition fraction={fraction} kart>
-                        <div style={{ transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                        <div style={{ transform: "translate(-50%, -50%)", width: 52, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
                           {/* Crown for 1st place */}
                           {isFirstPlace && !finished && (
                             <div style={{ fontSize: "0.875rem", lineHeight: 1, pointerEvents: "none", textShadow: "0 0 6px #fbbf24" }}>
@@ -330,6 +334,7 @@ export const RaceTrack = memo(function RaceTrack({
                           {/* Name / word count badge */}
                           <div className="race-driver-label" style={{
                             display: "flex", alignItems: "center", gap: 4,
+                            alignSelf: fraction < .045 ? "flex-start" : fraction > .955 ? "flex-end" : "center",
                             background: eliminated ? "rgba(60,60,60,0.85)" : isMe ? "linear-gradient(135deg, #fff 0%, #f0edff 100%)" : "rgba(255,255,255,0.9)",
                             borderRadius: 5, padding: "2px 7px",
                             fontSize: "0.55rem", fontWeight: 800, letterSpacing: "0.05em",
@@ -346,15 +351,19 @@ export const RaceTrack = memo(function RaceTrack({
 
                           {/* Kart SVG — shakes hard when this car is hit by an item */}
                           <motion.div
-                            key={isBeingHit ? `hit-${lastHitId}` : "idle"}
+                            key={isBeingHit ? `hit-${lastHitId}` : boostEffect ? `boost-${boostEffect.id}` : "idle"}
                             animate={
-                              reducedMotion ? { x: 0, y: 0, rotate: 0 } : isBeingHit
-                                ? { x: [0, -3, 2, -1, 0], rotate: [0, -3, 2, 0] }
+                              reducedMotion ? { x: 0, y: 0, rotate: 0, scale: 1 } : isBeingHit
+                                ? { x: [0, -4, 3, -2, 0], y: [0, -2, 1, 0], rotate: [0, -5, 3, 0], scale: [1, .88, 1.04, 1] }
+                                : boostEffect
+                                  ? { x: [0, 3, 0], rotate: [0, -3, 0], scale: [1, 1.09, 1] }
                                 : { x: 0, y: 0, rotate: 0 }
                             }
                             transition={
                               isBeingHit
-                                ? { duration: 0.6, ease: "easeOut" }
+                                ? { duration: 0.62, ease: "easeOut" }
+                                : boostEffect
+                                  ? { duration: 0.52, ease: "easeOut" }
                                 : { duration: .2, ease: "easeOut" }
                             }
                             style={{
@@ -363,6 +372,8 @@ export const RaceTrack = memo(function RaceTrack({
                                 ? "drop-shadow(0 0 6px #fbbf24) drop-shadow(0 0 10px #fde047)"
                                 : isBeingHit
                                   ? "drop-shadow(0 0 8px #ef4444) drop-shadow(0 0 16px rgba(239,68,68,0.55))"
+                                  : boostEffect
+                                    ? "drop-shadow(-5px 0 5px rgba(124,214,255,0.8))"
                                   : undefined,
                             }}
                           >

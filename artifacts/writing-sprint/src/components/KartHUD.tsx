@@ -31,12 +31,18 @@ export function KartHUD({
   hitNotification,
 }: KartHUDProps) {
   const [hovered, setHovered] = useState<string | null>(null);
+  const [usedSlot, setUsedSlot] = useState<{ slot: number; item: ItemKey; id: number } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const helpRef = useRef<HTMLDivElement>(null);
   const helpButtonRef = useRef<HTMLButtonElement>(null);
   const [helpPos, setHelpPos] = useState<{ top: number; left: number; maxHeight: number; placeAbove: boolean }>({
     top: 0, left: 0, maxHeight: 400, placeAbove: false,
   });
+  useEffect(() => {
+    if (!usedSlot) return;
+    const timeout = setTimeout(() => setUsedSlot(null), 520);
+    return () => clearTimeout(timeout);
+  }, [usedSlot]);
 
   // Position the fixed help panel so it never spills off-screen.
   useEffect(() => {
@@ -108,6 +114,15 @@ export function KartHUD({
           0%, 100% { transform: translateY(0); }
           50%      { transform: translateY(-1.5px); }
         }
+        @keyframes kartItemLaunch {
+          0% { opacity: 1; transform: translate(0,0) rotate(0) scale(1); }
+          38% { opacity: 1; transform: translate(8px,-13px) rotate(-10deg) scale(1.3); }
+          100% { opacity: 0; transform: translate(30px,-30px) rotate(18deg) scale(.6); }
+        }
+        @keyframes kartSlotFire {
+          0% { opacity: .9; transform: scale(.75); }
+          100% { opacity: 0; transform: scale(1.7); }
+        }
       `}</style>
 
       {/* Active effects bar */}
@@ -167,6 +182,13 @@ export function KartHUD({
 
             return (
               <div key={slot} className="relative group">
+                {usedSlot?.slot === slot && (() => {
+                  const UsedIcon = ITEMS[usedSlot.item].Icon;
+                  return <>
+                    <span key={`ring-${usedSlot.id}`} aria-hidden className="absolute inset-0 rounded-xl pointer-events-none z-10 border-2 border-sky-200" style={{ animation: "kartSlotFire 500ms ease-out forwards" }} />
+                    <span key={`icon-${usedSlot.id}`} aria-hidden className="absolute inset-2 pointer-events-none z-20" style={{ animation: "kartItemLaunch 500ms ease-out forwards" }}><UsedIcon size={30} /></span>
+                  </>;
+                })()}
                 {/* Legendary rotating halo (sits behind the slot) */}
                 {isLegendary && (
                   <div
@@ -184,7 +206,7 @@ export function KartHUD({
                 )}
 
                 <button
-                  onClick={() => def && onUseItem(itemKey!)}
+                  onClick={() => { if (def && itemKey) { setUsedSlot({ slot, item: itemKey, id: Date.now() }); onUseItem(itemKey); } }}
                   onMouseEnter={() => def && setHovered(itemKey!)}
                   onMouseLeave={() => setHovered(null)}
                   disabled={!def}
@@ -196,16 +218,15 @@ export function KartHUD({
                   style={
                     def && tier
                       ? {
-                          background: `linear-gradient(155deg, ${def.gradient[1]} 0%, ${def.gradient[0]} 100%)`,
-                          border: `1.5px solid ${tier.ring}`,
-                          boxShadow: tier.glow,
+                          background: `linear-gradient(150deg, #34495c 0%, #1c2b3c 62%, #111d2b 100%)`,
+                          border: `1px solid ${tier.ring}`,
+                          boxShadow: `${tier.glow}, inset 0 1px rgba(255,255,255,.25), inset 0 -3px rgba(0,0,0,.28)`,
                           zIndex: 1,
                         }
                       : {
-                          background:
-                            "repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0 6px, rgba(255,255,255,0.06) 6px 12px)",
-                          border: "1.5px dashed rgba(255,255,255,0.18)",
-                          boxShadow: "inset 0 0 6px rgba(0,0,0,0.4)",
+                          background: "linear-gradient(150deg, #2a3746, #172231)",
+                          border: "1px solid rgba(168,194,211,0.35)",
+                          boxShadow: "inset 0 1px rgba(255,255,255,.09), inset 0 3px 8px rgba(0,0,0,0.38)",
                           zIndex: 1,
                         }
                   }
@@ -219,12 +240,13 @@ export function KartHUD({
                         className="absolute inset-0 rounded-xl pointer-events-none"
                         style={{
                           background:
-                            "radial-gradient(circle at 30% 25%, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 55%)",
+                            "radial-gradient(circle at 30% 15%, rgba(255,255,255,0.17) 0%, rgba(255,255,255,0) 62%)",
                         }}
                       />
 
                       {/* icon */}
                       <span
+                        key={`${slot}-${itemKey}`}
                         className="relative"
                         style={{ animation: "kartItemPop 260ms ease-out, kartIconBob 2.4s ease-in-out infinite 260ms" }}
                       >

@@ -23,6 +23,7 @@ import { db, userProfilesTable, guildMembersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { markOnline, markOffline } from "./guildPresence";
 import { rollItem, rollMysteryItems, ITEM_EMOJIS } from "./kartItems";
+import { visibleKartWords, kartWordCeiling } from "./kartWriting";
 import {
   initGladiatorParticipant,
   processGladiatorUpdate,
@@ -303,6 +304,9 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             // grant items they previously earned. Formula: the next 250-multi
             // strictly above their current word count.
             kartNextItemAt: Math.floor(restoredWordCount / 250) * 250 + 250,
+            kartBaselineWords: visibleKartWords(restoredText),
+            kartArchivedWords: restoredWordCount,
+            kartVisibleWords: undefined,
             gladiatorHp: 1000,
             gladiatorBuffs: [],
             gladiatorFrenzyStartWc: restoredWordCount,
@@ -518,6 +522,21 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             );
             netWordCount = ceiling;
           }
+          if (room.mode === "kart" && participant.role !== "editor") {
+            const visibleWords = visibleKartWords(text);
+            const previousVisible = participant.kartVisibleWords;
+            if (previousVisible === undefined) {
+              // The first packet can contain a draft written before the race.
+              participant.kartBaselineWords = Math.max(participant.kartBaselineWords ?? 0, visibleWords - rawNetWordCount);
+            } else if (visibleWords === 0 && previousVisible > 0 && rawNetWordCount >= participant.wordCount) {
+              // Chapter Finished clears the editor while keeping race progress.
+              participant.kartArchivedWords = (participant.kartArchivedWords ?? 0) + Math.max(0, previousVisible - (participant.kartBaselineWords ?? 0));
+              participant.kartBaselineWords = 0;
+            }
+            participant.kartVisibleWords = visibleWords;
+            const contentCeiling = Math.max(0, (participant.kartArchivedWords ?? 0) + visibleWords - (participant.kartBaselineWords ?? 0));
+            netWordCount = Math.min(netWordCount, contentCeiling, kartWordCeiling(room.startTime, Date.now()));
+          }
         }
 
         // In open (Spectator) mode, always store + broadcast text so hover-to-read
@@ -567,18 +586,13 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
         if (room.mode === "kart" && room.status === "running" && participant.role !== "editor") {
           const { position, total } = getParticipantPosition(room, participantId);
 
-          // Award one item per 250-word threshold, BUT only advance the
-          // threshold when an item is actually granted. Previously the
-          // threshold advanced even when the inventory was full (3 items),
-          // which silently dropped every "earned" item until the inventory
-          // had been used down AND the player had written another full
-          // 250 words. The fix: if the inventory is full, hold the threshold
-          // — as soon as the player uses an item, the next text_update will
-          // fire the loop and the held item is awarded immediately.
+          // Each 250-word box is passed once. A full inventory misses that
+          // box; holding the threshold let players cash in old boxes later
+          // by sending the same word count again after using an item.
           let kartChanged = false;
           while (participant.wordCount >= participant.kartNextItemAt) {
-            if (participant.kartItems.length >= 3) break;
             participant.kartNextItemAt += 250;
+            if (participant.kartItems.length >= 3) continue;
             const item = rollItem(position, total, !room.goldenPenUsed);
             if (item === "golden_pen") room.goldenPenUsed = true;
             participant.kartItems.push(item);
@@ -620,24 +634,38 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
 
       if (type === "use_item") {
         if (room.mode !== "kart" || room.status !== "running" || participant.isSpectator || participant.role === "editor") return;
-        const item = message.item as string;
+        const item = typeof message.item === "string" ? message.item : "";
+        if (!Object.prototype.hasOwnProperty.call(ITEM_EMOJIS, item)) return;
+        const rejectItem = (reason: string) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "item_rejected", message: reason }));
+            ws.send(JSON.stringify({ type: "kart_inventory", items: participant.kartItems.slice() }));
+          }
+        };
         const itemIdx = participant.kartItems.indexOf(item);
-        if (itemIdx === -1) return;
-        participant.kartItems.splice(itemIdx, 1);
-        const previousPosition = kartScore(participant);
+        if (itemIdx === -1) { rejectItem("That item is no longer in your inventory."); return; }
 
         const active = getActiveParticipants(room);
         const sorted = [...active].sort((a, b) => kartScore(b) - kartScore(a));
         const senderIdx = sorted.findIndex((p) => p.id === participantId);
+        const ahead = senderIdx > 0 ? sorted[senderIdx - 1] : null;
+        const availableRivals = sorted.filter(p => p.id !== participantId && p.ws.readyState === WebSocket.OPEN && !isStarActive(room, p.id));
+        const hittableAhead = sorted.slice(0, Math.max(0, senderIdx)).filter(p => p.ws.readyState === WebSocket.OPEN && !isStarActive(room, p.id));
+        if (item === "red_shell" && hittableAhead.length === 0) {
+          rejectItem("No racer ahead can be hit right now."); return;
+        }
+        if ((item === "green_shell" || item === "blue_shell" || item === "lightning" || item === "banana") && availableRivals.length === 0) {
+          rejectItem("No rival can be hit right now."); return;
+        }
+        if (item === "boo" && (!ahead || ahead.ws.readyState !== WebSocket.OPEN || isStarActive(room, ahead.id) || ahead.kartItems.length === 0)) {
+          rejectItem("The racer ahead has no item to steal."); return;
+        }
+        participant.kartItems.splice(itemIdx, 1);
+        const previousPosition = kartScore(participant);
 
         switch (item) {
           case "red_shell": {
-            const ahead = senderIdx > 0 ? sorted[senderIdx - 1] : null;
-            if (!ahead || ahead.id === participantId) break;
-            const targetP = isStarActive(room, ahead.id)
-              ? getRedirectTarget(room, [participantId, ahead.id])
-              : ahead;
-            if (!targetP) break;
+            const targetP = hittableAhead[hittableAhead.length - 1];
             sendEffect(targetP, "blur_counter", 20000, participant.name);
             broadcastToRoom(room, {
               type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
@@ -648,9 +676,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             break;
           }
           case "green_shell": {
-            const pool = active.filter((p) => !isStarActive(room, p.id) && p.ws.readyState === WebSocket.OPEN);
-            if (pool.length === 0) break;
-            const targetP = pool[Math.floor(Math.random() * pool.length)];
+            const targetP = availableRivals[Math.floor(Math.random() * availableRivals.length)];
             // Persist the offset on the server so it survives the next
             // room_state re-sync — otherwise the client's local -100 gets
             // wiped within ~1s.
@@ -665,6 +691,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           }
           case "banana": {
             const trapId = Math.random().toString(36).slice(2);
+            room.bananaTraps = room.bananaTraps.filter(trap => trap.placedById !== participantId).slice(-9).concat(room.bananaTraps.filter(trap => trap.placedById === participantId).slice(-2));
             room.bananaTraps.push({ id: trapId, placedById: participantId, placedByName: participant.name, threshold: kartScore(participant) });
             broadcastToRoom(room, {
               type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
@@ -691,14 +718,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             break;
           }
           case "blue_shell": {
-            let targetP = sorted[0];
-            if (!targetP) break;
-            if (targetP.id === participantId && sorted.length > 1) targetP = sorted[1];
-            if (isStarActive(room, targetP.id)) {
-              const redirect = getRedirectTarget(room, [participantId]);
-              if (!redirect) break;
-              targetP = redirect;
-            }
+            const targetP = availableRivals[0];
             targetP.kartCarOffset -= 200;
             broadcastToRoom(room, {
               type: "item_used", item, emoji: ITEM_EMOJIS[item as keyof typeof ITEM_EMOJIS],
@@ -711,9 +731,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
           case "lightning": {
             const hitIds: string[] = [];
             const hitNames: string[] = [];
-            for (const p of active) {
-              if (p.id === participantId) continue;
-              if (isStarActive(room, p.id)) continue;
+            for (const p of availableRivals) {
               p.kartCarOffset -= 300;
               hitIds.push(p.id);
               hitNames.push(p.name);
@@ -752,9 +770,7 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
             break;
           }
           case "boo": {
-            if (senderIdx <= 0 && sorted.length > 0) break;
-            const ahead = senderIdx > 0 ? sorted[senderIdx - 1] : null;
-            if (!ahead || ahead.kartItems.length === 0 || isStarActive(room, ahead.id)) break;
+            if (!ahead) break;
             const stealIdx = Math.floor(Math.random() * ahead.kartItems.length);
             const stolen = ahead.kartItems.splice(stealIdx, 1)[0];
             if (participant.kartItems.length < 3) {

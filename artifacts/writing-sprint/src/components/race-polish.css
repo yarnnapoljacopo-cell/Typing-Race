@@ -8,7 +8,9 @@
 .race-track-regular .race-lane::before { content:""; position:absolute; left:35px; right:12px; top:4px; bottom:4px; border-top:1px solid #dfe7fa09; border-bottom:1px solid #0b13231a; pointer-events:none; }
 .race-track-regular .race-driver-label { width:max-content; flex-shrink:0; }
 .race-driver-label { outline:1px solid #ffffff2b; text-shadow:none; }
-.race-item-box { background:linear-gradient(145deg,#f5dda3,#d7b365) !important; border-color:#fff0c0 !important; color:#76572d !important; text-shadow:0 1px #fff5d3 !important; box-shadow:inset 0 1px #ffffffb0,0 2px 3px #08102440 !important; }
+.race-item-box { background:linear-gradient(140deg,#d5f5ff,#5594af 40%,#28456b 72%,#1c2646) !important; border-color:#e0f6ff !important; color:#f5fbff !important; text-shadow:0 1px 2px #09192bcc !important; box-shadow:0 0 0 2px #6abedd33,0 3px 9px #0006,inset 0 1px #ffffffb3 !important; }
+.race-item-box::before { content:""; position:absolute; inset:2px; border:1px solid #d8f6ff82; border-radius:3px; clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%); pointer-events:none; }
+.race-item-box::after { content:""; position:absolute; top:2px; left:3px; right:4px; height:3px; border-radius:50%; background:#ffffff91; filter:blur(1px); pointer-events:none; }
 .race-vehicle { display:block; overflow:visible; filter:drop-shadow(0 1px 1px #07122235); }
 .vehicle-wheel-spokes { transform-origin:0 0; }
 .race-moving .vehicle-wheel-spokes { animation:vehicle-wheel-turn .42s linear infinite; }

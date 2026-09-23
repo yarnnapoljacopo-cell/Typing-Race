@@ -119,7 +119,7 @@ export interface EmoteEvent {
   ts: number;
 }
 
-const EMOTE_DISPLAY_MS = 10000;
+const EMOTE_DISPLAY_MS = 6000;
 
 interface UseSprintRoomProps {
   code: string;
@@ -490,6 +490,11 @@ export function useSprintRoom({ code, name, password, clerkUserId, getToken, rol
             // because the SERVER thought the inventory was already full.
             const items = Array.isArray(data.items) ? (data.items as string[]) : [];
             setKartState((prev) => ({ ...prev, items: items.slice(0, 3) }));
+            break;
+          }
+
+          case "item_rejected": {
+            setActionError(String(data.message ?? "Item unavailable."));
             break;
           }
 

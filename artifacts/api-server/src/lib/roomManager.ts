@@ -5,6 +5,7 @@ import { eq, gt, and, ne, sql } from "drizzle-orm";
 import { saveWriting } from "./writingStore";
 import { initGladiatorParticipant, broadcastGladiatorTimerEnd, advanceGladiatorCombat, broadcastGladiatorState, gladiatorWinnerId } from "./gladiatorEngine";
 import { settleBets, refundActiveBets, type BetOutcome } from "./bettingManager";
+import { visibleKartWords } from "./kartWriting";
 
 // ── Sprint chest roll ─────────────────────────────────────────────────────────
 // Probabilities (add up to 1.0):
@@ -62,6 +63,9 @@ export interface Participant {
   kartBonusWords: number;
   kartCarOffset: number;
   kartNextItemAt: number;
+  kartBaselineWords?: number;
+  kartArchivedWords?: number;
+  kartVisibleWords?: number;
   // Last emote timestamp (ms epoch) — used for per-sender rate limiting.
   lastEmoteAt?: number;
   // Gladiator mode fields
@@ -618,6 +622,9 @@ function _startRunning(room: Room): void {
       p.kartCarOffset = 0;
       p.kartBonusWords = 0;
       p.kartNextItemAt = Math.floor(p.wordCount / 250) * 250 + 250;
+      p.kartBaselineWords = visibleKartWords(p.latestText);
+      p.kartArchivedWords = Math.max(0, p.wordCount);
+      p.kartVisibleWords = undefined;
       // Push the cleared inventory to each client so the slot bar empties
       // immediately rather than showing last sprint's stale items.
       if (p.ws.readyState === WebSocket.OPEN) {
@@ -943,6 +950,9 @@ export function reconnectParticipant(
       // eviction can't re-earn items the user already collected before the
       // disconnect. Floor-to-250 + 250 = the NEXT threshold past their count.
       kartNextItemAt: Math.floor(wordCount / 250) * 250 + 250,
+      kartBaselineWords: visibleKartWords(text),
+      kartArchivedWords: wordCount,
+      kartVisibleWords: undefined,
       gladiatorHp: 1000,
       gladiatorBuffs: [],
       gladiatorFrenzyStartWc: wordCount,
@@ -1095,6 +1105,9 @@ export function restartSprint(room: Room, durationMinutes: number): void {
     p.kartCarOffset = 0;
     p.kartBonusWords = 0;
     p.kartNextItemAt = 250;
+    p.kartBaselineWords = 0;
+    p.kartArchivedWords = 0;
+    p.kartVisibleWords = undefined;
     if (room.mode === "gladiator") initGladiatorParticipant(p);
   });
 

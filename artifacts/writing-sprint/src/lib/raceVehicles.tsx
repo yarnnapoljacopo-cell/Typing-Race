@@ -42,23 +42,31 @@ export function RoadCar({ car, shade, light, trim }: VehiclePaint) {
 export function RaceKart({ car, shade, light, trim, laneNum }: VehiclePaint & { laneNum: number }) {
   const id = `kart-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   return <svg className="race-vehicle" width="52" height="30" viewBox="0 0 52 30" fill="none" aria-hidden="true">
-    <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop stopColor={light}/><stop offset=".5" stopColor={car}/><stop offset="1" stopColor={shade}/></linearGradient></defs>
-    <ellipse cx="27" cy="28" rx="23" ry="1.4" fill="#080e1b" opacity=".25" />
-    <path d="M7 16H41L46 24H6Z" fill="#2c3548" />
-    <path d="M6 12V21M10 12V19" stroke="#626d81" strokeWidth="1.5" />
-    <path d="M2 10H14L12 13H3Z" fill={shade} stroke={light} strokeWidth=".6" />
-    <path d="M13 17L18 13H32L35 16L46 18L49 23L45 25H9L7 21Z" fill={`url(#${id})`} stroke={shade} strokeWidth=".8" />
-    <path d="M17 14L15 19L30 20L32 14" fill="#27344d" />
-    <path d="M20 15L21 11H27L31 18H24Z" fill={light} stroke={shade} strokeWidth=".8" />
-    <path d="M28 16L34 14" stroke="#d7dfe9" strokeWidth="2" strokeLinecap="round" />
-    <path d="M34 12L35.5 16" stroke="#263349" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M18 8Q18 3 23 3Q29 3 29 8V11H20Z" fill={`url(#${id})`} stroke={shade} strokeWidth=".7" />
-    <path d="M21.5 6.8H29V9.6H22.5Z" fill="#273d58"/><path d="M23 7.4H28" stroke="#c1e9fb" strokeWidth=".65" />
-    <path d="M19.5 6Q21 3.8 24 4.2" stroke="#fff" strokeWidth=".8" strokeLinecap="round" opacity=".75" />
-    <path d="M9 18.5L17 17.5M33 17.5L43 19" stroke="#fff" strokeWidth=".8" opacity=".5" />
-    <path d="M17 23H35" stroke={trim ?? light} strokeWidth="1.3" />
-    <path d="M42 22L50 20L51 23L45 25Z" fill={light} stroke={shade} strokeWidth=".7" />
-    <rect x="20" y="19" width="10" height="6.2" rx="2" fill="#f4f5ee"/><text x="25" y="23.8" textAnchor="middle" fontSize="4.5" fontWeight="800" fontFamily="sans-serif" fill={shade}>{String(laneNum).padStart(2,"0")}</text>
-    <Wheel x={12} y={24.4} radius={4.5}/><Wheel x={39} y={24.4} radius={4.5}/>
+    <defs>
+      <linearGradient id={id} x1=".18" y1="0" x2=".7" y2="1"><stop stopColor={light}/><stop offset=".38" stopColor={car}/><stop offset="1" stopColor={shade}/></linearGradient>
+      <linearGradient id={`${id}-metal`} x1="0" y1="0" x2="0" y2="1"><stop stopColor="#d9e2ed"/><stop offset=".45" stopColor="#718196"/><stop offset="1" stopColor="#263344"/></linearGradient>
+      <linearGradient id={`${id}-visor`} x1="0" y1="0" x2="1" y2="1"><stop stopColor="#c7ecfa"/><stop offset=".38" stopColor="#426981"/><stop offset="1" stopColor="#14263b"/></linearGradient>
+    </defs>
+    <ellipse cx="26" cy="28" rx="23" ry="1.4" fill="#080e1b" opacity=".28" />
+    {/* Reinforced low chassis and rear wing read cleanly at race-track size. */}
+    <path d="M5 18L12 15H39L47 19L46 25H7Z" fill="#202b39" stroke="#677789" strokeWidth=".65" />
+    <path d="M4 11H15L13 13H3Z" fill={`url(#${id}-metal)`} stroke="#263344" strokeWidth=".65" />
+    <path d="M7 12L9 18M12 12L14 17" stroke="#aebbc8" strokeWidth="1.2" />
+    <path d="M6 20L13 16L31 15L40 17L48 20L48 23L44 25H9L6 23Z" fill={`url(#${id})`} stroke={shade} strokeWidth="1" />
+    <path d="M8 20L18 17L32 17L40 19" stroke="#ffffff" strokeOpacity=".58" strokeWidth=".8" strokeLinecap="round" />
+    <path d="M16 19L20 14H31L35 19L29 21H17Z" fill="#1e2b3a" stroke="#79889b" strokeWidth=".7" />
+    <path d="M21 13L23 10H27L31 17H24Z" fill={`url(#${id})`} stroke={shade} strokeWidth=".75" />
+    <path d="M29 16L34 14" stroke="#c8d3df" strokeWidth="1.7" strokeLinecap="round" />
+    <path d="M33 12L35 16" stroke="#263344" strokeWidth="1.4" strokeLinecap="round" />
+    <path d="M18 8Q18 3 23.5 2.5Q29.5 3 30 8L29 12H20Z" fill={`url(#${id})`} stroke={shade} strokeWidth=".9" />
+    <path d="M21 6.5H29L28.6 10H21.5Z" fill={`url(#${id}-visor)`} stroke="#14263b" strokeWidth=".6" />
+    <path d="M21.8 7.2L26.8 7" stroke="#e3f7ff" strokeOpacity=".82" strokeWidth=".7" strokeLinecap="round" />
+    <path d="M20 5.5Q23 3 26 4" stroke="#ffffff" strokeOpacity=".75" strokeWidth=".8" strokeLinecap="round" />
+    <path d="M35 19L45 20L49 22L45 24H35Z" fill={`url(#${id}-metal)`} stroke="#253346" strokeWidth=".7" />
+    <path d="M39 20L46 20.8" stroke="#e7f0f5" strokeOpacity=".75" strokeWidth=".7" />
+    <path d="M8 22H17M33 22H43" stroke={trim ?? light} strokeWidth="1.25" strokeLinecap="round" />
+    <path d="M4 22H7M48 22H51" stroke="#dce9f4" strokeWidth="1.5" strokeLinecap="round" />
+    <rect x="20.5" y="20" width="10" height="5.4" rx="1.25" fill="#e4e9ec" stroke="#344357" strokeWidth=".5"/><text x="25.5" y="24" textAnchor="middle" fontSize="4.4" fontWeight="800" fontFamily="sans-serif" fill="#24344a">{String(laneNum).padStart(2,"0")}</text>
+    <Wheel x={12} y={24.5} radius={4.5}/><Wheel x={39} y={24.5} radius={4.5}/>
   </svg>;
 }

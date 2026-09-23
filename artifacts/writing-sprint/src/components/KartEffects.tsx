@@ -2,6 +2,8 @@ import { memo } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { KartEffect } from "@/hooks/useSprintRoom";
 
+const kartLeft = (fraction: number) => `calc(${fraction * 100}% + ${26 - fraction * 52}px)`;
+
 /**
  * Per-lane effect animations.
  *
@@ -130,7 +132,7 @@ function LightningStrike({ fraction }: { fraction: number }) {
     <div
       style={{
         position: "absolute",
-        left: `${fraction * 100}%`,
+        left: kartLeft(fraction),
         top: "50%",
         width: 0,
         zIndex: 50,
@@ -284,7 +286,7 @@ function BlueShellCrash({ fraction }: { fraction: number }) {
     <div
       style={{
         position: "absolute",
-        left: `${fraction * 100}%`,
+        left: kartLeft(fraction),
         top: "50%", width: 0,
         zIndex: 51, pointerEvents: "none",
       }}
@@ -408,12 +410,12 @@ function ShellProjectile({
   const span = toFraction - fromFraction;
   const keyframesX = bouncy
     ? [
-        `${fromFraction * 100}%`,
-        `${(fromFraction + span * 0.33) * 100}%`,
-        `${(fromFraction + span * 0.66) * 100}%`,
-        `${toFraction * 100}%`,
+        kartLeft(fromFraction),
+        kartLeft(fromFraction + span * 0.33),
+        kartLeft(fromFraction + span * 0.66),
+        kartLeft(toFraction),
       ]
-    : [`${fromFraction * 100}%`, `${toFraction * 100}%`];
+    : [kartLeft(fromFraction), kartLeft(toFraction)];
   const keyframesY = bouncy ? [0, -18, -2, 0] : [0, -4, 0];
 
   return (
@@ -454,7 +456,7 @@ function ShellProjectile({
         transition={{ duration: 0.55, delay: 0.6, ease: "easeOut" }}
         style={{
           position: "absolute",
-          left: `${toFraction * 100}%`,
+          left: kartLeft(toFraction),
           top: "50%",
           marginLeft: -22,
           marginTop: -14,
@@ -477,7 +479,7 @@ function BananaDrop({ fraction }: { fraction: number }) {
       transition={{ duration: 0.5, ease: "easeOut", times: [0, 0.7, 1] }}
       style={{
         position: "absolute",
-        left: `${fraction * 100}%`,
+        left: kartLeft(fraction),
         top: "50%",
         marginTop: -10,
         marginLeft: -12,
@@ -506,7 +508,7 @@ function StarBurst({ fraction }: { fraction: number }) {
     <div
       style={{
         position: "absolute",
-        left: `${fraction * 100}%`,
+        left: kartLeft(fraction),
         top: "50%",
         marginTop: -22,
         marginLeft: -22,
@@ -575,7 +577,7 @@ function MushroomBoost({ fraction }: { fraction: number }) {
         transition={{ duration: 0.7, ease: "easeOut" }}
         style={{
           position: "absolute",
-          left: `${fraction * 100}%`,
+          left: kartLeft(fraction),
           top: "50%",
           marginLeft: -14, marginTop: -10,
           width: 28, height: 20,
@@ -597,7 +599,7 @@ function MushroomBoost({ fraction }: { fraction: number }) {
           transition={{ duration: 1.0, delay: i * 0.07, ease: "easeOut" }}
           style={{
             position: "absolute",
-            left: `${fraction * 100}%`,
+            left: kartLeft(fraction),
             top: "50%",
             marginLeft: -10 - i * 2,
             marginTop: -7,
@@ -624,7 +626,7 @@ function MushroomBoost({ fraction }: { fraction: number }) {
             transition={{ duration: 0.7, delay: i * 0.06, ease: "easeOut" }}
             style={{
               position: "absolute",
-              left: `${fraction * 100}%`,
+              left: kartLeft(fraction),
               top: `${y}%`,
               marginLeft: -10,
               width: 36, height: 2,
@@ -654,7 +656,7 @@ function BooFloat({ fraction, stealing }: { fraction: number; stealing?: boolean
       transition={{ duration: 1.8, ease: "easeOut", times: [0, 0.25, 0.7, 1] }}
       style={{
         position: "absolute",
-        left: `${fraction * 100}%`,
+        left: kartLeft(fraction),
         top: "50%",
         marginLeft: -14,
         marginTop: -18,
@@ -689,7 +691,7 @@ function GoldenPenSparkle({ fraction }: { fraction: number }) {
     <div
       style={{
         position: "absolute",
-        left: `${fraction * 100}%`,
+        left: kartLeft(fraction),
         top: "50%",
         marginLeft: -28, marginTop: -22,
         width: 56, height: 44,
@@ -752,7 +754,7 @@ function MysteryBoxOpen({ fraction }: { fraction: number }) {
     <div
       style={{
         position: "absolute",
-        left: `${fraction * 100}%`,
+        left: kartLeft(fraction),
         top: "50%",
         marginLeft: -18, marginTop: -16,
         width: 36, height: 32,

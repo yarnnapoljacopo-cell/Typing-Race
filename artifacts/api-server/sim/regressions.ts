@@ -14,6 +14,7 @@ import { createRoom, startSprint, restartSprint, restoreRoomsFromDB, getRoom } f
 import { advanceGladiatorCombat, processGladiatorUpdate, gladiatorWinnerId } from "../src/lib/gladiatorEngine";
 import { saveWriting } from "../src/lib/writingStore";
 import { socketUserId } from "../src/lib/socketAuth";
+import { rollMysteryItems } from "../src/lib/kartItems";
 import { FolioStore } from "../../writing-sprint/src/lib/folioStore";
 import { control, records, writes } from "./regression-db";
 import roomsRouter from "../src/routes/rooms";
@@ -185,6 +186,49 @@ try {
     assert.deepEqual(b.participant.kartItems, []);
     assert.equal(b.participant.kartCarOffset, 0);
     if (race.timerInterval) clearInterval(race.timerInterval);
+  });
+
+  await test("kart starts empty and waits for verified race writing before granting an item", async () => {
+    const race = createRoom("Driver", 1, "kart");
+    const driver = await join(race, "Driver");
+    driver.participant.kartItems = ["star"];
+    startSprint(race);
+    if (race.timerInterval) clearInterval(race.timerInterval);
+    assert.deepEqual(driver.participant.kartItems, []);
+    driver.ws.send(JSON.stringify({ type: "text_update", text: "draft", netWordCount: 250 }));
+    await response(driver.ws, { type: "ping" }, "pong");
+    assert.equal(driver.participant.wordCount, 1, "a forged score cannot exceed the visible text");
+    assert.deepEqual(driver.participant.kartItems, []);
+    race.startTime = Date.now() - 40_000;
+    const words = Array.from({ length: 250 }, (_, i) => `word${i}`).join(" ");
+    await response(driver.ws, { type: "text_update", text: words, netWordCount: 250 }, "item_earned");
+    assert.equal(driver.participant.kartItems.length, 1);
+    driver.participant.kartItems = ["mushroom", "mushroom", "mushroom"];
+    race.startTime = Date.now() - 120_000;
+    const words500 = Array.from({ length: 500 }, (_, i) => `word${i}`).join(" ");
+    driver.ws.send(JSON.stringify({ type: "text_update", text: words500, netWordCount: 500 }));
+    await response(driver.ws, { type: "ping" }, "pong");
+    assert.equal(driver.participant.kartNextItemAt, 750, "a full inventory still passes the 500-word box");
+    await response(driver.ws, { type: "use_item", item: "mushroom" }, "kart_inventory");
+    driver.ws.send(JSON.stringify({ type: "text_update", text: words500, netWordCount: 500 }));
+    await response(driver.ws, { type: "ping" }, "pong");
+    assert.equal(driver.participant.kartItems.length, 2, "spent inventory cannot reclaim a passed box");
+    race.status = "finished";
+    restartSprint(race, 1);
+    assert.deepEqual(driver.participant.kartItems, []);
+  });
+
+  await test("kart rejects empty-target attacks without consuming them", async () => {
+    const race = createRoom("Solo", 1, "kart");
+    const solo = await join(race, "Solo");
+    startSprint(race);
+    if (race.timerInterval) clearInterval(race.timerInterval);
+    solo.participant.kartItems = ["green_shell", "blue_shell", "boo"];
+    for (const item of [...solo.participant.kartItems]) {
+      await response(solo.ws, { type: "use_item", item }, "item_rejected");
+      assert.ok(solo.participant.kartItems.includes(item));
+    }
+    assert.ok(rollMysteryItems(100).every(item => item !== "mystery_box"), "mystery boxes cannot recursively grant boxes");
   });
 
   await test("banana traps wait for an actual crossing and respect boosted positions", async () => {

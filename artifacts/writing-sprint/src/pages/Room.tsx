@@ -1853,7 +1853,7 @@ export default function Room() {
                       starActiveIds={room.mode === "kart" ? kartState.starActiveIds : undefined}
                       kartEffects={room.mode === "kart" ? kartState.effects : undefined}
                       isKartMode={room.mode === "kart"}
-                      localWordCount={isRunning ? netWordCount : undefined}
+                      localWordCount={isRunning && room.mode !== "kart" ? netWordCount : undefined}
                       hostCarSkin={room.hostCarSkin}
                       hostRoadSkin={room.hostRoadSkin}
                       roomMode={room.mode}

@@ -160,11 +160,11 @@ function testKartEarning(): void {
       p.wordCount = wc;
       // ---- replica of wsHandler kart earning loop ----
       while (p.wordCount >= p.kartNextItemAt) {
-        if (p.kartItems.length >= 3) break;
         const crossed = p.kartNextItemAt;
+        p.kartNextItemAt += 250;
+        if (p.kartItems.length >= 3) continue;
         if (thresholdsHit.has(crossed)) doubleEarn++;
         thresholdsHit.add(crossed);
-        p.kartNextItemAt += 250;
         p.kartItems.push(rollItem(1, 2, false));
         earnedTotal++;
       }
