@@ -653,9 +653,11 @@ export default function Profile() {
                   bio={displayBio}
                   xp={displayXp}
                   accountId={isOwnProfile ? user?.id : undefined}
+                  accountAppearance={isOwnProfile ? user?.unsafeMetadata?.cultivatorAppearance : undefined}
                   isOwnProfile={isOwnProfile}
                   globalPosition={globalRankEntry?.position}
                   onEditBio={() => { setBioInput(displayBio ?? ""); setEditingBio(true); }}
+                  onAppearanceChange={value => { if (user?.update) void user.update({ unsafeMetadata: { ...user.unsafeMetadata, cultivatorAppearance: value } }).catch(() => {}); }}
                 />}
                 {!cultivationEnabled && <div
                   style={{

@@ -16,7 +16,7 @@
 .cultivator-profile__edit:hover, .cultivator-profile__motion:hover { background: #f8eed9; }
 .cultivator-profile__edit:active, .cultivator-profile__motion:active { transform: scale(.96); }
 .cultivator-profile :is(button, input):focus-visible { outline: 2px solid #52694f; outline-offset: 3px; }
-.cultivator-profile__scene { position: relative; height: 310px; overflow: hidden; display: grid; place-items: center; background-image: linear-gradient(#f7f3e9 0%, rgba(247, 243, 233, .45) 33%, rgba(247, 243, 233, .28) 65%, #f7f3e9 100%), url("/cultivation/realm-background.png"); background-size: cover; background-position: center 60%; }
+.cultivator-profile__scene { position: relative; height: 310px; overflow: hidden; display: grid; place-items: center; background: transparent; }
 .cultivator-profile__scene-caption { position: absolute; top: 20px; left: 22px; display: flex; align-items: center; gap: 7px; color: #50634f; font-size: 11px; font-style: italic; z-index: 1; }
 .cultivator-profile__character { width: 290px; height: 290px; object-fit: contain; align-self: end; transform-origin: center 85%; animation: cultivator-breath 6.5s ease-in-out infinite; filter: drop-shadow(0 10px 8px rgba(56, 52, 43, .16)); }
 .cultivator-profile__motion { position: absolute; bottom: 20px; right: 18px; z-index: 1; }

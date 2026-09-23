@@ -52,6 +52,7 @@ import { VillainModeProvider } from "@/lib/villainModeContext";
 import { SkinProvider } from "@/lib/skinContext";
 import { DarkModeProvider } from "@/lib/darkModeContext";
 import { CultivationShell } from "@/components/CultivationShell";
+import { CultivatorSetup } from "@/components/CultivatorSetup";
 import { Sidebar } from "@/components/Sidebar";
 import { isPreviewBypassActive } from "@/lib/previewBypass";
 
@@ -682,6 +683,7 @@ function ClerkProviderWithRoutes() {
           <FolioSync />
           <TooltipProvider>
             <CultivationShell />
+            <CultivatorSetup />
             <SidebarWithRoute />
             <LevelUpListener />
             <Suspense fallback={<RouteFallback />}>

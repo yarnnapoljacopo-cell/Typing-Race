@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { Check, Feather, Pause, Pencil, Play, Sparkles } from "lucide-react";
+import { Check, Feather, Pause, Pencil, Play } from "lucide-react";
 import { RANKS, getNextRank, getRankFromXp, xpProgressPercent } from "@/lib/ranks";
-import { demoStorageKey } from "@/lib/demoSession";
+import { readCultivatorAppearance, saveCultivatorAppearance, type CultivatorAppearance } from "@/lib/cultivatorAppearance";
 import "./cultivation-profile.css";
-
-export type CultivatorAppearance = "male" | "female";
 
 /** These are presentation names for the existing ranks, using the same XP. */
 export const CULTIVATION_REALMS = [
@@ -12,30 +10,21 @@ export const CULTIVATION_REALMS = [
   "Nascent Soul", "Spirit Severing", "Void Ascension", "Immortal Sovereign",
 ] as const;
 
-const appearanceKey = (accountId: string) => demoStorageKey(`cultivator.appearance.${accountId}`);
-
-function readAppearance(accountId: string): CultivatorAppearance | null {
-  try {
-    const saved = localStorage.getItem(appearanceKey(accountId));
-    return saved === "male" || saved === "female" ? saved : null;
-  } catch {
-    return null;
-  }
-}
-
 interface CultivationProfileProps {
   name: string;
   bio: string | null;
   xp: number;
   accountId?: string;
+  accountAppearance?: unknown;
   isOwnProfile: boolean;
   globalPosition?: number;
   onEditBio: () => void;
+  onAppearanceChange?: (value: CultivatorAppearance) => void;
 }
 
-export function CultivationProfile({ name, bio, xp, accountId, isOwnProfile, globalPosition, onEditBio }: CultivationProfileProps) {
+export function CultivationProfile({ name, bio, xp, accountId, accountAppearance, isOwnProfile, globalPosition, onEditBio, onAppearanceChange }: CultivationProfileProps) {
   const storageOwner = accountId ?? `public:${name.toLocaleLowerCase()}`;
-  const [appearance, setAppearance] = useState<CultivatorAppearance | null>(() => readAppearance(storageOwner));
+  const [appearance, setAppearance] = useState<CultivatorAppearance | null>(() => readCultivatorAppearance(storageOwner, accountAppearance));
   const [saveError, setSaveError] = useState(false);
   const [paused, setPaused] = useState(false);
   const [inspectedRealm, setInspectedRealm] = useState<number | null>(null);
@@ -46,19 +35,25 @@ export function CultivationProfile({ name, bio, xp, accountId, isOwnProfile, glo
   const baseUrl = import.meta.env.BASE_URL;
 
   useEffect(() => {
-    setAppearance(readAppearance(storageOwner));
+    setAppearance(readCultivatorAppearance(storageOwner, accountAppearance));
     setInspectedRealm(null);
     setSaveError(false);
-  }, [storageOwner]);
+  }, [storageOwner, accountAppearance]);
+
+  useEffect(() => {
+    const refresh = () => setAppearance(readCultivatorAppearance(storageOwner, accountAppearance));
+    window.addEventListener("cultivator-appearance-changed", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("cultivator-appearance-changed", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, [storageOwner, accountAppearance]);
 
   function chooseAppearance(value: CultivatorAppearance) {
     setAppearance(value);
-    try {
-      localStorage.setItem(appearanceKey(storageOwner), value);
-      setSaveError(false);
-    } catch {
-      setSaveError(true);
-    }
+    setSaveError(!saveCultivatorAppearance(storageOwner, value));
+    onAppearanceChange?.(value);
   }
 
   // A preview is an avatar choice, never an inference about the account owner.
@@ -75,7 +70,6 @@ export function CultivationProfile({ name, bio, xp, accountId, isOwnProfile, glo
       </div>
 
       <div className={`cultivator-profile__scene${paused ? " cultivator-profile__scene--paused" : ""}`}>
-        <div className="cultivator-profile__scene-caption"><Sparkles size={13} aria-hidden="true" /> In quiet cultivation</div>
         <img
           key={displayedAppearance}
           className="cultivator-profile__character"
